@@ -1,20 +1,29 @@
 #!/usr/bin/with-contenv bashio
-# Startscript voor de backend + UI
+# Startscript voor de TimeLimit UI add-on
 
 set -e
 
-# Lees server URL uit add-on options
-SERVER_URL=$(bashio::config 'server_url')
+echo "[timelimit-ui] DEBUG: run script started"
 
-# Lees add-on versie dynamisch uit config.yaml
+# Lees add-on versie uit config.yaml
 ADDON_VERSION=$(bashio::addon.version)
-
-echo "[timelimit-ui] Starting TimeLimit UI add-on"
 echo "[timelimit-ui] Add-on version: ${ADDON_VERSION}"
+
+# Lees server URL uit add-on configuratie
+SERVER_URL=$(bashio::config 'server_url')
 echo "[timelimit-ui] TimeLimit server URL: ${SERVER_URL}"
 
+# Export environment variables voor Node backend
 export TIMELIMIT_SERVER_URL="${SERVER_URL}"
 export ADDON_VERSION="${ADDON_VERSION}"
 
+# Debug info
+echo "[timelimit-ui] DEBUG: Current directory: $(pwd)"
+echo "[timelimit-ui] DEBUG: Node version: $(node -v)"
+echo "[timelimit-ui] DEBUG: NPM version: $(npm -v)"
+echo "[timelimit-ui] DEBUG: Starting backend..."
+
+# Start de backend (PID 1)
 cd /app/backend
+echo "[timelimit-ui] DEBUG: about to exec node server.js"
 exec node server.js
