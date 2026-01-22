@@ -1,0 +1,17 @@
+#!/usr/bin/with-contenv bashio
+# Startscript voor de backend + UI
+
+set -e
+
+# Lees server URL uit add-on options
+SERVER_URL=$(bashio::config 'server_url')
+
+echo "[timelimit-ui] Starting TimeLimit UI add-on"
+echo "[timelimit-ui] Add-on version: 0.1.0"
+echo "[timelimit-ui] TimeLimit server URL: ${SERVER_URL}"
+
+export TIMELIMIT_SERVER_URL="${SERVER_URL}"
+export ADDON_VERSION="0.1.0"
+
+cd /app/backend
+exec node server.js
