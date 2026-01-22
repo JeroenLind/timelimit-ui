@@ -1,21 +1,73 @@
-name: Build and Publish TimeLimit UI Add-on
+name: Auto bump version, build and push (timelimit-ui)
 
 on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+    paths:
+      - "config.yaml"
+      - "rootfs/**"
+      - "Dockerfile"
+      - ".github/workflows/**"
+
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: jeroenlind
-  IMAGE_NAME: timelimit-ui
-
 jobs:
-  build:
+  bump-version:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    outputs:
+      new_version: ${{ steps.bump_version.outputs.new_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Normalize line endings
+        run: |
+          sed -i 's/\r$//' config.yaml
+
+      - name: Read current version from config.yaml
+        id: read_version
+        run: |
+          RAW_VERSION=$(grep -E '^version:' config.yaml \
+            | sed -E 's/version:[[:space:]]*"?([0-9]+\.[0-9]+\.[0-9]+)"?/\1/')
+          VERSION=$(echo "$RAW_VERSION" | tr -d '\r')
+          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate next patch version
+        id: bump_version
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.read_version.outputs.current_version }}"
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update version in config.yaml
+        run: |
+          sed -i -E "s/^version:[[:space:]]*\"?[0-9]+\.[0-9]+\.[0-9]+\"?/version: \"${{ steps.bump_version.outputs.new_version }}\"/" config.yaml
+
+      - name: Commit updated version
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add config.yaml
+          git commit -m "Auto bump version to ${{ steps.bump_version.outputs.new_version }}" || echo "No changes to commit"
+
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push
+
+
+  build-addon:
+    name: Build and push timelimit-ui add-on
+    runs-on: ubuntu-latest
+    needs: bump-version
 
     permissions:
       contents: read
@@ -38,13 +90,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract version from config.yaml
-        id: version
-        run: |
-          VERSION=$(grep '^version:' config.yaml | awk '{print $2}' | tr -d '"')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      # --- CACHE RESTORE ---
       - name: Restore Docker build cache
         uses: actions/cache@v4
         with:
@@ -53,21 +98,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # --- BUILD & PUSH ---
-      - name: Build and push multi-arch image
+      - name: Build and push multi-arch image (amd64 + armv7)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm/v7
           push: true
+          build-args: |
+            ADDON_VERSION=${{ needs.bump-version.outputs.new_version }}
           tags: |
-            ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}
+            ghcr.io/jeroenlind/timelimit-ui:${{ needs.bump-version.outputs.new_version }}
             ghcr.io/jeroenlind/timelimit-ui:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      # --- CACHE SAVE ---
       - name: Move new cache into place
         run: |
           rm -rf /tmp/.buildx-cache
@@ -76,5 +121,5 @@ jobs:
       - name: Output published tags
         run: |
           echo "Published:"
-          echo " - ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}"
+          echo " - ghcr.io/jeroenlind/timelimit-ui:${{ needs.bump-version.outputs.new_version }}"
           echo " - ghcr.io/jeroenlind/timelimit-ui:latest"
