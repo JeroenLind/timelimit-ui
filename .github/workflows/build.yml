@@ -44,6 +44,16 @@ jobs:
           VERSION=$(grep '^version:' config.yaml | awk '{print $2}' | tr -d '"')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # --- CACHE RESTORE ---
+      - name: Restore Docker build cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # --- BUILD & PUSH ---
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
@@ -54,6 +64,14 @@ jobs:
           tags: |
             ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}
             ghcr.io/jeroenlind/timelimit-ui:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # --- CACHE SAVE ---
+      - name: Move new cache into place
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Output published tags
         run: |
