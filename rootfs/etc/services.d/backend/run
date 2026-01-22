@@ -6,12 +6,15 @@ set -e
 # Lees server URL uit add-on options
 SERVER_URL=$(bashio::config 'server_url')
 
+# Lees add-on versie dynamisch uit config.yaml
+ADDON_VERSION=$(bashio::addon.version)
+
 echo "[timelimit-ui] Starting TimeLimit UI add-on"
-echo "[timelimit-ui] Add-on version: 0.1.0"
+echo "[timelimit-ui] Add-on version: ${ADDON_VERSION}"
 echo "[timelimit-ui] TimeLimit server URL: ${SERVER_URL}"
 
 export TIMELIMIT_SERVER_URL="${SERVER_URL}"
-export ADDON_VERSION="0.1.0"
+export ADDON_VERSION="${ADDON_VERSION}"
 
 cd /app/backend
 exec node server.js

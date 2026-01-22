@@ -1,2 +1,3 @@
-#!/usr/bin/with-contenv bashio
-echo "[timelimit-ui] Backend service stopped"
+#!/usr/bin/execlineb -S0
+foreground { echo "[timelimit-ui] Backend service stopped" }
+exit 0

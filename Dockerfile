@@ -15,6 +15,10 @@ RUN apk add --no-cache nodejs npm
 # Copy rootfs
 COPY rootfs/ /
 
+# Ensure all service scripts are executable
+RUN chmod -R +x /etc/services.d/*/run || true \
+    && chmod -R +x /etc/services.d/*/finish || true
+
 # Install backend dependencies
 WORKDIR /app/backend
 RUN npm install --production
