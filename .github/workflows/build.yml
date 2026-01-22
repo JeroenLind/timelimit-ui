@@ -1,17 +1,36 @@
-name: Build add-on
+name: Build and Publish TimeLimit UI Add-on
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: jeroenlind
+  IMAGE_NAME: timelimit-ui
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -19,11 +38,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Extract version from config.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^version:' config.yaml | awk '{print $2}' | tr -d '"')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: false
-          tags: timelimit-ui:test
+          push: true
+          tags: |
+            ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}
+            ghcr.io/jeroenlind/timelimit-ui:latest
+
+      - name: Output published tags
+        run: |
+          echo "Published:"
+          echo " - ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}"
+          echo " - ghcr.io/jeroenlind/timelimit-ui:latest"
