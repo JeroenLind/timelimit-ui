@@ -12,8 +12,14 @@ LABEL \
 # Install Node.js
 RUN apk add --no-cache nodejs npm
 
-# Copy rootfs
+# Copy rootfs into container
 COPY rootfs/ /
+
+# Debug: verify service directory exists
+RUN echo "DEBUG: Listing /etc/services.d" && ls -l /etc/services.d || true
+
+# Debug: verify timelimit-ui service folder exists
+RUN echo "DEBUG: Listing /etc/services.d/timelimit-ui" && ls -l /etc/services.d/timelimit-ui || true
 
 # Ensure all service scripts are executable
 RUN chmod -R +x /etc/services.d/*/run || true \
