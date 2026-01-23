@@ -50,14 +50,12 @@ jobs:
         run: |
           TAG="v${{ steps.bump.outputs.new }}"
 
-          # Tag alleen aanmaken als hij nog niet bestaat
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists locally, skipping creation"
           else
             git tag "$TAG"
           fi
 
-          # Remote herschrijven met schrijfrechten
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
           git push origin "$TAG"
