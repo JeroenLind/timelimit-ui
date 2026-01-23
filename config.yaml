@@ -1,7 +1,12 @@
-name: "Test Add-on"
-slug: "test-addon"
-version: "0.1.20"
-description: "Minimal test add-on"
+name: TimeLimit UI
+version: "0.1.21"
+slug: timelimit-ui
+description: Web UI for TimeLimit server (local or official)
+url: "https://github.com/JeroenLind/timelimit-ui"
+arch:
+  - amd64
+  - armv7
+  - aarch64
 startup: services
 boot: auto
 arch:
