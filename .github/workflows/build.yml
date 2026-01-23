@@ -3,6 +3,8 @@ name: Build and Publish Add-on
 on:
   push:
     tags: [ "v*" ]
+  create:
+    tags: [ "v*" ]
   workflow_dispatch:  
 
 permissions:
