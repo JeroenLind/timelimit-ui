@@ -8,7 +8,7 @@
       "slug": "timelimit-ui",
       "description": "A Home Assistant add-on providing a full web UI for the TimeLimit server.",
       "url": "https://github.com/JeroenLind/timelimit-ui",
-      "version": "0.1.25"
+      "version": "0.1.26"
     }
   }
 }
