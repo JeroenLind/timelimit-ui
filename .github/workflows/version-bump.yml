@@ -20,11 +20,17 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Read current version
+      - name: Show repository contents
+        run: |
+          echo "📁 Repository contents after checkout:"
+          ls -la
+
+      - name: Read current version from build.json
         id: read
         run: |
-          VERSION=$(jq -r '.version' build.json)
-          echo "current=$VERSION" >> $GITHUB_OUTPUT
+          CURRENT=$(jq -r '.version' build.json)
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "🔍 Huidige versie gevonden in build.json: $CURRENT"
 
       - name: Bump patch version
         id: bump
@@ -33,29 +39,43 @@ jobs:
           PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "🆕 Nieuwe versie berekend: $NEW_VERSION"
 
       - name: Update build.json
         run: |
+          echo "✏️ build.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
           jq ".version = \"${{ steps.bump.outputs.new }}\"" build.json > build.tmp
           mv build.tmp build.json
+          echo "📄 build.json succesvol bijgewerkt"
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+
           git add build.json
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}" || echo "No changes to commit"
+          if git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"; then
+            echo "✅ Commit gemaakt voor versie-update"
+          else
+            echo "ℹ️ Geen wijzigingen om te committen"
+          fi
 
       - name: Create and push tag
         run: |
           TAG="v${{ steps.bump.outputs.new }}"
+          echo "🏷️ Nieuwe tag die wordt aangemaakt: $TAG"
 
+          # Tag alleen aanmaken als hij nog niet bestaat
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists locally, skipping creation"
+            echo "⚠️ Tag $TAG bestaat al lokaal, wordt niet opnieuw aangemaakt"
           else
             git tag "$TAG"
+            echo "🏷️ Tag $TAG aangemaakt"
           fi
 
+          # Remote herschrijven met schrijfrechten
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
+          echo "🚀 Tag wordt gepusht naar GitHub..."
           git push origin "$TAG"
+          echo "🎉 Tag succesvol gepusht: $TAG"
