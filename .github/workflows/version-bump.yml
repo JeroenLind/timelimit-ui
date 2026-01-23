@@ -3,6 +3,7 @@ name: Auto Version Bump
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:   
 
 permissions:
   contents: write
@@ -12,10 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository with full history
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Read current version
         id: read
@@ -43,7 +46,8 @@ jobs:
           git add build.json
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}" || echo "No changes to commit"
 
-      - name: Create tag
+      - name: Create and push tag
         run: |
-          git tag v${{ steps.bump.outputs.new }}
-          git push --follow-tags
+          TAG="v${{ steps.bump.outputs.new }}"
+          git tag "$TAG"
+          git push origin "$TAG"
