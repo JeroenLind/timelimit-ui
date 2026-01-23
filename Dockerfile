@@ -1,7 +1,7 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.7
 FROM ${BUILD_FROM}
 
-# Metadata
+# Metadata (optioneel: kun je ook uit build.json via build args vullen)
 LABEL \
   io.hass.name="TimeLimit UI" \
   io.hass.description="Web UI for TimeLimit server" \
@@ -9,24 +9,27 @@ LABEL \
   io.hass.version="0.1.0" \
   io.hass.type="addon"
 
-# Install Node.js
+# Node.js + npm
 RUN apk add --no-cache nodejs npm
 
-# Copy rootfs
+# rootfs van de add-on in het image plaatsen
 COPY rootfs/ /
 
-# Debug: verify service directory exists
-RUN echo "DEBUG: Listing /etc/services.d" && ls -l /etc/services.d || true
-RUN echo "DEBUG: Listing /etc/services.d/timelimit-ui" && ls -l /etc/services.d/timelimit-ui || true
+# Debug: check dat de service en backend er echt zijn
+RUN echo "DEBUG: Listing /etc/services.d" \
+ && ls -l /etc/services.d || true
 
-# FIX: ensure scripts are executable (NO CACHE)
+RUN echo "DEBUG: Listing /etc/services.d/timelimit-ui" \
+ && ls -l /etc/services.d/timelimit-ui || true
+
+RUN echo "DEBUG: Listing /app/backend" \
+ && ls -l /app/backend || true
+
+# Scripts uitvoerbaar maken
 RUN chmod +x /etc/services.d/timelimit-ui/run \
-    && chmod +x /etc/services.d/timelimit-ui/finish
+ && chmod +x /etc/services.d/timelimit-ui/finish
 
-# check executable bits
-RUN ls -l /etc/services.d/timelimit-ui
-
-# Install backend dependencies
+# Backend dependencies installeren
 WORKDIR /app/backend
 RUN npm install --production
 

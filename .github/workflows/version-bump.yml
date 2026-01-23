@@ -1,0 +1,49 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read current version
+        id: read
+        run: |
+          VERSION=$(jq -r '.version' build.json)
+          echo "current=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.read.outputs.current }}"
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update build.json
+        run: |
+          jq ".version = \"${{ steps.bump.outputs.new }}\"" build.json > build.tmp
+          mv build.tmp build.json
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add build.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}" || echo "No changes to commit"
+
+      - name: Create tag
+        run: |
+          git tag v${{ steps.bump.outputs.new }}
+          git push --follow-tags
