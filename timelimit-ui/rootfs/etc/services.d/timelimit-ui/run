@@ -1,3 +1,0 @@
-#!/usr/bin/with-contenv bash
-echo "TimeLimit UI add-on started"
-sleep infinity

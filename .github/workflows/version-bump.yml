@@ -30,7 +30,7 @@ jobs:
       - name: Read current version from version.json
         id: read
         run: |
-          CURRENT=$(jq -r '.version' timelimit-ui/version.json)
+          CURRENT=$(jq -r '.version' version.json)
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "🔍 Huidige versie gevonden in version.json: $CURRENT"
 
@@ -46,14 +46,14 @@ jobs:
       - name: Update version.json
         run: |
           echo "✏️ version.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
-          jq ".version = \"${{ steps.bump.outputs.new }}\"" timelimit-ui/version.json > version.tmp
+          jq ".version = \"${{ steps.bump.outputs.new }}\"" /version.json > version.tmp
           mv version.tmp timelimit-ui/version.json
           echo "📄 version.json succesvol bijgewerkt"
 
       - name: Update config.yaml
         run: |
           echo "✏️ config.yaml wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
-          sed -i "s/^version:.*/version: \"${{ steps.bump.outputs.new }}\"/" timelimit-ui/config.yaml
+          sed -i "s/^version:.*/version: \"${{ steps.bump.outputs.new }}\"/" config.yaml
           echo "📄 config.yaml succesvol bijgewerkt"
 
       - name: Update repository.json
