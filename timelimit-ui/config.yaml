@@ -1,5 +1,5 @@
 name: TimeLimit UI
-version: "0.1.22"
+version: "0.1.23"
 slug: timelimit-ui
 description: Web UI for TimeLimit server (local or official)
 url: "https://github.com/JeroenLind/timelimit-ui"
