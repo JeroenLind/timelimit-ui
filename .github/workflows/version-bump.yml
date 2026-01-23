@@ -48,6 +48,12 @@ jobs:
           mv build.tmp build.json
           echo "📄 build.json succesvol bijgewerkt"
 
+      - name: Update config.yaml
+        run: |
+          echo "✏️ config.yaml wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
+          sed -i "s/^version:.*/version: \"${{ steps.bump.outputs.new }}\"/" config.yaml
+          echo "📄 config.yaml succesvol bijgewerkt"
+
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
