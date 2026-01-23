@@ -1,32 +1,3 @@
 #!/usr/bin/with-contenv bash
-# Startscript voor de TimeLimit UI add-on
-
-set -e
-
-# Bashio laden
-. /usr/lib/hassio-addons/base.sh
-
-echo "[timelimit-ui] DEBUG: run script started"
-
-# Lees add-on versie uit metadata
-ADDON_VERSION=$(bashio::addon.version)
-echo "[timelimit-ui] Add-on version: ${ADDON_VERSION}"
-
-# Lees server URL uit add-on configuratie
-SERVER_URL=$(bashio::config 'server_url')
-echo "[timelimit-ui] TimeLimit server URL: ${SERVER_URL}"
-
-# Export environment variables voor Node backend
-export TIMELIMIT_SERVER_URL="${SERVER_URL}"
-export ADDON_VERSION="${ADDON_VERSION}"
-
-# Debug info
-echo "[timelimit-ui] DEBUG: Current directory: $(pwd)"
-echo "[timelimit-ui] DEBUG: Node version: $(node -v)"
-echo "[timelimit-ui] DEBUG: NPM version: $(npm -v)"
-echo "[timelimit-ui] DEBUG: Starting backend..."
-
-cd /app/backend
-echo "[timelimit-ui] DEBUG: about to exec node server.js"
-
-exec node server.js
+echo "TimeLimit UI add-on started"
+sleep infinity

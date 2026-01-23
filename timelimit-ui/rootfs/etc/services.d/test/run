@@ -1,3 +1,0 @@
-#!/usr/bin/with-contenv bash
-echo "Service started"
-sleep 999999

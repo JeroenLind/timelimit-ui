@@ -1,9 +1,9 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Kopieer de volledige rootfs naar het container-bestandssysteem
+# Kopieer rootfs naar container
 COPY rootfs/ /
 
 # Zorg dat de service scripts uitvoerbaar zijn
-RUN chmod +x /etc/services.d/test/run \
-    && chmod +x /etc/services.d/test/finish
+RUN chmod +x /etc/services.d/timelimit-ui/run \
+    && chmod +x /etc/services.d/timelimit-ui/finish

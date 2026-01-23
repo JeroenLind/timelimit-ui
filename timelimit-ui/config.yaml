@@ -1,15 +1,12 @@
-name: TimeLimit UI
+name: "TimeLimit UI"
+slug: "timelimit-ui"
 version: "0.1.24"
-slug: timelimit-ui
-description: Web UI for TimeLimit server (local or official)
-url: "https://github.com/JeroenLind/timelimit-ui"
+description: "Web UI for the TimeLimit server"
 arch:
   - amd64
   - armv7
   - aarch64
 startup: services
 boot: auto
-arch:
-  - aarch64
-  - amd64
-  - armv7
+ports:
+  8099/tcp: 8099
