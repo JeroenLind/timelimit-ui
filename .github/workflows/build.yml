@@ -19,6 +19,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - armv7
+          - aarch64
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,11 +61,19 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+
+          # Multi-arch build
           platforms: linux/amd64,linux/arm64,linux/arm/v7
+
+          # Correct base image per architecture
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/${{ matrix.arch }}-base:3.19
+
           push: true
           tags: |
             ghcr.io/jeroenlind/timelimit-ui:latest
             ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}
+
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

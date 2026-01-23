@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/{arch}-base:3.19
+ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Metadata (optioneel: kun je ook uit build.json via build args vullen)
