@@ -44,7 +44,7 @@ jobs:
       - name: Update version.json
         run: |
           echo "✏️ version.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
-          jq ".version = \"${{ steps.bump.outputs.new }}\"" /version.json > version.tmp
+          jq ".version = \"${{ steps.bump.outputs.new }}\"" version.json > version.tmp
           mv version.tmp version.json
           echo "📄 version.json succesvol bijgewerkt"
 
