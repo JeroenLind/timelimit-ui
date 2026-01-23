@@ -3,7 +3,7 @@ name: Auto Version Bump
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -50,4 +50,8 @@ jobs:
         run: |
           TAG="v${{ steps.bump.outputs.new }}"
           git tag "$TAG"
+
+          # FIX: remote herschrijven met schrijfrechten
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
           git push origin "$TAG"
