@@ -25,12 +25,12 @@ jobs:
           echo "📁 Repository contents after checkout:"
           ls -la
 
-      - name: Read current version from build.json
+      - name: Read current version from version.json
         id: read
         run: |
-          CURRENT=$(jq -r '.version' build.json)
+          CURRENT=$(jq -r '.version' version.json)
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "🔍 Huidige versie gevonden in build.json: $CURRENT"
+          echo "🔍 Huidige versie gevonden in version.json: $CURRENT"
 
       - name: Bump patch version
         id: bump
@@ -41,12 +41,12 @@ jobs:
           echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "🆕 Nieuwe versie berekend: $NEW_VERSION"
 
-      - name: Update build.json
+      - name: Update version.json
         run: |
-          echo "✏️ build.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
-          jq ".version = \"${{ steps.bump.outputs.new }}\"" build.json > build.tmp
-          mv build.tmp build.json
-          echo "📄 build.json succesvol bijgewerkt"
+          echo "✏️ version.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
+          jq ".version = \"${{ steps.bump.outputs.new }}\"" version.json > version.tmp
+          mv version.tmp version.json
+          echo "📄 version.json succesvol bijgewerkt"
 
       - name: Update config.yaml
         run: |
@@ -78,7 +78,6 @@ jobs:
           TAG="v${{ steps.bump.outputs.new }}"
           echo "🏷️ Nieuwe tag die wordt aangemaakt: $TAG"
 
-          # Tag alleen aanmaken als hij nog niet bestaat
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "⚠️ Tag $TAG bestaat al lokaal, wordt niet opnieuw aangemaakt"
           else
@@ -86,7 +85,6 @@ jobs:
             echo "🏷️ Tag $TAG aangemaakt"
           fi
 
-          # Remote herschrijven met schrijfrechten
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
           echo "🚀 Commit wordt gepusht naar GitHub..."
