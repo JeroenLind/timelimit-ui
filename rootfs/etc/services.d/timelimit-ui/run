@@ -1,11 +1,14 @@
-#!/usr/bin/with-contenv bashio
+#!/usr/bin/with-contenv bash
 # Startscript voor de TimeLimit UI add-on
 
 set -e
 
+# Bashio laden
+. /usr/lib/hassio-addons/base.sh
+
 echo "[timelimit-ui] DEBUG: run script started"
 
-# Lees add-on versie uit config.yaml
+# Lees add-on versie uit metadata
 ADDON_VERSION=$(bashio::addon.version)
 echo "[timelimit-ui] Add-on version: ${ADDON_VERSION}"
 
@@ -25,4 +28,5 @@ echo "[timelimit-ui] DEBUG: Starting backend..."
 
 cd /app/backend
 echo "[timelimit-ui] DEBUG: about to exec node server.js"
+
 exec node server.js
