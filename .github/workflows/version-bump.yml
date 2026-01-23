@@ -54,6 +54,13 @@ jobs:
           sed -i "s/^version:.*/version: \"${{ steps.bump.outputs.new }}\"/" config.yaml
           echo "📄 config.yaml succesvol bijgewerkt"
 
+      - name: Update repository.json
+        run: |
+          echo "✏️ repository.json wordt bijgewerkt naar versie ${{ steps.bump.outputs.new }}"
+          jq ".addons[\"timelimit-ui\"].version = \"${{ steps.bump.outputs.new }}\"" repository.json > repo.tmp
+          mv repo.tmp repository.json
+          echo "📄 repository.json succesvol bijgewerkt"
+
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
