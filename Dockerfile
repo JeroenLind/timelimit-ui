@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.7
+ARG BUILD_FROM=ghcr.io/home-assistant/{arch}-base:3.19
 FROM ${BUILD_FROM}
 
 # Metadata (optioneel: kun je ook uit build.json via build args vullen)
