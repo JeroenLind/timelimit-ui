@@ -1,5 +1,5 @@
 name: "Timelimit UI"
-version: "0.1.30"
+version: "0.1.31"
 slug: "timelimit-ui"
 description: "Minimal Home Assistant add-on skeleton met s6-overlay"
 arch:
