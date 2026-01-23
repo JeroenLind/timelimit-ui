@@ -9,7 +9,7 @@ on:
     workflows: ["Auto Version Bump"]
     types:
       - completed
-  workflow_dispatch:  
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,8 +20,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Determine version
+        id: version
+        run: |
+          echo "🔍 Determining version..."
+          TAG=$(git describe --tags --abbrev=0)
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Detected version: $VERSION"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -36,12 +48,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
@@ -54,3 +60,11 @@ jobs:
             ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "🎉 Build completed"
+          echo "📦 Version built: ${{ steps.version.outputs.version }}"
+          echo "📤 Images pushed:"
+          echo "   - ghcr.io/jeroenlind/timelimit-ui:latest"
+          echo "   - ghcr.io/jeroenlind/timelimit-ui:${{ steps.version.outputs.version }}"
