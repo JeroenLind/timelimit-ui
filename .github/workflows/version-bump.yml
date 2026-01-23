@@ -76,6 +76,9 @@ jobs:
           # Remote herschrijven met schrijfrechten
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
+          echo "🚀 Commit wordt gepusht naar GitHub..."
+          git push origin main
+
           echo "🚀 Tag wordt gepusht naar GitHub..."
           git push origin "$TAG"
           echo "🎉 Tag succesvol gepusht: $TAG"
