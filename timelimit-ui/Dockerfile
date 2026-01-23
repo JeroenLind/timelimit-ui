@@ -1,7 +1,7 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Kopieer rootfs naar container
+# Zorg dat rootfs wordt gekopieerd naar de container
 COPY rootfs/ /
 
 # Zorg dat de service scripts uitvoerbaar zijn

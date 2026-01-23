@@ -3,10 +3,12 @@ slug: "timelimit-ui"
 version: "0.1.25"
 description: "Web UI for the TimeLimit server"
 arch:
+  - aarch64
   - amd64
   - armv7
-  - aarch64
 startup: services
 boot: auto
 ports:
   8099/tcp: 8099
+options: {}
+schema: {}
