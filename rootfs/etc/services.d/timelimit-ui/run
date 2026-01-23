@@ -23,7 +23,6 @@ echo "[timelimit-ui] DEBUG: Node version: $(node -v)"
 echo "[timelimit-ui] DEBUG: NPM version: $(npm -v)"
 echo "[timelimit-ui] DEBUG: Starting backend..."
 
-# Start de backend (PID 1)
 cd /app/backend
 echo "[timelimit-ui] DEBUG: about to exec node server.js"
 exec node server.js
