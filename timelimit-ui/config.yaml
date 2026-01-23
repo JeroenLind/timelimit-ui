@@ -1,6 +1,6 @@
 name: "TimeLimit UI"
 slug: "timelimit-ui"
-version: "0.1.26"
+version: "0.1.27"
 description: "Web UI for the TimeLimit server"
 arch:
   - aarch64
