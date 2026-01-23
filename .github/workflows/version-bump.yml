@@ -66,7 +66,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add build.json
+          git add -A
           if git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"; then
             echo "✅ Commit gemaakt voor versie-update"
           else
