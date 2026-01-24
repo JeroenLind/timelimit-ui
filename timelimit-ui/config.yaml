@@ -11,5 +11,9 @@ ingress: true
 ingress_port: 8099
 panel_icon: "mdi:clock-check"
 panel_title: "Timelimit"
+options:
+  server_password: "test"
+schema:
+  server_password: password
 ports:
   8099/tcp: 8099
