@@ -18,17 +18,23 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <h1>Timelimit Server Check</h1>
-    <div class="status">Huidige server status: <span id="status-text">Laden...</span></div>
+    <div class="status">Status: <span id="status-text">Laden...</span></div>
     <div class="time" id="time-display">--</div>
+    
     <script>
         async function updateData() {
             try {
-                const response = await fetch('/api/data');
+                // Door het puntje voor de slash te zetten, blijft hij binnen de Ingress-map
+                const response = await fetch('./api/data'); 
+                if (!response.ok) throw new Error('Server error');
                 const data = await response.json();
                 document.getElementById('status-text').innerText = "Online";
+                document.getElementById('status-text').style.color = "#4caf50";
                 document.getElementById('time-display').innerText = data.ms + " ms";
             } catch (e) {
-                document.getElementById('status-text').innerText = "Offline";
+                document.getElementById('status-text').innerText = "Offline (Check Logs)";
+                document.getElementById('status-text').style.color = "#f44336";
+                console.error("Fetch error:", e);
             }
         }
         setInterval(updateData, 5000);
