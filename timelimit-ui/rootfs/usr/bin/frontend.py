@@ -1,5 +1,6 @@
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, jsonify
 import requests
+import os
 
 app = Flask(__name__)
 SERVER_URL = "http://192.168.68.30:8080/time"
@@ -45,10 +46,10 @@ def index():
 def get_data():
     try:
         r = requests.get(SERVER_URL, timeout=2)
-        return r.json()
-    except:
-        return {"error": "offline"}, 500
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    # HA Ingress verwacht poort 8099 (of wat je in config.yaml zet)
-    app.run(host='0.0.0.0', port=8099)
+    # Belangrijk: gebruik 0.0.0.0 en de poort uit je config.yaml
+    app.run(host='0.0.0.0', port=8099, debug=False)
