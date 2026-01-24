@@ -11,7 +11,7 @@ RUN apk add --no-cache \
 COPY rootfs /
 
 # Maak alle s6-overlay run scripts uitvoerbaar
-RUN chmod +x /etc/s6-overlay/s6-rc.d/example-service/run \
+RUN chmod +x /etc/s6-overlay/s6-rc.d/backend/run \
     && chmod +x /etc/s6-overlay/s6-rc.d/frontend-ui/run
 
 # S6-overlay start automatisch als entrypoint
