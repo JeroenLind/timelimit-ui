@@ -25,7 +25,6 @@ jobs:
           args: |
             --amd64 \
             --aarch64 \
-            --armhf \
             --target . \
             --docker-hub ghcr.io/jeroenlind \
             --addon
