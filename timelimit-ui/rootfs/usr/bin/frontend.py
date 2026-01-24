@@ -8,17 +8,17 @@ app = Flask(__name__)
 # URL's van de externe Timelimit server
 SERVER_URL = "http://192.168.68.30:8080/time"
 STATUS_URL = "http://192.168.68.30:8080/admin/status"
+LOGS_URL = "http://192.168.68.30:8080/admin/logs"
 
 def get_server_password():
-    """Leest het wachtwoord uit de add-on configuratie in Home Assistant."""
     options_path = "/data/options.json"
     if os.path.exists(options_path):
         try:
             with open(options_path, "r") as f:
                 options = json.load(f)
                 return options.get("server_password", "test")
-        except Exception as e:
-            print(f"Fout bij lezen options.json: {e}")
+        except:
+            pass
     return "test"
 
 HTML_TEMPLATE = """
@@ -28,13 +28,21 @@ HTML_TEMPLATE = """
     <title>Timelimit UI</title>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #1c1c1c; color: white; }
-        .container { max-width: 600px; margin: auto; }
+        .container { max-width: 800px; margin: auto; }
         .status-box { font-size: 20px; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #2c2c2c; }
         .time { color: #03a9f4; font-weight: bold; font-size: 28px; }
-        .admin-box { margin-top: 30px; padding: 15px; border: 1px solid #444; border-radius: 8px; }
-        pre { text-align: left; background: #000; padding: 15px; color: #00ff00; overflow-x: auto; border-radius: 5px; font-size: 12px; }
+        
+        .grid { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+        .panel { flex: 1; min-width: 300px; padding: 15px; border: 1px solid #444; border-radius: 8px; background: #111; }
+        
+        pre { text-align: left; background: #000; padding: 15px; color: #00ff00; overflow-y: auto; border-radius: 5px; font-size: 11px; height: 300px; border: 1px solid #333; }
         h1 { color: #fff; }
-        h3 { color: #ccc; margin-top: 0; }
+        h3 { color: #ccc; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        
+        button { background: #03a9f4; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        button:hover { background: #0288d1; }
+        button:disabled { background: #555; }
+        .log-error { color: #f44336; }
     </style>
 </head>
 <body>
@@ -42,13 +50,22 @@ HTML_TEMPLATE = """
         <h1>Timelimit Dashboard</h1>
         
         <div class="status-box">
-            <div>Server Verbinding: <span id="status-text">Laden...</span></div>
-            <div class="time" id="time-display">-- ms</div>
+            <div>Server: <span id="status-text">Laden...</span> | <span class="time" id="time-display">-- ms</span></div>
         </div>
 
-        <div class="admin-box">
-            <h3>Admin Server Status</h3>
-            <pre id="admin-status">Wachten op data...</pre>
+        <div class="grid">
+            <div class="panel">
+                <h3>Systeem Status</h3>
+                <pre id="admin-status">Wachten op data...</pre>
+            </div>
+
+            <div class="panel">
+                <h3>
+                    Server Logs 
+                    <button id="log-btn" onclick="updateLogs()">Vernieuwen</button>
+                </h3>
+                <pre id="server-logs">Klik op vernieuwen om logs op te halen...</pre>
+            </div>
         </div>
     </div>
     
@@ -57,8 +74,6 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('./api/data');
                 const data = await response.json();
-                if (data.error) throw new Error(data.error);
-                
                 document.getElementById('status-text').innerText = "Online";
                 document.getElementById('status-text').style.color = "#4caf50";
                 document.getElementById('time-display').innerText = data.ms + " ms";
@@ -71,20 +86,42 @@ HTML_TEMPLATE = """
         async function updateAdminStatus() {
             try {
                 const response = await fetch('./api/status');
-                if (!response.ok) throw new Error('Authenticatie mislukt of server onbereikbaar');
                 const data = await response.json();
                 document.getElementById('admin-status').innerText = JSON.stringify(data, null, 2);
             } catch (e) {
                 document.getElementById('admin-status').innerText = "Fout: " + e.message;
-                document.getElementById('admin-status').style.color = "#f44336";
             }
         }
 
-        // Updates instellen
+        async function updateLogs() {
+            const btn = document.getElementById('log-btn');
+            const logBox = document.getElementById('server-logs');
+            btn.disabled = true;
+            btn.innerText = "Laden...";
+            
+            try {
+                const response = await fetch('./api/logs');
+                const data = await response.json();
+                
+                if (data.error) {
+                    logBox.innerHTML = `<span class="log-error">Fout: ${data.error}</span>`;
+                } else {
+                    // Logs zijn vaak een lijst of een lange string
+                    logBox.innerText = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+                    // Scroll naar beneden voor de nieuwste logs
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+            } catch (e) {
+                logBox.innerHTML = `<span class="log-error">Netwerkfout bij ophalen logs.</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Vernieuwen";
+            }
+        }
+
         setInterval(updateData, 5000);
-        setInterval(updateAdminStatus, 10000);
+        setInterval(updateAdminStatus, 30000); // Iets minder vaak voor status
         
-        // Direct eerste keer uitvoeren
         updateData();
         updateAdminStatus();
     </script>
@@ -98,7 +135,6 @@ def index():
 
 @app.route('/api/data')
 def get_data():
-    """Haalt simpele tijd-data op zonder auth."""
     try:
         r = requests.get(SERVER_URL, timeout=2)
         return jsonify(r.json())
@@ -107,17 +143,25 @@ def get_data():
 
 @app.route('/api/status')
 def get_status():
-    """Haalt admin status op met Basic Auth (lege username)."""
     password = get_server_password()
     try:
-        # Authenticatie met lege username en wachtwoord uit config
         r = requests.get(STATUS_URL, auth=('', password), timeout=3)
-        if r.status_code == 401:
-            return jsonify({"error": "Ongeldig wachtwoord"}), 401
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/logs')
+def get_logs():
+    password = get_server_password()
+    try:
+        r = requests.get(LOGS_URL, auth=('', password), timeout=5)
+        # Sommige servers sturen tekst, anderen JSON. We proberen beide.
+        try:
+            return jsonify(r.json())
+        except:
+            return jsonify(r.text)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
-    # Luister op poort 8099 voor Ingress en lokale toegang
     app.run(host='0.0.0.0', port=8099, debug=False)
