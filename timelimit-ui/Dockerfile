@@ -1,10 +1,11 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
 FROM $BUILD_FROM
 
-# Kopieer de rootfs (scripts en configuratie)
+# Installeer Python en benodigdheden
+RUN apk add --no-cache python3 py3-requests
+
+# Kopieer de rootfs
 COPY rootfs /
 
-# Zorg dat de scripts uitvoerbaar zijn
+# Maak de scripts uitvoerbaar
 RUN chmod +x /etc/s6-overlay/s6-rc.d/example-service/run
-
-# S6-overlay is standaard de entrypoint in HA base images

@@ -1,4 +1,5 @@
 #!/usr/bin/with-contenv bashio
-echo "Start de Timelimit UI processen..."
-# Hier komt later je echte commando, bijv: python3 -m timelimit
-sleep infinity
+bashio::log.info "Starting Timelimit communication check..."
+
+# Voer het python script uit
+python3 /usr/bin/check_server.py
