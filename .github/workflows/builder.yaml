@@ -1,0 +1,29 @@
+name: Builder
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: jeroenlind
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Add-on
+        uses: home-assistant/builder@master
+        with:
+          args: |
+            --all \
+            --target timelimit-ui \
+            --docker-hub ghcr.io/jeroenlind \
+            --addon

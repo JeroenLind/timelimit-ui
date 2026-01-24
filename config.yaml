@@ -1,15 +1,11 @@
 name: "Timelimit UI"
-version: "0.1.32"
+description: "Een add-on voor tijdslimiet beheer"
+version: "0.2.0"
 slug: "timelimit-ui"
-description: "Minimal Home Assistant add-on skeleton met s6-overlay"
 arch:
+  - aarch64
   - amd64
   - armv7
-  - aarch64
-startup: before
-boot: auto
-init: true
-options:
-  test_message: "Hello from Timelimit UI"
-schema:
-  test_message: "str"
+init: false
+# Forceer kleine letters in de URL: jeroenlind
+image: "ghcr.io/jeroenlind/timelimit-ui-{arch}"

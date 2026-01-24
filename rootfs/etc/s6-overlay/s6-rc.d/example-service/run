@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bashio
+echo "Start de Timelimit UI processen..."
+# Hier komt later je echte commando, bijv: python3 -m timelimit
+sleep infinity
