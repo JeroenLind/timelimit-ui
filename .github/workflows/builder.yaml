@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Voeg dit blok toe om schrijfrechten te geven voor packages
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +22,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: jeroenlind
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Add-on
