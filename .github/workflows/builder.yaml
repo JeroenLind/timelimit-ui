@@ -23,7 +23,9 @@ jobs:
         uses: home-assistant/builder@master
         with:
           args: |
-            --all \
-            --target timelimit-ui \
+            --amd64 \
+            --aarch64 \
+            --armv7 \
+            --target . \
             --docker-hub ghcr.io/jeroenlind \
             --addon
