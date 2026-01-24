@@ -31,6 +31,6 @@ jobs:
           args: |
             --amd64 \
             --aarch64 \
-            --target . \
+            --target timelimit-ui \
             --docker-hub ghcr.io/jeroenlind \
             --addon
