@@ -5,10 +5,10 @@ import os
 
 app = Flask(__name__)
 
-# URL's van de externe Timelimit server
+# URL's van de Timelimit server
 SERVER_URL = "http://192.168.68.30:8080/time"
 STATUS_URL = "http://192.168.68.30:8080/admin/status"
-LOGS_URL = "http://192.168.68.30:8080/admin/logs"
+USERS_URL = "http://192.168.68.30:8080/users"
 
 def get_server_password():
     options_path = "/data/options.json"
@@ -27,44 +27,48 @@ HTML_TEMPLATE = """
 <head>
     <title>Timelimit UI</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #1c1c1c; color: white; }
-        .container { max-width: 800px; margin: auto; }
-        .status-box { font-size: 20px; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #2c2c2c; }
-        .time { color: #03a9f4; font-weight: bold; font-size: 28px; }
+        body { font-family: sans-serif; padding: 20px; background-color: #1c1c1c; color: white; text-align: center; }
+        .container { max-width: 900px; margin: auto; }
+        .status-header { font-size: 18px; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #2c2c2c; display: flex; justify-content: space-around; align-items: center; }
+        .time { color: #03a9f4; font-weight: bold; }
         
-        .grid { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
-        .panel { flex: 1; min-width: 300px; padding: 15px; border: 1px solid #444; border-radius: 8px; background: #111; }
+        .grid { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; text-align: left; }
+        .panel { flex: 1; min-width: 350px; padding: 20px; border: 1px solid #444; border-radius: 8px; background: #111; }
         
-        pre { text-align: left; background: #000; padding: 15px; color: #00ff00; overflow-y: auto; border-radius: 5px; font-size: 11px; height: 300px; border: 1px solid #333; }
-        h1 { color: #fff; }
-        h3 { color: #ccc; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        pre { background: #000; padding: 15px; color: #00ff00; overflow-y: auto; border-radius: 5px; font-size: 11px; height: 250px; border: 1px solid #333; }
+        h1 { margin-bottom: 30px; }
+        h3 { color: #ccc; margin-top: 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        
+        .user-card { background: #222; padding: 15px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #03a9f4; }
+        .empty-state { color: #888; text-align: center; padding: 40px 0; font-style: italic; }
         
         button { background: #03a9f4; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         button:hover { background: #0288d1; }
-        button:disabled { background: #555; }
-        .log-error { color: #f44336; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Timelimit Dashboard</h1>
         
-        <div class="status-box">
-            <div>Server: <span id="status-text">Laden...</span> | <span class="time" id="time-display">-- ms</span></div>
+        <div class="status-header">
+            <div>Verbinding: <span id="status-text">Laden...</span></div>
+            <div>Server Tijd: <span class="time" id="time-display">-- ms</span></div>
         </div>
 
         <div class="grid">
             <div class="panel">
-                <h3>Systeem Status</h3>
-                <pre id="admin-status">Wachten op data...</pre>
+                <h3>
+                    Gebruikers
+                    <button onclick="updateUsers()">Verversen</button>
+                </h3>
+                <div id="users-list">
+                    <div class="empty-state">Laden van gebruikers...</div>
+                </div>
             </div>
 
             <div class="panel">
-                <h3>
-                    Server Logs 
-                    <button id="log-btn" onclick="updateLogs()">Vernieuwen</button>
-                </h3>
-                <pre id="server-logs">Klik op vernieuwen om logs op te halen...</pre>
+                <h3>Systeem Status</h3>
+                <pre id="admin-status">Wachten op data...</pre>
             </div>
         </div>
     </div>
@@ -93,37 +97,38 @@ HTML_TEMPLATE = """
             }
         }
 
-        async function updateLogs() {
-            const btn = document.getElementById('log-btn');
-            const logBox = document.getElementById('server-logs');
-            btn.disabled = true;
-            btn.innerText = "Laden...";
-            
+        async function updateUsers() {
+            const listDiv = document.getElementById('users-list');
             try {
-                const response = await fetch('./api/logs');
+                const response = await fetch('./api/users');
                 const data = await response.json();
                 
-                if (data.error) {
-                    logBox.innerHTML = `<span class="log-error">Fout: ${data.error}</span>`;
+                listDiv.innerHTML = ''; // Maak leeg
+
+                if (!data || data.length === 0) {
+                    listDiv.innerHTML = '<div class="empty-state">Geen gebruikers aangemeld op deze server.</div>';
                 } else {
-                    // Logs zijn vaak een lijst of een lange string
-                    logBox.innerText = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-                    // Scroll naar beneden voor de nieuwste logs
-                    logBox.scrollTop = logBox.scrollHeight;
+                    data.forEach(user => {
+                        const card = document.createElement('div');
+                        card.className = 'user-card';
+                        card.innerHTML = `<strong>${user.name}</strong><br><small>ID: ${user.id}</small>`;
+                        listDiv.appendChild(card);
+                    });
                 }
             } catch (e) {
-                logBox.innerHTML = `<span class="log-error">Netwerkfout bij ophalen logs.</span>`;
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Vernieuwen";
+                listDiv.innerHTML = '<div class="empty-state" style="color: #f44336;">Fout bij ophalen gebruikers.</div>';
             }
         }
 
+        // Intervalle
         setInterval(updateData, 5000);
-        setInterval(updateAdminStatus, 30000); // Iets minder vaak voor status
+        setInterval(updateAdminStatus, 30000);
+        setInterval(updateUsers, 15000);
         
+        // Init
         updateData();
         updateAdminStatus();
+        updateUsers();
     </script>
 </body>
 </html>
@@ -150,16 +155,13 @@ def get_status():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/logs')
-def get_logs():
+@app.route('/api/users')
+def get_users():
     password = get_server_password()
     try:
-        r = requests.get(LOGS_URL, auth=('', password), timeout=5)
-        # Sommige servers sturen tekst, anderen JSON. We proberen beide.
-        try:
-            return jsonify(r.json())
-        except:
-            return jsonify(r.text)
+        r = requests.get(USERS_URL, auth=('', password), timeout=5)
+        # De server stuurt een lege lijst [] als er geen users zijn
+        return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
