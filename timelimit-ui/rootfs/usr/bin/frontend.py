@@ -6,10 +6,10 @@ import sys
 
 app = Flask(__name__)
 
-# URL's van de Timelimit server
+# URL's van de Timelimit server met de juiste v1 prefix
 SERVER_URL = "http://192.168.68.30:8080/time"
 STATUS_URL = "http://192.168.68.30:8080/admin/status"
-USERS_URL = "http://192.168.68.30:8080/users"
+USERS_URL  = "http://192.168.68.30:8080/v1/users"  # Toegevoegd: /v1/
 
 def get_server_password():
     options_path = "/data/options.json"
