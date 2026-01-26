@@ -1,6 +1,6 @@
 name: "Timelimit UI"
 description: "Een add-on voor tijdslimiet beheer"
-version: "1.0.19" # Let op: vergeet deze niet te verhogen bij de push
+version: "1.0.20" # Let op: vergeet deze niet te verhogen bij de push
 slug: "timelimit-ui"
 arch:
   - aarch64
