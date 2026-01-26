@@ -2,10 +2,14 @@ import http.server
 import socketserver
 import urllib.request
 import json
-import traceback
+import sys
 
+# Configuratie
 PORT = 8099
 TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
+
+def log_to_ha(message):
+    print(f"[TimeLimit-Bridge] {message}", file=sys.stdout, flush=True)
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -16,14 +20,18 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode("utf-8"))
 
     def do_POST(self):
-        if self.path == "/proxy/get-family-data":
+        if self.path == "/proxy/sync-data":
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             
+            # Volgens de router-code is /sync/get-family-data de meest logische plek
+            target_url = f"{TIMELIMIT_SERVER_URL}/sync/get-family-data"
+            
+            log_to_ha(f"Sync poging gestart naar: {target_url}")
+            
             try:
-                # Proxy naar de echte TimeLimit server
                 req = urllib.request.Request(
-                    f"{TIMELIMIT_SERVER_URL}/parent/get-family-data",
+                    target_url,
                     data=post_data,
                     headers={'Content-Type': 'application/json'},
                     method='POST'
@@ -31,22 +39,22 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 
                 with urllib.request.urlopen(req) as response:
                     res_raw = response.read()
+                    log_to_ha(f"✅ Server antwoord ontvangen ({len(res_raw)} bytes)")
                     
-                    # We sturen het antwoord direct door naar de browser
                     self.send_response(200)
                     self.send_header("Content-type", "application/json")
                     self.end_headers()
                     self.wfile.write(res_raw)
                     
             except urllib.error.HTTPError as e:
-                # Vang specifieke server-fouten op (bijv. 401 Unauthorized)
-                error_body = e.read().decode('utf-8')
-                print(f"Server Error Body: {error_body}")
+                err_msg = e.read().decode('utf-8')
+                log_to_ha(f"❌ Server Fout ({e.code}): {err_msg}")
+                # Als /sync niet werkt, probeer /parent als fallback
                 self.send_response(e.code)
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": error_body, "status": e.code}).encode())
+                self.wfile.write(json.dumps({"error": err_msg, "code": e.code}).encode())
             except Exception as e:
-                print(f"Proxy Exception: {str(e)}")
+                log_to_ha(f"⚠️ Proxy Exception: {str(e)}")
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
@@ -59,34 +67,35 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     <title>TimeLimit Tracer</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 20px; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; }
-        .card { background: #1a1a1a; border-radius: 10px; padding: 20px; border: 1px solid #333; margin-bottom: 20px; }
-        #log { background: #000; color: #00ff00; padding: 10px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #333; }
-        .user-card { background: #252525; padding: 12px; border-radius: 6px; border-left: 4px solid #03a9f4; margin-bottom: 8px; }
-        button { background: #03a9f4; border: none; color: white; padding: 10px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .status { float: right; font-weight: bold; }
+        .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
+        #log { background: #000; color: #00ff00; padding: 12px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-radius: 6px; border: 1px solid #333; }
+        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-left: 4px solid #03a9f4; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        button { background: #03a9f4; border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .badge { background: #232a35; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; color: #03a9f4; border: 1px solid #03a9f4; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>TimeLimit Tracer <span id="conn-status" class="status" style="color:#f44336;">● Offline</span></h2>
+        <h2 style="color: #03a9f4;">TimeLimit Tracer <span id="status-text" style="font-size: 0.5em; color: gray;">● OFFLINE</span></h2>
         
         <div id="setup-ui" class="card hidden">
-            <input type="text" id="token-input" placeholder="Voer deviceAuthToken in..." style="width:70%; padding:10px; background:#222; color:#fff; border:1px solid #444;">
+            <h3>Geen token gevonden</h3>
+            <input type="text" id="token-input" placeholder="Device Auth Token..." style="width:70%; padding:10px; background:#0b0e14; border:1px solid #333; color:white;">
             <button onclick="saveToken()">Verbinden</button>
         </div>
 
         <div id="main-ui" class="hidden">
-            <button onclick="fetchData()">🔄 Handmatige Sync</button>
-            <div class="card" style="margin-top:15px;">
-                <h3>Familie Leden</h3>
-                <div id="user-list">Geen data geladen.</div>
+            <button onclick="fetchData()">🔄 Nu Synchroniseren</button>
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin-top:0;">Familieleden</h3>
+                <div id="user-list">Data ophalen uit TimeLimit...</div>
             </div>
         </div>
 
-        <h4>Systeem Log:</h4>
+        <h4>HA System Log:</h4>
         <div id="log"></div>
     </div>
 
@@ -95,10 +104,10 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         const logEl = document.getElementById('log');
 
         function addLog(msg, color = "#00ff00") {
-            const entry = document.createElement('div');
-            entry.style.color = color;
-            entry.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
-            logEl.appendChild(entry);
+            const d = document.createElement('div');
+            d.style.color = color;
+            d.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
+            logEl.appendChild(d);
             logEl.scrollTop = logEl.scrollHeight;
         }
 
@@ -111,56 +120,60 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         function saveToken() {
-            const val = document.getElementById('token-input').value.trim();
-            if (val) { localStorage.setItem('tl_device_token', val); location.reload(); }
+            const v = document.getElementById('token-input').value.trim();
+            if (v) { localStorage.setItem('tl_device_token', v); location.reload(); }
         }
 
         function initWebSocket(authToken) {
             const socket = io(socketUrl, { transports: ['websocket'], path: "/socket.io" });
 
             socket.on('connect', () => {
-                document.getElementById('conn-status').style.color = '#4caf50';
-                document.getElementById('conn-status').textContent = '● Online';
-                addLog("✅ Verbonden met socket.");
+                document.getElementById('status-text').style.color = '#4caf50';
+                document.getElementById('status-text').textContent = '● ONLINE';
+                addLog("✅ WebSocket verbonden.");
                 socket.emit('devicelogin', authToken, () => {
-                    addLog("🚀 Login bevestigd!");
+                    addLog("🚀 Ingelogd op server.");
                     fetchData();
                 });
             });
 
             socket.on('should sync', () => {
-                addLog("🔔 Sync signaal van server ontvangen.");
+                addLog("🔔 Server verzoek: synchroniseren...");
                 fetchData();
             });
         }
 
         async function fetchData() {
-            addLog("📡 Data opvragen via Proxy...");
+            addLog("📡 Sync verzoek versturen via proxy...");
             try {
-                const response = await fetch("/proxy/get-family-data", {
+                const res = await fetch("/proxy/sync-data", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ deviceAuthToken: localStorage.getItem('tl_device_token') })
                 });
                 
-                const text = await response.text();
-                
+                const raw = await res.text();
                 try {
-                    const result = JSON.parse(text);
-                    if (result.data && result.data.users) {
-                        const users = result.data.users.data || result.data.users;
+                    const json = JSON.parse(raw);
+                    // De data structuur van TimeLimit: json.data.users.data
+                    const users = json.data?.users?.data || json.data?.users || [];
+                    
+                    if (users.length > 0) {
                         document.getElementById('user-list').innerHTML = users.map(u => 
-                            '<div class="user-card"><b>' + u.name + '</b> (ID: ' + u.id + ')</div>'
+                            `<div class="user-card">
+                                <div><b>${u.name}</b><br><small style="color:gray;">ID: ${u.id}</small></div>
+                                <div class="badge">${u.type}</div>
+                            </div>`
                         ).join('');
-                        addLog("✅ Gebruikers succesvol geladen.");
-                    } else if (result.error) {
-                        addLog("❌ Server fout: " + result.error, "#f44336");
+                        addLog("✅ Data succesvol bijgewerkt.");
+                    } else {
+                        addLog("⚠️ Geen gebruikers in antwoord: " + raw.substring(0, 40), "orange");
                     }
-                } catch (e) {
-                    addLog("⚠️ Server antwoordde geen JSON: " + text.substring(0, 50), "orange");
+                } catch(e) {
+                    addLog("❌ API Error: " + raw, "#f44336");
                 }
-            } catch (err) {
-                addLog("❌ Netwerk fout: " + err.message, "#f44336");
+            } catch(e) {
+                addLog("❌ Netwerkfout: " + e.message, "#f44336");
             }
         }
     </script>
@@ -171,6 +184,6 @@ if __name__ == "__main__":
     class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         pass
 
+    log_to_ha("TimeLimit Bridge gestart op poort 8099")
     with ThreadedHTTPServer(("", PORT), DashboardHandler) as httpd:
-        print(f"Tracer Proxy actief op poort {PORT}")
         httpd.serve_forever()
