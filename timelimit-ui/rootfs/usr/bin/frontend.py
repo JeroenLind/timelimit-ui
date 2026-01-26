@@ -3,122 +3,153 @@ import socketserver
 import os
 import json
 
-# Poort moet overeenkomen met ingress_port in config.yaml
 PORT = 8099
-# Het IP waar de browser van de gebruiker de server kan vinden
 TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
-
-def get_server_password():
-    """Haalt het wachtwoord op uit de HA Add-on configuratie."""
-    try:
-        if os.path.exists("/data/options.json"):
-            with open("/data/options.json", "r") as f:
-                options = json.load(f)
-                return options.get("server_password", "")
-    except Exception as e:
-        print(f"Kon opties niet laden: {e}")
-    return ""
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        
-        password = get_server_password()
-        html = self.get_template(password)
+        html = self.get_template()
         self.wfile.write(html.encode("utf-8"))
 
-    def get_template(self, password):
+    def get_template(self):
         return """
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit UI</title>
+    <title>TimeLimit Control Panel</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-               background-color: #111; color: #eee; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .card { background: #222; border-radius: 12px; padding: 20px; text-align: center; border-top: 4px solid #03a9f4; }
-        #log { background: #000; color: #0f0; padding: 10px; height: 120px; overflow-y: auto; font-size: 11px; margin-top: 30px; border-radius: 8px; border: 1px solid #333; }
-        .status-dot { height: 10px; width: 10px; background-color: #f44336; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .online { background-color: #4caf50; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .card { background: #222; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #03a9f4; }
+        .setup-box { background: #1a1a1a; border: 1px solid #444; padding: 20px; border-radius: 8px; }
+        input { background: #333; border: 1px solid #555; color: #fff; padding: 10px; width: calc(100% - 22px); margin: 10px 0; border-radius: 4px; }
+        button { background: #03a9f4; border: none; color: white; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0288d1; }
+        #log { background: #000; color: #0f0; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #333; }
+        .hidden { display: none; }
+        .status-online { color: #4caf50; }
+        .status-offline { color: #f44336; }
+        .user-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>TimeLimit Dashboard</h2>
-        <div><span id="dot" class="status-dot"></span> <span id="status">Verbinden...</span></div>
-    </div>
-    
-    <div id="users" class="grid">
-        <p>Data ophalen...</p>
-    </div>
+    <div class="container">
+        <div class="header">
+            <h2>🚀 TimeLimit NextGen</h2>
+            <div id="conn-status" class="status-offline">● Disconnected</div>
+        </div>
 
-    <h4>WebSocket Debugger:</h4>
-    <div id="log"></div>
+        <div id="setup-ui" class="setup-box hidden">
+            <h3>Initial Setup</h3>
+            <p>Geen actieve sessie gevonden. Voer je Device Auth Token in:</p>
+            <input type="text" id="token-input" placeholder="DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY...">
+            <button onclick="saveToken()">Start WebSocket Connectie</button>
+            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+            <p style="font-size: 0.8em; color: #888;">Nog geen familie? Gebruik de PowerShell scripts uit het dossier om eerst een account aan te maken.</p>
+        </div>
+
+        <div id="main-ui" class="hidden">
+            <div class="card">
+                <h3>Familie Leden</h3>
+                <div id="user-list" class="user-grid">
+                    <p>Wachten op data van server...</p>
+                </div>
+            </div>
+            
+            <button onclick="clearToken()" style="background: #444; font-size: 0.8em;">Token Reset / Uitloggen</button>
+        </div>
+
+        <h4>Systeem Log:</h4>
+        <div id="log"></div>
+    </div>
 
     <script>
         const serverUrl = "###SERVER_URL###";
-        const password = "###PASSWORD###";
-        const usersEl = document.getElementById('users');
-        const statusText = document.getElementById('status');
-        const dot = document.getElementById('dot');
-        const logEl = document.getElementById('log');
+        let socket;
 
         function addLog(msg) {
             const entry = document.createElement('div');
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            logEl.appendChild(entry);
-            logEl.scrollTop = logEl.scrollHeight;
+            document.getElementById('log').appendChild(entry);
+            document.getElementById('log').scrollTop = logEl.scrollHeight;
         }
 
-        const socket = io(serverUrl, { transports: ['websocket'] });
-
-        socket.on('connect', () => {
-            statusText.textContent = "Verbonden";
-            dot.classList.add('online');
-            addLog("Verbonden met server. Authenticeren...");
-            
-            // Stuur authenticatie met het wachtwoord uit de add-on opties
-            socket.emit('auth', { password: password });
-        });
-
-        socket.onAny((event, data) => {
-            addLog(`Event: ${event}`);
-            if (event === 'state' || event === 'users') {
-                render(data);
+        function saveToken() {
+            const token = document.getElementById('token-input').value.trim();
+            if (token) {
+                localStorage.setItem('tl_device_token', token);
+                location.reload();
             }
-        });
+        }
 
-        socket.on('connect_error', (err) => {
-            statusText.textContent = "Verbindingsfout";
-            dot.classList.remove('online');
-            addLog("FOUT: " + err.message);
-        });
+        function clearToken() {
+            localStorage.removeItem('tl_device_token');
+            location.reload();
+        }
 
-        function render(data) {
-            const users = data.users || (Array.isArray(data) ? data : []);
-            if (users.length === 0) {
-                usersEl.innerHTML = "<p>Geen gebruikers gevonden in de 'state'.</p>";
-                return;
-            }
-            usersEl.innerHTML = users.map(u => `
-                <div class="card">
-                    <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${u.name}</div>
-                    <div style="color: #888; font-size: 0.9em;">ID: ${u.id}</div>
+        // Check if token exists
+        const token = localStorage.getItem('tl_device_token');
+        
+        if (!token) {
+            document.getElementById('setup-ui').classList.remove('hidden');
+            addLog("Wachten op token invoer...");
+        } else {
+            document.getElementById('main-ui').classList.remove('hidden');
+            initWebSocket(token);
+        }
+
+        function initWebSocket(authToken) {
+            addLog("Verbinden met WebSocket...");
+            // TimeLimit gebruikt socket.io op poort 8080
+            socket = io(serverUrl, { 
+                transports: ['websocket'],
+                query: { deviceAuthToken: authToken } 
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('conn-status').className = 'status-online';
+                document.getElementById('conn-status').textContent = '● Online';
+                addLog("Verbonden! Authenticatie verzonden via handshake.");
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('conn-status').className = 'status-offline';
+                document.getElementById('conn-status').textContent = '● Offline';
+            });
+
+            // Luister naar de 'initial-data' of 'state' events die de server stuurt
+            socket.onAny((event, data) => {
+                addLog(`Inkomend event: ${event}`);
+                console.log("Data:", data);
+                
+                // Als de server de volledige state stuurt (zoals we in de API zagen)
+                if (data && data.users) {
+                    renderUsers(data.users.data || data.users);
+                }
+            });
+        }
+
+        function renderUsers(users) {
+            const list = document.getElementById('user-list');
+            list.innerHTML = users.map(u => `
+                <div style="background: #333; padding: 15px; border-radius: 8px;">
+                    <strong>${u.name}</strong><br>
+                    <span style="font-size: 0.8em; color: #aaa;">Type: ${u.type}</span>
                 </div>
             `).join('');
         }
     </script>
 </body>
 </html>
-""".replace("###SERVER_URL###", TIMELIMIT_SERVER_URL).replace("###PASSWORD###", password)
+""".replace("###SERVER_URL###", TIMELIMIT_SERVER_URL)
 
 if __name__ == "__main__":
-    print(f"Timelimit UI gestart op poort {PORT}")
+    print(f"HA Frontend draait op http://localhost:{PORT}")
     with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
         httpd.serve_forever()
