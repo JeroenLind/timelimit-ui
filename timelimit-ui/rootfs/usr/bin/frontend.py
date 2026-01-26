@@ -70,80 +70,91 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     </div>
 
     <script>
-        const serverUrl = "###SERVER_URL###";
-        let socket;
+const serverUrl = "###SERVER_URL###";
+let socket;
 
-        function addLog(msg) {
-            const entry = document.createElement('div');
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            document.getElementById('log').appendChild(entry);
-            document.getElementById('log').scrollTop = logEl.scrollHeight;
-        }
+// Fix: Definieer logEl globaal zodat addLog het kan vinden
+const logEl = document.getElementById('log');
 
-        function saveToken() {
-            const token = document.getElementById('token-input').value.trim();
-            if (token) {
-                localStorage.setItem('tl_device_token', token);
-                location.reload();
-            }
-        }
+function addLog(msg) {
+    const entry = document.createElement('div');
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    if (logEl) {
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+    console.log(msg); // Ook naar browser console voor backup
+}
 
-        function clearToken() {
-            localStorage.removeItem('tl_device_token');
-            location.reload();
-        }
+function saveToken() {
+    const token = document.getElementById('token-input').value.trim();
+    if (token) {
+        localStorage.setItem('tl_device_token', token);
+        location.reload();
+    }
+}
 
-        // Check if token exists
-        const token = localStorage.getItem('tl_device_token');
+function clearToken() {
+    localStorage.removeItem('tl_device_token');
+    location.reload();
+}
+
+const token = localStorage.getItem('tl_device_token');
+
+if (!token) {
+    document.getElementById('setup-ui').classList.remove('hidden');
+    addLog("Wachten op token invoer...");
+} else {
+    document.getElementById('main-ui').classList.remove('hidden');
+    initWebSocket(token);
+}
+
+function initWebSocket(authToken) {
+    addLog("Verbinden met WebSocket op: " + serverUrl);
+    
+    // Debug configuratie
+    socket = io(serverUrl, { 
+        transports: ['websocket'],
+        query: { deviceAuthToken: authToken },
+        reconnectionAttempts: 5,
+        timeout: 10000
+    });
+
+    socket.on('connect', () => {
+        document.getElementById('conn-status').className = 'status-online';
+        document.getElementById('conn-status').textContent = '● Online';
+        addLog("✅ Verbonden! Handshake geslaagd.");
+    });
+
+    socket.on('connect_error', (err) => {
+        document.getElementById('conn-status').className = 'status-offline';
+        addLog("❌ Verbindingsfout: " + err.message);
         
-        if (!token) {
-            document.getElementById('setup-ui').classList.remove('hidden');
-            addLog("Wachten op token invoer...");
-        } else {
-            document.getElementById('main-ui').classList.remove('hidden');
-            initWebSocket(token);
+        // Specifieke check voor CORS of 404
+        if (err.message === "xhr poll error") {
+            addLog("Tip: Controleer of de TimeLimit server (192.168.68.30) bereikbaar is vanaf dit apparaat.");
         }
+    });
 
-        function initWebSocket(authToken) {
-            addLog("Verbinden met WebSocket...");
-            // TimeLimit gebruikt socket.io op poort 8080
-            socket = io(serverUrl, { 
-                transports: ['websocket'],
-                query: { deviceAuthToken: authToken } 
-            });
-
-            socket.on('connect', () => {
-                document.getElementById('conn-status').className = 'status-online';
-                document.getElementById('conn-status').textContent = '● Online';
-                addLog("Verbonden! Authenticatie verzonden via handshake.");
-            });
-
-            socket.on('disconnect', () => {
-                document.getElementById('conn-status').className = 'status-offline';
-                document.getElementById('conn-status').textContent = '● Offline';
-            });
-
-            // Luister naar de 'initial-data' of 'state' events die de server stuurt
-            socket.onAny((event, data) => {
-                addLog(`Inkomend event: ${event}`);
-                console.log("Data:", data);
-                
-                // Als de server de volledige state stuurt (zoals we in de API zagen)
-                if (data && data.users) {
-                    renderUsers(data.users.data || data.users);
-                }
-            });
+    socket.onAny((event, data) => {
+        addLog(`Event ontvangen: ${event}`);
+        if (data && (data.users || data.state)) {
+            renderUsers(data.users?.data || data.users || []);
         }
+    });
+}
 
-        function renderUsers(users) {
-            const list = document.getElementById('user-list');
-            list.innerHTML = users.map(u => `
-                <div style="background: #333; padding: 15px; border-radius: 8px;">
-                    <strong>${u.name}</strong><br>
-                    <span style="font-size: 0.8em; color: #aaa;">Type: ${u.type}</span>
-                </div>
-            `).join('');
-        }
+function renderUsers(users) {
+    const list = document.getElementById('user-list');
+    if (!Array.isArray(users)) return;
+    
+    list.innerHTML = users.map(u => `
+        <div style="background: #333; padding: 15px; border-radius: 8px; border-left: 4px solid #4caf50;">
+            <strong>${u.name}</strong><br>
+            <span style="font-size: 0.8em; color: #aaa;">ID: ${u.id} | Type: ${u.type}</span>
+        </div>
+    `).join('');
+}
     </script>
 </body>
 </html>
