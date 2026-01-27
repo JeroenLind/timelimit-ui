@@ -24,7 +24,7 @@ def get_ha_config():
 ssl_context = ssl._create_unverified_context()
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
-  def do_POST(self):
+    def do_POST(self):
         config = get_ha_config()
         target_base = config["server_url"].strip().rstrip("/")
         
@@ -33,7 +33,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         post_data = self.rfile.read(content_length)
         
         # CRUCIAL FIX: We sturen het nu ALTIJD naar /sync/pull-status 
-        # omdat we weten dat dit het werkende endpoint is.
         target_url = f"{target_base}/sync/pull-status"
         
         try:
@@ -49,7 +48,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(response.read())
         except urllib.error.HTTPError as e:
-            # Stuur de fout van de server door naar de UI voor debug
             self.send_response(e.code)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
@@ -149,5 +147,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 """
 
 if __name__ == "__main__":
+    # Gebruik poort 8099 zoals in je Docker/config setup
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
         httpd.serve_forever()
