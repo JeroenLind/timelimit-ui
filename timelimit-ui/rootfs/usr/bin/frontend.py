@@ -29,7 +29,7 @@ def save_to_history(email, token, client_id):
     if any(h.get('token') == token for h in history): return
     entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "email": email or "Geïmporteerd uit HA Config",
+        "email": email or "Geimporteerd",
         "token": token,
         "clientId": client_id or "N/A"
     }
@@ -85,49 +85,102 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode("utf-8"))
 
     def get_template(self):
-        return r"""
-<!DOCTYPE html>
+        # r""" wordt gebruikt om regex/slashes veilig te verwerken
+        return r"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <style>
         body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        header { height: 70px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; min-height: 0; }
-        #json-view { flex: 1; padding: 15px; font-family: 'Consolas', monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; }
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; }
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 15px; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #232a35; flex-shrink: 0; margin-top: auto; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #232a35; flex-shrink: 0; margin-top: auto; }
         .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
-        .history-item { font-size: 0.85em; padding: 10px; border-bottom: 1px solid #232a35; cursor: pointer; }
-        .history-item:hover { background: #232a35; }
+        .history-item { font-size: 0.8em; padding: 8px; border-bottom: 1px solid #232a35; cursor: pointer; }
     </style>
 </head>
 <body>
 <header>
-    <div><strong>📱 TimeLimit Parent History Mode</strong></div>
+    <div><strong>TimeLimit Control</strong></div>
     <div>
-        <button class="btn" onclick="toggleLogin()">🔑 Login / History</button>
-        <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
+        <button class="btn" onclick="toggleLogin()">History</button>
+        <button class="btn" style="background:#444" onclick="fetchFullStatus()">Sync</button>
     </div>
 </header>
 <div class="main-container">
     <div class="dashboard-view">
-        <div id="login-form" style="display:none; background:#151921; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #333;">
-            <div style="display:grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
+        <div id="login-form" style="display:none; background:#151921; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #333;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
-                    <h3>Nieuwe Login</h3>
                     <input type="email" id="email" placeholder="E-mail">
                     <input type="password" id="password" placeholder="Wachtwoord">
-                    <button class="btn" onclick="doLogin()">Start Verse Sessie</button>
+                    <button class="btn" onclick="doLogin()">Login</button>
                 </div>
-                <div>
-                    <h3>Tokens Geschiedenis</h3>
-                    <div id="history-list" style="max-height: 200px; overflow-y: auto; background:#0b0e14; border-radius:4px;">Laden...</div>
-                </div>
+                <div id="history-list" style="max-height: 150px; overflow-y: auto;"></div>
             </div>
         </div>
-        <div id="user-list" style="flex: 1; overflow-y: auto; margin-bottom: 10px;">Laden van gebruikers...</div>
-        <div id
+        <div id="user-list" style="flex: 1; overflow-y: auto;"></div>
+        <div id="log-area"></div>
+    </div>
+    <div class="inspector-panel">
+        <div style="padding:10px; font-size:10px; border-bottom:1px solid #232a35;">RAW JSON</div>
+        <div id="json-view"></div>
+    </div>
+</div>
+<script>
+    const TOKEN = "###TOKEN###";
+    function addLog(msg, color="#00ff00") {
+        const d = document.createElement('div');
+        d.style.color = color;
+        d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        document.getElementById('log-area').appendChild(d);
+        document.getElementById('log-area').scrollTop = 99999;
+    }
+    async function loadHistory() {
+        const res = await fetch(window.location.href.split('?')[0].replace(/\/$/, "") + "/history");
+        const history = await res.json();
+        document.getElementById('history-list').innerHTML = history.map(h => `
+            <div class="history-item" onclick="alert('Token: '+ '${h.token}')">
+                ${h.timestamp}<br><strong>${h.email}</strong>
+            </div>`).join('');
+    }
+    function toggleLogin() {
+        const f = document.getElementById('login-form');
+        f.style.display = f.style.display === 'none' ? 'block' : 'none';
+        if(f.style.display === 'block') loadHistory();
+    }
+    async function doLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const response = await fetch(window.location.href.split('?')[0].replace(/\/$/, "") + "/login", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, clientId: "ha-"+Math.random(), deviceName: "HA" })
+        });
+        const data = await response.json();
+        if(data.deviceAuthToken) { addLog("Login succes!"); loadHistory(); }
+    }
+    async function fetchFullStatus() {
+        const response = await fetch(window.location.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceAuthToken: TOKEN, status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 } })
+        });
+        const data = await response.json();
+        document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+        document.getElementById('user-list').innerHTML = (data.users?.data || []).map(u => `
+            <div class="card"><strong>${u.name}</strong></div>`).join('');
+    }
+    fetchFullStatus();
+</script>
+</body>
+</html>"""
+
+if __name__ == "__main__":
+    with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
+        httpd.serve_forever()
