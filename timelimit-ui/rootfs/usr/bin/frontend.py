@@ -1,168 +1,124 @@
 import http.server
 import socketserver
-import urllib.request
-import json
-import sys
 
 PORT = 8099
 TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
-
-def log_to_ha(message):
-    print(f"[TimeLimit-Bridge] {message}", file=sys.stdout, flush=True)
+SAVED_TOKEN = "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY"
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        html = self.get_template_string().replace("###SERVER_URL###", TIMELIMIT_SERVER_URL)
+        html = self.get_template_string().replace("###SERVER_URL###", TIMELIMIT_SERVER_URL).replace("###TOKEN###", SAVED_TOKEN)
         self.wfile.write(html.encode("utf-8"))
 
-    def do_POST(self):
-        # We maken de proxy flexibel zodat de JS kan kiezen welk pad hij test
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        
-        # Haal het doel-pad uit de headers die we vanuit JS meesturen
-        target_path = self.headers.get('X-Target-Path', '/sync/get-family-data')
-        target_url = f"{TIMELIMIT_SERVER_URL}{target_path}"
-        
-        log_to_ha(f"Proxying POST to: {target_url}")
-        
-        try:
-            req = urllib.request.Request(
-                target_url,
-                data=post_data,
-                headers={'Content-Type': 'application/json'},
-                method='POST'
-            )
-            with urllib.request.urlopen(req) as response:
-                res_raw = response.read()
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                self.wfile.write(res_raw)
-                log_to_ha(f"✅ Success on {target_path}")
-        except urllib.error.HTTPError as e:
-            self.send_response(e.code)
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "404"}).encode())
-            log_to_ha(f"❌ Failed on {target_path} (Code {e.code})")
-
     def get_template_string(self):
-        return """<!DOCTYPE html>
+        return """
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit API Discovery</title>
+    <title>TimeLimit Android Bridge</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
         .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
-        #log { background: #000; color: #00ff00; padding: 12px; height: 200px; overflow-y: auto; font-family: monospace; border: 1px solid #333; }
-        .user-card { background: #1c232d; padding: 12px; border-radius: 8px; border-left: 4px solid #03a9f4; margin-bottom: 8px; }
-        button { background: #03a9f4; border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        #console { background: #000; color: #00ff00; padding: 12px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #333; }
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-top: 4px solid #03a9f4; }
+        button { background: #03a9f4; border: none; color: white; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .status-online { color: #4caf50; font-size: 0.8em; }
     </style>
 </head>
 <body>
-    <div class="container" style="max-width:800px; margin:0 auto;">
-        <h2>🔍 API Discovery Mode <span id="status" style="color:gray; font-size:0.5em;">OFFLINE</span></h2>
-        
-        <div class="card">
-            <button onclick="startDiscovery()">🚀 Start Discovery Scan</button>
-            <p id="scan-status" style="font-size: 0.9em; color: #aaa; margin-top: 10px;">Klik op de knop om de juiste API route te vinden.</p>
+    <div style="max-width:900px; margin:0 auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>📱 TimeLimit Android Bridge</h2>
+            <div id="socket-status">● Verbinding maken...</div>
         </div>
 
         <div class="card">
-            <h3>👥 Gevonden Familieleden</h3>
-            <div id="user-list">Nog geen data...</div>
+            <button onclick="requestRefresh()">🔄 Forceer Refresh</button>
+            <button onclick="requestState()" style="background:#444;">📡 Vraag State</button>
         </div>
 
-        <h4>Console:</h4>
-        <div id="log"></div>
+        <div class="card">
+            <h3>👥 Familie Overzicht</h3>
+            <div id="user-list" class="user-grid">Wachten op 'state' event...</div>
+        </div>
+
+        <h4>🛠️ Raw WebSocket Verkeer:</h4>
+        <div id="console"></div>
     </div>
 
     <script>
-        const logEl = document.getElementById('log');
-        function addLog(msg, color = "#00ff00") {
+        const consoleEl = document.getElementById('console');
+        const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
+
+        function log(msg, color="#00ff00") {
             const d = document.createElement('div');
             d.style.color = color;
-            d.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
-            logEl.appendChild(d);
-            logEl.scrollTop = logEl.scrollHeight;
+            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            consoleEl.appendChild(d);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        const token = localStorage.getItem('tl_device_token') || 'DAPBULbE...'; // Gebruik je eigen token hier
-
-        // Lijst met endpoints om te scannen
-        const endpoints = [
-            '/sync/get-family-data',
-            '/parent/get-family-data',
-            '/sync/get-data',
-            '/parent/get-data',
-            '/sync/all'
-        ];
-
-        async function startDiscovery() {
-            document.getElementById('scan-status').textContent = "Bezig met scannen van endpoints...";
-            addLog("🔎 Start scan op " + endpoints.length + " mogelijke routes...");
+        socket.on('connect', () => {
+            document.getElementById('socket-status').className = 'status-online';
+            document.getElementById('socket-status').textContent = '● VERBONDEN';
+            log("✅ Socket verbonden. Versturen 'devicelogin'...");
             
-            for (let path of endpoints) {
-                addLog("Testen: " + path + " ...", "#aaa");
-                const success = await tryEndpoint(path);
-                if (success) {
-                    document.getElementById('scan-status').textContent = "✅ Gevonden! Werkende route: " + path;
-                    document.getElementById('scan-status').style.color = "#4caf50";
-                    break;
-                }
+            socket.emit('devicelogin', "###TOKEN###", (ack) => {
+                log("🔑 Login geaccepteerd! Server luistert nu naar commando's.", "#4caf50");
+                requestState();
+            });
+        });
+
+        // De kern: luister naar alle inkomende data
+        socket.onAny((event, data) => {
+            log(`📩 Ontvangen [${event}]: ` + JSON.stringify(data).substring(0, 100) + "...", "#03a9f4");
+            
+            if (event === 'state' || event === 'user-update') {
+                updateUI(data);
+            }
+        });
+
+        function requestRefresh() {
+            log("📤 Versturen 'refresh'...");
+            socket.emit('refresh', {});
+        }
+
+        function requestState() {
+            log("📤 Versturen 'get-state'...");
+            socket.emit('get-state', {});
+        }
+
+        function updateUI(payload) {
+            // Android-app structuur: data.users of payload.users
+            const users = payload.users?.data || payload.users || [];
+            if (users.length > 0) {
+                document.getElementById('user-list').innerHTML = users.map(u => `
+                    <div class="user-card">
+                        <b>${u.name}</b><br>
+                        <small>ID: ${u.id}</small><br>
+                        <div style="margin-top:10px; color:#aaa; font-size:0.8em;">Systeem: ${u.type}</div>
+                    </div>
+                `).join('');
             }
         }
 
-        async function tryEndpoint(path) {
-            try {
-                const res = await fetch("/proxy/sync-data", {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-Target-Path': path 
-                    },
-                    body: JSON.stringify({ deviceAuthToken: token })
-                });
-                
-                if (res.ok) {
-                    const json = await res.json();
-                    const users = json.data?.users?.data || json.data?.users || [];
-                    if (users.length > 0) {
-                        renderUsers(users);
-                        addLog("🎯 SUCCESS op " + path, "#4caf50");
-                        return true;
-                    }
-                }
-            } catch (e) {}
-            return false;
-        }
-
-        function renderUsers(users) {
-            document.getElementById('user-list').innerHTML = users.map(u => 
-                `<div class="user-card"><b>${u.name}</b> (ID: ${u.id})</div>`
-            ).join('');
-        }
-
-        // Socket voor live status
-        const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
-        socket.on('connect', () => {
-            document.getElementById('status').textContent = "● ONLINE";
-            document.getElementById('status').style.color = "#4caf50";
-            addLog("✅ WebSocket verbonden.");
+        socket.on('disconnect', () => {
+            document.getElementById('socket-status').style.color = 'red';
+            document.getElementById('socket-status').textContent = '● DISCONNECTED';
+            log("❌ Verbinding verbroken.", "red");
         });
     </script>
 </body>
-</html>"""
+</html>
+"""
 
 if __name__ == "__main__":
-    class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-        pass
-
-    log_to_ha("Discovery Server gestart op poort 8099")
-    with ThreadedHTTPServer(("", PORT), DashboardHandler) as httpd:
+    with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
+        print(f"TimeLimit Bridge v3 actief op poort {PORT}")
         httpd.serve_forever()
