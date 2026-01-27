@@ -16,21 +16,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode("utf-8"))
 
     def do_POST(self):
-        # Proxy voor de pull-status request
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
-        
         target_url = f"{TIMELIMIT_SERVER_URL}/sync/pull-status"
-        
         try:
-            req = urllib.request.Request(target_url, data=post_data, 
-                                       headers={'Content-Type': 'application/json'}, method='POST')
+            req = urllib.request.Request(target_url, data=post_data, headers={'Content-Type': 'application/json'}, method='POST')
             with urllib.request.urlopen(req) as response:
-                res_raw = response.read()
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(res_raw)
+                self.wfile.write(response.read())
         except Exception as e:
             self.send_response(500)
             self.end_headers()
@@ -42,105 +37,163 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Hybrid Bridge</title>
+    <title>TimeLimit Tracer - Dashboard</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
-        .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
-        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
-        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-left: 4px solid #03a9f4; }
-        #log { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; margin-top: 20px; border: 1px solid #333; }
-        .online-tag { background: #4caf50; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; float: right; }
+        :root { --bg: #0b0e14; --card: #151921; --accent: #03a9f4; --text: #e1e1e1; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Header & Layout */
+        header { background: var(--card); padding: 15px 25px; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Left Side: UI */
+        .ui-panel { flex: 1; padding: 25px; overflow-y: auto; border-right: 1px solid #232a35; }
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .child-card { background: var(--card); border-radius: 12px; padding: 20px; position: relative; border: 1px solid #232a35; transition: transform 0.2s; }
+        .child-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+        .online-dot { height: 12px; width: 12px; background: #4caf50; border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 8px #4caf50; }
+        .offline-dot { height: 12px; width: 12px; background: #555; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        
+        /* Right Side: Raw Debug */
+        .debug-panel { width: 400px; background: #05070a; display: flex; flex-direction: column; }
+        .debug-header { padding: 10px 15px; background: #111; font-size: 12px; font-weight: bold; border-bottom: 1px solid #222; color: #888; }
+        #raw-log { flex: 1; padding: 15px; font-family: 'Consolas', monospace; font-size: 11px; overflow-y: auto; color: #00ff00; white-space: pre-wrap; }
+        
+        /* Components */
+        .stat-row { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9em; }
+        .battery { color: #8bc34a; font-weight: bold; }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn:hover { filter: brightness(1.1); }
+        .badge { background: #333; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
     </style>
 </head>
 <body>
-    <h2>📱 TimeLimit Hybrid Control</h2>
-    
-    <div class="card">
-        <button onclick="fetchFullStatus()" style="background:#03a9f4; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">
-            🔄 Vernieuw Data (HTTP Pull)
-        </button>
-        <span id="socket-status" style="margin-left:15px; font-size:0.9em; color:gray;">WebSocket: Verbinden...</span>
+
+<header>
+    <div>
+        <h2 style="margin:0; color:var(--accent);">TimeLimit Live Control</h2>
+        <small id="socket-status">WebSocket: Connecting...</small>
+    </div>
+    <button class="btn" onclick="fetchFullStatus()">🔄 Handmatige Sync</button>
+</header>
+
+<div class="main-container">
+    <div class="ui-panel">
+        <div class="user-grid" id="user-list">
+            <p style="color:gray;">Wachten op data van de server...</p>
+        </div>
     </div>
 
-    <div class="user-grid" id="user-list">Laden...</div>
+    <div class="debug-panel">
+        <div class="debug-header">JSON DATA INSPECTOR</div>
+        <div id="raw-log">Logging gestart...</div>
+    </div>
+</div>
 
-    <div id="log"></div>
+<script>
+    const rawLogEl = document.getElementById('raw-log');
+    let onlineDevices = new Set();
 
-    <script>
-        const logEl = document.getElementById('log');
-        let connectedDeviceIds = new Set();
+    function logRaw(obj) {
+        rawLogEl.textContent = JSON.stringify(obj, null, 2);
+    }
 
-        function addLog(msg, color="#00ff00") {
-            const d = document.createElement('div');
-            d.style.color = color;
-            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            logEl.appendChild(d);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+    // WebSocket Setup
+    const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
 
-        // --- WEBSOCKET LOGICA ---
-        const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
-
-        socket.on('connect', () => {
-            document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
-            document.getElementById('socket-status').style.color = '#4caf50';
-            
-            // STAP 1: Login met platte string (vlgns server index.ts)
-            addLog("📤 WS: devicelogin verzenden...");
-            socket.emit('devicelogin', "###TOKEN###", () => {
-                addLog("✅ WS: Login geaccepteerd door server (Ack ontvangen!)", "#4caf50");
-                fetchFullStatus(); // Eerste data ophalen
-            });
-        });
-
-        socket.on('connected devices', (devices) => {
-            addLog("📩 WS: Online apparaten update: " + JSON.stringify(devices), "#03a9f4");
-            connectedDeviceIds = new Set(devices);
-            // We hoeven niet de hele UI te refreshen, alleen de status tags
-        });
-
-        socket.on('should sync', (data) => {
-            addLog("🔔 WS: Server vraagt om sync! (isImportant: " + data.isImportant + ")", "#ff9800");
+    socket.on('connect', () => {
+        document.getElementById('socket-status').textContent = '● WebSocket: Verbonden (' + socket.id + ')';
+        document.getElementById('socket-status').style.color = '#4caf50';
+        
+        socket.emit('devicelogin', "###TOKEN###", () => {
+            console.log("WS: Login OK");
             fetchFullStatus();
         });
+    });
 
-        // --- HTTP PULL LOGICA ---
-        async function fetchFullStatus() {
-            addLog("📡 HTTP: Status ophalen via pull-status...");
-            try {
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        deviceAuthToken: "###TOKEN###",
-                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
-                    })
-                });
-                const data = await response.json();
-                renderUI(data);
-            } catch (e) {
-                addLog("❌ HTTP Fout: " + e.message, "red");
-            }
+    socket.on('connected devices', (devices) => {
+        onlineDevices = new Set(devices);
+        fetchFullStatus(); // Update UI om online status te tonen
+    });
+
+    socket.on('should sync', (data) => {
+        console.log("WS: Sync requested", data);
+        fetchFullStatus();
+    });
+
+    // HTTP Pull
+    async function fetchFullStatus() {
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    deviceAuthToken: "###TOKEN###",
+                    status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                })
+            });
+            const data = await response.json();
+            logRaw(data); // Stuur naar de debug panel
+            renderDashboard(data);
+        } catch (e) {
+            rawLogEl.textContent = "Fout bij ophalen data: " + e.message;
+        }
+    }
+
+    function renderDashboard(data) {
+        const userListEl = document.getElementById('user-list');
+        const users = data.users?.data || [];
+        const devices = data.devices?.data || [];
+
+        if (users.length === 0) {
+            userListEl.innerHTML = "<p>Geen gebruikers gevonden.</p>";
+            return;
         }
 
-        function renderUI(data) {
-            const users = data.users?.data || [];
-            addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
+        userListEl.innerHTML = users.map(user => {
+            // Zoek bijbehorende apparaten voor deze gebruiker
+            const userDevices = devices.filter(d => d.userId === user.id);
+            const isOnline = userDevices.some(d => onlineDevices.has(d.deviceId));
             
-            document.getElementById('user-list').innerHTML = users.map(u => `
-                <div class="user-card">
-                    ${u.name}
-                    <small style="display:block; color:gray;">ID: ${u.id}</small>
+            return `
+                <div class="child-card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <h3 style="margin:0;">${user.name}</h3>
+                            <small style="color:gray;">ID: ${user.id}</small>
+                        </div>
+                        <span class="${isOnline ? 'online-dot' : 'offline-dot'}"></span>
+                    </div>
+
+                    <div style="margin-top:15px; border-top: 1px solid #232a35; padding-top:10px;">
+                        ${userDevices.length > 0 ? userDevices.map(d => `
+                            <div class="stat-row">
+                                <span>📱 ${d.model || 'Toestel'}</span>
+                                <span class="battery">${d.batteryLevel || '?'}% 🔋</span>
+                            </div>
+                            <div style="font-size:0.75em; color:gray; margin-bottom:10px;">
+                                Laatst gezien: ${new Date(d.lastConnected).toLocaleString()}
+                            </div>
+                        `).join('') : '<p style="font-size:0.8em; color:gray;">Geen apparaten gekoppeld</p>'}
+                    </div>
+
+                    <div class="stat-row" style="background:#000; padding:8px; border-radius:6px; margin-top:10px;">
+                        <span>Status:</span>
+                        <span class="badge" style="color:${isOnline ? '#4caf50' : 'gray'}">
+                            ${isOnline ? 'Actief' : 'Offline'}
+                        </span>
+                    </div>
                 </div>
-            `).join('');
-        }
-    </script>
+            `;
+        }).join('');
+    }
+</script>
 </body>
 </html>
 """
 
 if __name__ == "__main__":
     with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
-        print(f"Hybrid Bridge actief op poort {PORT}")
+        print(f"TimeLimit Dashboard v8 actief op poort {PORT}")
         httpd.serve_forever()
