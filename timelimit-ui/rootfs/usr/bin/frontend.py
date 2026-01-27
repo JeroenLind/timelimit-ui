@@ -26,7 +26,12 @@ def save_to_history(email, token, client_id):
             with open(HISTORY_PATH, 'r') as f: history = json.load(f)
         except: pass
     if any(h.get('token') == token for h in history): return
-    entry = {"timestamp": datetime.now().strftime("%d-%m %H:%M"), "email": email or "HA Config", "token": token, "clientId": client_id or "N/A"}
+    entry = {
+        "timestamp": datetime.now().strftime("%d-%m %H:%M"), 
+        "email": email or "HA Config", 
+        "token": token, 
+        "clientId": client_id or "N/A"
+    }
     history.insert(0, entry)
     with open(HISTORY_PATH, 'w') as f: json.dump(history[:10], f)
 
@@ -89,15 +94,17 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; }
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 15px; }
         #log-area { background: #000; color: #00ff00; padding: 10px; height: 130px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #232a35; flex-shrink: 0; margin-top: auto; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-info { background: #607d8b; margin-right: 5px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
         .history-item { font-size: 0.8em; padding: 10px; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
+        .history-item:hover { background: #1c232d; }
         .help-box { background: #232a35; padding: 10px; border-radius: 4px; font-size: 0.85em; color: #ff9800; border: 1px solid #444; margin-top: 10px; }
     </style>
 </head>
 <body>
 <header>
-    <div><strong>TimeLimit Control v21</strong></div>
+    <div><strong>TimeLimit Control v22</strong></div>
     <div>
         <button class="btn" onclick="toggleLogin()">Geschiedenis & Login</button>
         <button class="btn" style="background:#444" onclick="fetchFullStatus()">Sync</button>
@@ -106,18 +113,14 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 <div class="main-container">
     <div class="dashboard-view">
         <div id="login-form" style="display:none; background:#151921; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #333;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap: 15px;">
                 <div>
                     <h4>Nieuwe Login</h4>
                     <input type="email" id="email" placeholder="E-mail">
                     <input type="password" id="password" placeholder="Wachtwoord">
                     <button class="btn" onclick="doLogin()">Start Login</button>
                     <div class="help-box">
-                        <strong>Herstel Instructie:</strong><br>
-                        1. Klik op "Gebruik" bij een token.<br>
-                        2. Kopieer het token uit de groene log.<br>
-                        3. Ga naar de HA Add-on Config.<br>
-                        4. Plak het bij <i>auth_token</i> en sla op.
+                        <strong>Herstel:</strong> Kies een token uit de lijst, kopieer het uit de log en plak het in de HA Add-on configuratie.
                     </div>
                 </div>
                 <div>
@@ -130,12 +133,14 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         <div id="log-area"></div>
     </div>
     <div class="inspector-panel">
-        <div style="padding:10px; font-size:10px; border-bottom:1px solid #232a35; color:#888;">RAW JSON INSPECTOR</div>
+        <div id="inspector-title" style="padding:10px; font-size:10px; border-bottom:1px solid #232a35; color:#888;">RAW JSON INSPECTOR (LIVE)</div>
         <div id="json-view"></div>
     </div>
 </div>
 <script>
     const TOKEN = "###TOKEN###";
+    let historyData = [];
+
     function addLog(msg, color="#00ff00") {
         const d = document.createElement('div');
         d.style.color = color;
@@ -143,43 +148,53 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         document.getElementById('log-area').appendChild(d);
         document.getElementById('log-area').scrollTop = 99999;
     }
+
     async function loadHistory() {
         const res = await fetch(window.location.href.split('?')[0].replace(/\/$/, "") + "/history");
-        const history = await res.json();
-        document.getElementById('history-list').innerHTML = history.map(h => `
+        historyData = await res.json();
+        document.getElementById('history-list').innerHTML = historyData.map((h, idx) => `
             <div class="history-item">
                 <div><small>${h.timestamp}</small><br><strong>${h.email}</strong></div>
-                <button class="btn" style="padding:4px 8px; font-size:10px;" onclick="restoreToken('${h.token}')">Gebruik</button>
+                <div>
+                    <button class="btn btn-info" style="padding:4px 8px; font-size:10px;" onclick="showHistoryInfo(${idx})">Info</button>
+                    <button class="btn" style="padding:4px 8px; font-size:10px;" onclick="restoreToken('${h.token}')">Gebruik</button>
+                </div>
             </div>`).join('');
     }
-    function restoreToken(t) {
-        addLog("--- HERSTEL PROCEDURE GESTART ---", "#ff9800");
-        addLog("1. Kopieer dit token: " + t, "#03a9f4");
-        addLog("2. Ga naar HA Instellingen -> Add-ons -> TimeLimit", "#ff9800");
-        addLog("3. Plak token in 'auth_token' veld en klik Opslaan.", "#ff9800");
-        alert("Token staat in de log. Volg de stappen in het groene venster.");
+
+    function showHistoryInfo(index) {
+        const data = historyData[index];
+        document.getElementById('inspector-title').textContent = "VIEWING HISTORY POINT: " + data.timestamp;
+        document.getElementById('inspector-title').style.color = "#ff9800";
+        document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+        addLog("ℹ️ Geschiedenisdetails getoond in Inspector.", "#607d8b");
     }
+
+    function restoreToken(t) {
+        addLog("--- HERSTEL PROCEDURE ---", "#ff9800");
+        addLog("Token: " + t, "#03a9f4");
+        addLog("Plak dit in de HA Add-on config bij 'auth_token'.", "#ff9800");
+        alert("Token staat in de log.");
+    }
+
     function toggleLogin() {
         const f = document.getElementById('login-form');
         f.style.display = f.style.display === 'none' ? 'block' : 'none';
         if(f.style.display === 'block') loadHistory();
     }
+
     async function doLogin() {
-        addLog("Login verzoek versturen...");
+        addLog("Login verzoek...");
         const response = await fetch(window.location.href.split('?')[0].replace(/\/$/, "") + "/login", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value, clientId: "ha-"+Math.random(), deviceName: "HA Dashboard" })
         });
         const data = await response.json();
-        if(data.deviceAuthToken) { 
-            addLog("✅ Login succes!", "#4caf50"); 
-            addLog("Nieuw Token: " + data.deviceAuthToken); 
-            loadHistory(); 
-        } else { 
-            addLog("❌ Login mislukt: " + JSON.stringify(data), "red"); 
-        }
+        if(data.deviceAuthToken) { addLog("✅ Succes!", "#4caf50"); loadHistory(); }
+        else { addLog("❌ Fout: " + JSON.stringify(data), "red"); }
     }
+
     async function fetchFullStatus() {
         try {
             const response = await fetch(window.location.href, {
@@ -188,6 +203,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 body: JSON.stringify({ deviceAuthToken: TOKEN, status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 } })
             });
             const data = await response.json();
+            document.getElementById('inspector-title').textContent = "RAW JSON INSPECTOR (LIVE)";
+            document.getElementById('inspector-title').style.color = "#888";
             document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
             document.getElementById('user-list').innerHTML = (data.users?.data || []).map(u => `
                 <div class="card"><strong>${u.name}</strong><br><small style="color:gray">ID: ${u.id}</small></div>`).join('');
