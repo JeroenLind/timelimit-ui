@@ -28,11 +28,10 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         config = get_ha_config()
         target_base = config["server_url"].strip().rstrip("/")
         
-        # Haal de data op die de frontend stuurt
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # CRUCIAL FIX: We sturen het nu ALTIJD naar /sync/pull-status 
+        # We sturen de POST altijd naar het pull-status endpoint op de backend
         target_url = f"{target_base}/sync/pull-status"
         
         try:
@@ -47,15 +46,10 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
                 self.wfile.write(response.read())
-        except urllib.error.HTTPError as e:
-            self.send_response(e.code)
-            self.send_header("Content-type", "text/plain")
-            self.end_headers()
-            self.wfile.write(f"{e.code}: {e.reason}".encode())
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(str(e).encode())
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
 
     def do_GET(self):
         config = get_ha_config()
@@ -74,79 +68,83 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Dashboard</title>
+    <title>TimeLimit Hybrid Control</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #111; color: #eee; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        header { padding: 10px 20px; background: #222; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
-        .container { display: grid; grid-template-columns: 1fr 450px; flex: 1; overflow: hidden; }
-        .view { padding: 20px; overflow-y: auto; }
-        .inspector { background: #050505; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        #raw-log { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #0f0; overflow-y: auto; white-space: pre-wrap; }
-        .card { background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #03a9f4; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
+        .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-left: 4px solid #03a9f4; }
+        #log { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; margin-top: 20px; border: 1px solid #333; }
     </style>
 </head>
 <body>
-<header>
-    <div><strong>TimeLimit Dashboard</strong> | <small>###SERVER_URL###</small></div>
-    <div id="status">Verbinden...</div>
-</header>
-<div class="container">
-    <div class="view" id="main-view">Laden...</div>
-    <div class="inspector">
-        <div style="padding:10px; font-size:12px; border-bottom:1px solid #222;">RAW JSON INSPECTOR</div>
-        <div id="raw-log">Geen data ontvangen.</div>
+    <h2>📱 TimeLimit Hybrid Control</h2>
+    <div class="card">
+        <button onclick="fetchFullStatus()" style="background:#03a9f4; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">🔄 Vernieuw Data</button>
+        <span id="socket-status" style="margin-left:15px; color:gray;">WebSocket: Verbinden...</span>
     </div>
-</div>
+    <div class="user-grid" id="user-list">Laden...</div>
+    <div id="log"></div>
 
-<script>
-    const TOKEN = "###TOKEN###";
-    const URL = "###SERVER_URL###";
+    <script>
+        const TOKEN = "###TOKEN###";
+        const SERVER_URL = "###SERVER_URL###";
+        const logEl = document.getElementById('log');
 
-    async function pullData() {
-        try {
-            const res = await fetch("/", {
-                method: 'POST',
-                body: JSON.stringify({
-                    deviceAuthToken: TOKEN,
-                    status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 2 }
-                })
-            });
-            const text = await res.text();
-            try {
-                const data = JSON.parse(text);
-                document.getElementById('raw-log').textContent = JSON.stringify(data, null, 2);
-                render(data);
-            } catch(e) {
-                document.getElementById('raw-log').textContent = "FOUT BIJ PARSEN: " + e.message + "\\n\\nRAW RESPONSE:\\n" + text;
-            }
-        } catch(e) {
-            document.getElementById('raw-log').textContent = "NETWERK FOUT: " + e.message;
+        function addLog(msg, color="#00ff00") {
+            const d = document.createElement('div');
+            d.style.color = color;
+            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(d);
+            logEl.scrollTop = logEl.scrollHeight;
         }
-    }
 
-    function render(data) {
-        const users = data.users?.data || [];
-        document.getElementById('main-view').innerHTML = users.length ? users.map(u => `
-            <div class="card">
-                <strong>${u.name}</strong><br>
-                <small style="color:gray;">ID: ${u.id}</small>
-            </div>
-        `).join('') : "Geen gebruikers gevonden.";
-    }
+        async function fetchFullStatus() {
+            addLog("📡 HTTP: Status ophalen...");
+            try {
+                // Gebruik window.location.href voor Ingress compatibiliteit
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deviceAuthToken: TOKEN,
+                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                    })
+                });
+                const data = await response.json();
+                renderUI(data);
+            } catch (e) {
+                addLog("❌ Fout: " + e.message, "red");
+            }
+        }
 
-    const socket = io(URL, { transports: ['websocket'], path: "/socket.io" });
-    socket.on('connect', () => {
-        document.getElementById('status').textContent = "Live: Verbonden";
-        socket.emit('devicelogin', TOKEN, () => pullData());
-    });
-    socket.on('should sync', () => pullData());
-</script>
+        function renderUI(data) {
+            const users = data.users?.data || [];
+            addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
+            document.getElementById('user-list').innerHTML = users.map(u => `
+                <div class="user-card">
+                    <strong>${u.name}</strong>
+                    <small style="display:block; color:gray;">ID: ${u.id}</small>
+                </div>
+            `).join('');
+        }
+
+        const socket = io(SERVER_URL, { transports: ['websocket'], path: "/socket.io" });
+        socket.on('connect', () => {
+            document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
+            document.getElementById('socket-status').style.color = '#4caf50';
+            socket.emit('devicelogin', TOKEN, () => {
+                addLog("✅ WS: Login succesvol.");
+                fetchFullStatus();
+            });
+        });
+        socket.on('should sync', () => fetchFullStatus());
+    </script>
 </body>
 </html>
 """
 
 if __name__ == "__main__":
-    # Gebruik poort 8099 zoals in je Docker/config setup
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
         httpd.serve_forever()
