@@ -1,5 +1,7 @@
 import http.server
 import socketserver
+import urllib.request
+import json
 
 PORT = 8099
 TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
@@ -13,90 +15,126 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         html = self.get_template_string().replace("###SERVER_URL###", TIMELIMIT_SERVER_URL).replace("###TOKEN###", SAVED_TOKEN)
         self.wfile.write(html.encode("utf-8"))
 
+    def do_POST(self):
+        # Proxy voor de pull-status request
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        target_url = f"{TIMELIMIT_SERVER_URL}/sync/pull-status"
+        
+        try:
+            req = urllib.request.Request(target_url, data=post_data, 
+                                       headers={'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req) as response:
+                res_raw = response.read()
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(res_raw)
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+
     def get_template_string(self):
         return """
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Tracer v6</title>
+    <title>TimeLimit Hybrid Bridge</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: 'Consolas', monospace; background: #0b0e14; color: #00ff00; padding: 20px; }
-        .card { background: #151921; border-radius: 8px; padding: 15px; border: 1px solid #333; margin-bottom: 20px; }
-        #console { background: #000; padding: 10px; height: 400px; overflow-y: auto; border: 1px solid #444; font-size: 12px; }
-        .out { color: #888; }
-        .in { color: #03a9f4; }
-        .success { color: #4caf50; font-weight: bold; }
-        .err { color: #ff5252; }
-        .user-card { border-left: 4px solid #03a9f4; background: #1c232d; padding: 10px; margin: 5px 0; }
+        body { font-family: system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
+        .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-left: 4px solid #03a9f4; }
+        #log { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; margin-top: 20px; border: 1px solid #333; }
+        .online-tag { background: #4caf50; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; float: right; }
     </style>
 </head>
 <body>
-    <h3>🕵️ Protocol Matcher v6</h3>
+    <h2>📱 TimeLimit Hybrid Control</h2>
     
-    <div class="card" id="user-list">Wachten op login resultaat...</div>
+    <div class="card">
+        <button onclick="fetchFullStatus()" style="background:#03a9f4; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">
+            🔄 Vernieuw Data (HTTP Pull)
+        </button>
+        <span id="socket-status" style="margin-left:15px; font-size:0.9em; color:gray;">WebSocket: Verbinden...</span>
+    </div>
 
-    <div id="console"></div>
+    <div class="user-grid" id="user-list">Laden...</div>
+
+    <div id="log"></div>
 
     <script>
-        const consoleEl = document.getElementById('console');
+        const logEl = document.getElementById('log');
+        let connectedDeviceIds = new Set();
+
+        function addLog(msg, color="#00ff00") {
+            const d = document.createElement('div');
+            d.style.color = color;
+            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(d);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // --- WEBSOCKET LOGICA ---
         const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
 
-        function log(msg, type='info') {
-            const d = document.createElement('div');
-            d.className = type;
-            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            consoleEl.appendChild(d);
-            consoleEl.scrollTop = consoleEl.scrollHeight;
-        }
-
         socket.on('connect', () => {
-            log("CONNECTED: " + socket.id, "success");
+            document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
+            document.getElementById('socket-status').style.color = '#4caf50';
             
-            // PAYLOAD: De server verwacht een object, geen string!
-            const loginObj = { 
-                deviceAuthToken: "###TOKEN###",
-                clientLevel: 2 
-            };
-            
-            log("OUT -> devicelogin | " + JSON.stringify(loginObj), "out");
-            socket.emit('devicelogin', loginObj); 
+            // STAP 1: Login met platte string (vlgns server index.ts)
+            addLog("📤 WS: devicelogin verzenden...");
+            socket.emit('devicelogin', "###TOKEN###", () => {
+                addLog("✅ WS: Login geaccepteerd door server (Ack ontvangen!)", "#4caf50");
+                fetchFullStatus(); // Eerste data ophalen
+            });
         });
 
-        // LUISTEREN NAAR HET RESULTAAT (Specifiek voor deze server versie)
-        socket.on('login-result', (data) => {
-            log("IN  <- login-result | " + JSON.stringify(data), "in");
-            if (data.success || data.familyId) {
-                log("🚀 LOGIN SUCCESVOL! Room joined.", "success");
-                // Nu de sync aanvragen
-                log("OUT -> sync", "out");
-                socket.emit('sync', { clientLevel: 2 });
-            } else {
-                log("❌ LOGIN GEWEIGERD: " + JSON.stringify(data), "err");
+        socket.on('connected devices', (devices) => {
+            addLog("📩 WS: Online apparaten update: " + JSON.stringify(devices), "#03a9f4");
+            connectedDeviceIds = new Set(devices);
+            // We hoeven niet de hele UI te refreshen, alleen de status tags
+        });
+
+        socket.on('should sync', (data) => {
+            addLog("🔔 WS: Server vraagt om sync! (isImportant: " + data.isImportant + ")", "#ff9800");
+            fetchFullStatus();
+        });
+
+        // --- HTTP PULL LOGICA ---
+        async function fetchFullStatus() {
+            addLog("📡 HTTP: Status ophalen via pull-status...");
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deviceAuthToken: "###TOKEN###",
+                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                    })
+                });
+                const data = await response.json();
+                renderUI(data);
+            } catch (e) {
+                addLog("❌ HTTP Fout: " + e.message, "red");
             }
-        });
-
-        // ALGEMENE STATE LISTENER
-        socket.on('state', (data) => {
-            log("IN  <- state | Data ontvangen!", "success");
-            renderUsers(data);
-        });
-
-        socket.onAny((event, ...args) => {
-            if (event !== 'login-result' && event !== 'state') {
-                log(`IN  <- ${event} | ` + JSON.stringify(args), "in");
-            }
-        });
-
-        function renderUsers(payload) {
-            const users = payload.users?.data || payload.users || [];
-            document.getElementById('user-list').innerHTML = users.map(u => 
-                `<div class="user-card"><b>${u.name}</b> (ID: ${u.id})</div>`
-            ).join('');
         }
 
-        socket.on('connect_error', (err) => log("ERROR: " + err.message, "err"));
+        function renderUI(data) {
+            const users = data.users?.data || [];
+            addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
+            
+            document.getElementById('user-list').innerHTML = users.map(u => `
+                <div class="user-card">
+                    ${u.name}
+                    <small style="display:block; color:gray;">ID: ${u.id}</small>
+                </div>
+            `).join('');
+        }
     </script>
 </body>
 </html>
@@ -104,5 +142,5 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
-        print(f"Tracer v6 actief op poort {PORT}")
+        print(f"Hybrid Bridge actief op poort {PORT}")
         httpd.serve_forever()
