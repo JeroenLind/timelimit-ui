@@ -2,26 +2,50 @@ import http.server
 import socketserver
 import urllib.request
 import json
+import os
+import ssl
 
-PORT = 8099
-TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
-SAVED_TOKEN = "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY"
+# --- HOME ASSISTANT INTEGRATIE ---
+CONFIG_PATH = "/data/options.json"
 
-class DashboardHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        html = self.get_template_string().replace("###SERVER_URL###", TIMELIMIT_SERVER_URL).replace("###TOKEN###", SAVED_TOKEN)
-        self.wfile.write(html.encode("utf-8"))
-
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        target_url = f"{TIMELIMIT_SERVER_URL}/sync/pull-status"
+def get_config():
+    """Leest de actuele instellingen uit het HA configuratie tabje."""
+    defaults = {
+        "server_url": "http://192.168.68.30:8080",
+        "auth_token": "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY"
+    }
+    if os.path.exists(CONFIG_PATH):
         try:
-            req = urllib.request.Request(target_url, data=post_data, headers={'Content-Type': 'application/json'}, method='POST')
-            with urllib.request.urlopen(req) as response:
+            with open(CONFIG_PATH, 'r') as f:
+                return {**defaults, **json.load(f)}
+        except Exception as e:
+            print(f"Fout bij lezen van HA opties: {e}")
+    return defaults
+
+# Schakel SSL verificatie uit voor lokale servers met self-signed certs
+ssl_context = ssl._create_unverified_context()
+
+class TimeLimitProxyHandler(http.server.SimpleHTTPRequestHandler):
+    def do_POST(self):
+        """Proxy voor API requests naar de TimeLimit server."""
+        config = get_config()
+        target_base = config["server_url"].rstrip("/")
+        
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        
+        # Bepaal het endpoint. Als we naar de root posten, gaan we naar pull-status
+        target_path = self.path if self.path != "/" else "/sync/pull-status"
+        target_url = f"{target_base}{target_path}"
+        
+        try:
+            req = urllib.request.Request(
+                target_url,
+                data=post_data,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, context=ssl_context) as response:
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
@@ -29,171 +53,139 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            error_msg = {"error": str(e), "target": target_url}
+            self.wfile.write(json.dumps(error_msg).encode())
 
-    def get_template_string(self):
+    def do_GET(self):
+        """Serveert de dashboard HTML en injecteert de huidige HA configuratie."""
+        config = get_config()
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        
+        html = self.get_template().replace("###SERVER_URL###", config["server_url"])
+        html = html.replace("###TOKEN###", config["auth_token"])
+        self.wfile.write(html.encode("utf-8"))
+
+    def get_template(self):
         return """
 <!DOCTYPE html>
-<html>
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Tracer - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeLimit UI</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { --bg: #0b0e14; --card: #151921; --accent: #03a9f4; --text: #e1e1e1; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        
-        /* Header & Layout */
-        header { background: var(--card); padding: 15px 25px; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        
-        /* Left Side: UI */
-        .ui-panel { flex: 1; padding: 25px; overflow-y: auto; border-right: 1px solid #232a35; }
-        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-        .child-card { background: var(--card); border-radius: 12px; padding: 20px; position: relative; border: 1px solid #232a35; transition: transform 0.2s; }
-        .child-card:hover { transform: translateY(-3px); border-color: var(--accent); }
-        .online-dot { height: 12px; width: 12px; background: #4caf50; border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 8px #4caf50; }
-        .offline-dot { height: 12px; width: 12px; background: #555; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        
-        /* Right Side: Raw Debug */
-        .debug-panel { width: 400px; background: #05070a; display: flex; flex-direction: column; }
-        .debug-header { padding: 10px 15px; background: #111; font-size: 12px; font-weight: bold; border-bottom: 1px solid #222; color: #888; }
-        #raw-log { flex: 1; padding: 15px; font-family: 'Consolas', monospace; font-size: 11px; overflow-y: auto; color: #00ff00; white-space: pre-wrap; }
-        
-        /* Components */
-        .stat-row { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9em; }
-        .battery { color: #8bc34a; font-weight: bold; }
-        .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn:hover { filter: brightness(1.1); }
-        .badge { background: #333; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+        :root { --bg: #111111; --card: #1c1c1c; --accent: #03a9f4; --text: #e0e0e0; --border: #333; }
+        body { font-family: 'Roboto', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { background: var(--card); padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .main { display: grid; grid-template-columns: 1fr 400px; flex: 1; overflow: hidden; }
+        .view { padding: 20px; overflow-y: auto; }
+        .inspector { background: #080808; border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+        #json-view { flex: 1; padding: 15px; font-family: 'Fira Code', monospace; font-size: 11px; color: #a5d6a7; overflow-y: auto; white-space: pre-wrap; }
+        .card { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 15px; margin-bottom: 15px; }
+        .online-status { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+        .tag { background: #333; font-size: 11px; padding: 2px 6px; border-radius: 4px; color: #bbb; }
     </style>
 </head>
 <body>
+    <header>
+        <div>
+            <h2 style="margin:0;">TimeLimit <span style="color:var(--accent);">Dashboard</span></h2>
+            <small style="color:gray;">Server: ###SERVER_URL###</small>
+        </div>
+        <div id="ws-badge" class="tag">WebSocket: Verbinden...</div>
+    </header>
 
-<header>
-    <div>
-        <h2 style="margin:0; color:var(--accent);">TimeLimit Live Control</h2>
-        <small id="socket-status">WebSocket: Connecting...</small>
-    </div>
-    <button class="btn" onclick="fetchFullStatus()">🔄 Handmatige Sync</button>
-</header>
-
-<div class="main-container">
-    <div class="ui-panel">
-        <div class="user-grid" id="user-list">
-            <p style="color:gray;">Wachten op data van de server...</p>
+    <div class="main">
+        <div class="view">
+            <div id="setup-msg" class="card" style="display:none; border-color: orange;">
+                <strong>Geen Token!</strong> Voer je deviceAuthToken in bij de Add-on configuratie.
+            </div>
+            <div id="user-list">Laden van gegevens...</div>
+        </div>
+        <div class="inspector">
+            <div style="padding: 10px; border-bottom: 1px solid #222; font-size: 12px; font-weight: bold;">RAW JSON INSPECTOR</div>
+            <div id="json-view">{}</div>
         </div>
     </div>
 
-    <div class="debug-panel">
-        <div class="debug-header">JSON DATA INSPECTOR</div>
-        <div id="raw-log">Logging gestart...</div>
-    </div>
-</div>
+    <script>
+        const SERVER_URL = "###SERVER_URL###";
+        const AUTH_TOKEN = "###TOKEN###";
+        let onlineDevices = new Set();
 
-<script>
-    const rawLogEl = document.getElementById('raw-log');
-    let onlineDevices = new Set();
-
-    function logRaw(obj) {
-        rawLogEl.textContent = JSON.stringify(obj, null, 2);
-    }
-
-    // WebSocket Setup
-    const socket = io("###SERVER_URL###", { transports: ['websocket'], path: "/socket.io" });
-
-    socket.on('connect', () => {
-        document.getElementById('socket-status').textContent = '● WebSocket: Verbonden (' + socket.id + ')';
-        document.getElementById('socket-status').style.color = '#4caf50';
-        
-        socket.emit('devicelogin', "###TOKEN###", () => {
-            console.log("WS: Login OK");
-            fetchFullStatus();
-        });
-    });
-
-    socket.on('connected devices', (devices) => {
-        onlineDevices = new Set(devices);
-        fetchFullStatus(); // Update UI om online status te tonen
-    });
-
-    socket.on('should sync', (data) => {
-        console.log("WS: Sync requested", data);
-        fetchFullStatus();
-    });
-
-    // HTTP Pull
-    async function fetchFullStatus() {
-        try {
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    deviceAuthToken: "###TOKEN###",
-                    status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
-                })
-            });
-            const data = await response.json();
-            logRaw(data); // Stuur naar de debug panel
-            renderDashboard(data);
-        } catch (e) {
-            rawLogEl.textContent = "Fout bij ophalen data: " + e.message;
-        }
-    }
-
-    function renderDashboard(data) {
-        const userListEl = document.getElementById('user-list');
-        const users = data.users?.data || [];
-        const devices = data.devices?.data || [];
-
-        if (users.length === 0) {
-            userListEl.innerHTML = "<p>Geen gebruikers gevonden.</p>";
-            return;
+        if (!AUTH_TOKEN || AUTH_TOKEN === "test") {
+            document.getElementById('setup-msg').style.display = 'block';
         }
 
-        userListEl.innerHTML = users.map(user => {
-            // Zoek bijbehorende apparaten voor deze gebruiker
-            const userDevices = devices.filter(d => d.userId === user.id);
-            const isOnline = userDevices.some(d => onlineDevices.has(d.deviceId));
-            
-            return `
-                <div class="child-card">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div>
-                            <h3 style="margin:0;">${user.name}</h3>
-                            <small style="color:gray;">ID: ${user.id}</small>
-                        </div>
-                        <span class="${isOnline ? 'online-dot' : 'offline-dot'}"></span>
-                    </div>
+        async function fetchStatus() {
+            if (!AUTH_TOKEN) return;
+            try {
+                const res = await fetch("/", {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        deviceAuthToken: AUTH_TOKEN,
+                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+                render(data);
+            } catch (e) {
+                document.getElementById('json-view').textContent = "FOUT: " + e.message;
+            }
+        }
 
-                    <div style="margin-top:15px; border-top: 1px solid #232a35; padding-top:10px;">
-                        ${userDevices.length > 0 ? userDevices.map(d => `
-                            <div class="stat-row">
-                                <span>📱 ${d.model || 'Toestel'}</span>
-                                <span class="battery">${d.batteryLevel || '?'}% 🔋</span>
-                            </div>
-                            <div style="font-size:0.75em; color:gray; margin-bottom:10px;">
-                                Laatst gezien: ${new Date(d.lastConnected).toLocaleString()}
-                            </div>
-                        `).join('') : '<p style="font-size:0.8em; color:gray;">Geen apparaten gekoppeld</p>'}
+        function render(data) {
+            const users = data.users?.data || [];
+            const container = document.getElementById('user-list');
+            if (users.length === 0) {
+                container.innerHTML = "<p>Geen gebruikers gevonden op deze server.</p>";
+                return;
+            }
+            container.innerHTML = users.map(u => `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <strong>${u.name}</strong>
+                        <span class="tag">${u.type}</span>
                     </div>
-
-                    <div class="stat-row" style="background:#000; padding:8px; border-radius:6px; margin-top:10px;">
-                        <span>Status:</span>
-                        <span class="badge" style="color:${isOnline ? '#4caf50' : 'gray'}">
-                            ${isOnline ? 'Actief' : 'Offline'}
-                        </span>
-                    </div>
+                    <div style="margin-top:10px; font-size:13px; color:#888;">ID: ${u.id}</div>
                 </div>
-            `;
-        }).join('');
-    }
-</script>
+            `).join('');
+        }
+
+        // WebSocket voor live updates
+        if (AUTH_TOKEN && AUTH_TOKEN !== "test") {
+            const socket = io(SERVER_URL, { transports: ['websocket'], path: "/socket.io" });
+            
+            socket.on('connect', () => {
+                document.getElementById('ws-badge').textContent = "WebSocket: Online";
+                document.getElementById('ws-badge').style.color = "#4caf50";
+                socket.emit('devicelogin', AUTH_TOKEN, () => fetchStatus());
+            });
+
+            socket.on('connected devices', (devices) => {
+                onlineDevices = new Set(devices);
+                fetchStatus();
+            });
+
+            socket.on('should sync', () => fetchStatus());
+
+            socket.on('disconnect', () => {
+                document.getElementById('ws-badge').textContent = "WebSocket: Offline";
+                document.getElementById('ws-badge').style.color = "#f44336";
+            });
+        }
+    </script>
 </body>
 </html>
 """
 
 if __name__ == "__main__":
-    with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
-        print(f"TimeLimit Dashboard v8 actief op poort {PORT}")
+    PORT = 8099
+    with socketserver.TCPServer(("", PORT), TimeLimitProxyHandler) as httpd:
+        print(f"TimeLimit UI Server actief op poort {PORT}")
         httpd.serve_forever()
