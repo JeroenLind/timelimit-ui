@@ -1,7 +1,7 @@
 import http.server
 import socketserver
 
-# Configuratie - Pas dit aan indien nodig
+# Configuratie
 PORT = 8099
 TIMELIMIT_SERVER_URL = "http://192.168.68.30:8080"
 SAVED_TOKEN = "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY"
@@ -62,7 +62,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             <div id="user-list" class="user-grid">Wachten op data-events van server...</div>
         </div>
 
-        <h4>💬 Raw System Log (Inclusief verborgen events):</h4>
+        <h4>💬 Raw System Log:</h4>
         <div id="console"></div>
     </div>
 
@@ -78,32 +78,24 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             const d = document.createElement('div');
             if (className) d.className = className;
             d.style.color = color;
-            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            d.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
             consoleEl.appendChild(d);
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        // 1. Verbinding maken
         socket.on('connect', () => {
             document.getElementById('dot').style.background = '#4caf50';
             document.getElementById('status-text').textContent = 'Verbonden';
             addLog("✅ Socket verbonden. ID: " + socket.id);
-            
-            // 2. Handshake / Login
             addLog("🔑 Versturen 'devicelogin'...");
             socket.emit('devicelogin', "###TOKEN###", (ack) => {
-                addLog("🚀 Login bevestigd door server! ACK: " + JSON.stringify(ack), "#4caf50");
-                
-                // 3. Automatische Discovery Starten
+                addLog("🚀 Login bevestigd! ACK: " + JSON.stringify(ack), "#4caf50");
                 runAutoDiscovery();
             });
         });
 
-        // 4. CATCH-ALL: Luister naar ELK inkomend bericht
         socket.onAny((eventName, ...args) => {
-            addLog(`📩 ONTVANGEN [${eventName}]: ` + JSON.stringify(args), "#03a9f4", "log-blue");
-            
-            // Probeer data te verwerken als het op een gebruikerslijst lijkt
+            addLog("📩 ONTVANGEN [" + eventName + "]: " + JSON.stringify(args), "#03a9f4", "log-blue");
             const potentialData = args[0]?.data || args[0];
             if (potentialData && (potentialData.users || Array.isArray(potentialData))) {
                 updateUI(potentialData);
@@ -117,7 +109,38 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         function sendProbe(name, payload) {
-            addLog(`📤 Verzend probe: ${name}...`, "#aaa");
+            addLog("📤 Verzend probe: " + name + "...", "#aaa");
             socket.emit(name, payload, (response) => {
                 if (response) {
-                    addLog(`🧡 REPLIEK op [${name}]: ` + JSON.stringify(response), "#ff9800", "log-orange");
+                    addLog("🧡 REPLIEK op [" + name + "]: " + JSON.stringify(response), "#ff9800", "log-orange");
+                    if (response.users || response.data) updateUI(response.data || response);
+                }
+            });
+        }
+
+        function updateUI(payload) {
+            const users = payload.users?.data || payload.users || (Array.isArray(payload) ? payload : []);
+            if (users.length > 0) {
+                addLog("🎉 Succes! " + users.length + " gebruikers gevonden.", "#4caf50");
+                document.getElementById('user-list').innerHTML = users.map(u => `
+                    <div class="user-card">
+                        <b>` + (u.name || 'Naamloos') + `</b><br>
+                        <small style="color:gray;">ID: ` + u.id + `</small><br>
+                        <div style="margin-top:8px; font-size:0.8em;">Type: ` + (u.type || 'Onbekend') + `</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        socket.on('connect_error', (err) => {
+            addLog("❌ Verbindingsfout: " + err.message, "red");
+        });
+    </script>
+</body>
+</html>
+"""
+
+if __name__ == "__main__":
+    with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
+        print(f"TimeLimit Tracer v4 gestart op poort {PORT}")
+        httpd.serve_forever()
