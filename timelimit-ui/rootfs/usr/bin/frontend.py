@@ -25,18 +25,27 @@ def save_to_history(email, token, client_id):
         try:
             with open(HISTORY_PATH, 'r') as f: history = json.load(f)
         except: pass
-    if any(h.get('token') == token for h in history): return
+    
+    # Update bestaande entry als token al bestaat (om bijv. email toe te voegen)
+    for h in history:
+        if h.get('token') == token:
+            if email and h['email'] == "HA Config": h['email'] = email
+            if client_id and h['clientId'] == "Initial": h['clientId'] = client_id
+            with open(HISTORY_PATH, 'w') as f: json.dump(history, f)
+            return
+
     entry = {
         "timestamp": datetime.now().strftime("%d-%m %H:%M"), 
         "email": email or "HA Config", 
         "token": token, 
-        "clientId": client_id or "N/A"
+        "clientId": client_id or "Initial"
     }
     history.insert(0, entry)
     with open(HISTORY_PATH, 'w') as f: json.dump(history[:10], f)
 
+# Bij start de huidige staat opslaan
 current_cfg = get_ha_config()
-save_to_history("Huidige Config", current_cfg['auth_token'], "Initial")
+save_to_history(None, current_cfg['auth_token'], None)
 
 ssl_context = ssl._create_unverified_context()
 
@@ -60,6 +69,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 return
             except Exception as e:
                 self.send_response(500); self.end_headers(); self.wfile.write(str(e).encode()); return
+        
         target_url = f"{target_base}/sync/pull-status"
         try:
             req = urllib.request.Request(target_url, data=post_data, headers={'Content-Type': 'application/json'}, method='POST')
@@ -98,13 +108,12 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         .btn-info { background: #607d8b; margin-right: 5px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
         .history-item { font-size: 0.8em; padding: 10px; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
-        .history-item:hover { background: #1c232d; }
         .help-box { background: #232a35; padding: 10px; border-radius: 4px; font-size: 0.85em; color: #ff9800; border: 1px solid #444; margin-top: 10px; }
     </style>
 </head>
 <body>
 <header>
-    <div><strong>TimeLimit Control v22</strong></div>
+    <div><strong>TimeLimit Control v23</strong></div>
     <div>
         <button class="btn" onclick="toggleLogin()">Geschiedenis & Login</button>
         <button class="btn" style="background:#444" onclick="fetchFullStatus()">Sync</button>
@@ -120,12 +129,12 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     <input type="password" id="password" placeholder="Wachtwoord">
                     <button class="btn" onclick="doLogin()">Start Login</button>
                     <div class="help-box">
-                        <strong>Herstel:</strong> Kies een token uit de lijst, kopieer het uit de log en plak het in de HA Add-on configuratie.
+                        <strong>Backup Info:</strong> Als je teruggaat naar een oud token, hoef je <u>geen</u> email of wachtwoord in te vullen in de add-on. Alleen het token is genoeg voor de sync.
                     </div>
                 </div>
                 <div>
                     <h4>Token Geschiedenis</h4>
-                    <div id="history-list" style="max-height: 250px; overflow-y: auto; background:#000; border-radius:4px;"></div>
+                    <div id="history-list" style="max-height: 300px; overflow-y: auto; background:#000; border-radius:4px;"></div>
                 </div>
             </div>
         </div>
@@ -133,7 +142,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         <div id="log-area"></div>
     </div>
     <div class="inspector-panel">
-        <div id="inspector-title" style="padding:10px; font-size:10px; border-bottom:1px solid #232a35; color:#888;">RAW JSON INSPECTOR (LIVE)</div>
+        <div id="inspector-title" style="padding:10px; font-size:10px; border-bottom:1px solid #232a35; color:#888;">RAW JSON INSPECTOR</div>
         <div id="json-view"></div>
     </div>
 </div>
@@ -164,17 +173,14 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
     function showHistoryInfo(index) {
         const data = historyData[index];
-        document.getElementById('inspector-title').textContent = "VIEWING HISTORY POINT: " + data.timestamp;
-        document.getElementById('inspector-title').style.color = "#ff9800";
+        document.getElementById('inspector-title').textContent = "HISTORY POINT: " + data.timestamp;
         document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-        addLog("ℹ️ Geschiedenisdetails getoond in Inspector.", "#607d8b");
     }
 
     function restoreToken(t) {
-        addLog("--- HERSTEL PROCEDURE ---", "#ff9800");
-        addLog("Token: " + t, "#03a9f4");
-        addLog("Plak dit in de HA Add-on config bij 'auth_token'.", "#ff9800");
-        alert("Token staat in de log.");
+        addLog("--- HERSTEL TOKEN ---", "#ff9800");
+        addLog(t, "#03a9f4");
+        alert("Token gekopieerd naar log.");
     }
 
     function toggleLogin() {
@@ -184,14 +190,18 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     }
 
     async function doLogin() {
-        addLog("Login verzoek...");
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        if(!email || !password) { alert("Vul email en wachtwoord in voor een nieuwe login."); return; }
+        
+        addLog("Nieuwe login gestart voor " + email);
         const response = await fetch(window.location.href.split('?')[0].replace(/\/$/, "") + "/login", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value, clientId: "ha-"+Math.random(), deviceName: "HA Dashboard" })
+            body: JSON.stringify({ email, password, clientId: "ha-"+Math.random().toString(36).substr(2, 5), deviceName: "HA Dashboard" })
         });
         const data = await response.json();
-        if(data.deviceAuthToken) { addLog("✅ Succes!", "#4caf50"); loadHistory(); }
+        if(data.deviceAuthToken) { addLog("✅ Login succes!", "#4caf50"); loadHistory(); }
         else { addLog("❌ Fout: " + JSON.stringify(data), "red"); }
     }
 
@@ -203,12 +213,10 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 body: JSON.stringify({ deviceAuthToken: TOKEN, status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 } })
             });
             const data = await response.json();
-            document.getElementById('inspector-title').textContent = "RAW JSON INSPECTOR (LIVE)";
-            document.getElementById('inspector-title').style.color = "#888";
             document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
             document.getElementById('user-list').innerHTML = (data.users?.data || []).map(u => `
                 <div class="card"><strong>${u.name}</strong><br><small style="color:gray">ID: ${u.id}</small></div>`).join('');
-        } catch(e) { addLog("Sync fout: " + e, "red"); }
+        } catch(e) { addLog("Sync fout", "red"); }
     }
     fetchFullStatus();
 </script>
