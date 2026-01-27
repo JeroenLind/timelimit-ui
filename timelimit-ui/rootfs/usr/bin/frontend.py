@@ -8,7 +8,7 @@ from datetime import datetime
 
 # --- CONFIGURATIE ---
 CONFIG_PATH = "/data/options.json"
-HISTORY_PATH = "/data/history.json" # Hier blijven je tokens bewaard
+HISTORY_PATH = "/data/history.json"
 
 def get_ha_config():
     defaults = {"server_url": "http://192.168.68.30:8080", "auth_token": ""}
@@ -20,23 +20,29 @@ def get_ha_config():
     return defaults
 
 def save_to_history(email, token, client_id):
+    if not token or len(token) < 5: return
     history = []
     if os.path.exists(HISTORY_PATH):
         try:
             with open(HISTORY_PATH, 'r') as f: history = json.load(f)
         except: pass
     
-    # Voeg nieuwe toe aan het begin van de lijst
+    # Voorkom dubbele tokens in de lijst
+    if any(h.get('token') == token for h in history): return
+
     entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "email": email,
+        "email": email or "Geïmporteerd uit HA Config",
         "token": token,
-        "clientId": client_id
+        "clientId": client_id or "N/A"
     }
     history.insert(0, entry)
-    # Bewaar alleen de laatste 10
     with open(HISTORY_PATH, 'w') as f:
         json.dump(history[:10], f)
+
+# Bij het opstarten de huidige config alvast in de history zetten
+current_cfg = get_ha_config()
+save_to_history(None, current_cfg['auth_token'], "Initial Config")
 
 ssl_context = ssl._create_unverified_context()
 
@@ -55,7 +61,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     res_body = response.read()
                     data = json.loads(res_body)
                     if "deviceAuthToken" in data:
-                        # Automatisch opslaan in geschiedenis bij succes
                         req_data = json.loads(post_data)
                         save_to_history(req_data.get('email'), data['deviceAuthToken'], req_data.get('clientId'))
                     
@@ -67,7 +72,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_response(500); self.end_headers(); self.wfile.write(str(e).encode()); return
 
-        # Default proxy naar pull-status
         target_url = f"{target_base}/sync/pull-status"
         try:
             req = urllib.request.Request(target_url, data=post_data, headers={'Content-Type': 'application/json'}, method='POST')
@@ -90,7 +94,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode("utf-8"))
 
     def get_template(self):
-        return """
+        # r""" zorgt ervoor dat Python geen SyntaxWarnings geeft op regex of slashes
+        return r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -102,11 +107,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 15px; }
-        .history-item { font-size: 0.8em; padding: 8px; border-bottom: 1px solid #333; cursor: pointer; }
-        .history-item:hover { background: #232a35; }
+        .history-item { font-size: 0.85em; padding: 10px; border-bottom: 1px solid #232a35; cursor: pointer; transition: 0.2s; }
+        .history-item:hover { background: #232a35; color: #03a9f4; }
         #log-area { background: #000; color: #00ff00; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; }
         .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
+        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -122,16 +127,16 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 <div class="main-container">
     <div class="dashboard-view">
         <div id="login-form" style="display:none; background:#151921; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #333;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display:grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
                 <div>
                     <h3>Nieuwe Login</h3>
-                    <input type="email" id="email" placeholder="E-mail" style="width:90%"><br>
-                    <input type="password" id="password" placeholder="Wachtwoord" style="width:90%"><br>
+                    <input type="email" id="email" placeholder="E-mail">
+                    <input type="password" id="password" placeholder="Wachtwoord">
                     <button class="btn" onclick="doLogin()">Start Verse Sessie</button>
                 </div>
                 <div>
-                    <h3>Geschiedenis (Max 10)</h3>
-                    <div id="history-list" style="max-height: 150px; overflow-y: auto;">Laden...</div>
+                    <h3>Tokens Geschiedenis</h3>
+                    <div id="history-list" style="max-height: 250px; overflow-y: auto; background:#0b0e14; border-radius:4px;">Laden...</div>
                 </div>
             </div>
         </div>
@@ -157,22 +162,26 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     }
 
     async function loadHistory() {
-        const res = await fetch(window.location.href.replace(/\/$/, "") + "/history");
-        const history = await res.json();
-        const list = document.getElementById('history-list');
-        if(history.length === 0) { list.innerHTML = "Geen geschiedenis."; return; }
-        list.innerHTML = history.map(h => `
-            <div class="history-item" onclick="useHistoryToken('${h.token}')">
-                <strong>${h.timestamp}</strong><br>${h.email}<br>
-                <code style="color:#03a9f4">${h.token.substring(0,10)}...</code>
-            </div>
-        `).join('');
+        try {
+            const baseUrl = window.location.href.split('?')[0].replace(/\/$/, "");
+            const res = await fetch(baseUrl + "/history");
+            const history = await res.json();
+            const list = document.getElementById('history-list');
+            if(!history || history.length === 0) { list.innerHTML = "<p style='padding:10px;'>Geen geschiedenis.</p>"; return; }
+            list.innerHTML = history.map(h => `
+                <div class="history-item" onclick="useHistoryToken('${h.token}')">
+                    <span style="color:#888;">${h.timestamp}</span><br>
+                    <strong>${h.email}</strong><br>
+                    <code style="font-size:0.9em;">${h.token.substring(0,12)}...</code>
+                </div>
+            `).join('');
+        } catch(e) { console.error("History load error", e); }
     }
 
     function useHistoryToken(token) {
         addLog("📋 Token uit geschiedenis geselecteerd!", "#ff9800");
-        addLog("Kopieer dit naar HA: " + token, "#03a9f4");
-        alert("Token gekopieerd naar de log hieronder. Plak deze in je HA Add-on configuratie.");
+        addLog("TOKEN: " + token, "#03a9f4");
+        alert("Token staat in de groene log onderaan. Kopieer deze naar je HA Add-on configuratie.");
     }
 
     function toggleLogin() {
@@ -187,7 +196,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         const clientId = "ha-dashboard-" + Math.random().toString(36).substring(7);
         
         try {
-            const response = await fetch(window.location.href.replace(/\/$/, "") + "/login", {
+            const baseUrl = window.location.href.split('?')[0].replace(/\/$/, "");
+            const response = await fetch(baseUrl + "/login", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, clientId, deviceName: "HA Dashboard" })
@@ -196,7 +206,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             if (data.deviceAuthToken) {
                 addLog("✅ LOGIN SUCCES!", "#4caf50");
                 addLog("NIEUW TOKEN: " + data.deviceAuthToken);
-                loadHistory(); // Ververs lijst
+                loadHistory(); 
             } else { addLog("❌ Fout: " + JSON.stringify(data), "red"); }
         } catch (e) { addLog("❌ Netwerkfout", "red"); }
     }
