@@ -30,7 +30,12 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        target_url = f"{target_base}/sync/pull-status"
+        # Check welk pad de frontend vraagt
+        # Als de URL eindigt op 'login', stuur naar parent endpoint
+        if self.path.endswith('/login'):
+            target_url = f"{target_base}/parent/sign-in-to-family"
+        else:
+            target_url = f"{target_base}/sync/pull-status"
         
         try:
             req = urllib.request.Request(
@@ -44,6 +49,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
                 self.wfile.write(response.read())
+        except urllib.error.HTTPError as e:
+            self.send_response(e.code)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(e.read())
         except Exception as e:
             self.send_response(500)
             self.end_headers()
@@ -66,7 +76,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Hybrid Control</title>
+    <title>TimeLimit Parent Control</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
@@ -74,34 +84,43 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; overflow: hidden; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 15px; }
         #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; }
         #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; overflow-y: auto; white-space: pre-wrap; }
-        
-        .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .status-dot { font-size: 0.9em; color: gray; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 5px; }
+        .btn-secondary { background: #444; }
+        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-right: 5px; }
+        .login-box { background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div><strong>📱 TimeLimit Hybrid Control</strong></div>
+    <div><strong>📱 TimeLimit Parent Control</strong></div>
     <div>
+        <button class="btn btn-secondary" onclick="toggleLogin()">🔑 Parent Login</button>
         <button class="btn" onclick="fetchFullStatus()">🔄 Vernieuw Data</button>
-        <span id="socket-status" class="status-dot">WebSocket: Verbinden...</span>
+        <span id="socket-status" style="margin-left:10px; font-size:0.8em; color:gray;">WebSocket: ...</span>
     </div>
 </header>
 
 <div class="main-container">
     <div class="dashboard-view">
-        <div id="user-list" class="user-grid">Laden...</div>
+        <div id="login-form" class="login-box" style="display:none;">
+            <h3>Ouder Inloggen</h3>
+            <p style="font-size:0.8em; color:gray;">Log in om een nieuw Parent Token te genereren voor dit dashboard.</p>
+            <input type="email" id="email" placeholder="E-mailadres">
+            <input type="password" id="password" placeholder="Wachtwoord">
+            <button class="btn" onclick="doLogin()">Inloggen</button>
+        </div>
+
+        <div id="user-list">Wachten op data...</div>
         <div id="log-area"></div>
     </div>
     
     <div class="inspector-panel">
         <div style="padding:10px; background:#151921; font-size:12px; font-weight:bold; border-bottom:1px solid #232a35;">RAW JSON INSPECTOR</div>
-        <div id="json-view">Wachten op data sync...</div>
+        <div id="json-view"></div>
     </div>
 </div>
 
@@ -118,8 +137,47 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function toggleLogin() {
+        const f = document.getElementById('login-form');
+        f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function doLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        addLog("🔑 Inlogpoging voor " + email + "...");
+
+        try {
+            // We gebruiken een relatief pad /login dat door de proxy wordt opgevangen
+            const response = await fetch(window.location.href.replace(/\/$/, "") + "/login", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email,
+                    password: password,
+                    clientId: "ha-dashboard-" + Math.random().toString(36).substring(7),
+                    deviceName: "Home Assistant Dashboard"
+                })
+            });
+            const data = await response.json();
+            document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+
+            if (data.deviceAuthToken) {
+                addLog("✅ LOGIN SUCCES! NIEUW TOKEN ONTVANGEN.", "#4caf50");
+                addLog("Kopieer dit naar je HA Config: " + data.deviceAuthToken, "#03a9f4");
+                alert("Login succesvol! Kopieer het token uit de log naar je Home Assistant Add-on configuratie.");
+            } else {
+                addLog("❌ Login mislukt: " + JSON.stringify(data), "red");
+            }
+        } catch (e) {
+            addLog("❌ Netwerkfout tijdens login: " + e.message, "red");
+        }
+    }
+
     async function fetchFullStatus() {
-        addLog("📡 HTTP: Status ophalen via pull-status...");
+        if (!TOKEN || TOKEN === "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY") {
+            addLog("⚠️ Gebruik het 'Parent Login' knopje om eerst te koppelen.", "#ff9800");
+        }
         try {
             const response = await fetch(window.location.href, {
                 method: 'POST',
@@ -130,40 +188,33 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 })
             });
             const data = await response.json();
-            
-            // Werk de Inspector bij met de ruwe data
             document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-            
             renderUI(data);
         } catch (e) {
-            addLog("❌ Fout: " + e.message, "red");
-            document.getElementById('json-view').textContent = "FOUT: " + e.message;
+            addLog("❌ Sync fout: " + e.message, "red");
         }
     }
 
     function renderUI(data) {
         const users = data.users?.data || [];
-        addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
-        document.getElementById('user-list').innerHTML = users.map(u => `
+        document.getElementById('user-list').innerHTML = users.length ? users.map(u => `
             <div class="card">
                 <strong>${u.name}</strong>
-                <small style="display:block; color:gray; margin-top:5px;">ID: ${u.id}</small>
+                <small style="display:block; color:gray;">ID: ${u.id}</small>
             </div>
-        `).join('');
+        `).join('') : "Geen gebruikers gevonden.";
     }
 
     const socket = io(SERVER_URL, { transports: ['websocket'], path: "/socket.io" });
     socket.on('connect', () => {
-        document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
+        document.getElementById('socket-status').textContent = '● Online';
         document.getElementById('socket-status').style.color = '#4caf50';
         socket.emit('devicelogin', TOKEN, () => {
-            addLog("✅ WS: Login succesvol.");
+            addLog("✅ WS: Verbonden.");
             fetchFullStatus();
         });
     });
-    socket.on('should sync', () => fetchFullStatus());
 </script>
-
 </body>
 </html>
 """
