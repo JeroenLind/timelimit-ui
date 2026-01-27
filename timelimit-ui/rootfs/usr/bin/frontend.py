@@ -24,16 +24,17 @@ def get_ha_config():
 ssl_context = ssl._create_unverified_context()
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
-    def do_POST(self):
+  def do_POST(self):
         config = get_ha_config()
         target_base = config["server_url"].strip().rstrip("/")
         
+        # Haal de data op die de frontend stuurt
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # Leid de request door naar de juiste API endpoint
-        target_path = self.path if self.path != "/" else "/sync/pull-status"
-        target_url = f"{target_base}{target_path}"
+        # CRUCIAL FIX: We sturen het nu ALTIJD naar /sync/pull-status 
+        # omdat we weten dat dit het werkende endpoint is.
+        target_url = f"{target_base}/sync/pull-status"
         
         try:
             req = urllib.request.Request(
@@ -43,16 +44,20 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 method='POST'
             )
             with urllib.request.urlopen(req, context=ssl_context) as response:
-                raw_data = response.read()
-                # Stuur de rauwe bytes direct door om corruptie te voorkomen
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(raw_data)
+                self.wfile.write(response.read())
+        except urllib.error.HTTPError as e:
+            # Stuur de fout van de server door naar de UI voor debug
+            self.send_response(e.code)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(f"{e.code}: {e.reason}".encode())
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e), "url": target_url}).encode())
+            self.wfile.write(str(e).encode())
 
     def do_GET(self):
         config = get_ha_config()
