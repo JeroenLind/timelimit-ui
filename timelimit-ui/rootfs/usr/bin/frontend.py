@@ -27,11 +27,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         config = get_ha_config()
         target_base = config["server_url"].strip().rstrip("/")
-        
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # We sturen de POST altijd naar het pull-status endpoint op de backend
         target_url = f"{target_base}/sync/pull-status"
         
         try:
@@ -71,76 +69,101 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     <title>TimeLimit Hybrid Control</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; padding: 20px; }
-        .card { background: #151921; border-radius: 12px; padding: 20px; border: 1px solid #232a35; margin-bottom: 20px; }
-        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
-        .user-card { background: #1c232d; padding: 15px; border-radius: 8px; border-left: 4px solid #03a9f4; }
-        #log { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; margin-top: 20px; border: 1px solid #333; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { padding: 15px 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
+        .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; overflow: hidden; }
+        .dashboard-view { padding: 20px; overflow-y: auto; }
+        .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
+        
+        .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 15px; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; }
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; overflow-y: auto; white-space: pre-wrap; }
+        
+        .btn { background: #03a9f4; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .status-dot { font-size: 0.9em; color: gray; }
     </style>
 </head>
 <body>
-    <h2>📱 TimeLimit Hybrid Control</h2>
-    <div class="card">
-        <button onclick="fetchFullStatus()" style="background:#03a9f4; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">🔄 Vernieuw Data</button>
-        <span id="socket-status" style="margin-left:15px; color:gray;">WebSocket: Verbinden...</span>
+
+<header>
+    <div><strong>📱 TimeLimit Hybrid Control</strong></div>
+    <div>
+        <button class="btn" onclick="fetchFullStatus()">🔄 Vernieuw Data</button>
+        <span id="socket-status" class="status-dot">WebSocket: Verbinden...</span>
     </div>
-    <div class="user-grid" id="user-list">Laden...</div>
-    <div id="log"></div>
+</header>
 
-    <script>
-        const TOKEN = "###TOKEN###";
-        const SERVER_URL = "###SERVER_URL###";
-        const logEl = document.getElementById('log');
+<div class="main-container">
+    <div class="dashboard-view">
+        <div id="user-list" class="user-grid">Laden...</div>
+        <div id="log-area"></div>
+    </div>
+    
+    <div class="inspector-panel">
+        <div style="padding:10px; background:#151921; font-size:12px; font-weight:bold; border-bottom:1px solid #232a35;">RAW JSON INSPECTOR</div>
+        <div id="json-view">Wachten op data sync...</div>
+    </div>
+</div>
 
-        function addLog(msg, color="#00ff00") {
-            const d = document.createElement('div');
-            d.style.color = color;
-            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            logEl.appendChild(d);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+<script>
+    const TOKEN = "###TOKEN###";
+    const SERVER_URL = "###SERVER_URL###";
+    const logEl = document.getElementById('log-area');
 
-        async function fetchFullStatus() {
-            addLog("📡 HTTP: Status ophalen...");
-            try {
-                // Gebruik window.location.href voor Ingress compatibiliteit
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        deviceAuthToken: TOKEN,
-                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
-                    })
-                });
-                const data = await response.json();
-                renderUI(data);
-            } catch (e) {
-                addLog("❌ Fout: " + e.message, "red");
-            }
-        }
+    function addLog(msg, color="#00ff00") {
+        const d = document.createElement('div');
+        d.style.color = color;
+        d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logEl.appendChild(d);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
 
-        function renderUI(data) {
-            const users = data.users?.data || [];
-            addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
-            document.getElementById('user-list').innerHTML = users.map(u => `
-                <div class="user-card">
-                    <strong>${u.name}</strong>
-                    <small style="display:block; color:gray;">ID: ${u.id}</small>
-                </div>
-            `).join('');
-        }
-
-        const socket = io(SERVER_URL, { transports: ['websocket'], path: "/socket.io" });
-        socket.on('connect', () => {
-            document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
-            document.getElementById('socket-status').style.color = '#4caf50';
-            socket.emit('devicelogin', TOKEN, () => {
-                addLog("✅ WS: Login succesvol.");
-                fetchFullStatus();
+    async function fetchFullStatus() {
+        addLog("📡 HTTP: Status ophalen via pull-status...");
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    deviceAuthToken: TOKEN,
+                    status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                })
             });
+            const data = await response.json();
+            
+            // Werk de Inspector bij met de ruwe data
+            document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+            
+            renderUI(data);
+        } catch (e) {
+            addLog("❌ Fout: " + e.message, "red");
+            document.getElementById('json-view').textContent = "FOUT: " + e.message;
+        }
+    }
+
+    function renderUI(data) {
+        const users = data.users?.data || [];
+        addLog(`🎉 UI: ${users.length} gebruikers geladen.`);
+        document.getElementById('user-list').innerHTML = users.map(u => `
+            <div class="card">
+                <strong>${u.name}</strong>
+                <small style="display:block; color:gray; margin-top:5px;">ID: ${u.id}</small>
+            </div>
+        `).join('');
+    }
+
+    const socket = io(SERVER_URL, { transports: ['websocket'], path: "/socket.io" });
+    socket.on('connect', () => {
+        document.getElementById('socket-status').textContent = '● WebSocket: Verbonden';
+        document.getElementById('socket-status').style.color = '#4caf50';
+        socket.emit('devicelogin', TOKEN, () => {
+            addLog("✅ WS: Login succesvol.");
+            fetchFullStatus();
         });
-        socket.on('should sync', () => fetchFullStatus());
-    </script>
+    });
+    socket.on('should sync', () => fetchFullStatus());
+</script>
+
 </body>
 </html>
 """
