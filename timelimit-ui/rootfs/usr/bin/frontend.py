@@ -27,14 +27,14 @@ ssl_context = ssl._create_unverified_context()
 
 class TimeLimitProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
-        """Proxy voor API requests naar de TimeLimit server."""
         config = get_config()
-        target_base = config["server_url"].rstrip("/")
+        # Zorg dat er nooit een dubbele slash ontstaat
+        target_base = config["server_url"].strip().rstrip("/")
         
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # Bepaal het endpoint. Als we naar de root posten, gaan we naar pull-status
+        # Consistentie met je werkende v6 screenshot: gebruik /sync/pull-status
         target_path = self.path if self.path != "/" else "/sync/pull-status"
         target_url = f"{target_base}{target_path}"
         
@@ -46,15 +46,24 @@ class TimeLimitProxyHandler(http.server.SimpleHTTPRequestHandler):
                 method='POST'
             )
             with urllib.request.urlopen(req, context=ssl_context) as response:
+                status_code = response.getcode()
+                response_data = response.read()
+                
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(response.read())
+                self.wfile.write(response_data)
+        except urllib.error.HTTPError as e:
+            # Als de server een fout geeft (bijv 401), stuur de exacte body terug naar de UI
+            error_body = e.read().decode('utf-8', errors='ignore')
+            self.send_response(e.code)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Server Error", "detail": error_body, "code": e.code}).encode())
         except Exception as e:
             self.send_response(500)
             self.end_headers()
-            error_msg = {"error": str(e), "target": target_url}
-            self.wfile.write(json.dumps(error_msg).encode())
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
 
     def do_GET(self):
         """Serveert de dashboard HTML en injecteert de huidige HA configuratie."""
@@ -128,7 +137,7 @@ class TimeLimitProxyHandler(http.server.SimpleHTTPRequestHandler):
                     method: 'POST',
                     body: JSON.stringify({
                         deviceAuthToken: AUTH_TOKEN,
-                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 }
+                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 2 }
                     })
                 });
                 const data = await res.json();
