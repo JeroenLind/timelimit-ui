@@ -1,80 +1,130 @@
 <!DOCTYPE html>
-<html>
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeLimit Control Panel</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
-        .main-container { display: grid; grid-template-columns: 1fr 400px; flex: 1; overflow: hidden; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .main-container { display: grid; grid-template-columns: 1fr 400px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
-        .inspector-panel { background: #050505; border-left: 1px solid #232a35; padding: 15px; font-family: monospace; font-size: 11px; overflow-y: auto; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; }
         .btn-wizard { background: #9c27b0; }
         .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; border-top: 1px solid #232a35; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; flex-shrink: 0; }
+        .help-text { color: #888; font-size: 0.85em; margin-bottom: 15px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v30</strong>
-        <button class="btn btn-wizard" onclick="showStep(1)">Nieuwe Familie</button>
+        <strong>TimeLimit UI v31</strong>
+        <div>
+            <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync Dashboard</button>
+            <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
+        </div>
     </header>
+
     <div class="main-container">
         <div class="dashboard-view">
             <div id="step-1" class="wizard-step">
-                <h3>Stap 1: E-mail</h3>
-                <input type="email" id="mail" placeholder="e-mailadres">
-                <button class="btn" onclick="runStep1()">Code aanvragen</button>
+                <h3>Stap 1: E-mail verificatie</h3>
+                <p class="help-text">Voer je e-mailadres in om een verificatiecode te ontvangen.</p>
+                <input type="email" id="mail" placeholder="naam@voorbeeld.nl">
+                <button class="btn" onclick="runStep1()">Verstuur Code</button>
+                <button class="btn" style="background:none" onclick="showStep(null)">Annuleren</button>
             </div>
+
             <div id="step-2" class="wizard-step">
-                <h3>Stap 2: Code</h3>
-                <input type="text" id="code" placeholder="3 woorden">
-                <button class="btn" onclick="runStep2()">Valideren</button>
+                <h3>Stap 2: Code controleren</h3>
+                <p class="help-text">Voer de drie woorden in die je per e-mail hebt ontvangen.</p>
+                <input type="text" id="code" placeholder="Woord1 Woord2 Woord3">
+                <button class="btn" onclick="runStep2()">Valideer Code</button>
             </div>
+
             <div id="step-3" class="wizard-step">
-                <h3>Stap 3: Beheerder</h3>
-                <input type="password" id="pass" placeholder="Wachtwoord">
-                <button class="btn" onclick="runStep3()">Aanmaken</button>
+                <h3>Stap 3: Beheerder instellen</h3>
+                <p class="help-text">Kies de naam voor de beheerder en een sterk wachtwoord.</p>
+                <input type="text" id="parent-name" value="Beheerder" placeholder="Naam beheerder">
+                <input type="password" id="pass" placeholder="Kies een wachtwoord">
+                <button class="btn" onclick="runStep3()">Familie Aanmaken</button>
             </div>
+
+            <div id="user-display">
+                <h3>Systeemstatus</h3>
+                <p class="help-text">Zodra de sync voltooid is, verschijnt hier de ruwe data van de server.</p>
+            </div>
+        </div>
+
+        <div class="inspector-panel">
+            <div style="padding:10px; font-size:10px; color:#888;">RAW JSON INSPECTOR</div>
+            <div id="json-view">Wacht op data...</div>
             <div id="log-area"></div>
         </div>
-        <div id="json-view" class="inspector-panel">Wacht op data...</div>
     </div>
 
     <script>
+        // TOKEN wordt door de Python backend ingevuld bij het laden
+        const TOKEN = "###TOKEN###";
         let session = {};
-        function addLog(m) { document.getElementById('log-area').innerHTML += `<div>> ${m}</div>`; }
+
+        function addLog(m, color = "#00ff00") { 
+            const log = document.getElementById('log-area');
+            const entry = document.createElement('div');
+            entry.style.color = color;
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] > ${m}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
         function showStep(s) { 
             document.querySelectorAll('.wizard-step').forEach(div => div.style.display = 'none');
             if(s) document.getElementById('step-'+s).style.display = 'block';
         }
 
+        // --- DASHBOARD SYNC ---
+        async function fetchFullStatus() {
+            if (!TOKEN || TOKEN.includes("###")) {
+                addLog("Geen geldig token geconfigureerd. Gebruik de Wizard.", "orange");
+                return;
+            }
+            addLog("Gegevens ophalen van server...");
+            try {
+                const res = await fetch('/sync', { 
+                    method: 'POST', 
+                    body: JSON.stringify({
+                        deviceAuthToken: TOKEN,
+                        status: { users: "", devices: "", clientLevel: 3 }
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+                addLog("Sync voltooid.", "#4caf50");
+            } catch(e) {
+                addLog("Sync mislukt: " + e, "red");
+            }
+        }
+
+        // --- WIZARD LOGICA ---
         async function runStep1() {
-            const res = await fetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            const email = document.getElementById('mail').value;
+            addLog("Code aanvragen voor " + email + "...");
+            const res = await fetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: email, locale: 'nl'})});
             const data = await res.json();
-            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("Check je mail!"); showStep(2); }
+            if(data.mailLoginToken) { 
+                session.mailLoginToken = data.mailLoginToken; 
+                addLog("✅ Mail verstuurd! Check je inbox.", "#4caf50"); 
+                showStep(2); 
+            } else {
+                addLog("❌ Fout: " + JSON.stringify(data), "red");
+            }
         }
 
         async function runStep2() {
-            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
-            const data = await res.json();
-            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code OK!"); showStep(3); }
-        }
-
-        async function runStep3() {
-            const hRes = await fetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
-            const hashes = await hRes.json();
-            const res = await fetch('/wizard-step3', { method: 'POST', body: JSON.stringify({
-                mailAuthToken: session.mailAuthToken,
-                parentName: "Admin",
-                parentPassword: hashes,
-                timeZone: "Europe/Amsterdam",
-                clientLevel: 1
-            })});
-            const data = await res.json();
-            if(data.deviceAuthToken) { addLog("SUCCES! Token: " + data.deviceAuthToken); showStep(null); }
-        }
-    </script>
-</body>
-</html>
+            const code = document.getElementById('code').value;
+            addLog("Code valideren...");
+            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode:
