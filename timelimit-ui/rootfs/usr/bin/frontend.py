@@ -2,11 +2,11 @@ import http.server
 import socketserver
 import json
 import os
+import sys
 from crypto_utils import generate_family_hashes
 from api_client import TimeLimitAPI
 
 CONFIG_PATH = "/data/options.json"
-HISTORY_PATH = "/data/history.json"
 HTML_PATH = "/usr/bin/dashboard.html" 
 
 def get_config():
@@ -18,18 +18,18 @@ def get_config():
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Dit zorgt dat ELKE request in je HA Add-on log verschijnt
-        print(f"HTTP LOG: {self.address_string()} - {format%args}")
+        # Forceer output naar de HA logs
+        sys.stderr.write(f"HTTP: {format%args}\n")
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         config = get_config()
         api = TimeLimitAPI(config['server_url'])
-
-        # We kijken nu of de route VOORKOMT in het pad (flexibeler voor Ingress)
         path = self.path
-        
+
+        sys.stderr.write(f"POST ontvangen op: {path}\n")
+
         if 'generate-hashes' in path:
             try:
                 data = json.loads(post_data)
@@ -46,24 +46,17 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             'sync': '/sync/pull-status'
         }
         
-        # Zoek of een van onze keywords in de URL staat
-        target = None
-        for key, val in routes.items():
-            if key in path:
-                target = val
-                break
+        target = next((v for k, v in routes.items() if k in path), None)
 
         if target:
             status, body = api.post(target, post_data)
+            sys.stderr.write(f"API {target} antwoordt met status {status}\n")
             self._send_raw(status, body)
         else:
-            msg = f"404: Pad '{path}' niet herkend door backend."
-            print(f"WAARSCHUWING: {msg}")
-            self._send_raw(404, msg.encode())
+            self._send_raw(404, b"Route niet herkend")
 
     def do_GET(self):
-        # De browser vraagt vaak de root aan via Ingress
-        if self.path.endswith('/') or self.path == "" or 'index.html' in self.path:
+        if self.path.endswith('/') or 'index.html' in self.path or self.path == "":
             try:
                 config = get_config()
                 with open(HTML_PATH, 'r', encoding='utf-8') as f:
@@ -75,14 +68,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(f"HTML Fout: {e}".encode())
-        elif 'history' in self.path:
-            if os.path.exists(HISTORY_PATH):
-                with open(HISTORY_PATH, 'rb') as f: self._send_raw(200, f.read())
-            else:
-                self._send_json(200, [])
+                self.wfile.write(str(e).encode())
         else:
-            # Voor alle andere GET verzoeken (zoals favicon)
             super().do_GET()
 
     def _send_json(self, status, data):
@@ -99,4 +86,5 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
+        sys.stderr.write("Server gestart op poort 8099\n")
         httpd.serve_forever()

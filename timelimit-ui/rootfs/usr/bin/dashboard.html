@@ -18,7 +18,7 @@
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v34</strong>
+        <strong>TimeLimit UI v35</strong>
         <div>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
             <button class="btn btn-wizard" onclick="showStep(1)">Nieuwe Familie</button>
@@ -30,7 +30,6 @@
                 <h3>Stap 1: E-mail</h3>
                 <input type="email" id="mail" placeholder="e-mailadres">
                 <button class="btn" onclick="runStep1()">Code aanvragen</button>
-                <button class="btn" style="background:none" onclick="showStep(null)">Annuleren</button>
             </div>
             <div id="step-2" class="wizard-step">
                 <h3>Stap 2: Code</h3>
@@ -39,14 +38,13 @@
             </div>
             <div id="step-3" class="wizard-step">
                 <h3>Stap 3: Beheerder</h3>
-                <input type="text" id="parent-name" value="Admin">
                 <input type="password" id="pass" placeholder="Wachtwoord">
                 <button class="btn" onclick="runStep3()">Aanmaken</button>
             </div>
-            <div id="status-display"><h3>Systeemstatus</h3></div>
+            <div id="status-display"><h3>Status</h3><p>Gebruik de Sync knop.</p></div>
         </div>
         <div class="inspector-panel">
-            <div id="json-view">Geen data geladen.</div>
+            <div id="json-view">Wacht op data...</div>
             <div id="log-area"></div>
         </div>
     </div>
@@ -57,10 +55,7 @@
 
         function addLog(m, color="#00ff00") { 
             const log = document.getElementById('log-area');
-            const entry = document.createElement('div');
-            entry.style.color = color;
-            entry.innerHTML = `> [${new Date().toLocaleTimeString()}] ${m}`;
-            log.appendChild(entry);
+            log.innerHTML += `<div style="color:${color}">> [${new Date().toLocaleTimeString()}] ${m}</div>`; 
             log.scrollTop = log.scrollHeight;
         }
 
@@ -69,31 +64,32 @@
             if(s) document.getElementById('step-'+s).style.display = 'block';
         }
 
-        async function safeFetch(endpoint, options) {
-            // RELATIEVE URL: Geen slash aan het begin!
-            // Dit is cruciaal voor Home Assistant Ingress.
+        async function safeFetch(ep, opt) {
             try {
-                const res = await fetch(endpoint, options);
+                const res = await fetch(ep, opt);
                 const text = await res.text();
-                try {
-                    return JSON.parse(text);
-                } catch(e) {
+                try { return JSON.parse(text); } 
+                catch(e) { 
                     document.getElementById('json-view').textContent = `STATUS: ${res.status}\n\n${text}`;
-                    throw new Error(`Server fout (${res.status})`);
+                    return null;
                 }
-            } catch(e) {
-                addLog(e.message, "red");
-                return null;
-            }
+            } catch(e) { addLog(e.message, "red"); return null; }
         }
 
         async function fetchFullStatus() {
-            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token gevonden.", "orange");
+            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token.", "orange");
             addLog("Syncing...");
-            // Gebruik 'sync' in plaats van '/sync'
+            // Aangepaste payload voor TimeLimit server vlaggen
             const data = await safeFetch('sync', { 
                 method: 'POST', 
-                body: JSON.stringify({deviceAuthToken: TOKEN, status: {users:"", devices:"", clientLevel:3}})
+                body: JSON.stringify({
+                    deviceAuthToken: TOKEN,
+                    status: { 
+                        users: "{}", 
+                        devices: "{}", 
+                        clientLevel: 3 
+                    }
+                })
             });
             if(data) {
                 document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
@@ -112,11 +108,12 @@
         }
 
         async function runStep3() {
+            addLog("Hashing...");
             const hRes = await safeFetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
             if(!hRes) return;
             const res = await safeFetch('wizard-step3', { method: 'POST', body: JSON.stringify({
                 mailAuthToken: session.mailAuthToken,
-                parentName: document.getElementById('parent-name').value,
+                parentName: "Admin",
                 parentPassword: hRes,
                 timeZone: "Europe/Amsterdam",
                 clientLevel: 1
