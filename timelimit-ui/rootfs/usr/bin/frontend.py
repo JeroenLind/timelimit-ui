@@ -5,33 +5,32 @@ import os
 from crypto_utils import generate_family_hashes
 from api_client import TimeLimitAPI
 
-# Paden binnen de Home Assistant Add-on container
 CONFIG_PATH = "/data/options.json"
 HISTORY_PATH = "/data/history.json"
 HTML_PATH = "/usr/bin/dashboard.html" 
 
 def get_config():
-    """Haalt de huidige configuratie op uit de add-on opties."""
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH, 'r') as f:
-                return json.load(f)
-        except:
-            pass
+            with open(CONFIG_PATH, 'r') as f: return json.load(f)
+        except: pass
     return {"server_url": "http://192.168.68.30:8080", "auth_token": ""}
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Dit zorgt dat ELKE request in je HA Add-on log verschijnt
+        print(f"HTTP LOG: {self.address_string()} - {format%args}")
+
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         config = get_config()
         api = TimeLimitAPI(config['server_url'])
 
-        # Normaliseer het pad (verwijder trailing slash)
-        path = self.path.rstrip('/')
+        # We kijken nu of de route VOORKOMT in het pad (flexibeler voor Ingress)
+        path = self.path
         
-        # 1. Interne logica: Hashing voor wachtwoorden
-        if path == '/generate-hashes':
+        if 'generate-hashes' in path:
             try:
                 data = json.loads(post_data)
                 res = generate_family_hashes(data['password'])
@@ -40,31 +39,35 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(400, {"error": str(e)})
             return
 
-        # 2. API Proxy: Koppel UI paden aan TimeLimit API endpoints
         routes = {
-            '/wizard-step1': '/auth/send-mail-login-code-v2',
-            '/wizard-step2': '/auth/sign-in-by-mail-code',
-            '/wizard-step3': '/parent/create-family',
-            '/sync': '/sync/pull-status'
+            'wizard-step1': '/auth/send-mail-login-code-v2',
+            'wizard-step2': '/auth/sign-in-by-mail-code',
+            'wizard-step3': '/parent/create-family',
+            'sync': '/sync/pull-status'
         }
         
-        target = routes.get(path)
+        # Zoek of een van onze keywords in de URL staat
+        target = None
+        for key, val in routes.items():
+            if key in path:
+                target = val
+                break
+
         if target:
             status, body = api.post(target, post_data)
             self._send_raw(status, body)
         else:
-            # Als het pad niet in de routes staat, stuur 404
-            msg = f"404: Pad '{path}' niet gevonden in backend."
+            msg = f"404: Pad '{path}' niet herkend door backend."
+            print(f"WAARSCHUWING: {msg}")
             self._send_raw(404, msg.encode())
 
     def do_GET(self):
-        """Serveert de HTML interface en vervangt de token placeholder."""
-        if self.path == '/':
+        # De browser vraagt vaak de root aan via Ingress
+        if self.path.endswith('/') or self.path == "" or 'index.html' in self.path:
             try:
                 config = get_config()
-                token = config.get('auth_token', '')
                 with open(HTML_PATH, 'r', encoding='utf-8') as f:
-                    html = f.read().replace("###TOKEN###", token)
+                    html = f.read().replace("###TOKEN###", config.get('auth_token', ''))
                     self.send_response(200)
                     self.send_header("Content-type", "text/html")
                     self.end_headers()
@@ -72,17 +75,15 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(f"Server Fout: {e}".encode())
-        
-        elif self.path == '/history':
+                self.wfile.write(f"HTML Fout: {e}".encode())
+        elif 'history' in self.path:
             if os.path.exists(HISTORY_PATH):
-                with open(HISTORY_PATH, 'rb') as f:
-                    self._send_raw(200, f.read())
+                with open(HISTORY_PATH, 'rb') as f: self._send_raw(200, f.read())
             else:
                 self._send_json(200, [])
         else:
-            self.send_response(404)
-            self.end_headers()
+            # Voor alle andere GET verzoeken (zoals favicon)
+            super().do_GET()
 
     def _send_json(self, status, data):
         body = json.dumps(data).encode('utf-8')
@@ -96,8 +97,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 if __name__ == "__main__":
-    # Voorkomt 'address already in use' fouten bij snelle herstarts
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
-        print("TimeLimit Control Panel draait op poort 8099")
         httpd.serve_forever()

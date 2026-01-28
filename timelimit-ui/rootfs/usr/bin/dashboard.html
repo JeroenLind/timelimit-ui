@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html>
 <head>
     <meta charset="UTF-8">
     <style>
@@ -14,12 +14,11 @@
         .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
         #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; }
-        .help-text { color: #888; font-size: 0.85em; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v33</strong>
+        <strong>TimeLimit UI v34</strong>
         <div>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
             <button class="btn btn-wizard" onclick="showStep(1)">Nieuwe Familie</button>
@@ -44,11 +43,7 @@
                 <input type="password" id="pass" placeholder="Wachtwoord">
                 <button class="btn" onclick="runStep3()">Aanmaken</button>
             </div>
-            
-            <div id="status-display">
-                <h3>Systeemstatus</h3>
-                <p class="help-text">Druk op Sync om gegevens op te halen.</p>
-            </div>
+            <div id="status-display"><h3>Systeemstatus</h3></div>
         </div>
         <div class="inspector-panel">
             <div id="json-view">Geen data geladen.</div>
@@ -74,14 +69,15 @@
             if(s) document.getElementById('step-'+s).style.display = 'block';
         }
 
-        async function safeFetch(url, options) {
+        async function safeFetch(endpoint, options) {
+            // RELATIEVE URL: Geen slash aan het begin!
+            // Dit is cruciaal voor Home Assistant Ingress.
             try {
-                const res = await fetch(url, options);
+                const res = await fetch(endpoint, options);
                 const text = await res.text();
                 try {
                     return JSON.parse(text);
                 } catch(e) {
-                    // Bij een 404 of 500 tonen we de ruwe tekst in de inspector
                     document.getElementById('json-view').textContent = `STATUS: ${res.status}\n\n${text}`;
                     throw new Error(`Server fout (${res.status})`);
                 }
@@ -92,9 +88,10 @@
         }
 
         async function fetchFullStatus() {
-            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token gevonden. Gebruik de wizard.", "orange");
-            addLog("Gegevens ophalen...");
-            const data = await safeFetch('/sync', { 
+            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token gevonden.", "orange");
+            addLog("Syncing...");
+            // Gebruik 'sync' in plaats van '/sync'
+            const data = await safeFetch('sync', { 
                 method: 'POST', 
                 body: JSON.stringify({deviceAuthToken: TOKEN, status: {users:"", devices:"", clientLevel:3}})
             });
@@ -105,46 +102,28 @@
         }
 
         async function runStep1() {
-            const email = document.getElementById('mail').value;
-            addLog("Code aanvragen voor " + email);
-            const data = await safeFetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: email, locale: 'nl'})});
-            if(data && data.mailLoginToken) { 
-                session.mailLoginToken = data.mailLoginToken; 
-                addLog("✅ Mail verzonden!"); 
-                showStep(2); 
-            }
+            const data = await safeFetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            if(data && data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("Mail verzonden!"); showStep(2); }
         }
 
         async function runStep2() {
-            addLog("Code valideren...");
-            const data = await safeFetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
-            if(data && data.mailAuthToken) { 
-                session.mailAuthToken = data.mailAuthToken; 
-                addLog("✅ Code OK!"); 
-                showStep(3); 
-            }
+            const data = await safeFetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
+            if(data && data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code OK!"); showStep(3); }
         }
 
         async function runStep3() {
-            addLog("Wachtwoord hashen...");
-            const hRes = await safeFetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
+            const hRes = await safeFetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
             if(!hRes) return;
-            
-            addLog("Familie aanmaken...");
-            const res = await safeFetch('/wizard-step3', { method: 'POST', body: JSON.stringify({
+            const res = await safeFetch('wizard-step3', { method: 'POST', body: JSON.stringify({
                 mailAuthToken: session.mailAuthToken,
                 parentName: document.getElementById('parent-name').value,
                 parentPassword: hRes,
                 timeZone: "Europe/Amsterdam",
                 clientLevel: 1
             })});
-            if(res && res.deviceAuthToken) { 
-                addLog("🎉 SUCCES! Token: " + res.deviceAuthToken, "#03a9f4"); 
-                showStep(null); 
-            }
+            if(res && res.deviceAuthToken) { addLog("🎉 SUCCES! Token: " + res.deviceAuthToken, "#03a9f4"); showStep(null); }
         }
 
-        // Probeer direct te laden bij opstarten
         fetchFullStatus();
     </script>
 </body>
