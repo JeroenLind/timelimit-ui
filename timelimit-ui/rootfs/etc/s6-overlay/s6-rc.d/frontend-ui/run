@@ -1,3 +1,9 @@
 #!/usr/bin/with-contenv bashio
+
+# Ga naar de map waar alle bestanden staan
+cd /usr/bin
+
 bashio::log.info "Starting Frontend Webserver..."
-python3 /usr/bin/frontend.py
+
+# Start de server vanuit de huidige map
+exec python3 frontend.py
