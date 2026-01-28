@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
+        .main-container { display: grid; grid-template-columns: 1fr 400px; flex: 1; overflow: hidden; }
+        .dashboard-view { padding: 20px; overflow-y: auto; }
+        .inspector-panel { background: #050505; border-left: 1px solid #232a35; padding: 15px; font-family: monospace; font-size: 11px; overflow-y: auto; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-wizard { background: #9c27b0; }
+        .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
+        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; border-top: 1px solid #232a35; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>TimeLimit UI v30</strong>
+        <button class="btn btn-wizard" onclick="showStep(1)">Nieuwe Familie</button>
+    </header>
+    <div class="main-container">
+        <div class="dashboard-view">
+            <div id="step-1" class="wizard-step">
+                <h3>Stap 1: E-mail</h3>
+                <input type="email" id="mail" placeholder="e-mailadres">
+                <button class="btn" onclick="runStep1()">Code aanvragen</button>
+            </div>
+            <div id="step-2" class="wizard-step">
+                <h3>Stap 2: Code</h3>
+                <input type="text" id="code" placeholder="3 woorden">
+                <button class="btn" onclick="runStep2()">Valideren</button>
+            </div>
+            <div id="step-3" class="wizard-step">
+                <h3>Stap 3: Beheerder</h3>
+                <input type="password" id="pass" placeholder="Wachtwoord">
+                <button class="btn" onclick="runStep3()">Aanmaken</button>
+            </div>
+            <div id="log-area"></div>
+        </div>
+        <div id="json-view" class="inspector-panel">Wacht op data...</div>
+    </div>
+
+    <script>
+        let session = {};
+        function addLog(m) { document.getElementById('log-area').innerHTML += `<div>> ${m}</div>`; }
+        function showStep(s) { 
+            document.querySelectorAll('.wizard-step').forEach(div => div.style.display = 'none');
+            if(s) document.getElementById('step-'+s).style.display = 'block';
+        }
+
+        async function runStep1() {
+            const res = await fetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            const data = await res.json();
+            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("Check je mail!"); showStep(2); }
+        }
+
+        async function runStep2() {
+            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
+            const data = await res.json();
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code OK!"); showStep(3); }
+        }
+
+        async function runStep3() {
+            const hRes = await fetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
+            const hashes = await hRes.json();
+            const res = await fetch('/wizard-step3', { method: 'POST', body: JSON.stringify({
+                mailAuthToken: session.mailAuthToken,
+                parentName: "Admin",
+                parentPassword: hashes,
+                timeZone: "Europe/Amsterdam",
+                clientLevel: 1
+            })});
+            const data = await res.json();
+            if(data.deviceAuthToken) { addLog("SUCCES! Token: " + data.deviceAuthToken); showStep(null); }
+        }
+    </script>
+</body>
+</html>

@@ -1,19 +1,14 @@
 import bcrypt
 
 def generate_family_hashes(password):
-    """
-    Genereert de hashes precies zoals de TimeLimit app dat doet:
-    - hash: wachtwoord met salt 1
-    - secondHash: wachtwoord met salt 2
-    - secondSalt: de salt gebruikt voor de tweede hash
-    """
+    """Genereert BCrypt hashes conform de Android app logica (Cost factor 12)."""
     password_bytes = password.encode('utf-8')
 
-    # Genereer twee unieke salts (cost factor 12 zoals in de app)
+    # Twee unieke salts voor maximale veiligheid
     salt1 = bcrypt.gensalt(rounds=12)
     salt2 = bcrypt.gensalt(rounds=12)
 
-    # Bereken de hashes
+    # De hashes die de server verwacht
     hash1 = bcrypt.hashpw(password_bytes, salt1)
     hash2 = bcrypt.hashpw(password_bytes, salt2)
 
