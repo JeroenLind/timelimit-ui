@@ -127,4 +127,50 @@
         async function runStep2() {
             const code = document.getElementById('code').value;
             addLog("Code valideren...");
-            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode:
+            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: code, mailLoginToken: session.mailLoginToken})});
+            const data = await res.json();
+            if(data.mailAuthToken) { 
+                session.mailAuthToken = data.mailAuthToken; 
+                addLog("✅ Code geaccepteerd!", "#4caf50"); 
+                showStep(3); 
+            } else {
+                addLog("❌ Code onjuist of sessie verlopen.", "red");
+            }
+        }
+
+        async function runStep3() {
+            const pass = document.getElementById('pass').value;
+            const name = document.getElementById('parent-name').value;
+            if(!pass) return alert("Wachtwoord is verplicht.");
+
+            addLog("Hashes genereren (Python BCrypt)...");
+            const hRes = await fetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: pass})});
+            const hashes = await hRes.json();
+            
+            addLog("Familie definitief aanmaken...");
+            const res = await fetch('/wizard-step3', { 
+                method: 'POST', 
+                body: JSON.stringify({
+                    mailAuthToken: session.mailAuthToken,
+                    parentName: name,
+                    parentPassword: hashes,
+                    timeZone: "Europe/Amsterdam",
+                    clientLevel: 1,
+                    deviceName: "HA-Dashboard",
+                    parentDevice: { model: "Web-UI" }
+                })
+            });
+            const data = await res.json();
+            if(data.deviceAuthToken) { 
+                addLog("🎉 SUCCES! Je nieuwe Token is: " + data.deviceAuthToken, "#03a9f4"); 
+                showStep(null); 
+            } else {
+                addLog("❌ Fout bij aanmaken: " + JSON.stringify(data), "red");
+            }
+        }
+
+        // Start direct met sync bij laden
+        fetchFullStatus();
+    </script>
+</body>
+</html>
