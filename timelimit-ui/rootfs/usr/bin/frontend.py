@@ -18,7 +18,6 @@ def get_config():
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Forceer output naar de HA logs
         sys.stderr.write(f"HTTP: {format%args}\n")
 
     def do_POST(self):
@@ -26,9 +25,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         post_data = self.rfile.read(content_length)
         config = get_config()
         api = TimeLimitAPI(config['server_url'])
+        
         path = self.path
-
-        sys.stderr.write(f"POST ontvangen op: {path}\n")
+        sys.stderr.write(f"\n>>> INCOMING UI POST: {path}\n")
 
         if 'generate-hashes' in path:
             try:
@@ -50,9 +49,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
         if target:
             status, body = api.post(target, post_data)
-            sys.stderr.write(f"API {target} antwoordt met status {status}\n")
             self._send_raw(status, body)
         else:
+            sys.stderr.write(f"!!! Route not found for path: {path}\n")
             self._send_raw(404, b"Route niet herkend")
 
     def do_GET(self):
@@ -86,5 +85,5 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
-        sys.stderr.write("Server gestart op poort 8099\n")
+        sys.stderr.write("=== UI Backend v38 Started ===\n")
         httpd.serve_forever()
