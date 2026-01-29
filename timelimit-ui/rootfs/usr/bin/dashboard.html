@@ -2,108 +2,184 @@
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <title>TimeLimit Control Panel v43</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeLimit Control Panel v44</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; }
+        #json-view { flex: 1; padding: 15px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; flex-shrink: 0; }
         .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
+        .btn-wizard { background: #9c27b0; }
+        .wizard-container { background: #151921; padding: 20px; border-bottom: 2px solid #9c27b0; display: none; }
+        .wizard-step { margin-bottom: 15px; }
+        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
         .status-header { display: flex; align-items: center; margin-bottom: 20px; background: #1c222d; padding: 15px; border-radius: 8px; }
         .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 12px; }
+        .help-text { color: #888; font-size: 0.85em; margin-bottom: 5px; }
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v43 (v23-Payload)</strong>
+        <strong>TimeLimit UI v44</strong>
         <div>
+            <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
         </div>
     </header>
+
+    <div id="wizard-ui" class="wizard-container">
+        <div id="step-1" class="wizard-step" style="display:none;">
+            <h3>Stap 1: E-mailverificatie</h3>
+            <p class="help-text">Ontvang een code per e-mail van je server.</p>
+            <input type="email" id="mail" placeholder="e-mailadres">
+            <button class="btn" onclick="runStep1()">Code aanvragen</button>
+        </div>
+
+        <div id="step-2" class="wizard-step" style="display:none;">
+            <h3>Stap 2: Woord-code</h3>
+            <p class="help-text">Voer de 3 woorden uit de mail in (bijv: appel boom fiets).</p>
+            <input type="text" id="code" placeholder="woord1 woord2 woord3">
+            <button class="btn" onclick="runStep2()">Valideer Code</button>
+        </div>
+
+        <div id="step-3" class="wizard-step" style="display:none;">
+            <h3>Stap 3: Wachtwoord Beheerder</h3>
+            <p class="help-text">Kies een wachtwoord voor de ouder-functies.</p>
+            <input type="password" id="pass" placeholder="Wachtwoord">
+            <button class="btn" onclick="runStep3()">Familie Finaliseren</button>
+        </div>
+        <button class="btn" style="background:transparent; color:#888; margin-top:10px;" onclick="showStep(0)">✖ Sluiten</button>
+    </div>
 
     <div class="main-container">
         <div class="dashboard-view">
             <div class="status-header">
                 <span id="dot" class="status-dot" style="background: grey;"></span>
-                <span id="status-text">Initialiseren...</span>
+                <span id="status-text" style="font-weight: bold;">Verbinding controleren...</span>
             </div>
-            <div id="user-list"></div>
+            <div id="user-list">
+                <p style="color:#666">Geen actieve sessie. Gebruik de Wizard of controleer je token.</p>
+            </div>
         </div>
 
         <div class="inspector-panel">
-            <div style="padding:10px; font-size:10px; color:#555;">RAW SERVER DATA</div>
-            <div id="json-view">Geen data.</div>
+            <div style="padding:10px; font-size:10px; color:#555; background: #0a0a0a;">SERVER RESPONSE INSPECTOR</div>
+            <div id="json-view">Wachten op data...</div>
             <div id="log-area"></div>
         </div>
     </div>
 
     <script>
         const TOKEN = "###TOKEN###";
+        let session = {};
 
         function addLog(m, isError = false) { 
             const log = document.getElementById('log-area');
-            log.innerHTML += `<div style="color:${isError ? '#ff4444' : '#00ff00'}">[${new Date().toLocaleTimeString()}] > ${m}</div>`;
+            const color = isError ? "#ff4444" : "#00ff00";
+            log.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] > ${m}</div>`;
             log.scrollTop = log.scrollHeight;
         }
 
+        function showStep(s) {
+            document.getElementById('wizard-ui').style.display = s > 0 ? 'block' : 'none';
+            for(let i=1; i<=3; i++) {
+                document.getElementById('step-'+i).style.display = (i === s) ? 'block' : 'none';
+            }
+        }
+
         async function fetchFullStatus() {
-            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token!", true);
+            if (!TOKEN || TOKEN.includes("###")) {
+                addLog("Configuratie onvolledig: Geen auth_token gevonden.", true);
+                return;
+            }
             
             const dot = document.getElementById('dot');
             dot.style.background = "orange";
-            document.getElementById('status-text').innerText = "Synchroniseren...";
+            document.getElementById('status-text').innerText = "Sync bezig...";
 
             try {
-                // EXACTE COPY VAN DE WERKENDE v23 PAYLOAD
-                const payload = { 
-                    deviceAuthToken: TOKEN, 
-                    status: { 
-                        devices: "", 
-                        apps: {}, 
-                        categories: {}, 
-                        users: "", 
-                        clientLevel: 3 
-                    } 
-                };
-
                 const res = await fetch('sync', { 
                     method: 'POST', 
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ 
+                        deviceAuthToken: TOKEN, 
+                        status: { devices: "", apps: {}, categories: {}, users: "", clientLevel: 3 } 
+                    })
                 });
 
                 const text = await res.text();
                 let data;
-                
-                try {
-                    data = JSON.parse(text);
-                    document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-                    
-                    // Gebruikerslijst opbouwen
+                try { data = JSON.parse(text); } catch(e) { data = text; }
+                document.getElementById('json-view').textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+
+                if (res.ok) {
+                    dot.style.background = "#00ff00";
+                    document.getElementById('status-text').innerText = "Online - Data Actueel";
+                    addLog("Sync succesvol.");
                     if (data.users && data.users.data) {
                         document.getElementById('user-list').innerHTML = data.users.data.map(u => `
                             <div class="card"><strong>${u.name}</strong><br><small>ID: ${u.id}</small></div>
                         `).join('');
                     }
-                } catch(e) {
-                    document.getElementById('json-view').textContent = "ERROR:\n" + text;
-                    throw new Error("Ongeldig antwoord van server");
-                }
-
-                if (res.ok) {
-                    dot.style.background = "#00ff00";
-                    document.getElementById('status-text').innerText = "Systeem Online";
-                    addLog("Sync succesvol!");
                 } else {
-                    throw new Error(`Server Status ${res.status}`);
+                    throw new Error(`Server fout: ${res.status}`);
                 }
             } catch (e) {
                 dot.style.background = "#ff4444";
-                document.getElementById('status-text').innerText = "Sync Fout";
+                document.getElementById('status-text').innerText = "Sync mislukt (Unauthorized/Error)";
                 addLog(e.message, true);
+            }
+        }
+
+        async function runStep1() {
+            const mail = document.getElementById('mail').value;
+            addLog("E-mail code aanvragen voor: " + mail);
+            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail, locale: 'nl'})});
+            const data = await res.json();
+            if(data.mailLoginToken) { 
+                session.mailLoginToken = data.mailLoginToken; 
+                addLog("Code verzonden! Controleer je e-mail."); 
+                showStep(2); 
+            } else {
+                addLog("Fout bij aanvraag: " + JSON.stringify(data), true);
+            }
+        }
+
+        async function runStep2() {
+            const code = document.getElementById('code').value;
+            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: code, mailLoginToken: session.mailLoginToken})});
+            const data = await res.json();
+            if(data.mailAuthToken) { 
+                session.mailAuthToken = data.mailAuthToken; 
+                addLog("Code geaccepteerd!"); 
+                showStep(3); 
+            } else {
+                addLog("Ongeldige code.", true);
+            }
+        }
+
+        async function runStep3() {
+            const password = document.getElementById('pass').value;
+            // We sturen het wachtwoord naar de interne helper voor hashing
+            const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password})});
+            const hashes = await hRes.json();
+            
+            const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify({
+                mailAuthToken: session.mailAuthToken,
+                parentName: "Admin",
+                parentPassword: hashes,
+                timeZone: "Europe/Amsterdam",
+                clientLevel: 1
+            })});
+            const data = await res.json();
+            if(data.deviceAuthToken) { 
+                document.getElementById('json-view').textContent = "NIEUW TOKEN GEGENEREERD:\n\n" + data.deviceAuthToken;
+                addLog("🎉 Familie aangemaakt! KOPIEER HET TOKEN UIT DE INSPECTOR.", "#03a9f4");
+                showStep(0);
             }
         }
 
