@@ -26,10 +26,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         config = get_config()
         api = TimeLimitAPI(config['server_url'])
         
+        # Exacte v26 pad-matching
         path = self.path
-        sys.stderr.write(f"\n>>> INCOMING UI POST: {path}\n")
+        sys.stderr.write(f"\n>>> POST: {path}\n")
 
-        if 'generate-hashes' in path:
+        if path == '/generate-hashes':
             try:
                 data = json.loads(post_data)
                 res = generate_family_hashes(data['password'])
@@ -38,24 +39,22 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(400, {"error": str(e)})
             return
 
+        # Routing tabel zoals in v26
         routes = {
-            'wizard-step1': '/auth/send-mail-login-code-v2',
-            'wizard-step2': '/auth/sign-in-by-mail-code',
-            'wizard-step3': '/parent/create-family',
-            'sync': '/sync/pull-status'
+            '/wizard-step1': '/auth/send-mail-login-code-v2',
+            '/wizard-step2': '/auth/sign-in-by-mail-code',
+            '/wizard-step3': '/parent/create-family',
+            '/sync': '/sync/pull-status'
         }
         
-        target = next((v for k, v in routes.items() if k in path), None)
-
-        if target:
-            status, body = api.post(target, post_data)
-            self._send_raw(status, body)
-        else:
-            sys.stderr.write(f"!!! Route not found for path: {path}\n")
-            self._send_raw(404, b"Route niet herkend")
+        # Als het pad niet in de lijst staat, gebruiken we /sync/pull-status (v26 fallback)
+        target_path = routes.get(path, '/sync/pull-status')
+        
+        status, body = api.post(target_path, post_data)
+        self._send_raw(status, body)
 
     def do_GET(self):
-        if self.path.endswith('/') or 'index.html' in self.path or self.path == "":
+        if self.path == '/' or self.path == "" or 'index.html' in self.path:
             try:
                 config = get_config()
                 with open(HTML_PATH, 'r', encoding='utf-8') as f:
@@ -65,8 +64,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(html.encode('utf-8'))
             except Exception as e:
-                self.send_response(500)
-                self.end_headers()
+                self.send_response(500); self.end_headers()
                 self.wfile.write(str(e).encode())
         else:
             super().do_GET()
@@ -85,5 +83,5 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", 8099), TimeLimitHandler) as httpd:
-        sys.stderr.write("=== UI Backend v38 Started ===\n")
+        sys.stderr.write("=== UI Backend v40 (v26-based) Started ===\n")
         httpd.serve_forever()

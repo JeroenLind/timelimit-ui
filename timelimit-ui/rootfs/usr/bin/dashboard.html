@@ -1,80 +1,61 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit Control Panel v37</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        #json-view { flex: 1; padding: 15px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; transition: 0.2s; }
-        .btn:hover { opacity: 0.8; }
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
         .btn-wizard { background: #9c27b0; }
         .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; flex-shrink: 0; }
-        .help-text { color: #888; font-size: 0.85em; margin-bottom: 15px; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit Control v37</strong>
+        <strong>TimeLimit UI v40</strong>
         <div>
-            <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync Dashboard</button>
+            <button class="btn" style="background:#444" onclick="fetchFullStatus()">Sync</button>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
         </div>
     </header>
-
     <div class="main-container">
         <div class="dashboard-view">
             <div id="step-1" class="wizard-step">
-                <h3>Stap 1: E-mail verificatie</h3>
-                <p class="help-text">Voer je e-mailadres in voor de verificatiecode.</p>
+                <h3>Stap 1: E-mail</h3>
                 <input type="email" id="mail" placeholder="e-mailadres">
                 <button class="btn" onclick="runStep1()">Code aanvragen</button>
-                <button class="btn" style="background:none" onclick="showStep(null)">Annuleren</button>
             </div>
-
             <div id="step-2" class="wizard-step">
-                <h3>Stap 2: Woordcode</h3>
-                <input type="text" id="code" placeholder="Woord1 Woord2 Woord3">
+                <h3>Stap 2: Code</h3>
+                <input type="text" id="code" placeholder="Drie woorden">
                 <button class="btn" onclick="runStep2()">Valideer</button>
             </div>
-
             <div id="step-3" class="wizard-step">
                 <h3>Stap 3: Beheerder</h3>
-                <input type="password" id="pass" placeholder="Kies wachtwoord">
-                <button class="btn" onclick="runStep3()">Familie voltooien</button>
+                <input type="password" id="pass" placeholder="Wachtwoord">
+                <button class="btn" onclick="runStep3()">Aanmaken</button>
             </div>
-
-            <div id="status-display">
-                <h3>Systeemoverzicht</h3>
-                <p class="help-text">De data van de server verschijnt rechts in de Inspector na een succesvolle sync.</p>
-            </div>
+            <div id="status-area"><h3>Systeemstatus</h3></div>
         </div>
-
         <div class="inspector-panel">
-            <div style="padding:10px; font-size:10px; color:#555;">SERVER RESPONSE (RAW JSON)</div>
             <div id="json-view">Geen data geladen.</div>
             <div id="log-area"></div>
         </div>
     </div>
 
     <script>
-        // Token wordt door Python ingevuld
         const TOKEN = "###TOKEN###";
         let session = {};
 
-        function addLog(m, color = "#00ff00") { 
+        function addLog(m, color="#00ff00") { 
             const log = document.getElementById('log-area');
-            const entry = document.createElement('div');
-            entry.style.color = color;
-            entry.innerHTML = `[${new Date().toLocaleTimeString()}] > ${m}`;
-            log.appendChild(entry);
+            log.innerHTML += `<div style="color:${color}">> [${new Date().toLocaleTimeString()}] ${m}</div>`; 
             log.scrollTop = log.scrollHeight;
         }
 
@@ -83,117 +64,62 @@
             if(s) document.getElementById('step-'+s).style.display = 'block';
         }
 
-        async function safeFetch(endpoint, options) {
-            try {
-                const res = await fetch(endpoint, options);
-                const text = await res.text();
-                try {
-                    const parsed = JSON.parse(text);
-                    if (!res.ok) {
-                        document.getElementById('json-view').textContent = `ERROR ${res.status}:\n${JSON.stringify(parsed, null, 2)}`;
-                        return null;
-                    }
-                    return parsed;
-                } catch(e) {
-                    document.getElementById('json-view').textContent = `STATUS ${res.status}:\n${text}`;
-                    return null;
-                }
-            } catch(e) {
-                addLog("Netwerkfout: " + e.message, "red");
-                return null;
-            }
-        }
-
-        // SYNC LOGICA GEBASEERD OP DOCUMENTATIE
         async function fetchFullStatus() {
-            if (!TOKEN || TOKEN.includes("###")) {
-                addLog("Geen geldig token geconfigureerd.", "orange");
-                return;
-            }
-            addLog("Syncing (pulling status)...");
+            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token.", "orange");
+            addLog("Syncing...");
             
-            // Volgens documentatie: stuur een 'summary' van de huidige status.
-            // Door null te sturen voor users/devices dwingen we de server om alles te sturen.
-            const payload = {
-                deviceAuthToken: TOKEN,
-                status: {
-                    clientLevel: 3,
-                    users: null,
-                    devices: null
-                }
-            };
-
-            const data = await safeFetch('sync', { 
+            // PAYLOAD HERSTELD NAAR v26 LOGICA
+            // We sturen status exact zoals de v26 client dat deed
+            const res = await fetch('/sync', { 
                 method: 'POST', 
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    deviceAuthToken: TOKEN,
+                    status: {
+                        users: "{}",
+                        devices: "{}",
+                        clientLevel: 3
+                    }
+                })
             });
-
-            if(data) {
+            
+            const text = await res.text();
+            try {
+                const data = JSON.parse(text);
                 document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-                addLog("Sync succesvol voltooid.", "#4caf50");
-            } else {
-                addLog("Sync mislukt. Zie inspector voor details.", "red");
+                addLog("Sync voltooid!");
+            } catch(e) {
+                document.getElementById('json-view').textContent = "ERROR: " + text;
+                addLog("Sync mislukt.", "red");
             }
         }
 
-        // WIZARD STAPPEN
         async function runStep1() {
-            const mail = document.getElementById('mail').value;
-            addLog("Aanvragen login code...");
-            const data = await safeFetch('wizard-step1', { 
-                method: 'POST', 
-                body: JSON.stringify({ mail, locale: 'nl' }) 
-            });
-            if(data && data.mailLoginToken) {
-                session.mailLoginToken = data.mailLoginToken;
-                addLog("✅ Code verstuurd naar e-mail.");
-                showStep(2);
-            }
+            const res = await fetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            const data = await res.json();
+            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("Mail verzonden!"); showStep(2); }
         }
 
         async function runStep2() {
-            addLog("Code valideren...");
-            const data = await safeFetch('wizard-step2', { 
-                method: 'POST', 
-                body: JSON.stringify({
-                    receivedCode: document.getElementById('code').value,
-                    mailLoginToken: session.mailLoginToken
-                })
-            });
-            if(data && data.mailAuthToken) {
-                session.mailAuthToken = data.mailAuthToken;
-                addLog("✅ Code geaccepteerd.");
-                showStep(3);
-            }
+            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
+            const data = await res.json();
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code OK!"); showStep(3); }
         }
 
         async function runStep3() {
-            addLog("Wachtwoord hashen via backend...");
-            const hRes = await safeFetch('generate-hashes', { 
-                method: 'POST', 
-                body: JSON.stringify({ password: document.getElementById('pass').value }) 
-            });
-            if(!hRes) return;
-
-            addLog("Familie definitief aanmaken...");
-            const res = await safeFetch('wizard-step3', { 
-                method: 'POST', 
-                body: JSON.stringify({
-                    mailAuthToken: session.mailAuthToken,
-                    parentName: "Admin",
-                    parentPassword: hRes,
-                    timeZone: "Europe/Amsterdam",
-                    clientLevel: 1
-                })
-            });
-
-            if(res && res.deviceAuthToken) {
-                addLog("🎉 Familie aangemaakt! Token: " + res.deviceAuthToken, "#03a9f4");
-                showStep(null);
-            }
+            const hRes = await fetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
+            const hashes = await hRes.json();
+            
+            const res = await fetch('/wizard-step3', { method: 'POST', body: JSON.stringify({
+                mailAuthToken: session.mailAuthToken,
+                parentName: "Admin",
+                parentPassword: hashes,
+                timeZone: "Europe/Amsterdam",
+                clientLevel: 1
+            })});
+            const data = await res.json();
+            if(data.deviceAuthToken) { addLog("SUCCES! Token: " + data.deviceAuthToken, "#03a9f4"); showStep(null); }
         }
 
-        // Start sync bij laden
         fetchFullStatus();
     </script>
 </body>
