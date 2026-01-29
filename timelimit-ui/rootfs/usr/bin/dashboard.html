@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit Control Panel v44</title>
+    <title>TimeLimit Control Panel v45</title>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -25,7 +25,7 @@
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v44</strong>
+        <strong>TimeLimit UI v45</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
@@ -164,22 +164,38 @@
 
         async function runStep3() {
             const password = document.getElementById('pass').value;
-            // We sturen het wachtwoord naar de interne helper voor hashing
-            const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password})});
-            const hashes = await hRes.json();
+            addLog("Bezig met genereren van hashes...");
             
-            const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify({
-                mailAuthToken: session.mailAuthToken,
-                parentName: "Admin",
-                parentPassword: hashes,
-                timeZone: "Europe/Amsterdam",
-                clientLevel: 1
-            })});
-            const data = await res.json();
-            if(data.deviceAuthToken) { 
-                document.getElementById('json-view').textContent = "NIEUW TOKEN GEGENEREERD:\n\n" + data.deviceAuthToken;
-                addLog("🎉 Familie aangemaakt! KOPIEER HET TOKEN UIT DE INSPECTOR.", "#03a9f4");
-                showStep(0);
+            try {
+                const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password})});
+                const hashes = await hRes.json();
+                
+                addLog("Versturen naar /create-family...");
+                const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify({
+                    mailAuthToken: session.mailAuthToken,
+                    parentName: "Admin",
+                    parentPassword: {
+                        hash: hashes.hash,
+                        salt: hashes.salt
+                    },
+                    timeZone: "Europe/Amsterdam",
+                    clientLevel: 1
+                })});
+
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); } catch(e) { data = text; }
+
+                if (res.ok && data.deviceAuthToken) { 
+                    document.getElementById('json-view').textContent = "SUCCES! NIEUW TOKEN:\n\n" + data.deviceAuthToken;
+                    addLog("🎉 Familie aangemaakt! Kopieer het token naar je HA config.", "#03a9f4");
+                    showStep(0);
+                } else {
+                    document.getElementById('json-view').textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+                    addLog("Server weigert aanvraag (400). Zie Inspector.", true);
+                }
+            } catch (e) {
+                addLog("Fout: " + e.message, true);
             }
         }
 
