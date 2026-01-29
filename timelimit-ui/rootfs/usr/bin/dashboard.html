@@ -1,88 +1,168 @@
 <!DOCTYPE html>
-<html>
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeLimit Control Panel v42</title>
     <style>
-        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #333; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        #json-view { flex: 1; padding: 15px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; flex-shrink: 0; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; }
+        .btn-wizard { background: #9c27b0; }
+        .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
+        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        .status-header { display: flex; align-items: center; margin-bottom: 20px; background: #1c222d; padding: 15px; border-radius: 8px; }
+        .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 12px; box-shadow: 0 0 8px rgba(0,0,0,0.5); }
+        .help-text { color: #888; font-size: 0.85em; margin-bottom: 10px; }
     </style>
 </head>
 <body>
-<header>
-    <div><strong>TimeLimit Control Panel v41</strong></div>
-    <div><button class="btn" onclick="fetchFullStatus()">🔄 Sync Nu</button></div>
-</header>
-<div class="main-container">
-    <div class="dashboard-view">
-        <div id="connection-status">
-            <span id="dot" class="status-dot" style="background: grey;"></span>
-            <span id="status-text">Wachten op sync...</span>
+    <header>
+        <strong>TimeLimit UI v42</strong>
+        <div>
+            <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
+            <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
         </div>
-        <hr style="border: 0; border-top: 1px solid #232a35; margin: 20px 0;">
-        <div id="ui-content">Gebruik de Sync knop om data op te halen.</div>
+    </header>
+
+    <div class="main-container">
+        <div class="dashboard-view">
+            <div class="status-header">
+                <span id="dot" class="status-dot" style="background: grey;"></span>
+                <span id="status-text" style="font-weight: bold;">Initialiseren...</span>
+            </div>
+
+            <div id="step-1" class="wizard-step">
+                <h3>Stap 1: E-mail</h3>
+                <input type="email" id="mail" placeholder="e-mailadres">
+                <button class="btn" onclick="runStep1()">Code aanvragen</button>
+            </div>
+
+            <div id="step-2" class="wizard-step">
+                <h3>Stap 2: Code</h3>
+                <input type="text" id="code" placeholder="Woord1 Woord2 Woord3">
+                <button class="btn" onclick="runStep2()">Valideer</button>
+            </div>
+
+            <div id="step-3" class="wizard-step">
+                <h3>Stap 3: Beheerder</h3>
+                <input type="password" id="pass" placeholder="Wachtwoord">
+                <button class="btn" onclick="runStep3()">Aanmaken</button>
+            </div>
+
+            <div id="main-content">
+                <p class="help-text">Data wordt opgehaald via de Home Assistant proxy...</p>
+            </div>
+        </div>
+
+        <div class="inspector-panel">
+            <div style="padding:10px; font-size:10px; color:#555; background: #0a0a0a;">SERVER DATA / ERROR VIEW</div>
+            <div id="json-view">Geen data geladen.</div>
+            <div id="log-area"></div>
+        </div>
     </div>
-    <div class="inspector-panel">
-        <div style="padding: 10px; font-size: 10px; color: #888;">RAW SERVER RESPONSE</div>
-        <div id="json-view">Geen data.</div>
-        <div id="log-area"></div>
-    </div>
-</div>
 
-<script>
-    const TOKEN = "###TOKEN###";
+    <script>
+        const TOKEN = "###TOKEN###";
+        let session = {};
 
-    function addLog(msg, isError = false) {
-        const log = document.getElementById('log-area');
-        const color = isError ? "#ff4444" : "#00ff00";
-        log.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-        log.scrollTop = log.scrollHeight;
-    }
-
-    async function fetchFullStatus() {
-        if (!TOKEN || TOKEN.includes("###")) {
-            addLog("Fout: Geen auth_token gevonden in config!", true);
-            return;
+        function addLog(m, isError = false) { 
+            const log = document.getElementById('log-area');
+            const div = document.createElement('div');
+            div.style.color = isError ? "#ff4444" : "#00ff00";
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] > ${m}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
         }
 
-        document.getElementById('dot').style.background = "orange";
-        document.getElementById('status-text').innerText = "Bezig met syncen...";
-        addLog("Sync proces gestart...");
+        function showStep(s) { 
+            document.querySelectorAll('.wizard-step').forEach(div => div.style.display = 'none');
+            if(s) document.getElementById('step-'+s).style.display = 'block';
+        }
 
-        try {
-            const res = await fetch('/sync', {
-                method: 'POST',
-                body: JSON.stringify({
-                    deviceAuthToken: TOKEN,
-                    status: { users: "{}", devices: "{}", clientLevel: 3 }
-                })
-            });
-
-            const data = await res.json();
-            document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-
-            if (res.ok) {
-                document.getElementById('dot').style.background = "#00ff00";
-                document.getElementById('status-text').innerText = "Verbonden & Actueel";
-                addLog("Sync succesvol!");
-            } else {
-                throw new Error(`Server gaf status ${res.status}`);
+        async function fetchFullStatus() {
+            if (!TOKEN || TOKEN.includes("###")) {
+                addLog("Fout: Geen auth_token ingesteld in HA opties.", true);
+                return;
             }
-        } catch (e) {
-            document.getElementById('dot').style.background = "#ff4444";
-            document.getElementById('status-text').innerText = "Sync fout";
-            addLog("Fout: " + e.message, true);
-        }
-    }
 
-    // Automatische sync bij start
-    fetchFullStatus();
-</script>
+            const dot = document.getElementById('dot');
+            const stext = document.getElementById('status-text');
+            dot.style.background = "orange";
+            stext.innerText = "Synchroniseren via backend...";
+            addLog("Sync proces gestart...");
+
+            try {
+                // Relatief pad 'sync' zorgt dat het via de HA proxy gaat (5G-proof)
+                const res = await fetch('sync', { 
+                    method: 'POST', 
+                    body: JSON.stringify({
+                        deviceAuthToken: TOKEN,
+                        status: { users: "{}", devices: "{}", clientLevel: 3 }
+                    })
+                });
+
+                const text = await res.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                    document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+                } catch(e) {
+                    // Als de server HTML (error) teruggeeft in plaats van JSON:
+                    document.getElementById('json-view').textContent = "--- SERVER ERROR (RAW) ---\n\n" + text;
+                    throw new Error(`Server gaf geen JSON (Status ${res.status})`);
+                }
+
+                if (res.ok) {
+                    dot.style.background = "#00ff00";
+                    stext.innerText = "Systeem Verbonden";
+                    addLog("Sync succesvol voltooid.");
+                } else {
+                    throw new Error(`Server fout: ${res.status}`);
+                }
+            } catch (e) {
+                dot.style.background = "#ff4444";
+                stext.innerText = "Sync Fout";
+                addLog(e.message, true);
+            }
+        }
+
+        // Wizard handlers (v26 legacy style)
+        async function runStep1() {
+            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            const data = await res.json();
+            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("E-mail verstuurd!"); showStep(2); }
+        }
+
+        async function runStep2() {
+            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
+            const data = await res.json();
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code gevalideerd!"); showStep(3); }
+        }
+
+        async function runStep3() {
+            const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
+            const hashes = await hRes.json();
+            const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify({
+                mailAuthToken: session.mailAuthToken,
+                parentName: "Admin",
+                parentPassword: hashes,
+                timeZone: "Europe/Amsterdam",
+                clientLevel: 1
+            })});
+            const data = await res.json();
+            if(data.deviceAuthToken) { addLog("🎉 Familie succesvol aangemaakt!", "#03a9f4"); showStep(null); }
+        }
+
+        // Start sync bij laden
+        fetchFullStatus();
+    </script>
 </body>
 </html>
