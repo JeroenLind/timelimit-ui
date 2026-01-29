@@ -3,124 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        body { font-family: sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
         .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
-        .btn-wizard { background: #9c27b0; }
-        .wizard-step { display: none; background: #151921; padding: 20px; border-radius: 12px; border: 1px solid #9c27b0; margin-bottom: 20px; }
-        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 11px; }
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #333; }
+        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
 </head>
 <body>
-    <header>
-        <strong>TimeLimit UI v40</strong>
-        <div>
-            <button class="btn" style="background:#444" onclick="fetchFullStatus()">Sync</button>
-            <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
+<header>
+    <div><strong>TimeLimit Control Panel v41</strong></div>
+    <div><button class="btn" onclick="fetchFullStatus()">🔄 Sync Nu</button></div>
+</header>
+<div class="main-container">
+    <div class="dashboard-view">
+        <div id="connection-status">
+            <span id="dot" class="status-dot" style="background: grey;"></span>
+            <span id="status-text">Wachten op sync...</span>
         </div>
-    </header>
-    <div class="main-container">
-        <div class="dashboard-view">
-            <div id="step-1" class="wizard-step">
-                <h3>Stap 1: E-mail</h3>
-                <input type="email" id="mail" placeholder="e-mailadres">
-                <button class="btn" onclick="runStep1()">Code aanvragen</button>
-            </div>
-            <div id="step-2" class="wizard-step">
-                <h3>Stap 2: Code</h3>
-                <input type="text" id="code" placeholder="Drie woorden">
-                <button class="btn" onclick="runStep2()">Valideer</button>
-            </div>
-            <div id="step-3" class="wizard-step">
-                <h3>Stap 3: Beheerder</h3>
-                <input type="password" id="pass" placeholder="Wachtwoord">
-                <button class="btn" onclick="runStep3()">Aanmaken</button>
-            </div>
-            <div id="status-area"><h3>Systeemstatus</h3></div>
-        </div>
-        <div class="inspector-panel">
-            <div id="json-view">Geen data geladen.</div>
-            <div id="log-area"></div>
-        </div>
+        <hr style="border: 0; border-top: 1px solid #232a35; margin: 20px 0;">
+        <div id="ui-content">Gebruik de Sync knop om data op te halen.</div>
     </div>
+    <div class="inspector-panel">
+        <div style="padding: 10px; font-size: 10px; color: #888;">RAW SERVER RESPONSE</div>
+        <div id="json-view">Geen data.</div>
+        <div id="log-area"></div>
+    </div>
+</div>
 
-    <script>
-        const TOKEN = "###TOKEN###";
-        let session = {};
+<script>
+    const TOKEN = "###TOKEN###";
 
-        function addLog(m, color="#00ff00") { 
-            const log = document.getElementById('log-area');
-            log.innerHTML += `<div style="color:${color}">> [${new Date().toLocaleTimeString()}] ${m}</div>`; 
-            log.scrollTop = log.scrollHeight;
+    function addLog(msg, isError = false) {
+        const log = document.getElementById('log-area');
+        const color = isError ? "#ff4444" : "#00ff00";
+        log.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    async function fetchFullStatus() {
+        if (!TOKEN || TOKEN.includes("###")) {
+            addLog("Fout: Geen auth_token gevonden in config!", true);
+            return;
         }
 
-        function showStep(s) { 
-            document.querySelectorAll('.wizard-step').forEach(div => div.style.display = 'none');
-            if(s) document.getElementById('step-'+s).style.display = 'block';
-        }
+        document.getElementById('dot').style.background = "orange";
+        document.getElementById('status-text').innerText = "Bezig met syncen...";
+        addLog("Sync proces gestart...");
 
-        async function fetchFullStatus() {
-            if (!TOKEN || TOKEN.includes("###")) return addLog("Geen token.", "orange");
-            addLog("Syncing...");
-            
-            // PAYLOAD HERSTELD NAAR v26 LOGICA
-            // We sturen status exact zoals de v26 client dat deed
-            const res = await fetch('/sync', { 
-                method: 'POST', 
+        try {
+            const res = await fetch('/sync', {
+                method: 'POST',
                 body: JSON.stringify({
                     deviceAuthToken: TOKEN,
-                    status: {
-                        users: "{}",
-                        devices: "{}",
-                        clientLevel: 3
-                    }
+                    status: { users: "{}", devices: "{}", clientLevel: 3 }
                 })
             });
-            
-            const text = await res.text();
-            try {
-                const data = JSON.parse(text);
-                document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-                addLog("Sync voltooid!");
-            } catch(e) {
-                document.getElementById('json-view').textContent = "ERROR: " + text;
-                addLog("Sync mislukt.", "red");
+
+            const data = await res.json();
+            document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
+
+            if (res.ok) {
+                document.getElementById('dot').style.background = "#00ff00";
+                document.getElementById('status-text').innerText = "Verbonden & Actueel";
+                addLog("Sync succesvol!");
+            } else {
+                throw new Error(`Server gaf status ${res.status}`);
             }
+        } catch (e) {
+            document.getElementById('dot').style.background = "#ff4444";
+            document.getElementById('status-text').innerText = "Sync fout";
+            addLog("Fout: " + e.message, true);
         }
+    }
 
-        async function runStep1() {
-            const res = await fetch('/wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
-            const data = await res.json();
-            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; addLog("Mail verzonden!"); showStep(2); }
-        }
-
-        async function runStep2() {
-            const res = await fetch('/wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
-            const data = await res.json();
-            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; addLog("Code OK!"); showStep(3); }
-        }
-
-        async function runStep3() {
-            const hRes = await fetch('/generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
-            const hashes = await hRes.json();
-            
-            const res = await fetch('/wizard-step3', { method: 'POST', body: JSON.stringify({
-                mailAuthToken: session.mailAuthToken,
-                parentName: "Admin",
-                parentPassword: hashes,
-                timeZone: "Europe/Amsterdam",
-                clientLevel: 1
-            })});
-            const data = await res.json();
-            if(data.deviceAuthToken) { addLog("SUCCES! Token: " + data.deviceAuthToken, "#03a9f4"); showStep(null); }
-        }
-
-        fetchFullStatus();
-    </script>
+    // Automatische sync bij start
+    fetchFullStatus();
+</script>
 </body>
 </html>
