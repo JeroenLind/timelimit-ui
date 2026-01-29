@@ -18,4 +18,4 @@ while True:
         print(f"Kan geen verbinding maken met server: {e}")
     
     sys.stdout.flush() # Zorg dat we de logs direct zien in HA
-    time.sleep(30)
+    time.sleep(60)
