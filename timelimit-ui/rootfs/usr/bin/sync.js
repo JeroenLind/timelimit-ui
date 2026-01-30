@@ -37,6 +37,8 @@ async function runSync() {
         jsonView.textContent = ">>> VERZONDEN PAYLOAD (SYNC):\n" + JSON.stringify(syncPayload, null, 2);
         jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + JSON.stringify(data, null, 2);
 
+        jsonView.scrollTop = jsonView.scrollHeight; // FORCEER SCROLL NAAR BENEDEN
+        
         if (res.ok) {
             addLog("Sync voltooid.");
             badge.innerText = "Online";
