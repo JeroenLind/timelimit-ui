@@ -3,27 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v57</title>
-    <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
-        .dashboard-view { padding: 20px; overflow-y: auto; }
-        .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; height: 100%; }
-        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; }
-        .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
-        .btn-wizard { background: #9c27b0; }
-        .wizard-container { background: #151921; padding: 20px; border-bottom: 2px solid #9c27b0; display: none; }
-        input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
-        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
-        .status-online { background: #1b4721; color: #4caf50; }
-        .status-offline { background: #471b1b; color: #f44336; }
-    </style>
+    <title>TimeLimit UI v58</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v57</strong>
+        <strong>TimeLimit UI v58</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
@@ -65,115 +50,15 @@
 
     <script>
         const TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
-        let session = {};
-        const jsonView = document.getElementById('json-view');
+    </script>
 
-        function addLog(m, isError = false) { 
-            const log = document.getElementById('log-area');
-            log.innerHTML += `<div style="color:${isError ? '#ff4444':'#00ff00'}">[${new Date().toLocaleTimeString()}] ${m}</div>`;
-            log.scrollTop = log.scrollHeight;
-        }
-
-        function showStep(s) {
-            document.getElementById('wizard-ui').style.display = s > 0 ? 'block' : 'none';
-            document.querySelectorAll('.wizard-step').forEach((el, idx) => el.style.display = (idx+1 === s) ? 'block' : 'none');
-        }
-
-        async function runSync() {
-            if(!TOKEN || TOKEN.includes("#")) {
-                addLog("Geen token gevonden.", true);
-                return;
-            }
-
-            // Payload exact volgens de AJV-validator definitie
-            const syncPayload = {
-                deviceAuthToken: TOKEN,
-                status: {
-                    // Verplichte velden volgens 'required' lijst:
-                    apps: {},               // Object
-                    categories: {},         // Object
-                    devices: "0",           // String
-                    users: "0",             // String
-                    // Optionele velden (wel toegestaan in properties):
-                    clientLevel: 8          // Number
-                }
-            };
-
-            addLog("Versturen Sync Request (v58)...");
-            jsonView.textContent = ">>> VERZONDEN PAYLOAD (SYNC):\n" + JSON.stringify(syncPayload, null, 2);
-
-            try {
-                const res = await fetch('sync/pull-status', { // Let op: /pull-status toevoegen als dat nodig is
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(syncPayload)
-                });
-                
-                const text = await res.text();
-                jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
-
-                if(res.ok) {
-                    const data = JSON.parse(text);
-                    addLog("Sync succesvol!");
-                    document.getElementById('status-badge').innerText = "Online";
-                    document.getElementById('status-badge').className = "status-badge status-online";
-                    renderUsers(data);
-                } else {
-                    addLog("Sync geweigerd (400). Controleer schema.", true);
-                    document.getElementById('status-badge').innerText = "Schema Error";
-                }
-            } catch(e) {
-                addLog("Sync Error: " + e.message, true);
-            }
-        }
-
-        function renderUsers(data) {
-            const list = document.getElementById('user-list');
-            if(data.users && data.users.data) {
-                let html = "<ul>";
-                data.users.data.forEach(u => html += `<li><strong>${u.name}</strong> (${u.type}) - ${u.id}</li>`);
-                html += "</ul>";
-                list.innerHTML = html;
-            }
-        }
-
-        // Wizard functies (v54 Regex Fix behouden)
-        async function runStep1() {
-            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
-            const data = await res.json();
-            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; showStep(2); addLog("Code verzonden."); }
-        }
-
-        async function runStep2() {
-            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
-            const data = await res.json();
-            jsonView.textContent = "--- STAP 2 RESPONSE ---\n" + JSON.stringify(data, null, 2);
-            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code OK."); }
-        }
-
-        async function runStep3() {
-            addLog("Hashes genereren...");
-            try {
-                const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
-                const hashes = await hRes.json();
-                let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-                const payload = {
-                    mailAuthToken: session.mailAuthToken,
-                    parentPassword: { hash: cleanHash, secondHash: cleanHash, secondSalt: "$2a$12$1234567890123456789012" },
-                    parentDevice: { model: "WebDashboard-v57" },
-                    deviceName: "DashboardControl",
-                    timeZone: "Europe/Amsterdam",
-                    parentName: "Beheerder"
-                };
-                jsonView.textContent = ">>> VERZONDEN PAYLOAD (CREATE):\n" + JSON.stringify(payload, null, 2);
-                const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
-                const text = await res.text();
-                jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
-                if (res.ok) { addLog("🎉 Familie aangemaakt!"); showStep(0); }
-            } catch (e) { addLog("Fout: " + e.message, true); }
-        }
-
-        runSync();
+    <script src="ui.js"></script>
+    <script src="wizard.js"></script>
+    <script src="sync.js"></script>
+    
+    <script>
+        // Start de automatische sync zodra de scripts geladen zijn
+        window.onload = runSync;
     </script>
 </body>
 </html>
