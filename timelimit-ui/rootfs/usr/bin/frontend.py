@@ -43,6 +43,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/wizard-step1': '/auth/send-mail-login-code-v2',
             '/wizard-step2': '/auth/sign-in-by-mail-code',
             '/wizard-step3': '/parent/create-family',
+            '/wizard-login': '/parent/sign-in-into-family',  # De nieuwe route voor bestaande accounts
             '/sync': '/sync/pull-status',
             '/generate-hashes': 'INTERNAL' # Wordt hieronder afgehandeld
         }

@@ -10,14 +10,15 @@
     <header>
         <strong>TimeLimit UI v60</strong>
         <div>
-            <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
+            <button class="btn btn-wizard" style="background: #673ab7;" onclick="startCreateFlow()">🆕 Nieuwe Familie</button>
+            <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
         </div>
     </header>
 
     <div id="wizard-ui" class="wizard-container">
         <div id="step-1" class="wizard-step" style="display:none;">
-            <h3>Stap 1: E-mailadres (Nieuwe Familie)</h3>
+            <h3 id="step-1-title">Stap 1: E-mailadres</h3>
             <input type="email" id="mail" placeholder="e-mailadres">
             <button class="btn" onclick="runStep1()">Code aanvragen</button>
         </div>
@@ -26,10 +27,14 @@
             <input type="text" id="code" placeholder="woord1 woord2 woord3">
             <button class="btn" onclick="runStep2()">Valideer Code</button>
         </div>
+        
         <div id="step-3" class="wizard-step" style="display:none;">
             <h3>Stap 3: Ouder Wachtwoord</h3>
-            <input type="password" id="pass" placeholder="Kies een wachtwoord">
-            <button class="btn" onclick="runStep3()">Familie Finaliseren</button>
+            <p id="step-3-desc" style="font-size: 11px; color: #888; margin-bottom: 10px;"></p>
+            <input type="password" id="pass" placeholder="Wachtwoord">
+            
+            <button id="btn-run-create" class="btn" style="display:none;" onclick="runStep3()">Familie Finaliseren & Aanmaken</button>
+            <button id="btn-run-login" class="btn" style="display:none; background: #03a9f4;" onclick="runSignInStep3()">Inloggen & Dashboard Koppelen</button>
         </div>
         <button class="btn" style="background:transparent; color:#888; margin-top:10px;" onclick="showStep(0)">✖ Annuleren</button>
     </div>
@@ -44,7 +49,7 @@
                 </div>
                 <div style="margin-top: 15px; display: flex; gap: 10px;">
                     <button class="btn" style="background: #f44336; flex: 1; font-size: 12px;" onclick="logout()">Uitloggen</button>
-                    <button class="btn" style="background: #03a9f4; flex: 1; font-size: 12px;" onclick="showLoginModal()">Inloggen op Familie</button>
+                    <button class="btn" style="background: #03a9f4; flex: 1; font-size: 12px;" onclick="showLoginModal()">Token Beheer</button>
                 </div>
             </div>
 
@@ -81,8 +86,8 @@
                     🔑 Ik heb al een Token (Snel)
                 </button>
             
-                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; opacity: 0.6;" onclick="startEmailLoginWizard()" disabled>
-                    📧 Inloggen via E-mail (Binnenkort)
+                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; background: #03a9f4;" onclick="hideLoginModal(); startLoginFlow();">
+                    📧 Inloggen via E-mail Wizard
                 </button>
             
                 <button class="btn" style="width:100%; background:#333;" onclick="hideLoginModal()">Annuleren</button>
@@ -101,7 +106,7 @@
     </div>
 
     <script>
-        // --- TOKEN BEHEER (Onveranderd, dit is je veilige basis) ---
+        // --- TOKEN BEHEER ---
         const DEFAULT_TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
         let TOKEN = localStorage.getItem('timelimit_token');
 
@@ -117,34 +122,40 @@
             }
         }
 
-        // --- GEAVANCEERDE UI ACTIES (Nieuwe modal logica) ---
-        function showLoginModal() { 
-            document.getElementById('login-modal').style.display = 'flex'; 
+        // --- FLOW CONTROL (Nieuwe expliciete triggers) ---
+        function startCreateFlow() {
+            addLog("Start: Flow voor NIEUWE familie.");
+            document.getElementById('step-1-title').innerText = "Stap 1: E-mail (Nieuwe Familie)";
+            document.getElementById('step-3-desc').innerText = "Kies een wachtwoord voor je nieuwe account.";
+            document.getElementById('btn-run-create').style.display = 'block';
+            document.getElementById('btn-run-login').style.display = 'none';
+            showStep(1);
         }
 
-        // Zorgt dat de modal altijd netjes terugspringt naar het keuzemenu
+        function startLoginFlow() {
+            addLog("Start: Inloggen op BESTAANDE familie.");
+            document.getElementById('step-1-title').innerText = "Stap 1: E-mail (Bestaande Familie)";
+            document.getElementById('step-3-desc').innerText = "Voer het wachtwoord in van je bestaande account.";
+            document.getElementById('btn-run-create').style.display = 'none';
+            document.getElementById('btn-run-login').style.display = 'block';
+            showStep(1);
+        }
+
+        // --- UI ACTIES ---
+        function showLoginModal() { document.getElementById('login-modal').style.display = 'flex'; }
         function hideLoginModal() { 
             document.getElementById('login-modal').style.display = 'none'; 
-            resetLoginModal(); 
+            resetLoginModal();
         }
-
-        // Wisselen tussen keuzemenu en token-veld
         function showManualTokenField() {
             document.getElementById('login-choice').style.display = 'none';
             document.getElementById('manual-token-form').style.display = 'block';
         }
-
         function resetLoginModal() {
             document.getElementById('login-choice').style.display = 'block';
             document.getElementById('manual-token-form').style.display = 'none';
         }
 
-        function startEmailLoginWizard() {
-            addLog("E-mail login wizard wordt gestart (placeholder)...");
-            // Hier komt straks de aanroep naar je nieuwe login-wizard
-        }
-
-        // --- DE KERN LOGICA (Onveranderd) ---
         function loginWithToken() {
             const newToken = document.getElementById('manual-token-input').value.trim();
             if (newToken) {
@@ -158,7 +169,7 @@
         }
 
         function logout() {
-            if (confirm("Weet je zeker dat je wilt uitloggen? Dit wist het token uit de browser.")) {
+            if (confirm("Weet je zeker dat je wilt uitloggen?")) {
                 localStorage.removeItem('timelimit_token');
                 TOKEN = "";
                 updateTokenDisplay();
@@ -177,11 +188,7 @@
     <script>
         window.onload = () => {
             updateTokenDisplay();
-            if (TOKEN) {
-                runSync();
-            } else {
-                addLog("Wachtend op login...", true);
-            }
+            if (TOKEN) runSync();
         };
     </script>
 </body>

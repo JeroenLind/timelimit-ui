@@ -125,3 +125,64 @@ async function runStep3() {
         addLog("Systeemfout Stap 3: " + e.message, true);
     }
 }
+
+/**
+ * Specifieke functie voor het inloggen op een bestaande familie (Sign-In).
+ * Wordt aangeroepen in Stap 3 als de gebruiker op "Inloggen" klikt.
+ */
+async function runSignInStep3() {
+    const password = document.getElementById('pass').value;
+    addLog("Stap 3 (Inloggen): Hashes genereren en sessie starten...");
+
+    try {
+        // 1. Genereer de hash van het wachtwoord (net als bij aanmaken)
+        const hRes = await fetch('generate-hashes', { 
+            method: 'POST', 
+            body: JSON.stringify({ password: password }) 
+        });
+        const hashes = await hRes.json();
+        let cleanHash = hashes.hash.replace('$2b$', '$2a$');
+
+        // 2. De Payload voor /parent/sign-in-into-family
+        const payload = {
+            mailAuthToken: wizardSession.mailAuthToken,
+            parentPassword: {
+                hash: cleanHash
+            },
+            parentDevice: { model: "WebDashboard-v60-Modular" },
+            deviceName: "DashboardControl",
+            timeZone: "Europe/Amsterdam"
+        };
+
+        const inspector = document.getElementById('json-view');
+        inspector.textContent = ">>> VERZONDEN PAYLOAD (SIGN-IN):\n" + JSON.stringify(payload, null, 2);
+
+        // 3. De API aanroep naar het nieuwe endpoint
+        const res = await fetch('wizard-login', { // Zorg dat je server dit naar /sign-in-into-family stuurt
+            method: 'POST', 
+            body: JSON.stringify(payload) 
+        });
+        
+        const text = await res.text();
+        inspector.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
+
+        if (res.ok) { 
+            const finalData = JSON.parse(text);
+            
+            if (finalData.deviceAuthToken) {
+                TOKEN = finalData.deviceAuthToken; 
+                localStorage.setItem('timelimit_token', TOKEN); 
+                updateTokenDisplay(); 
+                
+                addLog("🎉 SUCCES! Ingelogd op bestaande familie.");
+                showStep(0); // Sluit wizard
+                runSync();   // Start synchronisatie
+            }
+        } else {
+            const errData = JSON.parse(text);
+            addLog("Fout bij inloggen: " + (errData.message || res.statusText), true);
+        }
+    } catch (e) {
+        addLog("Systeemfout Sign-In: " + e.message, true);
+    }
+}
