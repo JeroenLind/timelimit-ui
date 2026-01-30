@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v56</title>
+    <title>TimeLimit UI v57</title>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -23,7 +23,7 @@
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v56</strong>
+        <strong>TimeLimit UI v57</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
@@ -51,21 +51,20 @@
 
     <div class="main-container">
         <div class="dashboard-view">
-            <div id="status-badge" class="status-badge status-offline">Verbinding maken...</div>
+            <div id="status-badge" class="status-badge status-offline">Sync Status...</div>
             <h2>Dashboard</h2>
             <div id="user-list">Gegevens ophalen via sync...</div>
+            <button class="btn" style="margin-top:20px; font-size:12px;" onclick="runSync()">Manual Sync</button>
         </div>
         <div class="inspector-panel">
-            <div style="padding:10px; font-size:10px; color:#555; background:#111;">DATA INSPECTOR (SCROLLBAAR)</div>
+            <div style="padding:10px; font-size:10px; color:#555; background:#111;">DATA INSPECTOR</div>
             <div id="json-view">Wachtend op data...</div>
             <div id="log-area"></div>
         </div>
     </div>
 
     <script>
-        // TOKEN CONFIGURATIE (Wordt ingevuld door Add-on)
         const TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
-
         let session = {};
         const jsonView = document.getElementById('json-view');
 
@@ -80,35 +79,54 @@
             document.querySelectorAll('.wizard-step').forEach((el, idx) => el.style.display = (idx+1 === s) ? 'block' : 'none');
         }
 
-        // --- AUTOMATISCHE SYNC FUNCTIE ---
         async function runSync() {
             if(!TOKEN || TOKEN.includes("#")) {
-                addLog("Geen deviceAuthToken gevonden. Gebruik de wizard.", true);
-                document.getElementById('status-badge').innerText = "Geen Token";
+                addLog("Geen token gevonden.", true);
                 return;
             }
 
-            addLog("Syncing met server...");
+            // De uitgebreide payload om de validator tevreden te stellen
+            const syncPayload = {
+                deviceAuthToken: TOKEN,
+                status: {
+                    clientLevel: 8, // Match de API level uit je succesvolle response
+                    cAppVersion: 100,
+                    hAppVersion: 100,
+                    networkTime: "enabled"
+                },
+                versions: {
+                    devices: "0",
+                    users: "0",
+                    apps: "0",
+                    rules: "0"
+                }
+            };
+
+            addLog("Versturen Sync Request...");
+            jsonView.textContent = ">>> VERZONDEN PAYLOAD (SYNC):\n" + JSON.stringify(syncPayload, null, 2);
+
             try {
                 const res = await fetch('sync', {
                     method: 'POST',
-                    body: JSON.stringify({ deviceAuthToken: TOKEN, status: { clientLevel: 3 }})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(syncPayload)
                 });
-                const data = await res.json();
                 
-                jsonView.textContent = "--- SYNC RESPONSE ---\n" + JSON.stringify(data, null, 2);
+                const text = await res.text();
+                jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
 
                 if(res.ok) {
+                    const data = JSON.parse(text);
                     addLog("Sync succesvol.");
                     document.getElementById('status-badge').innerText = "Online";
                     document.getElementById('status-badge').className = "status-badge status-online";
                     renderUsers(data);
                 } else {
-                    addLog("Sync geweigerd door server.", true);
-                    document.getElementById('status-badge').innerText = "Auth Error";
+                    addLog("Sync 400: Payload niet geaccepteerd.", true);
+                    document.getElementById('status-badge').innerText = "Sync Error (400)";
                 }
             } catch(e) {
-                addLog("Sync mislukt: " + e.message, true);
+                addLog("Sync Error: " + e.message, true);
             }
         }
 
@@ -116,13 +134,13 @@
             const list = document.getElementById('user-list');
             if(data.users && data.users.data) {
                 let html = "<ul>";
-                data.users.data.forEach(u => html += `<li><strong>${u.name}</strong> (${u.type})</li>`);
+                data.users.data.forEach(u => html += `<li><strong>${u.name}</strong> (${u.type}) - ${u.id}</li>`);
                 html += "</ul>";
                 list.innerHTML = html;
             }
         }
 
-        // --- WIZARD FUNCTIES ---
+        // Wizard functies (v54 Regex Fix behouden)
         async function runStep1() {
             const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
             const data = await res.json();
@@ -137,41 +155,27 @@
         }
 
         async function runStep3() {
-            addLog("Hashes genereren voor Regex-validatie...");
+            addLog("Hashes genereren...");
             try {
                 const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
                 const hashes = await hRes.json();
-                
                 let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-                const validDummySalt = "$2a$12$1234567890123456789012";
-                const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
-
                 const payload = {
                     mailAuthToken: session.mailAuthToken,
-                    parentPassword: { hash: cleanHash, secondHash: cleanHash, secondSalt: finalSalt },
-                    parentDevice: { model: "WebDashboard-v56" },
+                    parentPassword: { hash: cleanHash, secondHash: cleanHash, secondSalt: "$2a$12$1234567890123456789012" },
+                    parentDevice: { model: "WebDashboard-v57" },
                     deviceName: "DashboardControl",
                     timeZone: "Europe/Amsterdam",
                     parentName: "Beheerder"
                 };
-
-                jsonView.textContent = "--- PAYLOAD VOOR SERVER ---\n" + JSON.stringify(payload, null, 2);
-
+                jsonView.textContent = ">>> VERZONDEN PAYLOAD (CREATE):\n" + JSON.stringify(payload, null, 2);
                 const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
                 const text = await res.text();
-                jsonView.textContent += "\n\n--- SERVER ANTWOORD ---\n" + text;
-
-                if (res.ok) { 
-                    addLog("🎉 SUCCES! Gezin aangemaakt."); 
-                    showStep(0); 
-                    const data = JSON.parse(text);
-                    addLog("Nieuw token ontvangen. Pas dit aan in je config!");
-                }
-                else { addLog("Fout bij aanmaken. Zie inspector.", true); }
-            } catch (e) { addLog("Systeemfout: " + e.message, true); }
+                jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
+                if (res.ok) { addLog("🎉 Familie aangemaakt!"); showStep(0); }
+            } catch (e) { addLog("Fout: " + e.message, true); }
         }
 
-        // Start Sync bij laden
         runSync();
     </script>
 </body>
