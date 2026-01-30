@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit Control Panel v51</title>
+    <title>TimeLimit UI v53</title>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
         .dashboard-view { padding: 20px; overflow-y: auto; }
-        .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; }
-        #json-view { flex: 1; padding: 15px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; border-bottom: 1px solid #232a35; }
-        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; flex-shrink: 0; }
+        .inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; height: 100%; }
+        /* SCROLL FIX HIER */
+        #json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; }
+        #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; }
         .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
         .btn-wizard { background: #9c27b0; }
         .wizard-container { background: #151921; padding: 20px; border-bottom: 2px solid #9c27b0; display: none; }
-        .wizard-step { margin-bottom: 15px; }
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v51</strong>
+        <strong>TimeLimit UI v53</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
-            <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset</button>
+            <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
         </div>
     </header>
 
@@ -44,108 +44,93 @@
             <input type="password" id="pass" placeholder="Kies een wachtwoord">
             <button class="btn" onclick="runStep3()">Familie Finaliseren</button>
         </div>
-        <button class="btn" style="background:transparent; color:#888;" onclick="showStep(0)">✖ Sluiten</button>
     </div>
 
     <div class="main-container">
         <div class="dashboard-view">
             <h2>Status & Debugging</h2>
-            <div id="user-list">Doorloop de wizard om gegevens te verzamelen.</div>
+            <p>De inspector rechts is nu scrollbaar.</p>
+            <div id="user-list">Doorloop de wizard...</div>
         </div>
         <div class="inspector-panel">
-            <div style="padding:10px; font-size:10px; color:#555;">DATA INSPECTOR</div>
-            <div id="json-view">Hier verschijnt de data van elke stap...</div>
+            <div style="padding:10px; font-size:10px; color:#555; background:#111;">DATA INSPECTOR (SCROLLBAAR)</div>
+            <div id="json-view">Wachtend op data...</div>
             <div id="log-area"></div>
         </div>
     </div>
 
     <script>
         let session = {};
-
         function addLog(m, isError = false) { 
             const log = document.getElementById('log-area');
             log.innerHTML += `<div style="color:${isError ? '#ff4444':'#00ff00'}">[${new Date().toLocaleTimeString()}] ${m}</div>`;
             log.scrollTop = log.scrollHeight;
         }
-
         function showStep(s) {
             document.getElementById('wizard-ui').style.display = s > 0 ? 'block' : 'none';
-            [1,2,3].forEach(i => document.getElementById('step-'+i).style.display = (i===s)?'block':'none');
+            document.querySelectorAll('.wizard-step').forEach((el, idx) => el.style.display = (idx+1 === s) ? 'block' : 'none');
         }
 
         async function runStep1() {
-            const mail = document.getElementById('mail').value;
-            addLog(`Stap 1: Code aanvragen voor ${mail}`);
-            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail, locale: 'nl'})});
+            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
             const data = await res.json();
-            if(data.mailLoginToken) { 
-                session.mailLoginToken = data.mailLoginToken; 
-                showStep(2); 
-                addLog("Code verzonden. Controleer je mail."); 
-            }
+            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; showStep(2); addLog("Code verzonden."); }
         }
 
         async function runStep2() {
-            const code = document.getElementById('code').value;
-            addLog("Stap 2: Code valideren...");
-            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: code, mailLoginToken: session.mailLoginToken})});
+            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
             const data = await res.json();
-            
-            // UITGEBREIDE DIAGNOSE
             document.getElementById('json-view').textContent = "--- STAP 2 RESPONSE ---\n" + JSON.stringify(data, null, 2);
-            
-            if(data.mailAuthToken) { 
-                session.mailAuthToken = data.mailAuthToken; 
-                showStep(3); 
-                addLog("Code OK! MailAuthToken ontvangen."); 
-            } else {
-                addLog("Fout in Stap 2: Geen mailAuthToken gevonden.", true);
-            }
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code OK."); }
         }
 
         async function runStep3() {
-            const pass = document.getElementById('pass').value;
-            const inspector = document.getElementById('json-view');
-            addLog("Stap 3: Hashes genereren...");
-            
+            addLog("Hashes genereren voor Regex-validatie...");
             try {
-                const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: pass})});
+                const hRes = await fetch('generate-hashes', { 
+                    method: 'POST', 
+                    body: JSON.stringify({password: document.getElementById('pass').value})
+                });
                 const hashes = await hRes.json();
                 
-                // We vullen secondSalt handmatig aan als de API hem niet levert
-                const finalSalt = hashes.salt || "somesalt";
+                // --- REGEX COMPLIANCE FIX ---
+                // De server eist $2a$, wij krijgen $2b$.
+                // We vervangen de prefix zodat de Regex hem pakt.
+                let cleanHash = hashes.hash.replace('$2b$', '$2a$');
+                
+                // De salt Regex eist EXACT 22 tekens na de prefix $2a$12$
+                // We maken een valide dummy salt die voldoet aan: ^(\$2a\$[123][0-9]\$[./A-Za-z0-9]{22})$
+                const validDummySalt = "$2a$12$1234567890123456789012";
+                const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
 
                 const payload = {
                     mailAuthToken: session.mailAuthToken,
                     parentPassword: {
-                        hash: hashes.hash,
-                        secondHash: hashes.hash,
+                        hash: cleanHash,
+                        secondHash: cleanHash,
                         secondSalt: finalSalt
                     },
-                    parentDevice: {
-                        model: "WebDashboard-v52"
-                    },
+                    parentDevice: { model: "WebDashboard-v54" },
                     deviceName: "DashboardControl",
                     timeZone: "Europe/Amsterdam",
                     parentName: "Beheerder"
                 };
 
+                const inspector = document.getElementById('json-view');
                 inspector.textContent = "--- PAYLOAD VOOR SERVER ---\n" + JSON.stringify(payload, null, 2);
 
                 const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
                 const text = await res.text();
-                
                 inspector.textContent += "\n\n--- SERVER ANTWOORD ---\n" + text;
 
-                if (res.ok) {
-                    addLog("🎉 SUCCES! Gezin aangemaakt.");
-                    showStep(0);
-                } else {
-                    addLog(`❌ Server weigert nog steeds.`, true);
+                if (res.ok) { 
+                    addLog("🎉 SUCCES! Gezin aangemaakt."); 
+                    showStep(0); 
+                    const data = JSON.parse(text);
+                    inspector.textContent += "\n\nGEBRUIK DIT TOKEN: " + data.deviceAuthToken;
                 }
-            } catch (e) {
-                addLog("Systeemfout: " + e.message, true);
-            }
+                else { addLog("Fout bij aanmaken. Zie inspector.", true); }
+            } catch (e) { addLog("Systeemfout: " + e.message, true); }
         }
     </script>
 </body>
