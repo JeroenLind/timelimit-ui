@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit Control Panel v48</title>
+    <title>TimeLimit Control Panel v49</title>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -19,12 +19,11 @@
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
         .status-header { display: flex; align-items: center; margin-bottom: 20px; background: #1c222d; padding: 15px; border-radius: 8px; }
         .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 12px; }
-        .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v48</strong>
+        <strong>TimeLimit UI v49</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
@@ -43,7 +42,7 @@
             <button class="btn" onclick="runStep2()">Valideer Code</button>
         </div>
         <div id="step-3" class="wizard-step" style="display:none;">
-            <h3>Stap 3: Wachtwoord Beheerder</h3>
+            <h3>Stap 3: Ouder Wachtwoord</h3>
             <input type="password" id="pass" placeholder="Wachtwoord">
             <button class="btn" onclick="runStep3()">Familie Finaliseren</button>
         </div>
@@ -54,9 +53,9 @@
         <div class="dashboard-view">
             <div class="status-header">
                 <span id="dot" class="status-dot" style="background: grey;"></span>
-                <span id="status-text" style="font-weight: bold;">Verbinding controleren...</span>
+                <span id="status-text" style="font-weight: bold;">Status onbekend</span>
             </div>
-            <div id="user-list"><i>Wachten op actie...</i></div>
+            <div id="user-list">Gebruik de wizard om een nieuw gezin te koppelen.</div>
         </div>
         <div class="inspector-panel">
             <div style="padding:10px; font-size:10px; color:#555;">SERVER INSPECTOR</div>
@@ -81,62 +80,56 @@
         }
 
         async function runStep1() {
-            const mail = document.getElementById('mail').value;
-            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail, locale: 'nl'})});
+            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
             const data = await res.json();
-            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; showStep(2); addLog("Code verzonden."); }
+            if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; showStep(2); addLog("Code aangevraagd."); }
         }
 
         async function runStep2() {
-            const code = document.getElementById('code').value;
-            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: code, mailLoginToken: session.mailLoginToken})});
+            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
             const data = await res.json();
-            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code geaccepteerd."); }
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code gevalideerd."); }
         }
 
         async function runStep3() {
-            const jsonView = document.getElementById('json-view');
-            addLog("Hashes genereren...");
-            
+            addLog("Bezig met afronden...");
             try {
-                const hRes = await fetch('generate-hashes', { 
-                    method: 'POST', 
-                    body: JSON.stringify({password: document.getElementById('pass').value})
-                });
+                const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
                 const hashes = await hRes.json();
                 
-                addLog("Versturen naar /create-family...");
-                
+                // PAYLOAD EXACT VOLGENS validator.js (Geen extra velden!)
                 const payload = {
                     mailAuthToken: session.mailAuthToken,
-                    parentName: "Beheerder",
                     parentPassword: {
                         hash: hashes.hash,
                         secondHash: hashes.hash,
                         secondSalt: hashes.salt
                     },
+                    parentDevice: {
+                        model: "Dashboard-Web"
+                    },
+                    deviceName: "WebDashboard",
                     timeZone: "Europe/Amsterdam",
-                    deviceName: "Mijn Dashboard",
-                    parentDevice: { model: "WebBrowser" },
-                    clientLevel: 1
+                    parentName: "Beheerder"
                 };
 
                 const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
                 const text = await res.text();
+                const jsonView = document.getElementById('json-view');
                 
                 try {
                     const data = JSON.parse(text);
                     if (res.ok && data.deviceAuthToken) { 
-                        jsonView.textContent = "🎉 SUCCES!\n\nToken:\n" + data.deviceAuthToken;
-                        addLog("Gelukt! Token ontvangen.");
+                        jsonView.textContent = "🎉 SUCCES!\n\nNieuw Token:\n" + data.deviceAuthToken;
+                        addLog("Gezin aangemaakt! Kopieer het token.");
                         showStep(0);
                     } else {
-                        jsonView.textContent = "FOUT " + res.status + ":\n" + JSON.stringify(data, null, 2);
-                        addLog("Server weigert (400). Zie Inspector.", true);
+                        jsonView.textContent = "VALIDATIE FOUT:\n" + JSON.stringify(data, null, 2);
+                        addLog("Server weigert payload. Zie inspector.", true);
                     }
                 } catch(e) {
-                    jsonView.textContent = "RAW SERVER RESPONSE:\n" + text;
-                    addLog("Geen JSON antwoord. Zie Inspector.", true);
+                    jsonView.textContent = text;
+                    addLog("Foutmelding ontvangen.", true);
                 }
             } catch (e) {
                 addLog("Fout: " + e.message, true);
@@ -146,9 +139,8 @@
         async function fetchFullStatus() {
             if(!TOKEN || TOKEN.includes("#")) return;
             const res = await fetch('sync', { method: 'POST', body: JSON.stringify({deviceAuthToken: TOKEN, status: {clientLevel: 3}})});
-            if(res.ok) { document.getElementById('dot').style.background = "#0f0"; document.getElementById('status-text').innerText = "Online"; }
+            if(res.ok) { document.getElementById('dot').style.background = "#0f0"; document.getElementById('status-text').innerText = "Verbonden"; }
         }
-
         fetchFullStatus();
     </script>
 </body>
