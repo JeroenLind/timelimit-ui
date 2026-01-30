@@ -33,12 +33,25 @@ async function runSync() {
         
         const data = await res.json();
         
-        // Update Inspector
-        jsonView.textContent = ">>> VERZONDEN PAYLOAD (SYNC):\n" + JSON.stringify(syncPayload, null, 2);
-        jsonView.textContent += "\n\n<<< SERVER ANTWOORD:\n" + JSON.stringify(data, null, 2);
+        // --- DE VOORBEREIDING ---
+        const timestamp = new Date().toLocaleTimeString();
+        const separator = `\n\n${"=".repeat(20)} SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
+        const interactionText = `>>> VERZONDEN PAYLOAD:\n${JSON.stringify(syncPayload, null, 2)}\n\n<<< SERVER ANTWOORD:\n${JSON.stringify(data, null, 2)}`;
 
-        jsonView.scrollTop = jsonView.scrollHeight; // FORCEER SCROLL NAAR BENEDEN
-        
+        // --- DE SLICE (GEHEUGEN MANAGEMENT) ---
+        // Als de tekst langer is dan 100.000 tekens (ongeveer 100kb aan tekst)
+        if (jsonView.textContent.length > 100000) {
+            addLog("Inspector opgeschoond om traagheid te voorkomen.");
+            // Behoud alleen de laatste 50.000 tekens
+            jsonView.textContent = jsonView.textContent.slice(-50000);
+        }
+
+        // --- DE UPDATE ---
+        jsonView.textContent += separator + interactionText;
+
+        // Forceer scroll naar de nieuwste data
+        jsonView.scrollTop = jsonView.scrollHeight;
+
         if (res.ok) {
             addLog("Sync voltooid.");
             badge.innerText = "Online";
