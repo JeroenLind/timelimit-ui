@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v58</title>
+    <title>TimeLimit UI v59</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v58</strong>
+        <strong>TimeLimit UI v59</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
@@ -37,10 +37,20 @@
     <div class="main-container">
         <div class="dashboard-view">
             <div id="status-badge" class="status-badge status-offline">Sync Status...</div>
+            
             <h2>Dashboard</h2>
             <div id="user-list">Gegevens ophalen via sync...</div>
-            <button class="btn" style="margin-top:20px; font-size:12px;" onclick="runSync()">Manual Sync</button>
+
+            <div style="margin-top: 30px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #232a35; max-width: 300px;">
+                <h4 style="margin: 0 0 10px 0; color: #888; font-size: 12px; text-transform: uppercase;">Sync Instellingen</h4>
+                <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
+                    <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                    <span style="font-size: 14px;">Auto-sync (30s)</span>
+                </label>
+                <button class="btn" style="width: 100%; font-size: 12px;" onclick="runSync()">Manual Sync Nu</button>
+            </div>
         </div>
+
         <div class="inspector-panel">
             <div style="padding:10px; font-size:10px; color:#555; background:#111;">DATA INSPECTOR</div>
             <div id="json-view">Wachtend op data...</div>
@@ -57,8 +67,9 @@
     <script src="sync.js"></script>
     
     <script>
-        // Start de automatische sync zodra de scripts geladen zijn
-        window.onload = runSync;
+        window.onload = () => {
+            runSync(); // Eerste sync direct bij laden
+        };
     </script>
 </body>
 </html>
