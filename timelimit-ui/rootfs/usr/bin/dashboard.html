@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit Control Panel v47</title>
+    <title>TimeLimit Control Panel v48</title>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -19,13 +19,12 @@
         input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
         .status-header { display: flex; align-items: center; margin-bottom: 20px; background: #1c222d; padding: 15px; border-radius: 8px; }
         .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 12px; }
-        .help-text { color: #888; font-size: 0.85em; margin-bottom: 5px; }
         .card { background: #1c232d; border-radius: 12px; padding: 15px; border-left: 4px solid #03a9f4; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v47</strong>
+        <strong>TimeLimit UI v48</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="fetchFullStatus()">🔄 Sync</button>
@@ -57,7 +56,7 @@
                 <span id="dot" class="status-dot" style="background: grey;"></span>
                 <span id="status-text" style="font-weight: bold;">Verbinding controleren...</span>
             </div>
-            <div id="user-list"><i>Geen data.</i></div>
+            <div id="user-list"><i>Wachten op actie...</i></div>
         </div>
         <div class="inspector-panel">
             <div style="padding:10px; font-size:10px; color:#555;">SERVER INSPECTOR</div>
@@ -72,7 +71,7 @@
 
         function addLog(m, isError = false) { 
             const log = document.getElementById('log-area');
-            log.innerHTML += `<div style="color:${isError ? '#f44':'#0f0'}">${m}</div>`;
+            log.innerHTML += `<div style="color:${isError ? '#ff4444':'#00ff00'}">[${new Date().toLocaleTimeString()}] > ${m}</div>`;
             log.scrollTop = log.scrollHeight;
         }
 
@@ -82,59 +81,75 @@
         }
 
         async function runStep1() {
-            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail: document.getElementById('mail').value, locale: 'nl'})});
+            const mail = document.getElementById('mail').value;
+            const res = await fetch('wizard-step1', { method: 'POST', body: JSON.stringify({mail, locale: 'nl'})});
             const data = await res.json();
             if(data.mailLoginToken) { session.mailLoginToken = data.mailLoginToken; showStep(2); addLog("Code verzonden."); }
         }
 
         async function runStep2() {
-            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: document.getElementById('code').value, mailLoginToken: session.mailLoginToken})});
+            const code = document.getElementById('code').value;
+            const res = await fetch('wizard-step2', { method: 'POST', body: JSON.stringify({receivedCode: code, mailLoginToken: session.mailLoginToken})});
             const data = await res.json();
-            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code OK."); }
+            if(data.mailAuthToken) { session.mailAuthToken = data.mailAuthToken; showStep(3); addLog("Code geaccepteerd."); }
         }
 
         async function runStep3() {
-            addLog("Bezig...");
-            const hRes = await fetch('generate-hashes', { method: 'POST', body: JSON.stringify({password: document.getElementById('pass').value})});
-            const hashes = await hRes.json();
+            const jsonView = document.getElementById('json-view');
+            addLog("Hashes genereren...");
             
-            // DE ULTIEME PAYLOAD (1-op-1 PS Match)
-            const payload = {
-                mailAuthToken: session.mailAuthToken,
-                parentName: "Beheerder",
-                parentPassword: {
-                    hash: hashes.hash,
-                    secondHash: hashes.hash,
-                    secondSalt: hashes.salt
-                },
-                timeZone: "Europe/Amsterdam",
-                deviceName: "Mijn Dashboard",
-                parentDevice: {
-                    model: "WebBrowser"
-                },
-                clientLevel: 1
-            };
+            try {
+                const hRes = await fetch('generate-hashes', { 
+                    method: 'POST', 
+                    body: JSON.stringify({password: document.getElementById('pass').value})
+                });
+                const hashes = await hRes.json();
+                
+                addLog("Versturen naar /create-family...");
+                
+                const payload = {
+                    mailAuthToken: session.mailAuthToken,
+                    parentName: "Beheerder",
+                    parentPassword: {
+                        hash: hashes.hash,
+                        secondHash: hashes.hash,
+                        secondSalt: hashes.salt
+                    },
+                    timeZone: "Europe/Amsterdam",
+                    deviceName: "Mijn Dashboard",
+                    parentDevice: { model: "WebBrowser" },
+                    clientLevel: 1
+                };
 
-            const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
-            const data = await res.json();
-
-            if (res.ok && data.deviceAuthToken) { 
-                document.getElementById('json-view').textContent = data.deviceAuthToken;
-                addLog("SUCCES! Token staat hierboven.");
-                showStep(0);
-            } else {
-                document.getElementById('json-view').textContent = JSON.stringify(data, null, 2);
-                addLog("Fout 400: Check de inspector.", true);
+                const res = await fetch('wizard-step3', { method: 'POST', body: JSON.stringify(payload)});
+                const text = await res.text();
+                
+                try {
+                    const data = JSON.parse(text);
+                    if (res.ok && data.deviceAuthToken) { 
+                        jsonView.textContent = "🎉 SUCCES!\n\nToken:\n" + data.deviceAuthToken;
+                        addLog("Gelukt! Token ontvangen.");
+                        showStep(0);
+                    } else {
+                        jsonView.textContent = "FOUT " + res.status + ":\n" + JSON.stringify(data, null, 2);
+                        addLog("Server weigert (400). Zie Inspector.", true);
+                    }
+                } catch(e) {
+                    jsonView.textContent = "RAW SERVER RESPONSE:\n" + text;
+                    addLog("Geen JSON antwoord. Zie Inspector.", true);
+                }
+            } catch (e) {
+                addLog("Fout: " + e.message, true);
             }
         }
-        
-        // Sync check bij start
-        (async () => {
-            if(TOKEN && !TOKEN.includes("#")) {
-                const res = await fetch('sync', { method: 'POST', body: JSON.stringify({deviceAuthToken: TOKEN, status: {clientLevel: 3}})});
-                if(res.ok) { document.getElementById('dot').style.background = "#0f0"; document.getElementById('status-text').innerText = "Online"; }
-            }
-        })();
+
+        async function fetchFullStatus() {
+            if(!TOKEN || TOKEN.includes("#")) return;
+            const res = await fetch('sync', { method: 'POST', body: JSON.stringify({deviceAuthToken: TOKEN, status: {clientLevel: 3}})});
+            if(res.ok) { document.getElementById('dot').style.background = "#0f0"; document.getElementById('status-text').innerText = "Online"; }
+        }
+
+        fetchFullStatus();
     </script>
 </body>
 </html>
