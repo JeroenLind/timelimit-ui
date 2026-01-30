@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v59</title>
+    <title>TimeLimit UI v60 - Session Manager</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v59</strong>
+        <strong>TimeLimit UI v60</strong>
         <div>
             <button class="btn btn-wizard" onclick="showStep(1)">🆕 Nieuwe Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
@@ -17,7 +17,7 @@
 
     <div id="wizard-ui" class="wizard-container">
         <div id="step-1" class="wizard-step" style="display:none;">
-            <h3>Stap 1: E-mailadres</h3>
+            <h3>Stap 1: E-mailadres (Nieuwe Familie)</h3>
             <input type="email" id="mail" placeholder="e-mailadres">
             <button class="btn" onclick="runStep1()">Code aanvragen</button>
         </div>
@@ -36,13 +36,25 @@
 
     <div class="main-container">
         <div class="dashboard-view">
+            
+            <div id="session-info" style="background: #151921; padding: 15px; border-radius: 8px; border: 1px solid #03a9f4; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #03a9f4; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Actieve Sessie</h4>
+                <div id="active-token-display" style="font-family: monospace; font-size: 11px; color: #aaa; word-break: break-all; background: #050505; padding: 8px; border-radius: 4px; min-height: 20px;">
+                    Token: <span style="color: #fff;">Laden...</span>
+                </div>
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn" style="background: #f44336; flex: 1; font-size: 12px;" onclick="logout()">Uitloggen</button>
+                    <button class="btn" style="background: #03a9f4; flex: 1; font-size: 12px;" onclick="showLoginModal()">Inloggen op Familie</button>
+                </div>
+            </div>
+
             <div id="status-badge" class="status-badge status-offline">Sync Status...</div>
             
             <h2>Dashboard</h2>
             <div id="user-list">Gegevens ophalen via sync...</div>
 
             <div style="margin-top: 30px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #232a35; max-width: 300px;">
-                <h4 style="margin: 0 0 10px 0; color: #888; font-size: 12px; text-transform: uppercase;">Sync Instellingen</h4>
+                <h4 style="margin: 0 0 10px 0; color: #888; font-size: 11px; text-transform: uppercase;">Sync Instellingen</h4>
                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
                     <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                     <span style="font-size: 14px;">Auto-sync (30s)</span>
@@ -58,8 +70,63 @@
         </div>
     </div>
 
+    <div id="login-modal" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:90%; max-width:400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h3 style="margin-top:0;">Verbinden met Familie</h3>
+            <p style="font-size:12px; color:#888; margin-bottom:20px;">Voer het deviceAuthToken van een bestaand apparaat in om dit dashboard te koppelen.</p>
+            <input type="text" id="manual-token-input" placeholder="Plak hier je token..." style="margin-bottom:20px;">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button class="btn" onclick="loginWithToken()">Verbinden</button>
+                <button class="btn" style="background:#333;" onclick="hideLoginModal()">Annuleren</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
+        // --- TOKEN BEHEER ---
+        const DEFAULT_TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
+        let TOKEN = localStorage.getItem('timelimit_token');
+
+        // Migratie: Als er nog geen token in de browser staat, zet de huidige erin
+        if (!TOKEN) {
+            TOKEN = DEFAULT_TOKEN;
+            localStorage.setItem('timelimit_token', TOKEN);
+        }
+
+        function updateTokenDisplay() {
+            const display = document.querySelector('#active-token-display span');
+            if (display) {
+                display.innerText = TOKEN || "Geen actief token (niet aangemeld)";
+            }
+        }
+
+        // --- UI ACTIES ---
+        function showLoginModal() { document.getElementById('login-modal').style.display = 'flex'; }
+        function hideLoginModal() { document.getElementById('login-modal').style.display = 'none'; }
+
+        function loginWithToken() {
+            const newToken = document.getElementById('manual-token-input').value.trim();
+            if (newToken) {
+                TOKEN = newToken;
+                localStorage.setItem('timelimit_token', newToken);
+                updateTokenDisplay();
+                hideLoginModal();
+                addLog("Nieuw token ingesteld. Start sync...");
+                runSync();
+            }
+        }
+
+        function logout() {
+            if (confirm("Weet je zeker dat je wilt uitloggen? Dit wist het token uit de browser.")) {
+                localStorage.removeItem('timelimit_token');
+                TOKEN = "";
+                updateTokenDisplay();
+                document.getElementById('user-list').innerHTML = "Niet aangemeld.";
+                document.getElementById('status-badge').className = "status-badge status-offline";
+                document.getElementById('status-badge').innerText = "Uitgelogd";
+                addLog("Token gewist.", true);
+            }
+        }
     </script>
 
     <script src="ui.js"></script>
@@ -68,7 +135,12 @@
     
     <script>
         window.onload = () => {
-            runSync(); // Eerste sync direct bij laden
+            updateTokenDisplay();
+            if (TOKEN) {
+                runSync();
+            } else {
+                addLog("Wachtend op login...", true);
+            }
         };
     </script>
 </body>

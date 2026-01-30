@@ -76,6 +76,11 @@ function startSyncLoop() {
         const badge = document.getElementById('status-badge');
 
         if (isEnabled) {
+            if (!TOKEN) {
+                badge.innerText = "Niet aangemeld";
+                badge.className = "status-badge status-offline";
+                return;
+            }
             secondsCounter++;
             
             // Toon voortgang op de badge (optioneel, voor visuele feedback)

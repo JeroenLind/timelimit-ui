@@ -62,17 +62,13 @@ async function runStep3() {
     addLog("Stap 3: Hashes genereren en familie finaliseren...");
 
     try {
-        // 1. Genereer hashes via de server helper
         const hRes = await fetch('generate-hashes', { 
             method: 'POST', 
             body: JSON.stringify({ password: password }) 
         });
         const hashes = await hRes.json();
         
-        // 2. REGEX FIX: De server eist $2a$ (bcrypt oudere versie), wij krijgen $2b$.
         let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-        
-        // 3. SALT FIX: De salt Regex eist exact 22 tekens na de prefix
         const validDummySalt = "$2a$12$1234567890123456789012";
         const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
 
@@ -83,13 +79,12 @@ async function runStep3() {
                 secondHash: cleanHash,
                 secondSalt: finalSalt
             },
-            parentDevice: { model: "WebDashboard-v58-Modular" },
+            parentDevice: { model: "WebDashboard-v60-Modular" },
             deviceName: "DashboardControl",
             timeZone: "Europe/Amsterdam",
             parentName: "Beheerder"
         };
 
-        // Toon payload in inspector
         const inspector = document.getElementById('json-view');
         inspector.textContent = ">>> VERZONDEN PAYLOAD (WIZARD):\n" + JSON.stringify(payload, null, 2);
 
@@ -102,11 +97,27 @@ async function runStep3() {
         inspector.textContent += "\n\n<<< SERVER ANTWOORD:\n" + text;
 
         if (res.ok) { 
-            addLog("🎉 SUCCES! Gezin aangemaakt."); 
-            showStep(0); 
             const finalData = JSON.parse(text);
-            addLog("NIEUW TOKEN: " + finalData.deviceAuthToken);
-            alert("Nieuw gezin aangemaakt! Kopieer het token uit de inspector naar je config.");
+            
+            // --- NIEUWE TOKEN LOGICA ---
+            if (finalData.deviceAuthToken) {
+                // 1. Update de globale variabele (voor de actieve runtime)
+                TOKEN = finalData.deviceAuthToken; 
+                
+                // 2. Sla op in de browser (voor na een refresh)
+                localStorage.setItem('timelimit_token', TOKEN); 
+                
+                // 3. Update de UI (het blauwe kader bovenin)
+                updateTokenDisplay(); 
+                
+                addLog("🎉 SUCCES! Gezin aangemaakt en automatisch ingelogd.");
+            } else {
+                addLog("🎉 Gezin aangemaakt, maar geen token ontvangen?", true);
+            }
+
+            showStep(0); // Sluit de wizard
+            runSync();   // Start direct de eerste sync met het nieuwe gezin
+            
         } else {
             addLog("Fout bij aanmaken. Zie inspector.", true);
         }
