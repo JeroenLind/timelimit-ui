@@ -85,28 +85,25 @@
                 return;
             }
 
-            // De uitgebreide payload om de validator tevreden te stellen
+            // Payload exact volgens de AJV-validator definitie
             const syncPayload = {
                 deviceAuthToken: TOKEN,
                 status: {
-                    clientLevel: 8, // Match de API level uit je succesvolle response
-                    cAppVersion: 100,
-                    hAppVersion: 100,
-                    networkTime: "enabled"
-                },
-                versions: {
-                    devices: "0",
-                    users: "0",
-                    apps: "0",
-                    rules: "0"
+                    // Verplichte velden volgens 'required' lijst:
+                    apps: {},               // Object
+                    categories: {},         // Object
+                    devices: "0",           // String
+                    users: "0",             // String
+                    // Optionele velden (wel toegestaan in properties):
+                    clientLevel: 8          // Number
                 }
             };
 
-            addLog("Versturen Sync Request...");
+            addLog("Versturen Sync Request (v58)...");
             jsonView.textContent = ">>> VERZONDEN PAYLOAD (SYNC):\n" + JSON.stringify(syncPayload, null, 2);
 
             try {
-                const res = await fetch('sync', {
+                const res = await fetch('sync/pull-status', { // Let op: /pull-status toevoegen als dat nodig is
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(syncPayload)
@@ -117,13 +114,13 @@
 
                 if(res.ok) {
                     const data = JSON.parse(text);
-                    addLog("Sync succesvol.");
+                    addLog("Sync succesvol!");
                     document.getElementById('status-badge').innerText = "Online";
                     document.getElementById('status-badge').className = "status-badge status-online";
                     renderUsers(data);
                 } else {
-                    addLog("Sync 400: Payload niet geaccepteerd.", true);
-                    document.getElementById('status-badge').innerText = "Sync Error (400)";
+                    addLog("Sync geweigerd (400). Controleer schema.", true);
+                    document.getElementById('status-badge').innerText = "Schema Error";
                 }
             } catch(e) {
                 addLog("Sync Error: " + e.message, true);
