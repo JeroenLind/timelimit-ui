@@ -71,23 +71,40 @@
     </div>
 
     <div id="login-modal" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:90%; max-width:400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <h3 style="margin-top:0;">Verbinden met Familie</h3>
-            <p style="font-size:12px; color:#888; margin-bottom:20px;">Voer het deviceAuthToken van een bestaand apparaat in om dit dashboard te koppelen.</p>
-            <input type="text" id="manual-token-input" placeholder="Plak hier je token..." style="margin-bottom:20px;">
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <button class="btn" onclick="loginWithToken()">Verbinden</button>
-                <button class="btn" style="background:#333;" onclick="hideLoginModal()">Annuleren</button>
+        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:95%; max-width:450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        
+            <div id="login-choice">
+                <h3 style="margin-top:0;">Verbinden met Familie</h3>
+                <p style="font-size:12px; color:#888; margin-bottom:20px;">Hoe wil je verbinding maken met de TimeLimit server?</p>
+            
+                <button class="btn" style="width:100%; margin-bottom:12px; padding:15px;" onclick="showManualTokenField()">
+                    🔑 Ik heb al een Token (Snel)
+                </button>
+            
+                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; opacity: 0.6;" onclick="startEmailLoginWizard()" disabled>
+                    📧 Inloggen via E-mail (Binnenkort)
+                </button>
+            
+                <button class="btn" style="width:100%; background:#333;" onclick="hideLoginModal()">Annuleren</button>
             </div>
+
+            <div id="manual-token-form" style="display:none;">
+                <h3 style="margin-top:0;">Token Invoeren</h3>
+                <input type="text" id="manual-token-input" placeholder="Plak hier je deviceAuthToken...">
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn" style="flex:1;" onclick="loginWithToken()">Verbinden</button>
+                    <button class="btn" style="background:#333; flex:1;" onclick="resetLoginModal()">Terug</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
-        // --- TOKEN BEHEER ---
+        // --- TOKEN BEHEER (Onveranderd, dit is je veilige basis) ---
         const DEFAULT_TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
         let TOKEN = localStorage.getItem('timelimit_token');
 
-        // Migratie: Als er nog geen token in de browser staat, zet de huidige erin
         if (!TOKEN) {
             TOKEN = DEFAULT_TOKEN;
             localStorage.setItem('timelimit_token', TOKEN);
@@ -100,10 +117,34 @@
             }
         }
 
-        // --- UI ACTIES ---
-        function showLoginModal() { document.getElementById('login-modal').style.display = 'flex'; }
-        function hideLoginModal() { document.getElementById('login-modal').style.display = 'none'; }
+        // --- GEAVANCEERDE UI ACTIES (Nieuwe modal logica) ---
+        function showLoginModal() { 
+            document.getElementById('login-modal').style.display = 'flex'; 
+        }
 
+        // Zorgt dat de modal altijd netjes terugspringt naar het keuzemenu
+        function hideLoginModal() { 
+            document.getElementById('login-modal').style.display = 'none'; 
+            resetLoginModal(); 
+        }
+
+        // Wisselen tussen keuzemenu en token-veld
+        function showManualTokenField() {
+            document.getElementById('login-choice').style.display = 'none';
+            document.getElementById('manual-token-form').style.display = 'block';
+        }
+
+        function resetLoginModal() {
+            document.getElementById('login-choice').style.display = 'block';
+            document.getElementById('manual-token-form').style.display = 'none';
+        }
+
+        function startEmailLoginWizard() {
+            addLog("E-mail login wizard wordt gestart (placeholder)...");
+            // Hier komt straks de aanroep naar je nieuwe login-wizard
+        }
+
+        // --- DE KERN LOGICA (Onveranderd) ---
         function loginWithToken() {
             const newToken = document.getElementById('manual-token-input').value.trim();
             if (newToken) {
