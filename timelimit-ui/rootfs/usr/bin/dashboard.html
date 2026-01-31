@@ -14,6 +14,13 @@
             <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
             <button class="btn" style="background:#444" onclick="location.reload()">🔄 Reset UI</button>
         </div>
+        <div style="display: inline-block; margin-left: 15px; padding: 4px 8px; background: #151921; border-radius: 4px; border: 1px solid #333;">
+          <span style="font-size: 10px; color: #888; text-transform: uppercase; margin-right: 5px;">Server:</span>
+          <select id="server-select" onchange="switchServer(this.value)" style="background: transparent; color: #03a9f4; border: none; font-size: 11px; font-family: monospace; cursor: pointer; outline: none;">
+            <option value="http://192.168.68.30:8080">🏠 Lokaal</option>
+            <option value="https://api.timelimit.io">🌍 Officieel</option>
+          </select>
+        </div>
     </header>
 
     <div id="wizard-ui" class="wizard-container">
@@ -178,6 +185,33 @@
                 document.getElementById('status-badge').innerText = "Uitgelogd";
                 addLog("Token gewist.", true);
             }
+        }
+
+        async function switchServer(url) {
+            addLog(`🔄 Server wissel verzoek: ${url}`);
+            try {
+                const res = await fetch('/set-server', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+                });
+        
+                if (res.ok) {
+                    addLog(`✅ Backend gekoppeld aan: ${url}`);
+                    // Forceer een uitlog actie omdat tokens server-specifiek zijn
+                    if (confirm("Server gewijzigd. Wil je uitloggen om een nieuw token aan te vragen voor deze server?")) {
+                        localStorage.removeItem('timelimit_token');
+                        TOKEN = "";
+                        updateTokenDisplay();
+                        location.reload(); // Ververs om schone lei te beginnen
+                    }
+                } else {
+                    addLog("❌ Server wissel mislukt op backend.", true);
+                }
+            } catch (e) {
+                addLog("❌ Systeemfout bij wisselen server: " + e.message, true);
+            }
+        
         }
     </script>
 
