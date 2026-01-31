@@ -10,7 +10,7 @@ async function runSync() {
     const badge = document.getElementById('status-badge');
     const jsonView = document.getElementById('json-view');
 
-    if (!TOKEN || TOKEN.includes("#") || TOKEN === "") {
+    if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
         addLog("Sync overgeslagen: Geen geldig token.", true);
         return;
     }
@@ -21,7 +21,7 @@ async function runSync() {
     };
 
     addLog("Syncing data...");
-    secondsCounter = 0; 
+    secondsCounter = 0;
 
     try {
         const res = await fetch('sync/pull-status', {
@@ -30,47 +30,41 @@ async function runSync() {
             body: JSON.stringify(syncPayload)
         });
 
-        // --- STAP 1: Controleer of het antwoord JSON is ---
+        // --- DE CRUCIALE CHECK ---
         const contentType = res.headers.get("content-type");
-        let data;
-        let interactionText = "";
+        let responseData;
 
-        if (contentType && contentType.includes("application/json")) {
-            data = await res.json();
-            interactionText = `<<< SERVER JSON ANTWOORD:\n${JSON.stringify(data, null, 2)}`;
-        } else {
-            // Geen JSON? Dan lezen we het als tekst (waarschijnlijk een HTML error pagina)
-            const textData = await res.text();
-            data = { error: "Niet-JSON antwoord ontvangen", status: res.status };
-            interactionText = `<<< SERVER HTML/TEXT ANTWOORD (Status ${res.status}):\n${textData.substring(0, 500)}...`;
-        }
-
-        // --- STAP 2: Log de interactie ---
-        const timestamp = new Date().toLocaleTimeString();
-        const separator = `\n\n${"=".repeat(20)} SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
-        const fullLog = `>>> VERZONDEN PAYLOAD:\n${JSON.stringify(syncPayload, null, 2)}\n\n${interactionText}`;
-
-        if (jsonView.textContent.length > 100000) {
-            jsonView.textContent = jsonView.textContent.slice(-50000);
-        }
-        jsonView.textContent += separator + fullLog;
-        jsonView.scrollTop = jsonView.scrollHeight;
-
-        // --- STAP 3: UI Status afhandeling ---
-        if (res.ok) {
+        if (res.ok && contentType && contentType.includes("application/json")) {
+            // Alleen parsen als de status 200 (OK) is EN het JSON is
+            responseData = await res.json();
+            
             addLog("Sync voltooid.");
             badge.innerText = "Online";
             badge.className = "status-badge status-online";
-            if (typeof renderUsers === "function") renderUsers(data);
-        } else if (res.status === 401) {
-            addLog(`⚠️ Auth Fout (401): Token is ongeldig voor deze server.`, true);
-            badge.innerText = "Auth Error (401)";
-            badge.className = "status-badge status-offline";
+            renderUsers(responseData);
         } else {
-            addLog(`❌ Sync geweigerd: Status ${res.status}`, true);
-            badge.innerText = `Error ${res.status}`;
+            // De server stuurde een fout (401) of HTML. Lees als tekst om crash te voorkomen.
+            const errorText = await res.text();
+            responseData = { error: "Ongeldige respons", status: res.status };
+            
+            if (res.status === 401) {
+                addLog(`⚠️ Auth Fout (401): Token niet geldig voor deze server.`, true);
+            } else {
+                addLog(`❌ Server Fout (${res.status}): Kan data niet ophalen.`, true);
+            }
+            
+            badge.innerText = `Fout ${res.status}`;
             badge.className = "status-badge status-offline";
         }
+
+        // Inspector bijwerken met wat we ook maar ontvangen hebben
+        const timestamp = new Date().toLocaleTimeString();
+        const separator = `\n\n${"=".repeat(20)} SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
+        const logText = `>>> PAYLOAD: ${JSON.stringify(syncPayload)}\n<<< STATUS: ${res.status}\n<<< DATA: ${JSON.stringify(responseData, null, 2)}`;
+
+        if (jsonView.textContent.length > 100000) jsonView.textContent = jsonView.textContent.slice(-50000);
+        jsonView.textContent += separator + logText;
+        jsonView.scrollTop = jsonView.scrollHeight;
 
     } catch (e) {
         addLog("Netwerkfout: " + e.message, true);
@@ -78,6 +72,7 @@ async function runSync() {
         badge.className = "status-badge status-offline";
     }
 }
+
 
 // De achtergrond-loop
 function startSyncLoop() {
