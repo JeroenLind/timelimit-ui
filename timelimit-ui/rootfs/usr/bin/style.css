@@ -1,3 +1,4 @@
+/* Basis Layout */
 body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -6,38 +7,11 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
 
 .dashboard-view { padding: 20px; overflow-y: auto; }
 
-.inspector-panel { 
-    background: #050505; 
-    border-left: 1px solid #232a35; 
-    display: flex; 
-    flex-direction: column; 
-    height: 100%; 
-    overflow: hidden; 
-}
+.inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
-#json-view { 
-    flex: 1; 
-    padding: 15px; 
-    font-family: monospace; 
-    font-size: 11px; 
-    color: #03a9f4; 
-    white-space: pre-wrap; 
-    overflow-y: auto; 
-    background: #050505; 
-    min-height: 0; 
-}
+#json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; min-height: 0; }
 
-#log-area { 
-    background: #000; 
-    color: #00ff00; 
-    padding: 10px; 
-    height: 180px; 
-    overflow-y: auto; 
-    font-family: monospace; 
-    font-size: 11px; 
-    border-top: 1px solid #232a35; 
-    flex-shrink: 0; 
-}
+#log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; flex-shrink: 0; }
 
 /* Knoppen & Inputs */
 .btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; transition: opacity 0.2s; }
@@ -53,54 +27,51 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .status-online { background: #1b4721; color: #4caf50; border: 1px solid #4caf50; }
 .status-offline { background: #471b1b; color: #f44336; border: 1px solid #f44336; }
 
-/* --- NIEUW: Categorie Boomstructuur Stijlen --- */
-.tree-container {
-    background: #151921;
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #232a35;
-    margin-top: 10px;
+/* Categorie Boomstructuur */
+.tree-container { background: #151921; padding: 20px; border-radius: 8px; border: 1px solid #232a35; margin-top: 10px; }
+
+.tree-node { margin-top: 2px; }
+
+.tree-item { 
+    position: relative; 
+    padding: 8px 12px; 
+    margin: 4px 0; 
+    background: rgba(255, 255, 255, 0.03); 
+    border-radius: 4px; 
+    display: flex; 
+    align-items: center; 
+    border-left: 2px solid #333; 
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
 }
 
-.tree-item {
-    position: relative;
-    padding: 6px 12px;
-    margin: 4px 0;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    border-left: 2px solid #333;
-    transition: background 0.2s;
+.tree-item:hover { background: rgba(3, 169, 244, 0.15); }
+.tree-item.is-open { color: #03a9f4; background: rgba(3, 169, 244, 0.05); }
+
+/* Voorwaardelijke kleuren gebaseerd op indentatie via JS style attribute */
+.tree-item[style*="margin-left: 0"] { border-left-color: #03a9f4; }
+.tree-item[style*="margin-left: 20"] { border-left-color: #9c27b0; }
+.tree-item[style*="margin-left: 40"] { border-left-color: #ff9800; }
+
+.tree-icon { 
+    width: 20px; 
+    font-size: 10px; 
+    margin-right: 10px; 
+    opacity: 0.7; 
+    transition: transform 0.2s; 
+    display: inline-block;
 }
 
-.tree-item:hover {
-    background: rgba(3, 169, 244, 0.1);
-}
+.tree-item.is-open .tree-icon { transform: rotate(90deg); opacity: 1; }
 
-.tree-icon {
-    font-size: 14px;
-    margin-right: 10px;
-    opacity: 0.7;
-}
+.tree-title { font-size: 14px; font-weight: 500; }
 
-.tree-title {
-    font-size: 14px;
-    font-weight: 500;
-    color: #fff;
-}
+.tree-id { font-size: 10px; font-family: monospace; color: #555; margin-left: auto; background: #0b0e14; padding: 2px 5px; border-radius: 3px; }
 
-.tree-id {
-    font-size: 10px;
-    font-family: monospace;
-    color: #555;
-    margin-left: auto;
-    background: #0b0e14;
-    padding: 2px 5px;
-    border-radius: 3px;
-}
+.tree-content { border-left: 1px solid #333; margin-left: 18px; }
 
-/* Voorwaardelijke styling voor diepere niveaus */
-.tree-item[style*="margin-left: 0"] { border-left-color: #03a9f4; } /* Hoofd-categorie */
-.tree-item[style*="margin-left: 20"] { border-left-color: #9c27b0; } /* Sub-categorie */
-.tree-item[style*="margin-left: 40"] { border-left-color: #ff9800; } /* Sub-sub-categorie */
+/* Apps en Rules (Leaves) */
+.tree-leaf { padding: 4px 12px; margin-left: 20px; font-size: 12px; display: flex; align-items: center; color: #888; }
+.rule-leaf { color: #ff9800; border-left: 1px solid rgba(255, 152, 0, 0.2); }
+.app-leaf { color: #4caf50; border-left: 1px solid rgba(76, 175, 80, 0.2); }
+.leaf-icon { margin-right: 8px; font-size: 10px; }
