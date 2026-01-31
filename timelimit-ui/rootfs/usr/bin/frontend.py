@@ -46,8 +46,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
             sys.stderr.write(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}\n")
 
-        # --- CHECK 1: De Server Wissel Route ---
-        if self.path == '/set-server':
+        # --- CHECK 1: De Server Wissel Route (Aangepast voor Ingress compatibiliteit) ---
+        if self.path.endswith('/set-server'):
             sys.stderr.write("[DEBUG] Route /set-server herkend!\n")
             try:
                 data = json.loads(post_data)
@@ -57,7 +57,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 SELECTED_SERVER = new_url
                 sys.stderr.write(f"✅ [SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}\n")
                 
-                # Stuur expliciet antwoord
+                # Stuur expliciet antwoord terug naar de browser
                 self._send_raw(200, json.dumps({"status": "ok", "server": SELECTED_SERVER}).encode(), "application/json")
                 return 
             except Exception as e:
@@ -66,6 +66,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
         # --- CHECK 2: Proxy Logica ---
+        # We bepalen eerst of we naar de geselecteerde server gaan
         sys.stderr.write(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}\n")
         api = TimeLimitAPI(SELECTED_SERVER)
         
@@ -78,12 +79,26 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/generate-hashes': 'INTERNAL'
         }
         
-        if self.path == '/generate-hashes':
+        # Speciale afhandeling voor interne hashing
+        if self.path.endswith('/generate-hashes'):
             sys.stderr.write("[DEBUG] Interne hash generatie gestart\n")
-            # ... (rest van hash logica)
+            from crypto_utils import generate_family_hashes
+            try:
+                data = json.loads(post_data)
+                res = generate_family_hashes(data['password'])
+                self._send_raw(200, json.dumps(res).encode(), "application/json")
+            except Exception as e:
+                self._send_raw(400, str(e).encode(), "text/plain")
             return
 
-        target_path = routes.get(self.path, '/sync/pull-status')
+        # Bepaal het doelpad op de externe API
+        # We gebruiken ook hier endswith voor de routering om robuust te blijven tegenover proxy-prefixen
+        target_path = '/sync/pull-status'
+        for ui_route, api_route in routes.items():
+            if self.path.endswith(ui_route):
+                target_path = api_route
+                break
+
         sys.stderr.write(f"[DEBUG] Proxying naar TimeLimit API pad: {target_path}\n")
         
         try:

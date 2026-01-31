@@ -201,7 +201,7 @@
             try {
                 addLogLocal("Verzenden van fetch verzoek naar /set-server...");
         
-                const res = await fetch('./set-server', {
+                const res = await fetch('set-server', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
