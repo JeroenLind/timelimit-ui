@@ -188,44 +188,42 @@
         }
 
         async function switchServer(url) {
-            // 1. Log naar de Data Inspector in het dashboard
-            addLog(`[UI-DEBUG] Start switchServer naar: ${url}`);
-            console.log("Poging tot server-wissel naar:", url);
+            const logArea = document.getElementById('log-area');
+            const addLogLocal = (msg, isError = false) => {
+                const div = document.createElement('div');
+                div.style.color = isError ? '#ff5252' : '#4caf50';
+                div.innerText = `[JS-DEBUG ${new Date().toLocaleTimeString()}] ${msg}`;
+                logArea.insertBefore(div, logArea.firstChild);
+            };
+
+            addLogLocal(`Trigger ontvangen voor URL: ${url}`);
 
             try {
-                const payload = JSON.stringify({ url: url });
-                addLog(`[UI-DEBUG] Verzenden naar backend: ${payload}`);
-
+                addLogLocal("Verzenden van fetch verzoek naar /set-server...");
+        
                 const res = await fetch('/set-server', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json' 
-                    },
-                    body: payload
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
                 });
 
-                // 2. Log de statuscode die we terugkrijgen
-                addLog(`[UI-DEBUG] Backend antwoord status: ${res.status} ${res.statusText}`);
-                console.log("Backend respons:", res);
+                addLogLocal(`HTTP Status ontvangen: ${res.status} (${res.statusText})`);
 
                 if (res.ok) {
                     const data = await res.json();
-                    addLog(`✅ [UI-SUCCESS] Backend bevestigt wissel naar: ${data.current || url}`);
-            
-                    if (confirm("Server gewijzigd op backend. Wil je de pagina herladen om een schone sessie te starten?")) {
-                        location.reload();
-                    }
+                    addLogLocal(`Backend bevestiging: ${JSON.stringify(data)}`);
+                    alert("Server succesvol gewisseld!");
+                    location.reload();
                 } else {
-                    const errorText = await res.text();
-                    addLog(`❌ [UI-ERROR] Backend weigerde verzoek: ${errorText}`, true);
+                    const txt = await res.text();
+                    addLogLocal(`Backend weigerde verzoek: ${txt}`, true);
                 }
             } catch (e) {
-                // 3. Log netwerkfouten (bijv. als de URL niet klopt)
-                addLog(`❌ [UI-FATAL] JavaScript fout: ${e.message}`, true);
-                console.error("SwitchServer Error:", e);
+                addLogLocal(`CRITICAL JS ERROR: ${e.name} - ${e.message}`, true);
+                console.error(e);
             }
         }
-        
+
         async function switchServer(url) {
             addLog(`🔄 Server wissel verzoek: ${url}`);
             try {
