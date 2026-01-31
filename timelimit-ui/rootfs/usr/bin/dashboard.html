@@ -199,8 +199,8 @@
             addLogLocal(`Trigger ontvangen voor URL: ${url}`);
 
             try {
-                addLogLocal("Verzenden van fetch verzoek naar /set-server...");
-        
+                addLogLocal("Verzenden van fetch verzoek naar set-server...");
+
                 const res = await fetch('set-server', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -210,10 +210,16 @@
                 addLogLocal(`HTTP Status ontvangen: ${res.status} (${res.statusText})`);
 
                 if (res.ok) {
+                    // --- DE FIX: Sla de keuze op voordat we herladen ---
+                    localStorage.setItem('selected_timelimit_server', url);
+            
                     const data = await res.json();
                     addLogLocal(`Backend bevestiging: ${JSON.stringify(data)}`);
-                    alert("Server succesvol gewisseld!");
-                    location.reload();
+            
+                    // Een korte delay zodat de gebruiker de bevestiging ziet
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
                 } else {
                     const txt = await res.text();
                     addLogLocal(`Backend weigerde verzoek: ${txt}`, true);
@@ -231,7 +237,20 @@
     <script src="sync.js"></script>
     
     <script>
+
         window.onload = () => {
+            // 1. Herstel de dropdown selectie uit localStorage
+            const savedServer = localStorage.getItem('selected_timelimit_server');
+            if (savedServer) {
+                const selector = document.getElementById('server-select');
+                if (selector) {
+                    selector.value = savedServer;
+                    // Optioneel: log het in je data inspector
+                    addLog(`Server selectie hersteld: ${savedServer}`);
+                }
+            }
+
+            // 2. Bestaande acties (token display en sync)
             updateTokenDisplay();
             if (TOKEN) runSync();
         };
