@@ -188,6 +188,45 @@
         }
 
         async function switchServer(url) {
+            // 1. Log naar de Data Inspector in het dashboard
+            addLog(`[UI-DEBUG] Start switchServer naar: ${url}`);
+            console.log("Poging tot server-wissel naar:", url);
+
+            try {
+                const payload = JSON.stringify({ url: url });
+                addLog(`[UI-DEBUG] Verzenden naar backend: ${payload}`);
+
+                const res = await fetch('/set-server', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json' 
+                    },
+                    body: payload
+                });
+
+                // 2. Log de statuscode die we terugkrijgen
+                addLog(`[UI-DEBUG] Backend antwoord status: ${res.status} ${res.statusText}`);
+                console.log("Backend respons:", res);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    addLog(`✅ [UI-SUCCESS] Backend bevestigt wissel naar: ${data.current || url}`);
+            
+                    if (confirm("Server gewijzigd op backend. Wil je de pagina herladen om een schone sessie te starten?")) {
+                        location.reload();
+                    }
+                } else {
+                    const errorText = await res.text();
+                    addLog(`❌ [UI-ERROR] Backend weigerde verzoek: ${errorText}`, true);
+                }
+            } catch (e) {
+                // 3. Log netwerkfouten (bijv. als de URL niet klopt)
+                addLog(`❌ [UI-FATAL] JavaScript fout: ${e.message}`, true);
+                console.error("SwitchServer Error:", e);
+            }
+        }
+        
+        async function switchServer(url) {
             addLog(`🔄 Server wissel verzoek: ${url}`);
             try {
                 const res = await fetch('/set-server', {
