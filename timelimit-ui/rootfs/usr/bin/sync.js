@@ -42,6 +42,10 @@ async function runSync() {
             badge.innerText = "Online";
             badge.className = "status-badge status-online";
             renderUsers(responseData);
+
+            if (typeof updateCategoryDisplay === "function") {
+              updateCategoryDisplay(responseData);
+            }
         } else {
             // De server stuurde een fout (401) of HTML. Lees als tekst om crash te voorkomen.
             const errorText = await res.text();

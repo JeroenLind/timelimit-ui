@@ -6,7 +6,6 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
 
 .dashboard-view { padding: 20px; overflow-y: auto; }
 
-/* De container moet 'hidden' zijn zodat de kinderen de scrollbar regelen */
 .inspector-panel { 
     background: #050505; 
     border-left: 1px solid #232a35; 
@@ -16,7 +15,6 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
     overflow: hidden; 
 }
 
-/* min-height: 0 is cruciaal om overflow-y te triggeren in een flex-item */
 #json-view { 
     flex: 1; 
     padding: 15px; 
@@ -29,7 +27,6 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
     min-height: 0; 
 }
 
-/* flex-shrink: 0 voorkomt dat de log-area wordt platgedrukt */
 #log-area { 
     background: #000; 
     color: #00ff00; 
@@ -42,13 +39,68 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
     flex-shrink: 0; 
 }
 
-.btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; }
+/* Knoppen & Inputs */
+.btn { background: #03a9f4; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 5px; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.8; }
 .btn-wizard { background: #9c27b0; }
 
 .wizard-container { background: #151921; padding: 20px; border-bottom: 2px solid #9c27b0; display: none; }
 
-input { background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 4px; width: 100%; max-width: 400px; margin-bottom: 10px; display: block; }
+input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px; border-radius: 4px; width: 100%; box-sizing: border-box; max-width: 400px; margin-bottom: 10px; display: block; }
 
+/* Status Badges */
 .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
-.status-online { background: #1b4721; color: #4caf50; }
-.status-offline { background: #471b1b; color: #f44336; }
+.status-online { background: #1b4721; color: #4caf50; border: 1px solid #4caf50; }
+.status-offline { background: #471b1b; color: #f44336; border: 1px solid #f44336; }
+
+/* --- NIEUW: Categorie Boomstructuur Stijlen --- */
+.tree-container {
+    background: #151921;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #232a35;
+    margin-top: 10px;
+}
+
+.tree-item {
+    position: relative;
+    padding: 6px 12px;
+    margin: 4px 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    border-left: 2px solid #333;
+    transition: background 0.2s;
+}
+
+.tree-item:hover {
+    background: rgba(3, 169, 244, 0.1);
+}
+
+.tree-icon {
+    font-size: 14px;
+    margin-right: 10px;
+    opacity: 0.7;
+}
+
+.tree-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.tree-id {
+    font-size: 10px;
+    font-family: monospace;
+    color: #555;
+    margin-left: auto;
+    background: #0b0e14;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+/* Voorwaardelijke styling voor diepere niveaus */
+.tree-item[style*="margin-left: 0"] { border-left-color: #03a9f4; } /* Hoofd-categorie */
+.tree-item[style*="margin-left: 20"] { border-left-color: #9c27b0; } /* Sub-categorie */
+.tree-item[style*="margin-left: 40"] { border-left-color: #ff9800; } /* Sub-sub-categorie */

@@ -34,12 +34,10 @@
             <input type="text" id="code" placeholder="woord1 woord2 woord3">
             <button class="btn" onclick="runStep2()">Valideer Code</button>
         </div>
-        
         <div id="step-3" class="wizard-step" style="display:none;">
             <h3>Stap 3: Ouder Wachtwoord</h3>
             <p id="step-3-desc" style="font-size: 11px; color: #888; margin-bottom: 10px;"></p>
             <input type="password" id="pass" placeholder="Wachtwoord">
-            
             <button id="btn-run-create" class="btn" style="display:none;" onclick="runStep3()">Familie Finaliseren & Aanmaken</button>
             <button id="btn-run-login" class="btn" style="display:none; background: #03a9f4;" onclick="runSignInStep3()">Inloggen & Dashboard Koppelen</button>
         </div>
@@ -48,7 +46,6 @@
 
     <div class="main-container">
         <div class="dashboard-view">
-            
             <div id="session-info" style="background: #151921; padding: 15px; border-radius: 8px; border: 1px solid #03a9f4; margin-bottom: 20px;">
                 <h4 style="margin: 0 0 10px 0; color: #03a9f4; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Actieve Sessie</h4>
                 <div id="active-token-display" style="font-family: monospace; font-size: 11px; color: #aaa; word-break: break-all; background: #050505; padding: 8px; border-radius: 4px; min-height: 20px;">
@@ -62,8 +59,13 @@
 
             <div id="status-badge" class="status-badge status-offline">Sync Status...</div>
             
-            <h2>Dashboard</h2>
+            <h2>Gebruikers</h2>
             <div id="user-list">Gegevens ophalen via sync...</div>
+
+            <h2 style="margin-top: 40px;">Categorie Structuur</h2>
+            <div id="category-tree-container" class="tree-container">
+                Wachtend op hiërarchie data...
+            </div>
 
             <div style="margin-top: 30px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #232a35; max-width: 300px;">
                 <h4 style="margin: 0 0 10px 0; color: #888; font-size: 11px; text-transform: uppercase;">Sync Instellingen</h4>
@@ -83,174 +85,53 @@
     </div>
 
     <div id="login-modal" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:95%; max-width:450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        
+        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:95%; max-width:450px;">
             <div id="login-choice">
                 <h3 style="margin-top:0;">Verbinden met Familie</h3>
-                <p style="font-size:12px; color:#888; margin-bottom:20px;">Hoe wil je verbinding maken met de TimeLimit server?</p>
-            
-                <button class="btn" style="width:100%; margin-bottom:12px; padding:15px;" onclick="showManualTokenField()">
-                    🔑 Ik heb al een Token (Snel)
-                </button>
-            
-                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; background: #03a9f4;" onclick="hideLoginModal(); startLoginFlow();">
-                    📧 Inloggen via E-mail Wizard
-                </button>
-            
+                <button class="btn" style="width:100%; margin-bottom:12px; padding:15px;" onclick="showManualTokenField()">🔑 Ik heb al een Token</button>
+                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; background: #03a9f4;" onclick="hideLoginModal(); startLoginFlow();">📧 Inloggen via E-mail</button>
                 <button class="btn" style="width:100%; background:#333;" onclick="hideLoginModal()">Annuleren</button>
             </div>
-
             <div id="manual-token-form" style="display:none;">
-                <h3 style="margin-top:0;">Token Invoeren</h3>
                 <input type="text" id="manual-token-input" placeholder="Plak hier je deviceAuthToken...">
                 <div style="display:flex; gap:10px; margin-top:20px;">
                     <button class="btn" style="flex:1;" onclick="loginWithToken()">Verbinden</button>
                     <button class="btn" style="background:#333; flex:1;" onclick="resetLoginModal()">Terug</button>
                 </div>
             </div>
-
         </div>
     </div>
 
-    <script>
-        // --- TOKEN BEHEER ---
+    <script src="ui.js"></script>
+    <script src="wizard.js"></script>
+    <script src="sync.js"></script>
+    <script src="tree.js"></script> <script>
+        // De switchServer en window.onload functies die je al had staan hieronder...
         const DEFAULT_TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
-        let TOKEN = localStorage.getItem('timelimit_token');
-
-        if (!TOKEN) {
-            TOKEN = DEFAULT_TOKEN;
-            localStorage.setItem('timelimit_token', TOKEN);
-        }
+        let TOKEN = localStorage.getItem('timelimit_token') || DEFAULT_TOKEN;
 
         function updateTokenDisplay() {
             const display = document.querySelector('#active-token-display span');
-            if (display) {
-                display.innerText = TOKEN || "Geen actief token (niet aangemeld)";
-            }
-        }
-
-        // --- FLOW CONTROL (Nieuwe expliciete triggers) ---
-        function startCreateFlow() {
-            addLog("Start: Flow voor NIEUWE familie.");
-            document.getElementById('step-1-title').innerText = "Stap 1: E-mail (Nieuwe Familie)";
-            document.getElementById('step-3-desc').innerText = "Kies een wachtwoord voor je nieuwe account.";
-            document.getElementById('btn-run-create').style.display = 'block';
-            document.getElementById('btn-run-login').style.display = 'none';
-            showStep(1);
-        }
-
-        function startLoginFlow() {
-            addLog("Start: Inloggen op BESTAANDE familie.");
-            document.getElementById('step-1-title').innerText = "Stap 1: E-mail (Bestaande Familie)";
-            document.getElementById('step-3-desc').innerText = "Voer het wachtwoord in van je bestaande account.";
-            document.getElementById('btn-run-create').style.display = 'none';
-            document.getElementById('btn-run-login').style.display = 'block';
-            showStep(1);
-        }
-
-        // --- UI ACTIES ---
-        function showLoginModal() { document.getElementById('login-modal').style.display = 'flex'; }
-        function hideLoginModal() { 
-            document.getElementById('login-modal').style.display = 'none'; 
-            resetLoginModal();
-        }
-        function showManualTokenField() {
-            document.getElementById('login-choice').style.display = 'none';
-            document.getElementById('manual-token-form').style.display = 'block';
-        }
-        function resetLoginModal() {
-            document.getElementById('login-choice').style.display = 'block';
-            document.getElementById('manual-token-form').style.display = 'none';
-        }
-
-        function loginWithToken() {
-            const newToken = document.getElementById('manual-token-input').value.trim();
-            if (newToken) {
-                TOKEN = newToken;
-                localStorage.setItem('timelimit_token', newToken);
-                updateTokenDisplay();
-                hideLoginModal();
-                addLog("Nieuw token ingesteld. Start sync...");
-                runSync();
-            }
-        }
-
-        function logout() {
-            if (confirm("Weet je zeker dat je wilt uitloggen?")) {
-                localStorage.removeItem('timelimit_token');
-                TOKEN = "";
-                updateTokenDisplay();
-                document.getElementById('user-list').innerHTML = "Niet aangemeld.";
-                document.getElementById('status-badge').className = "status-badge status-offline";
-                document.getElementById('status-badge').innerText = "Uitgelogd";
-                addLog("Token gewist.", true);
-            }
+            if (display) display.innerText = TOKEN;
         }
 
         async function switchServer(url) {
-            const logArea = document.getElementById('log-area');
-            const addLogLocal = (msg, isError = false) => {
-                const div = document.createElement('div');
-                div.style.color = isError ? '#ff5252' : '#4caf50';
-                div.innerText = `[JS-DEBUG ${new Date().toLocaleTimeString()}] ${msg}`;
-                logArea.insertBefore(div, logArea.firstChild);
-            };
-
-            addLogLocal(`Trigger ontvangen voor URL: ${url}`);
-
             try {
-                addLogLocal("Verzenden van fetch verzoek naar set-server...");
-
                 const res = await fetch('set-server', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 });
-
-                addLogLocal(`HTTP Status ontvangen: ${res.status} (${res.statusText})`);
-
                 if (res.ok) {
-                    // --- DE FIX: Sla de keuze op voordat we herladen ---
                     localStorage.setItem('selected_timelimit_server', url);
-            
-                    const data = await res.json();
-                    addLogLocal(`Backend bevestiging: ${JSON.stringify(data)}`);
-            
-                    // Een korte delay zodat de gebruiker de bevestiging ziet
-                    setTimeout(() => {
-                        location.reload();
-                    }, 500);
-                } else {
-                    const txt = await res.text();
-                    addLogLocal(`Backend weigerde verzoek: ${txt}`, true);
+                    setTimeout(() => location.reload(), 500);
                 }
-            } catch (e) {
-                addLogLocal(`CRITICAL JS ERROR: ${e.name} - ${e.message}`, true);
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
         }
 
-    </script>
-
-    <script src="ui.js"></script>
-    <script src="wizard.js"></script>
-    <script src="sync.js"></script>
-    
-    <script>
-
         window.onload = () => {
-            // 1. Herstel de dropdown selectie uit localStorage
             const savedServer = localStorage.getItem('selected_timelimit_server');
-            if (savedServer) {
-                const selector = document.getElementById('server-select');
-                if (selector) {
-                    selector.value = savedServer;
-                    // Optioneel: log het in je data inspector
-                    addLog(`Server selectie hersteld: ${savedServer}`);
-                }
-            }
-
-            // 2. Bestaande acties (token display en sync)
+            if (savedServer) document.getElementById('server-select').value = savedServer;
             updateTokenDisplay();
             if (TOKEN) runSync();
         };
