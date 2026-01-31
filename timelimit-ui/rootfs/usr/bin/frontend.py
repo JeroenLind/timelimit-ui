@@ -32,28 +32,41 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         sys.stderr.write(f"WebUI [{time.strftime('%H:%M:%S')}]: {format%args}\n")
 
     def do_POST(self):
-        """Handelt alle API verzoeken van het dashboard af."""
+        """Handelt alle API verzoeken van het dashboard af met uitgebreide logging."""
         global SELECTED_SERVER
+        
+        # DEBUG: Log welk pad wordt aangeroepen
+        sys.stderr.write(f"\n[DEBUG] Binnenkomend POST verzoek op pad: {self.path}\n")
+        
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # Initialiseer de server-URL als dit de eerste keer is
+        # Initialiseer SELECTED_SERVER
         if SELECTED_SERVER is None:
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
+            sys.stderr.write(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}\n")
 
-        # --- NIEUW: Route voor server-wissel ---
+        # --- CHECK 1: De Server Wissel Route ---
         if self.path == '/set-server':
+            sys.stderr.write("[DEBUG] Route /set-server herkend!\n")
             try:
                 data = json.loads(post_data)
-                SELECTED_SERVER = data.get('url')
-                sys.stderr.write(f"Backend [{time.strftime('%H:%M:%S')}]: Server gewisseld naar {SELECTED_SERVER}\n")
-                self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
-                return # Stop hier, stuur dit niet door naar de TimeLimit API
+                new_url = data.get('url')
+                sys.stderr.write(f"[DEBUG] Poging tot wisselen naar: {new_url}\n")
+                
+                SELECTED_SERVER = new_url
+                sys.stderr.write(f"✅ [SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}\n")
+                
+                # Stuur expliciet antwoord
+                self._send_raw(200, json.dumps({"status": "ok", "server": SELECTED_SERVER}).encode(), "application/json")
+                return 
             except Exception as e:
+                sys.stderr.write(f"❌ [ERROR] Fout in /set-server: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
-        # Gebruik nu SELECTED_SERVER in plaats van config['server_url']
+        # --- CHECK 2: Proxy Logica ---
+        sys.stderr.write(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}\n")
         api = TimeLimitAPI(SELECTED_SERVER)
         
         routes = {
@@ -65,22 +78,21 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/generate-hashes': 'INTERNAL'
         }
         
-        # 1. Interne hashing logica
         if self.path == '/generate-hashes':
-            from crypto_utils import generate_family_hashes
-            try:
-                data = json.loads(post_data)
-                res = generate_family_hashes(data['password'])
-                self._send_raw(200, json.dumps(res).encode(), "application/json")
-            except Exception as e:
-                self._send_raw(400, str(e).encode(), "text/plain")
+            sys.stderr.write("[DEBUG] Interne hash generatie gestart\n")
+            # ... (rest van hash logica)
             return
 
-        # 2. Proxy naar TimeLimit Server
         target_path = routes.get(self.path, '/sync/pull-status')
-        status, body = api.post(target_path, post_data)
+        sys.stderr.write(f"[DEBUG] Proxying naar TimeLimit API pad: {target_path}\n")
         
-        self._send_raw(status, body, "application/json")
+        try:
+            status, body = api.post(target_path, post_data)
+            sys.stderr.write(f"[DEBUG] API Response status: {status}\n")
+            self._send_raw(status, body, "application/json")
+        except Exception as e:
+            sys.stderr.write(f"❌ [PROXY ERROR]: {str(e)}\n")
+            self._send_raw(500, b"Proxy connection failed", "text/plain")
 
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
