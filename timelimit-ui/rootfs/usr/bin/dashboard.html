@@ -224,32 +224,6 @@
             }
         }
 
-        async function switchServer(url) {
-            addLog(`🔄 Server wissel verzoek: ${url}`);
-            try {
-                const res = await fetch('/set-server', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url })
-                });
-        
-                if (res.ok) {
-                    addLog(`✅ Backend gekoppeld aan: ${url}`);
-                    // Forceer een uitlog actie omdat tokens server-specifiek zijn
-                    if (confirm("Server gewijzigd. Wil je uitloggen om een nieuw token aan te vragen voor deze server?")) {
-                        localStorage.removeItem('timelimit_token');
-                        TOKEN = "";
-                        updateTokenDisplay();
-                        location.reload(); // Ververs om schone lei te beginnen
-                    }
-                } else {
-                    addLog("❌ Server wissel mislukt op backend.", true);
-                }
-            } catch (e) {
-                addLog("❌ Systeemfout bij wisselen server: " + e.message, true);
-            }
-        
-        }
     </script>
 
     <script src="ui.js"></script>
