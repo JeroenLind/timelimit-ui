@@ -129,9 +129,29 @@
             } catch (e) { console.error(e); }
         }
 
-        window.onload = () => {
+        window.onload = async () => { // Maak hier async van
+            // 1. Herstel de dropdown selectie uit localStorage
             const savedServer = localStorage.getItem('selected_timelimit_server');
-            if (savedServer) document.getElementById('server-select').value = savedServer;
+            const selector = document.getElementById('server-select');
+    
+            if (savedServer && selector) {
+                selector.value = savedServer;
+                addLog(`Server herstellen naar: ${savedServer}`);
+        
+                // --- DE FIX: Forceer de backend naar de opgeslagen server ---
+                try {
+                    await fetch('set-server', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: savedServer })
+                });
+                addLog("Backend gesynchroniseerd met opgeslagen server.");
+                } catch (e) {
+                    console.error("Kon backend niet synchroniseren bij opstarten", e);
+                }
+            }
+
+            // 2. Bestaande acties
             updateTokenDisplay();
             if (TOKEN) runSync();
         };
