@@ -10,7 +10,7 @@ from api_client import TimeLimitAPI
 CONFIG_PATH = "/data/options.json"
 HTML_PATH = "/usr/bin/dashboard.html" 
 
-# Globale variabele om de serverkeuze vast te houden (default uit config)
+# NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
 SELECTED_SERVER = None
 
 def get_config():
@@ -32,26 +32,40 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         sys.stderr.write(f"WebUI [{time.strftime('%H:%M:%S')}]: {format%args}\n")
 
     def do_POST(self):
+        """Handelt alle API verzoeken van het dashboard af."""
         global SELECTED_SERVER
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
-        # Initialiseer SELECTED_SERVER bij de eerste POST als dat nog niet is gebeurd
+        # Initialiseer de server-URL als dit de eerste keer is
         if SELECTED_SERVER is None:
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
 
-        # 1. Nieuwe route om tussen servers te schakelen
+        # --- NIEUW: Route voor server-wissel ---
         if self.path == '/set-server':
             try:
                 data = json.loads(post_data)
                 SELECTED_SERVER = data.get('url')
-                sys.stderr.write(f"SERVER SWITCH: Target nu ingesteld op {SELECTED_SERVER}\n")
-                self._send_raw(200, json.dumps({"status": "ok", "current": SELECTED_SERVER}).encode(), "application/json")
+                sys.stderr.write(f"Backend [{time.strftime('%H:%M:%S')}]: Server gewisseld naar {SELECTED_SERVER}\n")
+                self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
+                return # Stop hier, stuur dit niet door naar de TimeLimit API
             except Exception as e:
                 self._send_raw(400, str(e).encode(), "text/plain")
-            return
+                return
 
-        # 2. Interne hashing logica
+        # Gebruik nu SELECTED_SERVER in plaats van config['server_url']
+        api = TimeLimitAPI(SELECTED_SERVER)
+        
+        routes = {
+            '/wizard-step1': '/auth/send-mail-login-code-v2',
+            '/wizard-step2': '/auth/sign-in-by-mail-code',
+            '/wizard-step3': '/parent/create-family',
+            '/wizard-login': '/parent/sign-in-into-family',
+            '/sync': '/sync/pull-status',
+            '/generate-hashes': 'INTERNAL'
+        }
+        
+        # 1. Interne hashing logica
         if self.path == '/generate-hashes':
             from crypto_utils import generate_family_hashes
             try:
@@ -62,21 +76,14 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
 
-        # 3. Proxy naar TimeLimit Server (gebruik de geselecteerde server)
-        api = TimeLimitAPI(SELECTED_SERVER)
-        routes = {
-            '/wizard-step1': '/auth/send-mail-login-code-v2',
-            '/wizard-step2': '/auth/sign-in-by-mail-code',
-            '/wizard-step3': '/parent/create-family',
-            '/wizard-login': '/parent/sign-in-into-family',
-            '/sync': '/sync/pull-status'
-        }
-        
+        # 2. Proxy naar TimeLimit Server
         target_path = routes.get(self.path, '/sync/pull-status')
         status, body = api.post(target_path, post_data)
+        
         self._send_raw(status, body, "application/json")
 
     def do_GET(self):
+        # ... (do_GET blijft hetzelfde als in jouw code) ...
         if self.path in ['/', '', '/index.html']:
             try:
                 config = get_config()
@@ -103,5 +110,5 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     with ThreadedHTTPServer(("", 8099), TimeLimitHandler) as httpd:
-        sys.stderr.write("=== TimeLimit v60: Dynamic Proxy Backend Actief ===\n")
+        sys.stderr.write("=== TimeLimit v60: Multi-threaded Backend met Server-Switch ===\n")
         httpd.serve_forever()
