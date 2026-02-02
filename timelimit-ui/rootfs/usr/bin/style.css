@@ -112,3 +112,23 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     color: #666;
     margin-top: 2px;
 }
+
+.app-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-name {
+    font-weight: 500;
+    color: #e1e1e1;
+}
+
+.app-package {
+    font-size: 10px;
+    color: #555;
+    font-family: monospace;
+}

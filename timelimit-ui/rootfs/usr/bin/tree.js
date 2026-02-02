@@ -26,6 +26,21 @@ function formatDays(days) {
     return days.map(d => names[d]).join(", ");
 }
 
+/**
+ * Helper: Zet package namen om naar leesbare namen
+ * Voorbeeld: "com.android.chrome" -> "Chrome"
+ */
+function getReadableAppName(packageName) {
+    if (!packageName) return "Onbekende App";
+    
+    // Pak het laatste deel na de punt
+    let parts = packageName.split('.');
+    let name = parts[parts.length - 1];
+
+    // Maak de eerste letter een hoofdletter
+    return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 function buildCategoryTree(data) {
     const categories = data.categoryBase || [];
     const appsMap = data.categoryApp || [];
@@ -96,44 +111,25 @@ function renderRulesHTML(rules) {
     }).join('');
 }
 
-function renderRulesHTML(rules) {
-    if (!rules || rules.length === 0) return '';
-    
-    return rules.map(r => {
-        let label = "";
-        
-        // Scenario 1: Tijdslimiet (maxTime)
-        if (r.maxTime !== undefined) {
-            label = `Limiet: ${formatTime(r.maxTime)}`;
-        } 
-        // Scenario 2: Blokkeer-venster (start/end)
-        else if (r.start !== undefined && r.end !== undefined) {
-            label = `Blokkade: ${r.start} - ${r.end}`;
-        } 
-        // Scenario 3: Volledige blokkade
-        else {
-            label = "Altijd geblokkeerd";
-        }
+/**
+ * Renders de lijst met apps binnen een categorie
+ */
+function renderAppsHTML(apps) {
+    if (!apps || apps.length === 0) return '';
 
+    return apps.map(app => {
+        const readableName = getReadableAppName(app);
+        
         return `
-            <div class="tree-leaf rule-leaf">
-                <span class="leaf-icon">⚖️</span>
-                <div class="rule-details">
-                    <span class="rule-label">${label}</span>
-                    ${r.prio ? `<span class="rule-prio">Prio ${r.prio}</span>` : ''}
+            <div class="tree-leaf app-leaf" title="${app}">
+                <span class="leaf-icon">📱</span>
+                <div class="app-info">
+                    <span class="app-name">${readableName}</span>
+                    <span class="app-package">(${app})</span>
                 </div>
             </div>
         `;
     }).join('');
-}
-
-function renderAppsHTML(apps) {
-    return apps.map(app => `
-        <div class="tree-leaf app-leaf">
-            <span class="leaf-icon">📱</span>
-            <span>${app.split('.').pop()}</span>
-        </div>
-    `).join('');
 }
 
 function toggleNode(element) {
