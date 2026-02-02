@@ -95,3 +95,20 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     color: #aaa;
     text-transform: uppercase;
 }
+
+.rule-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.rule-title {
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.rule-subtitle {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+}

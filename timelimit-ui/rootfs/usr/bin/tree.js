@@ -9,6 +9,23 @@ function formatTime(ms) {
     return hours > 0 ? `${hours}u ${minutes}m` : `${minutes}m`;
 }
 
+function formatDays(days) {
+    if (!days || days.length === 0 || days.length === 7) return "Dagelijks";
+    
+    const names = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+    
+    // Check voor werkdagen (0,1,2,3,4)
+    const isWorkdays = [0, 1, 2, 3, 4].every(d => days.includes(d)) && days.length === 5;
+    if (isWorkdays) return "Werkdagen";
+    
+    // Check voor weekend (5,6)
+    const isWeekend = [5, 6].every(d => days.includes(d)) && days.length === 2;
+    if (isWeekend) return "Weekend";
+
+    // Anders: lijstje van dagen
+    return days.map(d => names[d]).join(", ");
+}
+
 function buildCategoryTree(data) {
     const categories = data.categoryBase || [];
     const appsMap = data.categoryApp || [];
@@ -43,28 +60,40 @@ function buildCategoryTree(data) {
     return tree;
 }
 
-function renderTreeHTML(nodes, level = 0) {
-    let html = '';
-    nodes.forEach(node => {
-        const hasChildren = node.children.length > 0 || node.linkedApps.length > 0 || node.linkedRules.length > 0;
-        const indent = level * 20;
+/**
+ * Hoofdfunctie voor het renderen van de regels in de boomstructuur
+ */
+function renderRulesHTML(rules) {
+    if (!rules || rules.length === 0) return '';
+    
+    return rules.map(r => {
+        let title = "Beperking";
+        let detail = "";
 
-        html += `
-            <div class="tree-node" style="margin-left: ${indent}px">
-                <div class="tree-item ${hasChildren ? 'has-children' : ''}" onclick="toggleNode(this)">
-                    <span class="tree-icon">${hasChildren ? '▶' : '•'}</span>
-                    <span class="tree-title">${node.title}</span>
-                    <span class="tree-id">${node.categoryId}</span>
-                </div>
-                <div class="tree-content" style="display: none;">
-                    ${renderTreeHTML(node.children, 1)}
-                    ${renderRulesHTML(node.linkedRules)}
-                    ${renderAppsHTML(node.linkedApps)}
+        // Bepaal de hoofdtekst van de regel
+        if (r.maxTime !== undefined && r.maxTime > 0) {
+            title = `Limiet: ${formatTime(r.maxTime)}`;
+        } else if (r.start !== undefined && r.end !== undefined) {
+            title = `Blokkade: ${r.start} - ${r.end}`;
+        } else {
+            title = "Blokkade actief";
+        }
+
+        // Bepaal de secundaire info (Dagen + Prio)
+        const dayLabel = formatDays(r.days);
+        const prioLabel = r.prio ? `(Prio ${r.prio})` : "";
+        detail = `${dayLabel} ${prioLabel}`.trim();
+
+        return `
+            <div class="tree-leaf rule-leaf">
+                <span class="leaf-icon">⚖️</span>
+                <div class="rule-content">
+                    <div class="rule-title">${title}</div>
+                    <div class="rule-subtitle">${detail}</div>
                 </div>
             </div>
         `;
-    });
-    return html;
+    }).join('');
 }
 
 function renderRulesHTML(rules) {
