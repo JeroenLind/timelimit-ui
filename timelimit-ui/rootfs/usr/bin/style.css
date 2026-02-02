@@ -75,3 +75,23 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .rule-leaf { color: #ff9800; border-left: 1px solid rgba(255, 152, 0, 0.2); }
 .app-leaf { color: #4caf50; border-left: 1px solid rgba(76, 175, 80, 0.2); }
 .leaf-icon { margin-right: 8px; font-size: 10px; }
+
+.rule-details {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+}
+
+.rule-label {
+    font-weight: 500;
+}
+
+.rule-prio {
+    font-size: 9px;
+    background: #333;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #aaa;
+    text-transform: uppercase;
+}

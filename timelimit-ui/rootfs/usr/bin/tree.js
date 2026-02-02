@@ -1,6 +1,13 @@
 /**
  * tree.js - Interactieve boomstructuur met Apps en Rules
  */
+function formatTime(ms) {
+    if (ms === undefined || ms < 0) return null;
+    const totalMinutes = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours}u ${minutes}m` : `${minutes}m`;
+}
 
 function buildCategoryTree(data) {
     const categories = data.categoryBase || [];
@@ -61,12 +68,34 @@ function renderTreeHTML(nodes, level = 0) {
 }
 
 function renderRulesHTML(rules) {
-    return rules.map(r => `
-        <div class="tree-leaf rule-leaf">
-            <span class="leaf-icon">⏳</span>
-            <span>Regel: ${r.maxTime > 0 ? (r.maxTime / 3600000).toFixed(1) + 'u' : 'Blokkade'}</span>
-        </div>
-    `).join('');
+    if (!rules || rules.length === 0) return '';
+    
+    return rules.map(r => {
+        let label = "";
+        
+        // Scenario 1: Tijdslimiet (maxTime)
+        if (r.maxTime !== undefined) {
+            label = `Limiet: ${formatTime(r.maxTime)}`;
+        } 
+        // Scenario 2: Blokkeer-venster (start/end)
+        else if (r.start !== undefined && r.end !== undefined) {
+            label = `Blokkade: ${r.start} - ${r.end}`;
+        } 
+        // Scenario 3: Volledige blokkade
+        else {
+            label = "Altijd geblokkeerd";
+        }
+
+        return `
+            <div class="tree-leaf rule-leaf">
+                <span class="leaf-icon">⚖️</span>
+                <div class="rule-details">
+                    <span class="rule-label">${label}</span>
+                    ${r.prio ? `<span class="rule-prio">Prio ${r.prio}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function renderAppsHTML(apps) {
