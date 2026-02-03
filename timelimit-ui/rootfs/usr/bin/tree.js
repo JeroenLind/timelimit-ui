@@ -70,6 +70,20 @@ function getReadableAppName(packageName) {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function getTodayUsage(categoryId, usedTimes) {
+    const todayEpoch = Math.floor(Date.now() / 86400000);
+    const categoryUsage = usedTimes.find(u => u.categoryId === categoryId);
+    
+    if (!categoryUsage) return 0;
+
+    // Zoek naar het record van vandaag dat de hele dag beslaat (0-1439)
+    const todayRecord = categoryUsage.times.find(t => 
+        t.day === todayEpoch && t.start === 0 && t.end === 1439
+    );
+
+    return todayRecord ? todayRecord.time : 0;
+}
+
 /**
  * Transformeert de platte API data naar een geneste boomstructuur
  * @param {Object} data - De volledige JSON response van de API
@@ -189,34 +203,36 @@ function toggleNode(element) {
 }
 
 /**
- * Genereert de volledige HTML-structuur voor de boom (recursief)
- * @param {Array} nodes - De (geneste) lijst met categorie-objecten
- * @param {number} level - Het huidige diepteniveau (voor indentatie)
+ * Genereert de volledige HTML-structuur voor de boom
+ * @param {Array} nodes - De lijst met categorie-objecten
+ * @param {number} level - Inspringniveau
+ * @param {Object} fullData - De volledige API response (voor verbruiksdata)
  */
-function renderTreeHTML(nodes, level = 0) {
+function renderTreeHTML(nodes, level = 0, fullData = {}) {
     let html = '';
+    const usedTimes = fullData.usedTimes || [];
     
     nodes.forEach(node => {
-        // Controleer of er inhoud is om uit te klappen
         const hasChildren = node.children.length > 0 || 
                            node.linkedApps.length > 0 || 
                            node.linkedRules.length > 0;
         
-        // Bereken de inspringing op basis van het niveau
         const indent = level * 20;
+
+        // --- NIEUW: Zoek verbruik op voor deze specifieke categorie ---
+        const usageMs = getTodayUsage(node.categoryId, usedTimes);
+        const usageText = usageMs > 0 ? ` <small class="usage-label">(${formatDuration(usageMs)})</small>` : '';
 
         html += `
             <div class="tree-node">
                 <div class="tree-item" style="margin-left: ${indent}px" onclick="toggleNode(this)">
                     <span class="tree-icon">${hasChildren ? '▶' : '•'}</span>
-                    <span class="tree-title">${node.title}</span>
+                    <span class="tree-title">${node.title}${usageText}</span>
                     <span class="tree-id">${node.categoryId}</span>
                 </div>
                 <div class="tree-content" style="display: none;">
-                    ${renderTreeHTML(node.children, level + 1)}
-                    
+                    ${renderTreeHTML(node.children, level + 1, fullData)}
                     ${renderRulesHTML(node.linkedRules)}
-                    
                     ${renderAppsHTML(node.linkedApps)}
                 </div>
             </div>
@@ -234,7 +250,7 @@ function updateCategoryDisplay(data) {
     const container = document.getElementById('category-tree-container');
     if (!container) return;
     
-    // Bouw eerst de logische boom en render deze daarna naar HTML
     const tree = buildCategoryTree(data);
-    container.innerHTML = renderTreeHTML(tree);
+    // Geef 'data' (de hele JSON) mee als derde argument
+    container.innerHTML = renderTreeHTML(tree, 0, data);
 }

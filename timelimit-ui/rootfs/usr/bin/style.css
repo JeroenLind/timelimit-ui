@@ -132,3 +132,10 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     color: #555;
     font-family: monospace;
 }
+
+.usage-label {
+    color: #03a9f4;
+    font-weight: normal;
+    margin-left: 8px;
+    opacity: 0.8;
+}
