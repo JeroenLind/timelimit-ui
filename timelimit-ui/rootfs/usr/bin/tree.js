@@ -172,6 +172,44 @@ function toggleNode(element) {
 }
 
 /**
+ * Genereert de volledige HTML-structuur voor de boom (recursief)
+ * @param {Array} nodes - De (geneste) lijst met categorie-objecten
+ * @param {number} level - Het huidige diepteniveau (voor indentatie)
+ */
+function renderTreeHTML(nodes, level = 0) {
+    let html = '';
+    
+    nodes.forEach(node => {
+        // Controleer of er inhoud is om uit te klappen
+        const hasChildren = node.children.length > 0 || 
+                           node.linkedApps.length > 0 || 
+                           node.linkedRules.length > 0;
+        
+        // Bereken de inspringing op basis van het niveau
+        const indent = level * 20;
+
+        html += `
+            <div class="tree-node">
+                <div class="tree-item" style="margin-left: ${indent}px" onclick="toggleNode(this)">
+                    <span class="tree-icon">${hasChildren ? '▶' : '•'}</span>
+                    <span class="tree-title">${node.title}</span>
+                    <span class="tree-id">${node.categoryId}</span>
+                </div>
+                <div class="tree-content" style="display: none;">
+                    ${renderTreeHTML(node.children, level + 1)}
+                    
+                    ${renderRulesHTML(node.linkedRules)}
+                    
+                    ${renderAppsHTML(node.linkedApps)}
+                </div>
+            </div>
+        `;
+    });
+    
+    return html;
+}
+
+/**
  * Update de volledige categorie-weergave op het dashboard
  * @param {Object} data - De API status data
  */
