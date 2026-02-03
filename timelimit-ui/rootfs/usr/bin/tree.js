@@ -203,37 +203,54 @@ function toggleNode(element) {
 }
 
 /**
- * Genereert de volledige HTML-structuur voor de boom
- * @param {Array} nodes - De lijst met categorie-objecten
- * @param {number} level - Inspringniveau
- * @param {Object} fullData - De volledige API response (voor verbruiksdata)
+ * Genereert de HTML-structuur met aparte Rules en Apps secties per categorie
  */
 function renderTreeHTML(nodes, level = 0, fullData = {}) {
     let html = '';
     const usedTimes = fullData.usedTimes || [];
     
     nodes.forEach(node => {
-        const hasChildren = node.children.length > 0 || 
-                           node.linkedApps.length > 0 || 
-                           node.linkedRules.length > 0;
-        
         const indent = level * 20;
+        const subIndent = (level + 1) * 20;
+        const leafIndent = (level + 2) * 20; // Indentatie voor items ín de mappen
 
-        // --- NIEUW: Zoek verbruik op voor deze specifieke categorie ---
         const usageMs = getTodayUsage(node.categoryId, usedTimes);
         const usageText = usageMs > 0 ? ` <small class="usage-label">(${formatDuration(usageMs)})</small>` : '';
 
         html += `
             <div class="tree-node">
                 <div class="tree-item" style="margin-left: ${indent}px" onclick="toggleNode(this)">
-                    <span class="tree-icon">${hasChildren ? '▶' : '•'}</span>
+                    <span class="tree-icon">▼</span>
                     <span class="tree-title">${node.title}${usageText}</span>
                     <span class="tree-id">${node.categoryId}</span>
                 </div>
-                <div class="tree-content" style="display: none;">
+                
+                <div class="tree-content" style="display: block;">
                     ${renderTreeHTML(node.children, level + 1, fullData)}
-                    ${renderRulesHTML(node.linkedRules)}
-                    ${renderAppsHTML(node.linkedApps)}
+
+                    ${node.linkedRules.length > 0 ? `
+                        <div class="tree-node">
+                            <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                                <span class="tree-icon">▶</span>
+                                <span class="tree-title folder-title">Rules</span>
+                            </div>
+                            <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
+                                ${renderRulesHTML(node.linkedRules)}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${node.linkedApps.length > 0 ? `
+                        <div class="tree-node">
+                            <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                                <span class="tree-icon">▶</span>
+                                <span class="tree-title folder-title">Apps</span>
+                            </div>
+                            <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
+                                ${renderAppsHTML(node.linkedApps)}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
