@@ -139,3 +139,21 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     margin-left: 8px;
     opacity: 0.8;
 }
+
+.folder-node {
+    opacity: 0.8;
+    background: transparent !important; /* Geen achtergrond voor sub-mappen */
+    border-left: 2px solid #444 !important;
+}
+
+.folder-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.folder-node .tree-icon {
+    color: #03a9f4; /* Maak het icoontje van de sub-map opvallender */
+}
