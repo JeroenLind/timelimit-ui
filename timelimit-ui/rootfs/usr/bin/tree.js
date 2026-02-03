@@ -16,25 +16,26 @@ function formatTime(ms) {
 }
 
 /**
- * Helper: Vertaalt een array van dag-indexen naar tekst
- * @param {Array} days - Array met getallen 0 (Ma) t/m 6 (Zo)
+ * Helper: Vertaalt een bitmasker (bijv. 127) naar leesbare dagen
+ * @param {number} mask - Het dayMask getal uit de API
  */
-function formatDays(days) {
-    // Standaardwaarde als alle dagen geselecteerd zijn of de lijst leeg is
-    if (!days || days.length === 0 || days.length === 7) return "Dagelijks";
-    
-    const names = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
-    
-    // Controleer of de reeks exact overeenkomt met werkdagen (0 t/m 4)
-    const isWorkdays = [0, 1, 2, 3, 4].every(d => days.includes(d)) && days.length === 5;
-    if (isWorkdays) return "Werkdagen";
-    
-    // Controleer of de reeks exact overeenkomt met het weekend (5 en 6)
-    const isWeekend = [5, 6].every(d => days.includes(d)) && days.length === 2;
-    if (isWeekend) return "Weekend";
+function formatDays(mask) {
+    if (mask === 127 || mask === 0) return "Dagelijks";
+    if (mask === 31) return "Werkdagen"; // 1+2+4+8+16
+    if (mask === 96) return "Weekend";   // 32+64
 
-    // Als het een specifieke selectie is, toon dan de afzonderlijke namen
-    return days.map(d => names[d]).join(", ");
+    const names = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+    let selectedDays = [];
+
+    // Loop door de 7 dagen en check of de bit "aan" staat
+    for (let i = 0; i < 7; i++) {
+        // Gebruik de bitwise AND operator om te kijken of de dag in het masker zit
+        if (mask & (1 << i)) {
+            selectedDays.push(names[i]);
+        }
+    }
+
+    return selectedDays.join(", ");
 }
 
 /**
@@ -114,7 +115,7 @@ function renderRulesHTML(rules) {
         }
 
         // Formatteer de secundaire regel (bijv: "Werkdagen (Prio 1)")
-        const dayLabel = formatDays(r.days);
+        const dayLabel = formatDays(r.dayMask);
         const prioLabel = r.prio ? `(Prio ${r.prio})` : "";
         detail = `${dayLabel} ${prioLabel}`.trim();
 
