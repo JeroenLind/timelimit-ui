@@ -4,15 +4,32 @@
  */
 
 /**
- * Helper: Formatteert milliseconden naar een leesbare u/m notatie
- * @param {number} ms - Tijd in milliseconden
+ * Helper: Zet milliseconden om naar een duur (bijv. 3u 30m)
  */
-function formatTime(ms) {
-    if (ms === undefined || ms < 0) return null;
+function formatDuration(ms) {
+    if (ms === undefined || ms === null || ms < 0) return null;
     const totalMinutes = Math.floor(ms / 60000);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    return hours > 0 ? `${hours}u ${minutes}m` : `${minutes}m`;
+    
+    if (hours === 0) return `${minutes}m`;
+    return `${hours}u ${minutes > 0 ? minutes + 'm' : ''}`;
+}
+
+/**
+ * Helper: Zet minuten vanaf middernacht om naar een kloktijd (bijv. 510 -> 08:30)
+ */
+function formatClockTime(minutesSinceMidnight) {
+    if (minutesSinceMidnight === undefined || minutesSinceMidnight === null) return "00:00";
+    
+    const hours = Math.floor(minutesSinceMidnight / 60);
+    const minutes = minutesSinceMidnight % 60;
+    
+    // Zorg voor een voorloop-nul (bijv. 08:05 in plaats van 8:5)
+    const h = String(hours).padStart(2, '0');
+    const m = String(minutes).padStart(2, '0');
+    
+    return `${h}:${m}`;
 }
 
 /**
@@ -103,28 +120,27 @@ function renderRulesHTML(rules) {
     
     return rules.map(r => {
         let title = "Beperking";
-        let detail = "";
-
-        // Logica om te bepalen wat de belangrijkste info van de regel is
+        
+        // Gebruik formatDuration voor maxTime (ms)
         if (r.maxTime !== undefined && r.maxTime > 0) {
-            title = `Limiet: ${formatTime(r.maxTime)}`;
-        } else if (r.start !== undefined && r.end !== undefined) {
-            title = `Blokkade: ${r.start} - ${r.end}`;
-        } else {
-            title = "Blokkade actief";
+            title = `Limiet: ${formatDuration(r.maxTime)}`;
+        } 
+        // Gebruik formatClockTime voor start/end (minuten)
+        else if (r.start !== undefined && r.end !== undefined) {
+            const startTime = formatClockTime(r.start);
+            const endTime = formatClockTime(r.end);
+            title = `Blokkade: ${startTime} - ${endTime}`;
         }
 
-        // Formatteer de secundaire regel (bijv: "Werkdagen (Prio 1)")
         const dayLabel = formatDays(r.dayMask);
         const prioLabel = r.prio ? `(Prio ${r.prio})` : "";
-        detail = `${dayLabel} ${prioLabel}`.trim();
 
         return `
             <div class="tree-leaf rule-leaf">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
                     <div class="rule-title">${title}</div>
-                    <div class="rule-subtitle">${detail}</div>
+                    <div class="rule-subtitle">${dayLabel} ${prioLabel}</div>
                 </div>
             </div>
         `;
