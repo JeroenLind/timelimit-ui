@@ -27,7 +27,7 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
 }
 
 /**
- * Opent de modal en vertaalt ms naar uren/minuten voor de UI
+ * Opent de modal en vertaalt MS en Minuten naar leesbare UI velden
  */
 function openRuleModal(catId, ruleId) {
     console.log("Trigger: Modal openen voor Cat:", catId, "Rule:", ruleId);
@@ -49,19 +49,22 @@ function openRuleModal(catId, ruleId) {
     document.getElementById('edit-cat-id').value = catId;
     document.getElementById('edit-rule-id').value = ruleId;
 
-    // 2. TIJD CONVERSIE: ms naar uren en minuten
+    // 2. MAX TIME CONVERSIE: ms naar uren en minuten
     const totalMs = rule.maxTime || 0;
-    const totalMinutes = Math.floor(totalMs / 60000); // 60.000 ms = 1 minuut
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
+    const totalMinutesLimit = Math.floor(totalMs / 60000); 
+    document.getElementById('input-hours').value = Math.floor(totalMinutesLimit / 60);
+    document.getElementById('input-minutes').value = totalMinutesLimit % 60;
+    document.getElementById('field-maxTime').value = totalMs;
 
-    document.getElementById('input-hours').value = hours;
-    document.getElementById('input-minutes').value = mins;
-    document.getElementById('field-maxTime').value = totalMs; // hidden field
-
-    // 3. Blokkade tijden (start/end blijven voor nu even ms in hidden fields)
-    document.getElementById('field-start').value = rule.start || 0;
-    document.getElementById('field-end').value = rule.end || 0;
+    // 3. START/END CONVERSIE: minuten naar HH:mm string voor tijd-input
+    const startMin = rule.start || 0;
+    const endMin = rule.end || 0;
+    document.getElementById('input-start-time').value = minToTimeString(startMin);
+    document.getElementById('input-end-time').value = minToTimeString(endMin);
+    
+    // Hidden fields voor de ruwe waarden
+    document.getElementById('field-start').value = startMin;
+    document.getElementById('field-end').value = endMin;
     document.getElementById('field-perDay').checked = !!rule.perDay;
 
     // 4. Dag-masker
@@ -74,22 +77,26 @@ function openRuleModal(catId, ruleId) {
 }
 
 /**
- * Slaat de wijzigingen op en vertaalt uren/minuten terug naar ms
+ * Slaat de wijzigingen op en vertaalt UI waarden terug naar MS en Minuten
  */
 function saveModalChanges() {
     const catId = document.getElementById('edit-cat-id').value;
     const ruleId = document.getElementById('edit-rule-id').value;
 
-    // Bereken MS: ((uren * 60) + minuten) * 60.000
-    const hours = parseInt(document.getElementById('input-hours').value) || 0;
-    const mins = parseInt(document.getElementById('input-minutes').value) || 0;
-    const totalMs = ((hours * 60) + mins) * 60000;
+    // Bereken MS voor de limiet: ((uren * 60) + minuten) * 60.000
+    const h = parseInt(document.getElementById('input-hours').value) || 0;
+    const m = parseInt(document.getElementById('input-minutes').value) || 0;
+    const totalMs = ((h * 60) + m) * 60000;
+
+    // Bereken Minuten voor de blokkade tijden
+    const startMin = timeStringToMin(document.getElementById('input-start-time').value);
+    const endMin = timeStringToMin(document.getElementById('input-end-time').value);
 
     const updatedValues = {
         dayMask: parseInt(document.getElementById('field-dayMask').value),
         maxTime: totalMs,
-        start: parseInt(document.getElementById('field-start').value),
-        end: parseInt(document.getElementById('field-end').value),
+        start: startMin,
+        end: endMin,
         perDay: document.getElementById('field-perDay').checked
     };
 
@@ -102,7 +109,22 @@ function saveModalChanges() {
 }
 
 /**
- * Helptools voor de dag-knoppen
+ * Hulpfuncties voor TIJD (Minuten <-> String HH:mm)
+ */
+function minToTimeString(totalMinutes) {
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function timeStringToMin(timeString) {
+    if (!timeString) return 0;
+    const [hours, mins] = timeString.split(':').map(Number);
+    return (hours * 60) + mins;
+}
+
+/**
+ * Hulpfuncties voor de DAG-KNOPPEN
  */
 function setButtonsFromMask(mask) {
     document.querySelectorAll('.day-btn').forEach(btn => {
@@ -130,7 +152,7 @@ function closeModal() {
 // Global scope expose
 window.openRuleModal = openRuleModal;
 
-// Event Listeners
+// Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('day-btn')) {
         e.target.classList.toggle('active');
