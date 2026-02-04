@@ -131,24 +131,24 @@ function buildCategoryTree(data) {
  * Genereert de HTML voor de gebruiksregels
  * Aangepast: categoryId wordt nu meegegeven als argument
  */
-function renderRulesHTML(rules, categoryId) { // Voeg categoryId hier toe
+function renderRulesHTML(rules, categoryId) {
     if (!rules || rules.length === 0) return '';
     
     return rules.map(r => {
-        // Bepaal de ondertiteling op basis van wat voor regel het is
-        let subtitle = "";
+        let title = "Beperking";
         if (r.maxTime > 0) {
-            subtitle = `Limiet: ${formatDuration(r.maxTime)}`;
+            title = `Limiet: ${formatDuration(r.maxTime)}`;
         } else {
-            subtitle = `${formatClockTime(r.start)} tot ${formatClockTime(r.end)}`;
+            title = `Blokkade: ${formatClockTime(r.start)} - ${formatClockTime(r.end)}`;
         }
 
+        // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `
             <div class="tree-leaf rule-leaf clickable-rule" onclick="openRuleModal('${categoryId}', '${r.id}')">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
-                    <div class="rule-title">Rule: ${r.id}</div>
-                    <div class="rule-subtitle">${formatDays(r.dayMask)} - ${subtitle}</div>
+                    <div class="rule-title">${title}</div>
+                    <div class="rule-subtitle">${formatDays(r.dayMask)}</div>
                 </div>
             </div>
         `;
