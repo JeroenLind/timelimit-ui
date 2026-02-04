@@ -126,36 +126,29 @@ function buildCategoryTree(data) {
     return tree;
 }
 
+
 /**
- * Genereert de HTML voor de gebruiksregels (tijdslimieten/blokkades)
+ * Genereert de HTML voor de gebruiksregels
+ * Aangepast: categoryId wordt nu meegegeven als argument
  */
-function renderRulesHTML(rules) {
+function renderRulesHTML(rules, categoryId) { // Voeg categoryId hier toe
     if (!rules || rules.length === 0) return '';
     
     return rules.map(r => {
-        let title = "Beperking";
-        
-        // Gebruik formatDuration voor maxTime (ms)
-        if (r.maxTime !== undefined && r.maxTime > 0) {
-            title = `Limiet: ${formatDuration(r.maxTime)}`;
-        } 
-        // Gebruik formatClockTime voor start/end (minuten)
-        else if (r.start !== undefined && r.end !== undefined) {
-            const startTime = formatClockTime(r.start);
-            const endTime = formatClockTime(r.end);
-            title = `Blokkade: ${startTime} - ${endTime}`;
+        // Bepaal de ondertiteling op basis van wat voor regel het is
+        let subtitle = "";
+        if (r.maxTime > 0) {
+            subtitle = `Limiet: ${formatDuration(r.maxTime)}`;
+        } else {
+            subtitle = `${formatClockTime(r.start)} tot ${formatClockTime(r.end)}`;
         }
 
-        const dayLabel = formatDays(r.dayMask);
-        const prioLabel = r.prio ? `(Prio ${r.prio})` : "";
-
-        // In renderRulesHTML, verander de div naar:
         return `
             <div class="tree-leaf rule-leaf clickable-rule" onclick="openRuleModal('${categoryId}', '${r.id}')">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
                     <div class="rule-title">Rule: ${r.id}</div>
-                    <div class="rule-subtitle">${formatDays(r.dayMask)} - ${formatClockTime(r.start)} tot ${formatClockTime(r.end)}</div>
+                    <div class="rule-subtitle">${formatDays(r.dayMask)} - ${subtitle}</div>
                 </div>
             </div>
         `;
@@ -213,7 +206,7 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
     nodes.forEach(node => {
         const indent = level * 20;
         const subIndent = (level + 1) * 20;
-        const leafIndent = (level + 2) * 20; // Indentatie voor items ín de mappen
+        const leafIndent = (level + 2) * 20;
 
         const usageMs = getTodayUsage(node.categoryId, usedTimes);
         const usageText = usageMs > 0 ? ` <small class="usage-label">(${formatDuration(usageMs)})</small>` : '';
@@ -221,12 +214,11 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
         html += `
             <div class="tree-node">
                 <div class="tree-item" style="margin-left: ${indent}px" onclick="toggleNode(this)">
-                    <span class="tree-icon">▼</span>
-                    <span class="tree-title">${node.title}${usageText}</span>
+                    <span class="tree-icon">▶</span> <span class="tree-title">${node.title}${usageText}</span>
                     <span class="tree-id">${node.categoryId}</span>
                 </div>
                 
-                <div class="tree-content" style="display: block;">
+                <div class="tree-content" style="display: none;"> 
                     ${renderTreeHTML(node.children, level + 1, fullData)}
 
                     ${node.linkedRules.length > 0 ? `
@@ -236,8 +228,7 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                                 <span class="tree-title folder-title">Rules</span>
                             </div>
                             <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
-                                ${renderRulesHTML(node.linkedRules)}
-                            </div>
+                                ${renderRulesHTML(node.linkedRules, node.categoryId)} </div>
                         </div>
                     ` : ''}
 
