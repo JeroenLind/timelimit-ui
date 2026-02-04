@@ -5,6 +5,43 @@
 
 let wizardSession = {};
 
+function startCreateFlow() {
+    console.log("Start: Flow voor NIEUWE familie.");
+    const title = document.getElementById('step-1-title');
+    const desc = document.getElementById('step-3-desc');
+    if(title) title.innerText = "Stap 1: E-mail (Nieuwe Familie)";
+    if(desc) desc.innerText = "Kies een wachtwoord voor je nieuwe account.";
+    
+    document.getElementById('btn-run-create').style.display = 'block';
+    document.getElementById('btn-run-login').style.display = 'none';
+    showStep(1);
+}
+
+function startLoginFlow() {
+    console.log("Start: Inloggen op BESTAANDE familie.");
+    const title = document.getElementById('step-1-title');
+    const desc = document.getElementById('step-3-desc');
+    if(title) title.innerText = "Stap 1: E-mail (Bestaande Familie)";
+    if(desc) desc.innerText = "Voer het wachtwoord in van je bestaande account.";
+    
+    document.getElementById('btn-run-create').style.display = 'none';
+    document.getElementById('btn-run-login').style.display = 'block';
+    showStep(1);
+}
+
+function showStep(n) {
+    // Verberg alle stappen
+    document.querySelectorAll('.wizard-step').forEach(s => s.style.display = 'none');
+    // Toon de wizard container zelf
+    const container = document.getElementById('wizard-ui');
+    if (n > 0) {
+        container.style.display = 'block';
+        document.getElementById('step-' + n).style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
 async function runStep1() {
     const mailInput = document.getElementById('mail').value;
     if (!mailInput) return addLog("Voer een e-mailadres in.", true);
