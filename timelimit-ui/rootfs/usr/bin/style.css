@@ -157,3 +157,42 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .folder-node .tree-icon {
     color: #03a9f4; /* Maak het icoontje van de sub-map opvallender */
 }
+
+/* Het zwarte achtergrondmasker */
+.modal {
+    display: none; /* Standaard onzichtbaar */
+    position: fixed; 
+    z-index: 9999; /* Zorg dat dit boven alles staat */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* Semi-transparant zwart */
+    backdrop-filter: blur(3px); /* Maakt de treeview erachter wazig */
+    align-items: center;
+    justify-content: center;
+}
+
+/* Het feitelijke witte/donkere venster */
+.modal-content {
+    background-color: #151921;
+    padding: 25px;
+    border: 1px solid #03a9f4;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    margin: auto; /* Centreren */
+}
+
+.close-btn {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    color: #888;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.close-btn:hover { color: #fff; }
