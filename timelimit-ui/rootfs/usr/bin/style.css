@@ -262,3 +262,28 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .clickable-rule:hover {
     background: rgba(255, 152, 0, 0.15); /* Subtiele oranje gloed bij hover */
 }
+
+.day-picker-container {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.day-btn {
+    flex: 1;
+    padding: 8px 0;
+    background: #1c222d;
+    border: 1px solid #333;
+    color: #888;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.day-btn.active {
+    background: #03a9f4;
+    color: white;
+    border-color: #03a9f4;
+}

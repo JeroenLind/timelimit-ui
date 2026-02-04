@@ -29,7 +29,7 @@ function openRuleModal(catId, ruleId) {
         return;
     }
 
-    // Zoek categorie (gebruik ==)
+    // Zoek categorie (gebruik == voor flexibele type-matching)
     const category = currentDataDraft.rules.find(c => c.categoryId == catId);
     const rule = category ? category.rules.find(r => r.id == ruleId) : null;
 
@@ -38,20 +38,53 @@ function openRuleModal(catId, ruleId) {
         return;
     }
 
-    // Velden vullen in de HTML
+    // 1. Basis velden vullen
     document.getElementById('edit-cat-id').value = catId;
     document.getElementById('edit-rule-id').value = ruleId;
-    document.getElementById('field-dayMask').value = rule.dayMask || 0;
     document.getElementById('field-maxTime').value = rule.maxTime || 0;
     document.getElementById('field-start').value = rule.start || 0;
     document.getElementById('field-end').value = rule.end || 0;
     document.getElementById('field-perDay').checked = !!rule.perDay;
 
-    // Toon de modal
+    // 2. Dag-masker verwerken: vul de verborgen input én zet de knoppen goed
+    const mask = rule.dayMask || 0;
+    document.getElementById('field-dayMask').value = mask;
+    setButtonsFromMask(mask); 
+
+    // 3. Toon de modal
     const modal = document.getElementById('rule-modal');
     if (modal) {
         modal.classList.add('is-visible');
     }
+}
+
+/**
+ * Zet de 'active' class op de juiste dag-knoppen op basis van de bitmask
+ */
+function setButtonsFromMask(mask) {
+    const buttons = document.querySelectorAll('.day-btn');
+    buttons.forEach(btn => {
+        const bit = parseInt(btn.getAttribute('data-bit'));
+        // Bitwise check: als de bit in de mask zit, maak knop actief
+        if ((mask & bit) === bit) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+/**
+ * Berekent de nieuwe mask op basis van de ingedrukte knoppen
+ * Roep deze aan telkens als er op een dag-knop geklikt wordt
+ */
+function updateMaskFromButtons() {
+    let mask = 0;
+    document.querySelectorAll('.day-btn.active').forEach(btn => {
+        mask += parseInt(btn.getAttribute('data-bit'));
+    });
+    document.getElementById('field-dayMask').value = mask;
+    console.log("Nieuwe bitmask berekend:", mask);
 }
 
 function closeModal() {
@@ -81,3 +114,31 @@ function saveModalChanges() {
 
 // Zorg dat de functie globaal bereikbaar is voor de onclick in de HTML
 window.openRuleModal = openRuleModal;
+
+// Voeg dit ergens bovenin state.js toe of in een init sectie
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('day-btn')) {
+        e.target.classList.toggle('active');
+        updateMaskFromButtons();
+    }
+});
+
+function updateMaskFromButtons() {
+    let mask = 0;
+    document.querySelectorAll('.day-btn.active').forEach(btn => {
+        mask += parseInt(btn.getAttribute('data-bit'));
+    });
+    document.getElementById('field-dayMask').value = mask;
+}
+
+function setButtonsFromMask(mask) {
+    document.querySelectorAll('.day-btn').forEach(btn => {
+        const bit = parseInt(btn.getAttribute('data-bit'));
+        // Controleer of de bit in de mask zit (bitwise AND)
+        if ((mask & bit) === bit) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
