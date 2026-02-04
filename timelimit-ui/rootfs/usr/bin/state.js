@@ -63,9 +63,7 @@ function openRuleModal(catId, ruleId) {
     document.getElementById('input-end-time').value = minToTimeString(endMin);
     
     // Hidden fields voor de ruwe waarden
-    document.getElementById('field-start').value = startMin;
-    document.getElementById('field-end').value = endMin;
-    document.getElementById('field-perDay').checked = !!rule.perDay;
+      document.getElementById('field-perDay').checked = !!rule.perDay;
 
     // 4. Dag-masker
     const mask = rule.dayMask || 0;
