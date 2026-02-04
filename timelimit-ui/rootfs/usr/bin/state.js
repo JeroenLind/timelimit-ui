@@ -25,16 +25,23 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
 }
 
 function openRuleModal(catId, ruleId) {
-    console.log("Opening modal for:", catId, ruleId);
+    console.log("Modal openen voor:", catId, ruleId);
     
-    // 1. Zoek de data op in je lokale state/draft
-    // (Zorg dat je 'currentDataDraft' gevuld is na de sync)
+    // Check of we data hebben
+    if (!currentDataDraft) {
+        console.error("Geen data draft gevonden. Run eerst sync.");
+        return;
+    }
+
     const category = currentDataDraft.rules.find(c => c.categoryId === catId);
-    const rule = category.rules.find(r => r.id === ruleId);
+    const rule = category ? category.rules.find(r => r.id === ruleId) : null;
 
-    if (!rule) return;
+    if (!rule) {
+        console.error("Regel niet gevonden!");
+        return;
+    }
 
-    // 2. Vul de velden
+    // Velden vullen
     document.getElementById('edit-cat-id').value = catId;
     document.getElementById('edit-rule-id').value = ruleId;
     document.getElementById('field-dayMask').value = rule.dayMask;
@@ -43,13 +50,12 @@ function openRuleModal(catId, ruleId) {
     document.getElementById('field-end').value = rule.end;
     document.getElementById('field-perDay').checked = rule.perDay;
 
-    // 3. Toon de modal
-    const modal = document.getElementById('rule-modal');
-    modal.style.display = 'flex'; // 'flex' ipv 'block' werkt beter met de CSS hierboven
+    // Tonen met class
+    document.getElementById('rule-modal').classList.add('is-visible');
 }
 
 function closeModal() {
-    document.getElementById('rule-modal').style.display = 'none';
+    document.getElementById('rule-modal').classList.remove('is-visible');
 }
 
 function saveModalChanges() {
