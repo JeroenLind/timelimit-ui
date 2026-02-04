@@ -43,10 +43,8 @@ async function runSync() {
             badge.className = "status-badge status-online";
             renderUsers(responseData);
 
-            if (typeof initializeDraft === "function") {
-              initializeDraft(responseData);
-            }
-
+            initializeDraft(responseData);
+           
             if (typeof updateCategoryDisplay === "function") {
               updateCategoryDisplay(responseData);
             }

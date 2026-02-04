@@ -161,19 +161,15 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 /* Het zwarte achtergrondmasker */
 /* --- MODAL SYSTEEM --- */
 
-/* Het zwarte achtergrondmasker */
 .modal {
-    display: none !important; /* Dwing onzichtbaar bij laden */
-    position: fixed !important; 
-    z-index: 99999; 
-    left: 0;
-    top: 0;
-    width: 100vw;
+    display: none; 
+    position: fixed; /* Dit is cruciaal: het haalt de modal uit de flow */
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.85); 
-    backdrop-filter: blur(5px);
-    
-    /* Center de modal content */
+    background: rgba(0,0,0,0.8);
+    z-index: 9999; /* Zorgt dat hij bovenop alles ligt */
     align-items: center;
     justify-content: center;
 }
