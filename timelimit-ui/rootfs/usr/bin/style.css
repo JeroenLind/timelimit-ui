@@ -250,3 +250,15 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .save-modal-btn:hover {
     background: #0288d1;
 }
+
+/* Zorg dat de regels eruitzien als klikbare knoppen */
+.clickable-rule {
+    cursor: pointer !important;
+    transition: background 0.2s;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.clickable-rule:hover {
+    background: rgba(255, 152, 0, 0.15); /* Subtiele oranje gloed bij hover */
+}
