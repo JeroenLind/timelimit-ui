@@ -123,8 +123,14 @@
                 <input type="hidden" id="field-dayMask" value="127">
             </div>
             <div class="form-group">
-                <label>Max Tijd (ms):</label>
-                <input type="number" id="field-maxTime">
+                <label>Maximale Tijd (Limiet)</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="input-hours" min="0" max="23" placeholder="0" style="width: 70px; margin-bottom: 0;">
+                    <span>uur</span>
+                    <input type="number" id="input-minutes" min="0" max="59" placeholder="0" style="width: 70px; margin-bottom: 0;">
+                    <span>min</span>
+                </div>
+                <input type="hidden" id="field-maxTime" value="0">
             </div>
             <div class="form-row">
                 <div class="form-group">

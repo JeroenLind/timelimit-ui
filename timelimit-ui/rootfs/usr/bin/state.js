@@ -1,16 +1,21 @@
 // Dit is ons "werkgeheugen"
 let currentDataDraft = null;
 
+/**
+ * Initialiseert het concept
+ */
 function initializeDraft(data) {
     if (!data) return;
     currentDataDraft = JSON.parse(JSON.stringify(data));
     console.log("Concept-modus actief. Data geladen.");
 }
 
+/**
+ * Zoekt en update de regel in het werkgeheugen
+ */
 function updateRuleInDraft(categoryId, ruleId, newValues) {
     if (!currentDataDraft || !currentDataDraft.rules) return;
 
-    // Gebruik == in plaats van === voor type-flexibiliteit (string vs number)
     const category = currentDataDraft.rules.find(r => r.categoryId == categoryId);
     if (category) {
         const rule = category.rules.find(r => r.id == ruleId);
@@ -21,83 +26,68 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
     }
 }
 
+/**
+ * Opent de modal en vertaalt ms naar uren/minuten voor de UI
+ */
 function openRuleModal(catId, ruleId) {
     console.log("Trigger: Modal openen voor Cat:", catId, "Rule:", ruleId);
     
     if (!currentDataDraft || !currentDataDraft.rules) {
-        console.error("Geen data beschikbaar. Voer eerst een sync uit.");
+        console.error("Geen data beschikbaar.");
         return;
     }
 
-    // Zoek categorie (gebruik == voor flexibele type-matching)
     const category = currentDataDraft.rules.find(c => c.categoryId == catId);
     const rule = category ? category.rules.find(r => r.id == ruleId) : null;
 
     if (!rule) {
-        console.error("Data-fout: Regel niet gevonden in de huidige dataset.");
+        console.error("Regel niet gevonden.");
         return;
     }
 
-    // 1. Basis velden vullen
+    // 1. Basis ID's opslaan
     document.getElementById('edit-cat-id').value = catId;
     document.getElementById('edit-rule-id').value = ruleId;
-    document.getElementById('field-maxTime').value = rule.maxTime || 0;
+
+    // 2. TIJD CONVERSIE: ms naar uren en minuten
+    const totalMs = rule.maxTime || 0;
+    const totalMinutes = Math.floor(totalMs / 60000); // 60.000 ms = 1 minuut
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+
+    document.getElementById('input-hours').value = hours;
+    document.getElementById('input-minutes').value = mins;
+    document.getElementById('field-maxTime').value = totalMs; // hidden field
+
+    // 3. Blokkade tijden (start/end blijven voor nu even ms in hidden fields)
     document.getElementById('field-start').value = rule.start || 0;
     document.getElementById('field-end').value = rule.end || 0;
     document.getElementById('field-perDay').checked = !!rule.perDay;
 
-    // 2. Dag-masker verwerken: vul de verborgen input én zet de knoppen goed
+    // 4. Dag-masker
     const mask = rule.dayMask || 0;
     document.getElementById('field-dayMask').value = mask;
     setButtonsFromMask(mask); 
 
-    // 3. Toon de modal
     const modal = document.getElementById('rule-modal');
-    if (modal) {
-        modal.classList.add('is-visible');
-    }
+    if (modal) modal.classList.add('is-visible');
 }
 
 /**
- * Zet de 'active' class op de juiste dag-knoppen op basis van de bitmask
+ * Slaat de wijzigingen op en vertaalt uren/minuten terug naar ms
  */
-function setButtonsFromMask(mask) {
-    const buttons = document.querySelectorAll('.day-btn');
-    buttons.forEach(btn => {
-        const bit = parseInt(btn.getAttribute('data-bit'));
-        // Bitwise check: als de bit in de mask zit, maak knop actief
-        if ((mask & bit) === bit) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-}
-
-/**
- * Berekent de nieuwe mask op basis van de ingedrukte knoppen
- * Roep deze aan telkens als er op een dag-knop geklikt wordt
- */
-function updateMaskFromButtons() {
-    let mask = 0;
-    document.querySelectorAll('.day-btn.active').forEach(btn => {
-        mask += parseInt(btn.getAttribute('data-bit'));
-    });
-    document.getElementById('field-dayMask').value = mask;
-    console.log("Nieuwe bitmask berekend:", mask);
-}
-
-function closeModal() {
-    document.getElementById('rule-modal').classList.remove('is-visible');
-}
-
 function saveModalChanges() {
     const catId = document.getElementById('edit-cat-id').value;
     const ruleId = document.getElementById('edit-rule-id').value;
 
+    // Bereken MS: ((uren * 60) + minuten) * 60.000
+    const hours = parseInt(document.getElementById('input-hours').value) || 0;
+    const mins = parseInt(document.getElementById('input-minutes').value) || 0;
+    const totalMs = ((hours * 60) + mins) * 60000;
+
     const updatedValues = {
         dayMask: parseInt(document.getElementById('field-dayMask').value),
-        maxTime: parseInt(document.getElementById('field-maxTime').value),
+        maxTime: totalMs,
         start: parseInt(document.getElementById('field-start').value),
         end: parseInt(document.getElementById('field-end').value),
         perDay: document.getElementById('field-perDay').checked
@@ -106,22 +96,24 @@ function saveModalChanges() {
     updateRuleInDraft(catId, ruleId, updatedValues);
     closeModal();
     
-    // UI verversen
     if (typeof updateCategoryDisplay === "function") {
         updateCategoryDisplay(currentDataDraft);
     }
 }
 
-// Zorg dat de functie globaal bereikbaar is voor de onclick in de HTML
-window.openRuleModal = openRuleModal;
-
-// Voeg dit ergens bovenin state.js toe of in een init sectie
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('day-btn')) {
-        e.target.classList.toggle('active');
-        updateMaskFromButtons();
-    }
-});
+/**
+ * Helptools voor de dag-knoppen
+ */
+function setButtonsFromMask(mask) {
+    document.querySelectorAll('.day-btn').forEach(btn => {
+        const bit = parseInt(btn.getAttribute('data-bit'));
+        if ((mask & bit) === bit) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
 
 function updateMaskFromButtons() {
     let mask = 0;
@@ -131,14 +123,17 @@ function updateMaskFromButtons() {
     document.getElementById('field-dayMask').value = mask;
 }
 
-function setButtonsFromMask(mask) {
-    document.querySelectorAll('.day-btn').forEach(btn => {
-        const bit = parseInt(btn.getAttribute('data-bit'));
-        // Controleer of de bit in de mask zit (bitwise AND)
-        if ((mask & bit) === bit) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
+function closeModal() {
+    document.getElementById('rule-modal').classList.remove('is-visible');
 }
+
+// Global scope expose
+window.openRuleModal = openRuleModal;
+
+// Event Listeners
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('day-btn')) {
+        e.target.classList.toggle('active');
+        updateMaskFromButtons();
+    }
+});
