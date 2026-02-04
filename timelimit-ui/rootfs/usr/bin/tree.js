@@ -149,12 +149,13 @@ function renderRulesHTML(rules) {
         const dayLabel = formatDays(r.dayMask);
         const prioLabel = r.prio ? `(Prio ${r.prio})` : "";
 
+        // In renderRulesHTML, verander de div naar:
         return `
-            <div class="tree-leaf rule-leaf">
+            <div class="tree-leaf rule-leaf clickable-rule" onclick="openRuleModal('${categoryId}', '${r.id}')">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
-                    <div class="rule-title">${title}</div>
-                    <div class="rule-subtitle">${dayLabel} ${prioLabel}</div>
+                    <div class="rule-title">Rule: ${r.id}</div>
+                    <div class="rule-subtitle">${formatDays(r.dayMask)} - ${formatClockTime(r.start)} tot ${formatClockTime(r.end)}</div>
                 </div>
             </div>
         `;
