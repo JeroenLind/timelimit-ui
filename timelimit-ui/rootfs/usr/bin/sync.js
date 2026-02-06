@@ -398,26 +398,11 @@ BATCHES: ${syncData.batches.length}
         });
     });
     
-    logContent += `\n--- VOLLEDIGE PAYLOAD (zou verzonden worden) ---\n`;
-    
-    // Simuleer integrity signing (momenteel "device" placeholder)
-    const deviceId = "test-device"; // TODO: Haal echte deviceId op
-    const firstBatch = syncData.batches[0];
-    
-    const mockPayload = {
-        actions: firstBatch.map(item => ({
-            sequenceNumber: item.sequenceNumber,
-            encodedAction: item.encodedAction,
-            integrity: "device" // Placeholder
-        }))
-    };
-    
-    logContent += `\n${JSON.stringify(mockPayload, null, 2)}\n`;
     logContent += `\n⚠️  DEZE DATA WORDT NIET DAADWERKELIJK VERZONDEN (TEST MODUS)\n`;
     
     // Log naar console
     console.log("🧪 TEST SYNC DATA:", syncData);
-    console.log("📤 MOCK PAYLOAD:", mockPayload);
+    console.log("📤 PAYLOAD MET SIGNING:", mockPayload);
     
     // Log naar inspector
     if (jsonView.textContent.length > 100000) {
@@ -426,5 +411,5 @@ BATCHES: ${syncData.batches.length}
     jsonView.textContent += separator + logContent;
     jsonView.scrollTop = jsonView.scrollHeight;
     
-    addLog("✅ TEST SYNC voltooid - Check inspector-panel en browser console", false);
+    addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
 }
