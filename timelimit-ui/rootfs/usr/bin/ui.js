@@ -52,8 +52,11 @@ function renderUsers(data) {
 function showChangesSummary() {
     const changes = getChangedRules();
     
+    console.log("[DEBUG] showChangesSummary() aangeroepen. Aantal wijzigingen:", changes.length);
+    
     if (changes.length === 0) {
         alert('❌ Geen wijzigingen aangebracht.');
+        console.log("[DEBUG] Geen wijzigingen gevonden!");
         return;
     }
 
@@ -67,7 +70,7 @@ function showChangesSummary() {
         const original = change.original;
         const current = change.current;
 
-        // Bepaal wat er gewijzigd is
+        // Bepaal wat er gewijzigd is - controleer elk veld
         let details = [];
         
         if (original.maxTime !== current.maxTime) {
@@ -80,23 +83,34 @@ function showChangesSummary() {
             details.push(`Dagen: ${formatDays(original.dayMask)} → ${formatDays(current.dayMask)}`);
         }
         if (original.perDay !== current.perDay) {
-            details.push(`Per dag: ${original.perDay} → ${current.perDay}`);
+            details.push(`Per dag: ${original.perDay ? 'ja' : 'nee'} → ${current.perDay ? 'ja' : 'nee'}`);
         }
 
+        // Toon ook de ruwe waarden voor volledigheid
         html += `<li>
-            <strong>Regel ${ruleId}</strong> (Categorie ${catId})
-            <div class="change-detail">${details.join(' | ')}</div>
+            <strong>Regel ${ruleId}</strong> (Cat ${catId})
+            <div class="change-detail">${details.length > 0 ? details.join(' | ') : 'Geen wijzigingen gedetecteerd'}</div>
+            <div class="change-detail" style="color: #888; font-size: 10px; margin-top: 4px;">
+                Origineel: maxTime=${original.maxTime}ms, start=${original.start}min, end=${original.end}min, dayMask=${original.dayMask}, perDay=${original.perDay}
+                <br>Huidig: maxTime=${current.maxTime}ms, start=${current.start}min, end=${current.end}min, dayMask=${current.dayMask}, perDay=${current.perDay}
+            </div>
         </li>`;
     });
 
     html += `</ul>
-        <button class="btn reset-changes-btn" onclick="resetAllChanges(); location.reload();">↶ Wijzigingen ongedaan maken</button>
+        <button class="btn reset-changes-btn" style="width: 100%; margin-top: 10px;" onclick="resetAllChanges(); location.reload();">↶ Wijzigingen ongedaan maken</button>
     </div>`;
 
     const container = document.getElementById('category-tree-container');
     if (container) {
+        // Verwijder eerdere samenvatting als deze al bestaat
+        const existing = container.parentElement.querySelector('.changes-summary');
+        if (existing) existing.remove();
+        
         container.insertAdjacentHTML('beforebegin', html);
-        addLog(`✏️ ${changes.length} wijzigingen gedetecteerd!`);
+        addLog(`✏️ ${changes.length} wijziging${changes.length !== 1 ? 'en' : ''} gedetecteerd!`);
+    } else {
+        console.error("[ERROR] category-tree-container niet gevonden!");
     }
 }
 

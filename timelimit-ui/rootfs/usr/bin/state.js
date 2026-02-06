@@ -29,13 +29,15 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
         const rule = category.rules.find(r => r.id == ruleId);
         if (rule) {
             // Sla de ORIGINELE waarden op als dit de eerste keer is dat deze regel wordt gewijzigd
-            const key = `${categoryId}_${ruleId}`;
+            // Zorg voor consistente string-keys
+            const key = `${String(categoryId)}_${String(ruleId)}`;
             if (!changedRules.has(key)) {
                 const originalRule = originalDataSnapshot.rules
                     .find(c => c.categoryId == categoryId)?.rules
                     .find(r => r.id == ruleId);
                 if (originalRule) {
                     changedRules.set(key, JSON.parse(JSON.stringify(originalRule)));
+                    console.log(`[TRACK] Originele waarden opgeslagen voor key: ${key}`);
                 }
             }
             
@@ -53,22 +55,25 @@ function getChangedRules() {
     const changes = [];
     
     changedRules.forEach((originalRule, key) => {
-        const [categoryId, ruleId] = key.split('_');
+        const [catIdStr, ruleIdStr] = key.split('_');
+        const categoryId = parseInt(catIdStr);
+        
         const currentRule = currentDataDraft.rules
-            .find(c => c.categoryId == parseInt(categoryId))?.rules
-            .find(r => r.id == ruleId);
+            .find(c => c.categoryId == categoryId)?.rules
+            .find(r => String(r.id) == ruleIdStr);
         
         if (currentRule) {
             changes.push({
                 key,
-                categoryId: parseInt(categoryId),
-                ruleId,
+                categoryId: categoryId,
+                ruleId: ruleIdStr,
                 original: originalRule,
                 current: currentRule
             });
         }
     });
     
+    console.log(`[DEBUG] getChangedRules geeft ${changes.length} wijzigingen terug`);
     return changes;
 }
 
@@ -76,7 +81,7 @@ function getChangedRules() {
  * Controleert of een regel gewijzigd is
  */
 function isRuleChanged(categoryId, ruleId) {
-    const key = `${categoryId}_${ruleId}`;
+    const key = `${String(categoryId)}_${String(ruleId)}`;
     return changedRules.has(key);
 }
 
