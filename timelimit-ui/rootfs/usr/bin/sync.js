@@ -126,6 +126,12 @@ startSyncLoop();
 function buildUpdateRuleAction(change) {
     const current = change.current;
     
+    // DEBUG: Log wat we in current hebben
+    console.log(`[SYNC DEBUG] Building action for rule ${change.ruleId}:`);
+    console.log(`  current object:`, current);
+    console.log(`  current.maxTime:`, current.maxTime);
+    console.log(`  current.dayMask:`, current.dayMask);
+    
     const action = {
         type: "UPDATE_TIMELIMIT_RULE",
         ruleId: String(change.ruleId),
@@ -134,6 +140,8 @@ function buildUpdateRuleAction(change) {
         days: Number(current.dayMask !== undefined ? current.dayMask : (current.days || 0)),
         extraTime: Boolean(current.extraTime || false)
     };
+    
+    console.log(`  → action.time: ${action.time}, action.days: ${action.days}`);
     
     // Voeg optionele velden toe als ze aanwezig zijn
     if (current.start !== undefined && current.start !== null) {
