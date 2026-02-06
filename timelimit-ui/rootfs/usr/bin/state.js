@@ -54,23 +54,40 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
 function getChangedRules() {
     const changes = [];
     
+    console.log("[DEBUG] changedRules Map size:", changedRules.size);
+    console.log("[DEBUG] changedRules keys:", Array.from(changedRules.keys()));
+    
     changedRules.forEach((originalRule, key) => {
         const [catIdStr, ruleIdStr] = key.split('_');
-        const categoryId = parseInt(catIdStr);
+        // BELANGRIJK: categoryId is een STRING, GEEN getal!
+        const categoryId = catIdStr;
         
-        const currentRule = currentDataDraft.rules
-            .find(c => c.categoryId == categoryId)?.rules
-            .find(r => String(r.id) == ruleIdStr);
+        console.log(`[DEBUG] Zoeken naar rule: catId=${categoryId}, ruleId=${ruleIdStr}`);
         
-        if (currentRule) {
-            changes.push({
-                key,
-                categoryId: categoryId,
-                ruleId: ruleIdStr,
-                original: originalRule,
-                current: currentRule
-            });
+        const category = currentDataDraft.rules?.find(c => c.categoryId == categoryId);
+        if (!category) {
+            console.warn(`[DEBUG] Categorie ${categoryId} niet gevonden!`);
+            console.log(`[DEBUG] Beschikbare categorieën:`, currentDataDraft.rules?.map(c => c.categoryId));
+            return;
         }
+        
+        // Probeer zowel als string als als getal
+        let currentRule = category.rules?.find(r => String(r.id) === ruleIdStr || r.id == ruleIdStr);
+        
+        if (!currentRule) {
+            console.warn(`[DEBUG] Regel ${ruleIdStr} niet gevonden in categorie ${categoryId}`);
+            console.log(`[DEBUG] Beschikbare rules:`, category.rules?.map(r => r.id));
+            return;
+        }
+        
+        console.log(`[DEBUG] Regel gevonden! Origineel vs Huidig opslaan...`);
+        changes.push({
+            key,
+            categoryId: categoryId,
+            ruleId: ruleIdStr,
+            original: originalRule,
+            current: currentRule
+        });
     });
     
     console.log(`[DEBUG] getChangedRules geeft ${changes.length} wijzigingen terug`);
@@ -153,6 +170,8 @@ function openRuleModal(catId, ruleId) {
 function saveModalChanges() {
     const catId = document.getElementById('edit-cat-id').value;
     const ruleId = document.getElementById('edit-rule-id').value;
+    
+    console.log(`[DEBUG] saveModalChanges - catId=${catId} (type: ${typeof catId}), ruleId=${ruleId} (type: ${typeof ruleId})`);
 
     // Bereken MS voor de limiet: ((uren * 60) + minuten) * 60.000
     const h = parseInt(document.getElementById('input-hours').value) || 0;
@@ -171,6 +190,7 @@ function saveModalChanges() {
         perDay: document.getElementById('field-perDay').checked
     };
 
+    console.log(`[DEBUG] Aangepaste waarden:`, updatedValues);
     updateRuleInDraft(catId, ruleId, updatedValues);
     closeModal();
     
