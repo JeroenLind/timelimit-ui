@@ -264,8 +264,56 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
 function updateCategoryDisplay(data) {
     const container = document.getElementById('category-tree-container');
     if (!container) return;
-    
+
+    // Bewaar geopende categorieën (categoryId strings) zodat we ze kunnen herstellen
+    const openCategoryIds = getOpenCategoryIds();
+
     const tree = buildCategoryTree(data);
     // Geef 'data' (de hele JSON) mee als derde argument
     container.innerHTML = renderTreeHTML(tree, 0, data);
+
+    // Herstel geopende categorieën
+    restoreOpenCategoryIds(openCategoryIds);
+}
+
+/**
+ * Haal de lijst van geopende categoryId's uit de huidige DOM
+ * @returns {Array<string>} Array met categoryId strings
+ */
+function getOpenCategoryIds() {
+    const ids = [];
+    try {
+        document.querySelectorAll('.tree-item.is-open').forEach(item => {
+            const idSpan = item.querySelector('.tree-id');
+            if (idSpan) ids.push(idSpan.textContent.trim());
+        });
+    } catch (e) {
+        console.warn('[DEBUG] getOpenCategoryIds fout:', e);
+    }
+    return ids;
+}
+
+/**
+ * Herstelt de geopende categorieën op basis van een lijst met categoryId strings
+ * @param {Array<string>} ids
+ */
+function restoreOpenCategoryIds(ids) {
+    if (!ids || ids.length === 0) return;
+    try {
+        document.querySelectorAll('.tree-item').forEach(item => {
+            const idSpan = item.querySelector('.tree-id');
+            if (!idSpan) return;
+            const cid = idSpan.textContent.trim();
+            if (ids.indexOf(cid) !== -1) {
+                // Open deze node
+                item.classList.add('is-open');
+                const icon = item.querySelector('.tree-icon');
+                if (icon) icon.innerText = '▼';
+                const content = item.nextElementSibling;
+                if (content) content.style.display = 'block';
+            }
+        });
+    } catch (e) {
+        console.warn('[DEBUG] restoreOpenCategoryIds fout:', e);
+    }
 }
