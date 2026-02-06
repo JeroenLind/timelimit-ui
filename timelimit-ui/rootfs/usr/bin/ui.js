@@ -45,3 +45,74 @@ function renderUsers(data) {
         list.innerHTML = "<p style='color: #888;'>Geen gebruikers gevonden in deze familie.</p>";
     }
 }
+
+/**
+ * Toont een samenvatting van alle gewijzigde regels
+ */
+function showChangesSummary() {
+    const changes = getChangedRules();
+    
+    if (changes.length === 0) {
+        alert('❌ Geen wijzigingen aangebracht.');
+        return;
+    }
+
+    let html = `<div class="changes-summary">
+        <h3>📋 Wijzigingen (${changes.length})</h3>
+        <ul>`;
+
+    changes.forEach(change => {
+        const catId = change.categoryId;
+        const ruleId = change.ruleId;
+        const original = change.original;
+        const current = change.current;
+
+        // Bepaal wat er gewijzigd is
+        let details = [];
+        
+        if (original.maxTime !== current.maxTime) {
+            details.push(`Limiet: ${formatDuration(original.maxTime)} → ${formatDuration(current.maxTime)}`);
+        }
+        if (original.start !== current.start || original.end !== current.end) {
+            details.push(`Tijd: ${formatClockTime(original.start)}-${formatClockTime(original.end)} → ${formatClockTime(current.start)}-${formatClockTime(current.end)}`);
+        }
+        if (original.dayMask !== current.dayMask) {
+            details.push(`Dagen: ${formatDays(original.dayMask)} → ${formatDays(current.dayMask)}`);
+        }
+        if (original.perDay !== current.perDay) {
+            details.push(`Per dag: ${original.perDay} → ${current.perDay}`);
+        }
+
+        html += `<li>
+            <strong>Regel ${ruleId}</strong> (Categorie ${catId})
+            <div class="change-detail">${details.join(' | ')}</div>
+        </li>`;
+    });
+
+    html += `</ul>
+        <button class="btn reset-changes-btn" onclick="resetAllChanges(); location.reload();">↶ Wijzigingen ongedaan maken</button>
+    </div>`;
+
+    const container = document.getElementById('category-tree-container');
+    if (container) {
+        container.insertAdjacentHTML('beforebegin', html);
+        addLog(`✏️ ${changes.length} wijzigingen gedetecteerd!`);
+    }
+}
+
+/**
+ * Toont het aantal wijzigingen in de header
+ */
+function updateChangeIndicator() {
+    const changes = getChangedRules();
+    const indicator = document.getElementById('change-indicator');
+    
+    if (indicator) {
+        if (changes.length > 0) {
+            indicator.textContent = `📝 ${changes.length} wijziging${changes.length !== 1 ? 'en' : ''}`;
+            indicator.style.display = 'inline-block';
+        } else {
+            indicator.style.display = 'none';
+        }
+    }
+}

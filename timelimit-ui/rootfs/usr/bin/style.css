@@ -287,3 +287,81 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     color: white;
     border-color: #03a9f4;
 }
+
+/* ===== CHANGE TRACKING STYLING ===== */
+
+.rule-changed {
+    background: rgba(255, 193, 7, 0.1) !important;
+    border-left: 2px solid #ffc107 !important;
+}
+
+.rule-changed:hover {
+    background: rgba(255, 193, 7, 0.2) !important;
+}
+
+.change-badge {
+    display: inline-block;
+    background: #ffc107;
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.changes-summary {
+    background: rgba(255, 193, 7, 0.15);
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    color: #ffc107;
+}
+
+.changes-summary h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.changes-summary ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.changes-summary li {
+    padding: 5px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+}
+
+.changes-summary li:last-child {
+    border-bottom: none;
+}
+
+.change-detail {
+    font-family: monospace;
+    font-size: 11px;
+    color: #ffc107;
+    margin-top: 3px;
+}
+
+.reset-changes-btn {
+    background: #f44336 !important;
+}
+
+.reset-changes-btn:hover {
+    background: #d32f2f !important;
+}
+
+.show-changes-btn {
+    background: #ffc107 !important;
+    color: #000 !important;
+}
+
+.show-changes-btn:hover {
+    background: #ffb300 !important;
+}

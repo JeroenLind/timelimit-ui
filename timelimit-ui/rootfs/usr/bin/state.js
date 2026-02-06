@@ -1,13 +1,21 @@
 // Dit is ons "werkgeheugen"
 let currentDataDraft = null;
 
+// Originele (niet-gewijzigde) data - opgeslagen wanneer we de sync doen
+let originalDataSnapshot = null;
+
+// Tracked welke regels zijn gewijzigd
+let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
+
 /**
- * Initialiseert het concept
+ * Initialiseert het concept EN slaat de originele data op voor change tracking
  */
 function initializeDraft(data) {
     if (!data) return;
     currentDataDraft = JSON.parse(JSON.stringify(data));
-    console.log("Concept-modus actief. Data geladen.");
+    originalDataSnapshot = JSON.parse(JSON.stringify(data));
+    changedRules.clear();
+    console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
 }
 
 /**
@@ -20,8 +28,68 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
     if (category) {
         const rule = category.rules.find(r => r.id == ruleId);
         if (rule) {
+            // Sla de ORIGINELE waarden op als dit de eerste keer is dat deze regel wordt gewijzigd
+            const key = `${categoryId}_${ruleId}`;
+            if (!changedRules.has(key)) {
+                const originalRule = originalDataSnapshot.rules
+                    .find(c => c.categoryId == categoryId)?.rules
+                    .find(r => r.id == ruleId);
+                if (originalRule) {
+                    changedRules.set(key, JSON.parse(JSON.stringify(originalRule)));
+                }
+            }
+            
             Object.assign(rule, newValues);
-            console.log(`Regel ${ruleId} bijgewerkt in concept.`);
+            console.log(`Regel ${ruleId} bijgewerkt in concept. Status: GEWIJZIGD`);
+        }
+    }
+}
+
+/**
+ * Haalt alle gewijzigde regels op
+ * @returns {Array} Array met gewijzigde regel informatie
+ */
+function getChangedRules() {
+    const changes = [];
+    
+    changedRules.forEach((originalRule, key) => {
+        const [categoryId, ruleId] = key.split('_');
+        const currentRule = currentDataDraft.rules
+            .find(c => c.categoryId == parseInt(categoryId))?.rules
+            .find(r => r.id == ruleId);
+        
+        if (currentRule) {
+            changes.push({
+                key,
+                categoryId: parseInt(categoryId),
+                ruleId,
+                original: originalRule,
+                current: currentRule
+            });
+        }
+    });
+    
+    return changes;
+}
+
+/**
+ * Controleert of een regel gewijzigd is
+ */
+function isRuleChanged(categoryId, ruleId) {
+    const key = `${categoryId}_${ruleId}`;
+    return changedRules.has(key);
+}
+
+/**
+ * Reset alle wijzigingen
+ */
+function resetAllChanges() {
+    if (originalDataSnapshot) {
+        currentDataDraft = JSON.parse(JSON.stringify(originalDataSnapshot));
+        changedRules.clear();
+        console.log("Alle wijzigingen teruggedraaid!");
+        if (typeof updateCategoryDisplay === "function") {
+            updateCategoryDisplay(currentDataDraft);
         }
     }
 }

@@ -142,12 +142,17 @@ function renderRulesHTML(rules, categoryId) {
             title = `Blokkade: ${formatClockTime(r.start)} - ${formatClockTime(r.end)}`;
         }
 
+        // Check of deze regel gewijzigd is
+        const isChanged = isRuleChanged(categoryId, r.id);
+        const changedClass = isChanged ? 'rule-changed' : '';
+        const changedBadge = isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '';
+
         // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `
-            <div class="tree-leaf rule-leaf clickable-rule" onclick="openRuleModal('${categoryId}', '${r.id}')">
+            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="openRuleModal('${categoryId}', '${r.id}')">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
-                    <div class="rule-title">${title}</div>
+                    <div class="rule-title">${title} ${changedBadge}</div>
                     <div class="rule-subtitle">${formatDays(r.dayMask)}</div>
                 </div>
             </div>
