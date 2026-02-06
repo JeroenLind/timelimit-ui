@@ -102,6 +102,9 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     width: 100%;
 }
 
+/* Rule ID badge (aan het eind van een rule-leaf) */
+.rule-id { font-size: 10px; font-family: monospace; color: #555; margin-left: 12px; background: #0b0e14; padding: 2px 6px; border-radius: 3px; }
+
 .rule-title {
     font-weight: 500;
     line-height: 1.2;

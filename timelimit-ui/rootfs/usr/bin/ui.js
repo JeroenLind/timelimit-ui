@@ -70,6 +70,17 @@ function showChangesSummary() {
         const original = change.original;
         const current = change.current;
 
+        // Zoek de categorie-naam (title) op uit de huidige data snapshot
+        let catTitle = catId;
+        try {
+            if (typeof currentDataDraft !== 'undefined' && currentDataDraft && currentDataDraft.categoryBase) {
+                const cat = currentDataDraft.categoryBase.find(c => c.categoryId == catId);
+                if (cat && cat.title) catTitle = cat.title;
+            }
+        } catch (e) {
+            console.warn('[DEBUG] kon categorie-naam niet ophalen', e);
+        }
+
         // Bepaal wat er gewijzigd is - controleer elk veld
         let details = [];
         
@@ -88,7 +99,7 @@ function showChangesSummary() {
 
         // Toon ook de ruwe waarden voor volledigheid
         html += `<li>
-            <strong>Regel ${ruleId}</strong> (Cat ${catId})
+            <strong>Regel ${ruleId}</strong> (Categorie: ${catTitle})
             <div class="change-detail">${details.length > 0 ? details.join(' | ') : 'Geen wijzigingen gedetecteerd'}</div>
             <div class="change-detail" style="color: #888; font-size: 10px; margin-top: 4px;">
                 Origineel: maxTime=${original.maxTime}ms, start=${original.start}min, end=${original.end}min, dayMask=${original.dayMask}, perDay=${original.perDay}

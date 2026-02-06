@@ -155,6 +155,7 @@ function renderRulesHTML(rules, categoryId) {
                     <div class="rule-title">${title} ${changedBadge}</div>
                     <div class="rule-subtitle">${formatDays(r.dayMask)}</div>
                 </div>
+                <span class="rule-id">${r.id}</span>
             </div>
         `;
     }).join('');
