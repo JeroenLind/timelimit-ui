@@ -211,6 +211,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         console.error("[INTEGRITY] Fout bij HMAC-SHA512 berekening:", error);
         return "device"; // Fallback
     }
+}
 
 /**
  * Bundelt alle changes in acties voor verzending (max 50 per batch)
