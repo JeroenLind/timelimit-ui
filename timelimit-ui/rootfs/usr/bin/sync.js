@@ -118,6 +118,10 @@ startSyncLoop();
 /**
  * Zet een change object om naar SerializedUpdateTimelimitRuleAction format
  * change = { ruleId, categoryId, original: {...}, current: {...} }
+ * 
+ * VELDMAPPING:
+ * - maxTime → time (milliseconden)
+ * - dayMask → days (bitmask)
  */
 function buildUpdateRuleAction(change) {
     const current = change.current;
@@ -125,8 +129,9 @@ function buildUpdateRuleAction(change) {
     const action = {
         type: "UPDATE_TIMELIMIT_RULE",
         ruleId: String(change.ruleId),
-        time: Number(current.time || 0),
-        days: Number(current.days || 0),
+        // MAPPING: maxTime → time, dayMask → days
+        time: Number(current.maxTime !== undefined ? current.maxTime : (current.time || 0)),
+        days: Number(current.dayMask !== undefined ? current.dayMask : (current.days || 0)),
         extraTime: Boolean(current.extraTime || false)
     };
     
@@ -140,8 +145,11 @@ function buildUpdateRuleAction(change) {
     if (current.dur !== undefined && current.dur !== null) {
         action.dur = Number(current.dur);
     }
+    // session → pause mapping
     if (current.pause !== undefined && current.pause !== null) {
         action.pause = Number(current.pause);
+    } else if (current.session !== undefined && current.session !== null) {
+        action.pause = Number(current.session);
     }
     if (current.perDay !== undefined && current.perDay !== null) {
         action.perDay = Boolean(current.perDay);
