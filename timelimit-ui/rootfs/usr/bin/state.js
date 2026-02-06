@@ -7,6 +7,9 @@ let originalDataSnapshot = null;
 // Tracked welke regels zijn gewijzigd
 let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 
+// Parent password hash - nodig voor HMAC-SHA512 signing
+let parentPasswordHash = null;
+
 /**
  * Initialiseert het concept EN slaat de originele data op voor change tracking
  */
@@ -15,6 +18,13 @@ function initializeDraft(data) {
     currentDataDraft = JSON.parse(JSON.stringify(data));
     originalDataSnapshot = JSON.parse(JSON.stringify(data));
     changedRules.clear();
+    
+    // Sla parent password hash op voor HMAC-SHA512 signing
+    if (data.parentPasswordHash) {
+        parentPasswordHash = data.parentPasswordHash;
+        console.log("Parent password hash opgeslagen voor sync signing.");
+    }
+    
     console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
 }
 

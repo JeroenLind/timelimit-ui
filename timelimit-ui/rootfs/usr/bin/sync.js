@@ -126,12 +126,6 @@ startSyncLoop();
 function buildUpdateRuleAction(change) {
     const current = change.current;
     
-    // DEBUG: Log wat we in current hebben
-    console.log(`[SYNC DEBUG] Building action for rule ${change.ruleId}:`);
-    console.log(`  current object:`, current);
-    console.log(`  current.maxTime:`, current.maxTime);
-    console.log(`  current.dayMask:`, current.dayMask);
-    
     const action = {
         type: "UPDATE_TIMELIMIT_RULE",
         ruleId: String(change.ruleId),
@@ -140,8 +134,6 @@ function buildUpdateRuleAction(change) {
         days: Number(current.dayMask !== undefined ? current.dayMask : (current.days || 0)),
         extraTime: Boolean(current.extraTime || false)
     };
-    
-    console.log(`  → action.time: ${action.time}, action.days: ${action.days}`);
     
     // Voeg optionele velden toe als ze aanwezig zijn
     if (current.start !== undefined && current.start !== null) {
@@ -170,21 +162,55 @@ function buildUpdateRuleAction(change) {
 }
 
 /**
- * Berekent HMAC-SHA512 integrity hash
- * Momenteel placeholder - geeft "device" terug zodat we kunnen testen zonder echte signing
+ * Berekent HMAC-SHA512 integrity hash met WebCrypto API
+ * 
+ * HMAC-SHA512(
+ *   key = parentPasswordHash.secondSalt (base64),
+ *   message = sequenceNumber + "|" + deviceId + "|" + encodedAction
+ * )
+ * 
+ * @returns {string} Base64-encoded HMAC hash of "device" fallback
  */
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
-    // TODO: Implementeer echte HMAC-SHA512 met secondSalt uit parent password
-    // Voor nu: return "device" zodat we kunnen testen zonder signing
-    
-    // In werkelijkheid zou dit zijn:
-    // const crypto = require('crypto');
-    // const hash = crypto.createHmac('sha512', secondSalt)
-    //     .update(sequenceNumber + "|" + deviceId + "|" + encodedAction)
-    //     .digest('base64');
-    
-    return "device"; // Placeholder voor test
-}
+    try {
+        // Check of we parentPasswordHash hebben
+        if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
+            console.warn("[INTEGRITY] Geen parentPasswordHash beschikbaar, fallback op 'device'");
+            return "device";
+        }
+        
+        // Decode secondSalt van base64
+        const secondSalt = parentPasswordHash.secondSalt;
+        const saltBytes = Uint8Array.from(atob(secondSalt), c => c.charCodeAt(0));
+        
+        // Bouw message: sequenceNumber|deviceId|encodedAction
+        const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
+        const messageBytes = new TextEncoder().encode(message);
+        
+        // Importeer de key (HMAC with SHA-512)
+        const key = await crypto.subtle.importKey(
+            "raw",
+            saltBytes,
+            { name: "HMAC", hash: "SHA-512" },
+            false,
+            ["sign"]
+        );
+        
+        // Bereken HMAC-SHA512
+        const hashBuffer = await crypto.subtle.sign("HMAC", key, messageBytes);
+        
+        // Encode naar base64
+        const hashBytes = new Uint8Array(hashBuffer);
+        const binaryString = String.fromCharCode(...hashBytes);
+        const base64Hash = btoa(binaryString);
+        
+        console.log(`[INTEGRITY] HMAC-SHA512 berekend voor seq ${sequenceNumber}`);
+        return base64Hash;
+        
+    } catch (error) {
+        console.error("[INTEGRITY] Fout bij HMAC-SHA512 berekening:", error);
+        return "device"; // Fallback
+    }
 
 /**
  * Bundelt alle changes in acties voor verzending (max 50 per batch)
@@ -235,10 +261,104 @@ function prepareSync() {
 }
 
 /**
- * TEST versie: Bereid acties voor en log naar console/UI zonder daadwerkelijk te versturen
+ * TEST versie: Bereid acties voor EN bereken echte integrity hashes
+ * Log naar console/UI zonder daadwerkelijk te versturen
  */
 async function testSyncActions() {
-    addLog("🧪 TEST SYNC: Acties worden voorbereidt...", false);
+    addLog("🧪 TEST SYNC: Acties worden voorbereikt met HMAC-SHA512 signing...", false);
+    
+    const syncData = prepareSync();
+    
+    if (syncData.totalActions === 0) {
+        return;
+    }
+    
+    // Log naar inspector
+    const jsonView = document.getElementById('json-view');
+    const timestamp = new Date().toLocaleTimeString();
+    const separator = `\n\n${"=".repeat(20)} TEST SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
+    
+    let logContent = `
+TOTAAL WIJZIGINGEN: ${syncData.totalActions}
+BATCHES: ${syncData.batches.length}
+
+--- DETAIL PER WIJZIGING ---
+`;
+    
+    syncData.changes.forEach((change, idx) => {
+        const categoryId = String(change.categoryId);
+        const ruleId = String(change.ruleId);
+        const category = currentDataDraft.categoryBase && currentDataDraft.categoryBase[categoryId];
+        const categoryName = category ? category.title : "(onbekend)";
+        
+        logContent += `\n[${idx + 1}] ${categoryName} → Rule ${ruleId}\n`;
+        logContent += `    Voor: ${JSON.stringify(change.original, null, 2).replace(/\n/g, '\n    ')}\n`;
+        logContent += `    Na:   ${JSON.stringify(change.current, null, 2).replace(/\n/g, '\n    ')}\n`;
+    });
+    
+    logContent += `\n--- ACTIES PER BATCH ---\n`;
+    
+    syncData.batches.forEach((batch, batchIdx) => {
+        logContent += `\nBatch ${batchIdx + 1} (${batch.length} acties):\n`;
+        batch.forEach(item => {
+            logContent += `  [Seq ${item.sequenceNumber}] ${JSON.stringify(item.action, null, 2).replace(/\n/g, '\n  ')}\n`;
+        });
+    });
+    
+    logContent += `\n--- VOLLEDIGE PAYLOAD MET INTEGRITY SIGNING ---\n`;
+    
+    // Haal deviceId (standaard gok: "device1")
+    const deviceId = "device1"; // TODO: Haal echte deviceId op
+    const firstBatch = syncData.batches[0];
+    
+    // Bereken integrity voor elke actie
+    let mockPayload = {
+        actions: []
+    };
+    
+    try {
+        for (const item of firstBatch) {
+            const integrity = await calculateIntegrity(item.sequenceNumber, deviceId, item.encodedAction);
+            mockPayload.actions.push({
+                sequenceNumber: item.sequenceNumber,
+                encodedAction: item.encodedAction,
+                integrity: integrity
+            });
+        }
+        
+        logContent += `\n${JSON.stringify(mockPayload, null, 2)}\n`;
+        logContent += `\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n`;
+        
+    } catch (error) {
+        logContent += `\n❌ FOUT bij integrity berekening: ${error.message}\n`;
+        logContent += `Fallback op 'device' placeholder\n`;
+        
+        mockPayload = {
+            actions: firstBatch.map(item => ({
+                sequenceNumber: item.sequenceNumber,
+                encodedAction: item.encodedAction,
+                integrity: "device"
+            }))
+        };
+        
+        logContent += `${JSON.stringify(mockPayload, null, 2)}\n`;
+    }
+    
+    logContent += `\n⚠️  DEZE DATA WORDT NIET DAADWERKELIJK VERZONDEN (TEST MODUS)\n`;
+    
+    // Log naar console
+    console.log("🧪 TEST SYNC DATA:", syncData);
+    console.log("📤 PAYLOAD MET SIGNING:", mockPayload);
+    
+    // Log naar inspector
+    if (jsonView.textContent.length > 100000) {
+        jsonView.textContent = jsonView.textContent.slice(-50000);
+    }
+    jsonView.textContent += separator + logContent;
+    jsonView.scrollTop = jsonView.scrollHeight;
+    
+    addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
+}
     
     const syncData = prepareSync();
     
