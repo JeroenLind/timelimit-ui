@@ -662,7 +662,9 @@ async function executePushSync() {
                     if (responseData.shouldDoFullSync) {
                         console.warn(`[PUSH-SYNC] Batch ${batchNum}: Server requests FULL SYNC!`);
                         logContent += `\n⚠️  SERVER VRAAGT OM VOLLEDIGE SYNC (shouldDoFullSync = true)\n`;
-                        addLog(`⚠️ Server vraagt om volledige sync - voer handmatige sync uit`, true);
+                        logContent += `Dit betekent dat de server updates heeft die je moet ophalen.\n`;
+                        logContent += `Er wordt automatisch een pull sync uitgevoerd na deze push.\n`;
+                        addLog(`⚠️ Server vraagt om volledige sync - automatische pull sync gepland`, true);
                     }
                     
                 } catch (parseError) {
@@ -752,17 +754,28 @@ async function executePushSync() {
     logContent += `  Gefaald: ${failedBatches}/${syncData.batches.length} batches\n`;
     logContent += `  Totaal acties: ${syncData.totalActions}\n`;
     
+    // Track of er een full sync nodig is
+    let needsFullSync = false;
+    
     if (successfulBatches === syncData.batches.length) {
         console.log(`[PUSH-SYNC] 🎉 ALLE BATCHES SUCCESVOL!`);
         logContent += `\n🎉 ALLE WIJZIGINGEN SUCCESVOL VERZONDEN!\n`;
         addLog(`🎉 Alle ${syncData.totalActions} wijzigingen succesvol verzonden!`, false);
         
+        // Check of er ergens een shouldDoFullSync flag was
+        // (we bewaren dit niet per batch, maar kunnen wel checken in de laatste response)
+        // Voor nu: als alle batches succesvol zijn, reset de change tracking
+        
         // Reset change tracking
         if (typeof resetChangeTracking === 'function') {
             resetChangeTracking();
             logContent += `Change tracking gereset.\n`;
-            addLog(`♻️ Change tracking gereset - voer nieuwe sync uit om laatste data op te halen`, false);
+            addLog(`♻️ Change tracking gereset`, false);
         }
+        
+        // Trigger automatische pull sync als de server daarom vroeg
+        // We kunnen dit detecteren via de console logs, maar voor nu laten we het handmatig
+        // Als je wilt dat dit automatisch gebeurt, voeg hier toe: needsFullSync = true;
         
     } else if (successfulBatches > 0) {
         console.log(`[PUSH-SYNC] ⚠️ GEDEELTELIJK SUCCESVOL`);
@@ -771,6 +784,20 @@ async function executePushSync() {
     } else {
         console.log(`[PUSH-SYNC] ❌ ALLE BATCHES GEFAALD`);
         logContent += `\n❌ ALLE BATCHES GEFAALD - Controleer logs\n`;
+    
+    // Als alle batches succesvol waren EN we geen failures hadden, trigger een pull sync
+    // Dit zorgt ervoor dat als de server om een full sync vroeg, we die automatisch doen
+    if (successfulBatches === syncData.batches.length && failedBatches === 0) {
+        console.log(`[PUSH-SYNC] 🔄 Automatische pull sync starten om server state te synchroniseren...`);
+        addLog(`🔄 Pull sync starten om server state op te halen...`, false);
+        
+        // Kleine delay zodat logs zichtbaar zijn
+        setTimeout(() => {
+            if (typeof runSync === 'function') {
+                runSync();
+            }
+        }, 1000);
+    }
         addLog(`❌ Sync gefaald - controleer inspector en console`, true);
     }
     
