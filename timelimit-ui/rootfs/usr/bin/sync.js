@@ -182,10 +182,12 @@ function buildUpdateRuleAction(change) {
  */
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING START ===================`);
-    console.log(`[INTEGRITY] Sequence: ${sequenceNumber}`);
-    console.log(`[INTEGRITY] DeviceId: ${deviceId}`);
-    console.log(`[INTEGRITY] EncodedAction: ${encodedAction}`);
-    console.log(`[INTEGRITY] EncodedAction length: ${encodedAction.length} chars`);
+    console.log(`[INTEGRITY] INPUT PARAMETERS:`);
+    console.log(`[INTEGRITY] - sequenceNumber: ${sequenceNumber} (type: ${typeof sequenceNumber})`);
+    console.log(`[INTEGRITY] - deviceId: '${deviceId}' (length: ${deviceId.length}, type: ${typeof deviceId})`);
+    console.log(`[INTEGRITY] - deviceId (hex): ${Array.from(deviceId).map(c => c.charCodeAt(0).toString(16)).join(' ')}`);
+    console.log(`[INTEGRITY] - encodedAction length: ${encodedAction.length} chars`);
+    console.log(`[INTEGRITY] - encodedAction (first 100 chars): ${encodedAction.substring(0, 100)}...`);
     
     console.log(`[INTEGRITY] Verificatie parentPasswordHash:`);
     console.log(`[INTEGRITY] - parentPasswordHash aanwezig:`, !!parentPasswordHash);
@@ -231,14 +233,12 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         
         const result = await response.json();
         const integrityValue = result.integrity; // Should be "password:<base64>"
-        
-        console.log(`[INTEGRITY] ✅ Server-side HMAC-SHA256 succesvol!`);
-        console.log(`[INTEGRITY] Result format: ${integrityValue.substring(0, 50)}...`);
-        console.log(`[INTEGRITY] Has 'password:' prefix: ${integrityValue.startsWith('password:') ? 'YES' : 'NO'}`);
+        : ${integrityValue}`);
         console.log(`[INTEGRITY] Result length: ${integrityValue.length} chars`);
         
         // Extract base64 part for debugging
         const base64Part = integrityValue.substring(9);
+        console.log(`[INTEGRITY] Base64 digest (first 50 chars): ${base64Part.substring(0, 50)}...
         console.log(`[INTEGRITY] Base64 part (first 40 chars): ${base64Part.substring(0, 40)}...`);
         console.log(`[INTEGRITY] Base64 part length: ${base64Part.length} chars`);
         
@@ -521,6 +521,14 @@ async function executePushSync() {
     // Haal deviceId op (gebruik standaard als niet beschikbaar)
     const deviceId = currentDataDraft?.deviceId || "device1";
     console.log(`[PUSH-SYNC] DeviceId: ${deviceId}`);
+    console.log(`[PUSH-SYNC] DeviceId source: ${currentDataDraft?.deviceId ? 'from draft' : 'FALLBACK'}`);
+    
+    if (currentDataDraft?.devices && currentDataDraft.devices.data) {
+        console.log(`[PUSH-SYNC] Available devices in data:`);
+        currentDataDraft.devices.data.forEach((d, idx) => {
+            console.log(`[PUSH-SYNC]   - Device ${idx}: ID='${d.deviceId}', name='${d.name}', model='${d.model}'`);
+        });
+    }
     
     let logContent = `PUSH SYNC NAAR SERVER\n`;
     logContent += `Timestamp: ${timestamp}\n`;
