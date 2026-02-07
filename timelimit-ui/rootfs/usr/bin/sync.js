@@ -453,3 +453,207 @@ BATCHES: ${syncData.batches.length}
 
     addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
 }
+/**
+ * ECHTE SYNC: Verstuurt wijzigingen naar de server via /sync/push-actions
+ * Met uitgebreide logging van alle server responses
+ */
+async function executePushSync() {
+    const jsonView = document.getElementById("json-view");
+    const timestamp = new Date().toLocaleTimeString();
+    const separator = `\n\n${"=".repeat(20)} PUSH SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
+    
+    addLog("🚀 PUSH SYNC starten...", false);
+    console.log("=== PUSH SYNC GESTART ===");
+    
+    // Check TOKEN
+    if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
+        addLog("❌ Geen geldig token beschikbaar!", true);
+        console.error("[PUSH-SYNC] Geen geldig token");
+        return;
+    }
+    
+    // Bereid acties voor
+    const syncData = prepareSync();
+    
+    if (syncData.totalActions === 0) {
+        addLog("ℹ️ Geen wijzigingen om te synchroniseren.", false);
+        console.log("[PUSH-SYNC] Geen wijzigingen gevonden");
+        return;
+    }
+    
+    console.log(`[PUSH-SYNC] ${syncData.totalActions} wijzigingen gevonden in ${syncData.batches.length} batch(es)`);
+    addLog(`📦 ${syncData.totalActions} wijzigingen gevonden...`, false);
+    
+    // Haal deviceId op (gebruik standaard als niet beschikbaar)
+    const deviceId = currentDataDraft?.deviceId || "device1";
+    console.log(`[PUSH-SYNC] DeviceId: ${deviceId}`);
+    
+    let logContent = `PUSH SYNC NAAR SERVER\n`;
+    logContent += `Timestamp: ${timestamp}\n`;
+    logContent += `Token: ${TOKEN.substring(0, 10)}...\n`;
+    logContent += `DeviceId: ${deviceId}\n`;
+    logContent += `Totaal wijzigingen: ${syncData.totalActions}\n`;
+    logContent += `Aantal batches: ${syncData.batches.length}\n\n`;
+    
+    // Process elke batch
+    let successfulBatches = 0;
+    let failedBatches = 0;
+    
+    for (let batchIdx = 0; batchIdx < syncData.batches.length; batchIdx++) {
+        const batch = syncData.batches[batchIdx];
+        const batchNum = batchIdx + 1;
+        
+        console.log(`\n[PUSH-SYNC] ===== BATCH ${batchNum}/${syncData.batches.length} =====`);
+        logContent += `\n--- BATCH ${batchNum}/${syncData.batches.length} (${batch.length} acties) ---\n`;
+        
+        // Bouw de actions array met integrity signing
+        const actions = [];
+        
+        try {
+            addLog(`📤 Batch ${batchNum}: Integrity berekenen voor ${batch.length} acties...`, false);
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Integrity signing starten...`);
+            
+            for (const item of batch) {
+                const integrity = await calculateIntegrity(item.sequenceNumber, deviceId, item.encodedAction);
+                
+                actions.push({
+                    sequenceNumber: item.sequenceNumber,
+                    encodedAction: item.encodedAction,
+                    integrity: integrity
+                });
+                
+                console.log(`  [Seq ${item.sequenceNumber}] Action: ${item.action.type}, Integrity: ${integrity.substring(0, 20)}...`);
+            }
+            
+            logContent += `Acties met signing:\n${JSON.stringify(actions, null, 2)}\n\n`;
+            
+        } catch (integrityError) {
+            console.error(`[PUSH-SYNC] Batch ${batchNum}: Integrity error:`, integrityError);
+            logContent += `❌ FOUT bij integrity berekening: ${integrityError.message}\n`;
+            addLog(`❌ Batch ${batchNum}: Integrity fout - ${integrityError.message}`, true);
+            failedBatches++;
+            continue;
+        }
+        
+        // Bouw de payload
+        const payload = {
+            deviceAuthToken: TOKEN,
+            actions: actions
+        };
+        
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Verzenden naar /sync/push-actions...`);
+        logContent += `>>> REQUEST PAYLOAD:\n${JSON.stringify(payload, null, 2)}\n\n`;
+        
+        addLog(`📡 Batch ${batchNum}: Verzenden naar server...`, false);
+        
+        // Verstuur naar server
+        try {
+            const response = await fetch('sync/push-actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const responseStatus = response.status;
+            const responseText = await response.text();
+            
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Server response status: ${responseStatus}`);
+            logContent += `<<< SERVER RESPONSE:\n`;
+            logContent += `Status: ${responseStatus} ${response.statusText}\n`;
+            logContent += `Headers:\n`;
+            response.headers.forEach((value, key) => {
+                logContent += `  ${key}: ${value}\n`;
+            });
+            logContent += `\nBody:\n${responseText}\n\n`;
+            
+            if (response.ok) {
+                // Parse response
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                    console.log(`[PUSH-SYNC] Batch ${batchNum}: Parsed response:`, responseData);
+                    logContent += `Parsed JSON:\n${JSON.stringify(responseData, null, 2)}\n`;
+                    
+                    // Check for shouldDoFullSync flag
+                    if (responseData.shouldDoFullSync) {
+                        console.warn(`[PUSH-SYNC] Batch ${batchNum}: Server requests FULL SYNC!`);
+                        logContent += `\n⚠️  SERVER VRAAGT OM VOLLEDIGE SYNC (shouldDoFullSync = true)\n`;
+                        addLog(`⚠️ Server vraagt om volledige sync - voer handmatige sync uit`, true);
+                    }
+                    
+                } catch (parseError) {
+                    console.warn(`[PUSH-SYNC] Batch ${batchNum}: Response is geen JSON:`, responseText);
+                    logContent += `(Response is geen JSON)\n`;
+                }
+                
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ SUCCESVOL`);
+                logContent += `✅ BATCH ${batchNum} SUCCESVOL VERWERKT\n`;
+                addLog(`✅ Batch ${batchNum}: Succesvol verzonden!`, false);
+                successfulBatches++;
+                
+            } else {
+                // Error response
+                console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ FOUT ${responseStatus}`);
+                logContent += `❌ BATCH ${batchNum} GEFAALD (Status ${responseStatus})\n`;
+                
+                if (responseStatus === 401) {
+                    addLog(`❌ Batch ${batchNum}: Authenticatie fout - Token niet geldig`, true);
+                } else if (responseStatus === 400) {
+                    addLog(`❌ Batch ${batchNum}: Ongeldige data - ${responseText.substring(0, 100)}`, true);
+                } else {
+                    addLog(`❌ Batch ${batchNum}: Server fout ${responseStatus}`, true);
+                }
+                
+                failedBatches++;
+            }
+            
+        } catch (networkError) {
+            console.error(`[PUSH-SYNC] Batch ${batchNum}: Netwerk fout:`, networkError);
+            logContent += `❌ NETWERK FOUT: ${networkError.message}\n`;
+            addLog(`❌ Batch ${batchNum}: Netwerk fout - ${networkError.message}`, true);
+            failedBatches++;
+        }
+    }
+    
+    // Samenvatting
+    console.log(`\n[PUSH-SYNC] ===== SAMENVATTING =====`);
+    console.log(`  Succesvol: ${successfulBatches}/${syncData.batches.length}`);
+    console.log(`  Gefaald: ${failedBatches}/${syncData.batches.length}`);
+    
+    logContent += `\n========================================\n`;
+    logContent += `SAMENVATTING:\n`;
+    logContent += `  Succesvol: ${successfulBatches}/${syncData.batches.length} batches\n`;
+    logContent += `  Gefaald: ${failedBatches}/${syncData.batches.length} batches\n`;
+    logContent += `  Totaal acties: ${syncData.totalActions}\n`;
+    
+    if (successfulBatches === syncData.batches.length) {
+        console.log(`[PUSH-SYNC] 🎉 ALLE BATCHES SUCCESVOL!`);
+        logContent += `\n🎉 ALLE WIJZIGINGEN SUCCESVOL VERZONDEN!\n`;
+        addLog(`🎉 Alle ${syncData.totalActions} wijzigingen succesvol verzonden!`, false);
+        
+        // Reset change tracking
+        if (typeof resetChangeTracking === 'function') {
+            resetChangeTracking();
+            logContent += `Change tracking gereset.\n`;
+            addLog(`♻️ Change tracking gereset - voer nieuwe sync uit om laatste data op te halen`, false);
+        }
+        
+    } else if (successfulBatches > 0) {
+        console.log(`[PUSH-SYNC] ⚠️ GEDEELTELIJK SUCCESVOL`);
+        logContent += `\n⚠️ GEDEELTELIJK SUCCESVOL - Sommige batches gefaald\n`;
+        addLog(`⚠️ ${successfulBatches}/${syncData.batches.length} batches succesvol`, true);
+    } else {
+        console.log(`[PUSH-SYNC] ❌ ALLE BATCHES GEFAALD`);
+        logContent += `\n❌ ALLE BATCHES GEFAALD - Controleer logs\n`;
+        addLog(`❌ Sync gefaald - controleer inspector en console`, true);
+    }
+    
+    // Log naar inspector
+    if (jsonView.textContent.length > 100000) {
+        jsonView.textContent = jsonView.textContent.slice(-50000);
+    }
+    jsonView.textContent += separator + logContent;
+    jsonView.scrollTop = jsonView.scrollHeight;
+    
+    console.log(`[PUSH-SYNC] ===== EINDE =====\n`);
+}

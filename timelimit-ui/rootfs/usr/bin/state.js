@@ -154,6 +154,17 @@ function loadParentPasswordHashFromStorage() {
 }
 
 /**
+ * Reset de change tracking na succesvolle sync
+ * Dit maakt de changedRules Map leeg zodat nieuwe wijzigingen kunnen worden getrackt
+ */
+function resetChangeTracking() {
+    const previousSize = changedRules.size;
+    changedRules.clear();
+    console.log(`♻️ [STATE] Change tracking gereset (${previousSize} wijzigingen verwijderd)`);
+    addLog(`♻️ Change tracking gereset - ${previousSize} wijzigingen verwerkt`, false);
+}
+
+/**
  * Zoekt en update de regel in het werkgeheugen
  */
 function updateRuleInDraft(categoryId, ruleId, newValues) {

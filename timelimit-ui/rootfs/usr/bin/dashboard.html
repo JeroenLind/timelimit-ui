@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v67 - Session Manager</title>
-    <link rel="stylesheet" href="style.css?v=67">
+    <title>TimeLimit UI v68 - Session Manager</title>
+    <link rel="stylesheet" href="style.css?v=68">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v67</strong>
+        <strong>TimeLimit UI v68</strong>
         <div>
             <button class="btn btn-wizard" style="background: #673ab7;" onclick="startCreateFlow()">🆕 Nieuwe Familie</button>
             <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
@@ -73,9 +73,10 @@
                     <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                     <span style="font-size: 14px;">Auto-sync (30s)</span>
                 </label>
-                <button class="btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="runSync()">Manual Sync Nu</button>
+                <button class="btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="runSync()">⬇️ Pull Sync (Server → UI)</button>
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="showChangesSummary()">📝 Wijzigingen Weergeven</button>
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #2d5a2d; border-color: #4a8a4a; margin-bottom: 10px;" onclick="testSyncActions()">🧪 Test Sync (Log Acties)</button>
+                <button class="btn" style="width: 100%; font-size: 12px; background: #d9534f; border-color: #d43f3a; font-weight: bold; margin-bottom: 10px;" onclick="executePushSync()">🚀 Push Sync (UI → Server)</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #6f4c4e; border-color: #8b6b6d;" onclick="showPasswordResetModal()">🔐 Wachtwoord Hashes Bijwerken</button>
             </div>
         </div>
@@ -168,11 +169,11 @@
         </div>
     </div>
 
-    <script src="state.js?v=67"></script>
-    <script src="ui.js?v=67"></script>
-    <script src="wizard.js?v=67"></script>
-    <script src="sync.js?v=67"></script>
-    <script src="tree.js?v=67"></script> 
+    <script src="state.js?v=68"></script>
+    <script src="ui.js?v=68"></script>
+    <script src="wizard.js?v=68"></script>
+    <script src="sync.js?v=68"></script>
+    <script src="tree.js?v=68"></script> 
     
     <script>
         // De switchServer en window.onload functies die je al had staan hieronder...

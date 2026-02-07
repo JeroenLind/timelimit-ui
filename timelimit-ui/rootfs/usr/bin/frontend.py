@@ -76,6 +76,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/wizard-step3': '/parent/create-family',
             '/wizard-login': '/parent/sign-in-into-family',
             '/sync': '/sync/pull-status',
+            '/sync/push-actions': '/sync/push-actions',
             '/generate-hashes': 'INTERNAL',
             '/calculate-hmac': 'INTERNAL'
         }
