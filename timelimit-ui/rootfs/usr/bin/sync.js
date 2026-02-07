@@ -362,8 +362,12 @@ BATCHES: ${syncData.batches.length}
     if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
         const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
         if (parentUser) {
-            parentUserId = parentUser.userId;
-            console.log("[TEST] Parent userId gevonden:", parentUserId);
+            // Probeer zowel 'id' als 'userId' velden
+            parentUserId = parentUser.id || parentUser.userId;
+            console.log("[TEST] Parent user object:", parentUser);
+            console.log("[TEST] Parent.id:", parentUser.id);
+            console.log("[TEST] Parent.userId:", parentUser.userId);
+            console.log("[TEST] Parent userId gebruikt:", parentUserId);
         } else {
             console.warn("[TEST] Geen parent user gevonden!");
         }
@@ -474,7 +478,8 @@ async function executePushSync() {
         if (currentDataDraft.users.data) {
             console.log("[PUSH-SYNC] - Aantal users:", currentDataDraft.users.data.length);
             currentDataDraft.users.data.forEach((u, idx) => {
-                console.log(`[PUSH-SYNC] - User ${idx}: type='${u.type}', userId='${u.userId}', name='${u.name}'`);
+                console.log(`[PUSH-SYNC] - User ${idx}:`, u);
+                console.log(`[PUSH-SYNC] - User ${idx}: type='${u.type}', id='${u.id}', userId='${u.userId}', name='${u.name}'`);
             });
         } else {
             console.warn("[PUSH-SYNC] - currentDataDraft.users.data is UNDEFINED!");
@@ -525,9 +530,12 @@ async function executePushSync() {
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Users beschikbaar, zoeken naar parent...`);
             const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
             if (parentUser) {
-                parentUserId = parentUser.userId;
+                // Probeer zowel 'id' als 'userId' velden
+                parentUserId = parentUser.id || parentUser.userId;
                 console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent gevonden:`, parentUser);
-                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent userId: ${parentUserId}`);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent id field: ${parentUser.id}`);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent userId field: ${parentUser.userId}`);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent userId gebruikt: ${parentUserId}`);
                 console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent naam: ${parentUser.name}`);
             } else {
                 console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ Geen user met type='parent' gevonden!`);
