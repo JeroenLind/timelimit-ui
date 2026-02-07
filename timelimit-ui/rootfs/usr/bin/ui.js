@@ -184,37 +184,77 @@ async function submitPasswordReset() {
     if (statusDiv) statusDiv.textContent = "⏳ Wachtwoord verwerken...";
     
     try {
-        // STAP 1: Genereer hashes
-        const hRes = await fetch('generate-hashes', {
-            method: 'POST',
-            body: JSON.stringify({ password: password })
-        });
+        // Check of we een secondPasswordSalt hebben uit de sync data
+        let secondSalt = null;
+        let secondHash = null;
         
-        if (!hRes.ok) {
-            throw new Error("Fout bij hash generatie");
+        if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
+            const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+            if (parentUser && parentUser.secondPasswordSalt) {
+                secondSalt = parentUser.secondPasswordSalt;
+                console.log("[PASSWORD-RESET] secondPasswordSalt gevonden in sync data:", secondSalt);
+            }
         }
         
-        const hashes = await hRes.json();
+        if (secondSalt) {
+            // SCENARIO 1: We hebben de salt van de server, regenereer de exacte hash
+            if (statusDiv) statusDiv.textContent = "⏳ Hash regenereren met server salt...";
+            
+            const regenRes = await fetch('regenerate-hash', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    password: password,
+                    secondSalt: secondSalt
+                })
+            });
+            
+            if (!regenRes.ok) {
+                throw new Error("Hash regeneratie gefaald");
+            }
+            
+            const regenData = await regenRes.json();
+            secondHash = regenData.secondHash;
+            
+            console.log("[PASSWORD-RESET] secondHash geregenereerd (first 30 chars):", secondHash.substring(0, 30) + "...");
+            
+        } else {
+            // SCENARIO 2: Geen salt beschikbaar, genereer nieuwe hashes (alleen bij create)
+            if (statusDiv) statusDiv.textContent = "⏳ Nieuwe hashes genereren...";
+            
+            const hRes = await fetch('generate-hashes', {
+                method: 'POST',
+                body: JSON.stringify({ password: password })
+            });
+            
+            if (!hRes.ok) {
+                throw new Error("Fout bij hash generatie");
+            }
+            
+            const hashes = await hRes.json();
+            secondHash = hashes.secondHash.replace('$2b$', '$2a$');
+            secondSalt = hashes.secondSalt || "$2a$12$1234567890123456789012";
+            
+            console.log("[PASSWORD-RESET] Nieuwe hashes gegenereerd");
+        }
         
-        // STAP 2: Maak schoon en valideer
-        let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-        const validDummySalt = "$2a$12$1234567890123456789012";
-        const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
+        // Converteer salt naar base64 voor HMAC (legacy - secundaire verificatie)
+        const base64Salt = bcryptSaltToBase64(secondSalt);
         
-        // STAP 3: Sla op in state.js
+        // Sla op in state.js - GEBRUIK DE BCRYPT HASH ALS KEY!
         if (typeof storeparentPasswordHashForSync === 'function') {
             storeparentPasswordHashForSync({
-                hash: cleanHash,
-                secondHash: cleanHash,
-                secondSalt: finalSalt
+                hash: secondHash, // Gebruik secondHash als primary hash
+                secondHash: secondHash,
+                secondSalt: base64Salt || secondSalt
             });
             
             if (statusDiv) {
-                statusDiv.innerHTML = "✅ Hashes succesvol bijgewerkt!<br><span style='font-size:11px;'>Je kunt nu opnieuw synced en het signing zal werken.</span>";
+                statusDiv.innerHTML = "✅ Hashes succesvol bijgewerkt!<br><span style='font-size:11px;'>secondHash: " + secondHash.substring(0, 30) + "...</span>";
                 statusDiv.style.color = '#4ade80';
             }
             
-            addLog("✅ Wachtwoord hashes bijgewerkt!");
+            addLog("✅ Wachtwoord hashes bijgewerkt met server secondHash!");
             
             // Sluit modal na 2 seconden
             setTimeout(() => {

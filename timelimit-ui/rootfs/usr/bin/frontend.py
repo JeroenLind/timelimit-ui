@@ -78,6 +78,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/sync': '/sync/pull-status',
             '/sync/push-actions': '/sync/push-actions',
             '/generate-hashes': 'INTERNAL',
+            '/regenerate-hash': 'INTERNAL',
             '/calculate-hmac': 'INTERNAL',
             '/calculate-hmac-sha256': 'INTERNAL'
         }
@@ -91,6 +92,24 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 res = generate_family_hashes(data['password'])
                 self._send_raw(200, json.dumps(res).encode(), "application/json")
             except Exception as e:
+                self._send_raw(400, str(e).encode(), "text/plain")
+            return
+        
+        # Nieuwe endpoint: regenereer secondHash met bestaande salt
+        if self.path.endswith('/regenerate-hash'):
+            sys.stderr.write("[DEBUG] secondHash regeneratie gestart\n")
+            from crypto_utils import regenerate_second_hash
+            try:
+                data = json.loads(post_data)
+                password = data['password']
+                second_salt = data['secondSalt']
+                
+                second_hash = regenerate_second_hash(password, second_salt)
+                sys.stderr.write(f"[DEBUG] secondHash succesvol geregenereerd (first 30 chars): {second_hash[:30]}...\n")
+                
+                self._send_raw(200, json.dumps({"secondHash": second_hash}).encode(), "application/json")
+            except Exception as e:
+                sys.stderr.write(f"[ERROR] Hash regeneratie fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         

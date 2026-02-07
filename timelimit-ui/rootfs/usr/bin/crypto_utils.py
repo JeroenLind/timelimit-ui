@@ -21,6 +21,26 @@ def generate_family_hashes(password):
         "secondSalt": salt2.decode('utf-8')
     }
 
+def regenerate_second_hash(password, second_salt):
+    """
+    Regenereert de secondHash met een bestaande salt.
+    Dit is nodig omdat de server alleen de salt terugstuurt, niet de hash zelf.
+    
+    Args:
+        password: Het plaintext wachtwoord
+        second_salt: De bcrypt salt string (bijv. "$2a$10$...")
+    
+    Returns:
+        De bcrypt hash string
+    """
+    password_bytes = password.encode('utf-8')
+    salt_bytes = second_salt.encode('utf-8')
+    
+    # Gebruik de bestaande salt om dezelfde hash te regenereren
+    hash_result = bcrypt.hashpw(password_bytes, salt_bytes)
+    
+    return hash_result.decode('utf-8')
+
 def calculate_hmac_sha512(key_base64, message):
     """
     Berekent HMAC-SHA512 voor sync action signing.
