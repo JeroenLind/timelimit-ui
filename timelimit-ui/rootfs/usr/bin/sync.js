@@ -181,7 +181,15 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         
         // Decode secondSalt van base64
         const secondSalt = parentPasswordHash.secondSalt;
-        const saltBytes = Uint8Array.from(atob(secondSalt), c => c.charCodeAt(0));
+        
+        let saltBytes;
+        try {
+            saltBytes = Uint8Array.from(atob(secondSalt), c => c.charCodeAt(0));
+        } catch (decodeError) {
+            console.error("[INTEGRITY] DECODE ERROR - secondSalt is geen geldige base64:", secondSalt.substring(0, 30) + "...");
+            console.error("[INTEGRITY] atob() failed:", decodeError.message);
+            return "device"; // Fallback
+        }
         
         // Bouw message: sequenceNumber|deviceId|encodedAction
         const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
@@ -204,11 +212,12 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         const binaryString = String.fromCharCode(...hashBytes);
         const base64Hash = btoa(binaryString);
         
-        console.log(`[INTEGRITY] HMAC-SHA512 berekend voor seq ${sequenceNumber}`);
+        console.log(`✅ [INTEGRITY] HMAC-SHA512 succesvol berekend voor seq ${sequenceNumber}`);
         return base64Hash;
         
     } catch (error) {
-        console.error("[INTEGRITY] Fout bij HMAC-SHA512 berekening:", error);
+        console.error("[INTEGRITY] Fout bij HMAC-SHA512 berekening:", error.message);
+        console.error("[INTEGRITY] FALLBACK op 'device'");
         return "device"; // Fallback
     }
 }
