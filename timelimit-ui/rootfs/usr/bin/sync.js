@@ -279,6 +279,16 @@ async function testSyncActions() {
     const timestamp = new Date().toLocaleTimeString();
     const separator = `\n\n${"=".repeat(20)} TEST SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
 
+    // ✅ DIAGNOSTISCHE INFO: parentPasswordHash status
+    console.log("=== INTEGRITY SETUP DEBUG ===");
+    console.log("parentPasswordHash beschikbaar?", !!parentPasswordHash);
+    if (parentPasswordHash) {
+        console.log("  - hash:", parentPasswordHash.hash ? parentPasswordHash.hash.substring(0, 20) + "..." : "❌ MISSING");
+        console.log("  - secondHash:", parentPasswordHash.secondHash ? parentPasswordHash.secondHash.substring(0, 20) + "..." : "❌ MISSING");
+        console.log("  - secondSalt:", parentPasswordHash.secondSalt ? parentPasswordHash.secondSalt.substring(0, 20) + "..." : "❌ MISSING");
+    }
+    console.log("===========================\n");
+
     let logContent = `
 TOTAAL WIJZIGINGEN: ${syncData.totalActions}
 BATCHES: ${syncData.batches.length}
@@ -308,6 +318,10 @@ BATCHES: ${syncData.batches.length}
 
     logContent += "\n--- VOLLEDIGE PAYLOAD MET INTEGRITY SIGNING ---\n";
 
+    if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
+        logContent += "\n⚠️  Geen parentPasswordHash.secondSalt beschikbaar; fallback op 'device'\n";
+    }
+
     // Haal deviceId (standaard gok: "device1")
     const deviceId = "device1"; // TODO: Haal echte deviceId op
     const firstBatch = syncData.batches[0];
@@ -316,10 +330,14 @@ BATCHES: ${syncData.batches.length}
     const mockPayload = {
         actions: []
     };
+    let usedFallback = false;
 
     try {
         for (const item of firstBatch) {
             const integrity = await calculateIntegrity(item.sequenceNumber, deviceId, item.encodedAction);
+            if (integrity === "device") {
+                usedFallback = true;
+            }
             mockPayload.actions.push({
                 sequenceNumber: item.sequenceNumber,
                 encodedAction: item.encodedAction,
@@ -328,7 +346,11 @@ BATCHES: ${syncData.batches.length}
         }
 
         logContent += `\n${JSON.stringify(mockPayload, null, 2)}\n`;
-        logContent += "\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n";
+        if (usedFallback) {
+            logContent += "\n⚠️  INTEGRITY HASHING: fallback gebruikt (integrity = 'device')\n";
+        } else {
+            logContent += "\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n";
+        }
     } catch (error) {
         logContent += `\n❌ FOUT bij integrity berekening: ${error.message}\n`;
         logContent += "Fallback op 'device' placeholder\n";

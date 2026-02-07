@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v61 - Session Manager</title>
-    <link rel="stylesheet" href="style.css">
+    <title>TimeLimit UI v63 - Session Manager</title>
+    <link rel="stylesheet" href="style.css?v=63">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v61</strong>
+        <strong>TimeLimit UI v63</strong>
         <div>
             <button class="btn btn-wizard" style="background: #673ab7;" onclick="startCreateFlow()">🆕 Nieuwe Familie</button>
             <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
@@ -75,7 +75,8 @@
                 </label>
                 <button class="btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="runSync()">Manual Sync Nu</button>
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="showChangesSummary()">📝 Wijzigingen Weergeven</button>
-                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #2d5a2d; border-color: #4a8a4a;" onclick="testSyncActions()">🧪 Test Sync (Log Acties)</button>
+                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #2d5a2d; border-color: #4a8a4a; margin-bottom: 10px;" onclick="testSyncActions()">🧪 Test Sync (Log Acties)</button>
+                <button class="btn" style="width: 100%; font-size: 12px; background: #6f4c4e; border-color: #8b6b6d;" onclick="showPasswordResetModal()">🔐 Wachtwoord Hashes Bijwerken</button>
             </div>
         </div>
 
@@ -101,6 +102,19 @@
                     <button class="btn" style="background:#333; flex:1;" onclick="resetLoginModal()">Terug</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="password-reset-modal" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #8b6b6d; width:95%; max-width:450px;">
+            <h3 style="margin-top:0; color:#c9a89b;">🔐 Wachtwoord Hashes Bijwerken</h3>
+            <p style="color:#aaa; font-size:13px; margin-bottom:20px;">Voer je wachtwoord in om de signing hashes op te slagen voor sync.</p>
+            <input type="password" id="password-reset-input" placeholder="Voer je wachtwoord in..." style="width:100%; padding:10px; margin-bottom:15px; background:#050505; border:1px solid #333; border-radius:4px; color:#fff;">
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="flex:1; background:#6f4c4e;" onclick="submitPasswordReset()">Bijwerken</button>
+                <button class="btn" style="background:#333; flex:1;" onclick="hidePasswordResetModal()">Annuleren</button>
+            </div>
+            <div id="password-reset-status" style="margin-top:15px; font-size:12px; color:#aaa;"></div>
         </div>
     </div>
 
@@ -154,11 +168,11 @@
         </div>
     </div>
 
-    <script src="state.js"></script>
-    <script src="ui.js"></script>
-    <script src="wizard.js"></script>
-    <script src="sync.js?v=61"></script>
-    <script src="tree.js"></script> 
+    <script src="state.js?v=63"></script>
+    <script src="ui.js?v=63"></script>
+    <script src="wizard.js?v=63"></script>
+    <script src="sync.js?v=63"></script>
+    <script src="tree.js?v=63"></script> 
     
     <script>
         // De switchServer en window.onload functies die je al had staan hieronder...

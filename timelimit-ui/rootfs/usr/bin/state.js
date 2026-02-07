@@ -29,6 +29,23 @@ function initializeDraft(data) {
 }
 
 /**
+ * Stelt de parentPasswordHash in (gebruikt bij login om wachtwoord hashes opgeslagen)
+ * Deze informatie is essentieel voor het HMAC-SHA512 signing van sync actions.
+ * 
+ * @param {Object} hashObject - { hash, secondHash, secondSalt }
+ */
+function storeparentPasswordHashForSync(hashObject) {
+    if (hashObject && hashObject.secondSalt) {
+        parentPasswordHash = hashObject;
+        console.log("✅ [STATE] Parent password hashes opgeslagen voor sync signing.");
+        console.log("   - hash:", hashObject.hash ? hashObject.hash.substring(0, 10) + "..." : "N/A");
+        console.log("   - secondSalt:", hashObject.secondSalt.substring(0, 10) + "...");
+    } else {
+        console.warn("[STATE] Ongeldige hash object, niet opgeslagen.");
+    }
+}
+
+/**
  * Zoekt en update de regel in het werkgeheugen
  */
 function updateRuleInDraft(categoryId, ruleId, newValues) {

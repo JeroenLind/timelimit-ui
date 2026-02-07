@@ -141,3 +141,93 @@ function updateChangeIndicator() {
         }
     }
 }
+
+/**
+ * Toont de modal voor wachtwoord reset/bijwerken
+ */
+function showPasswordResetModal() {
+    const modal = document.getElementById('password-reset-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('password-reset-input');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        const status = document.getElementById('password-reset-status');
+        if (status) status.textContent = '';
+    }
+}
+
+/**
+ * Verbergt de modal voor wachtwoord reset
+ */
+function hidePasswordResetModal() {
+    const modal = document.getElementById('password-reset-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Verwerkt het wachtwoord: genereert hashes en slaat ze op
+ */
+async function submitPasswordReset() {
+    const password = document.getElementById('password-reset-input').value;
+    const statusDiv = document.getElementById('password-reset-status');
+    
+    if (!password) {
+        if (statusDiv) statusDiv.textContent = "❌ Voer een wachtwoord in.";
+        return;
+    }
+    
+    if (statusDiv) statusDiv.textContent = "⏳ Wachtwoord verwerken...";
+    
+    try {
+        // STAP 1: Genereer hashes
+        const hRes = await fetch('generate-hashes', {
+            method: 'POST',
+            body: JSON.stringify({ password: password })
+        });
+        
+        if (!hRes.ok) {
+            throw new Error("Fout bij hash generatie");
+        }
+        
+        const hashes = await hRes.json();
+        
+        // STAP 2: Maak schoon en valideer
+        let cleanHash = hashes.hash.replace('$2b$', '$2a$');
+        const validDummySalt = "$2a$12$1234567890123456789012";
+        const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
+        
+        // STAP 3: Sla op in state.js
+        if (typeof storeparentPasswordHashForSync === 'function') {
+            storeparentPasswordHashForSync({
+                hash: cleanHash,
+                secondHash: cleanHash,
+                secondSalt: finalSalt
+            });
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = "✅ Hashes succesvol bijgewerkt!<br><span style='font-size:11px;'>Je kunt nu opnieuw synced en het signing zal werken.</span>";
+                statusDiv.style.color = '#4ade80';
+            }
+            
+            addLog("✅ Wachtwoord hashes bijgewerkt!");
+            
+            // Sluit modal na 2 seconden
+            setTimeout(() => {
+                hidePasswordResetModal();
+            }, 2000);
+        } else {
+            throw new Error("State functie niet beschikbaar");
+        }
+    } catch (e) {
+        if (statusDiv) {
+            statusDiv.textContent = "❌ Fout: " + e.message;
+            statusDiv.style.color = '#ff4444';
+        }
+        addLog("Fout bij wachtwoord bijwerken: " + e.message, true);
+    }
+}

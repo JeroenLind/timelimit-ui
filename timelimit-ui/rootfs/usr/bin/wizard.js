@@ -166,26 +166,61 @@ async function runStep3() {
 /**
  * Specifieke functie voor het inloggen op een bestaande familie (Sign-In).
  * Wordt aangeroepen in Stap 3 als de gebruiker op "Inloggen" klikt.
+ * BELANGRIJK: Het wachtwoord WORDT gebruikt om de parentPasswordHash te genereren,
+ * die nodig is voor het signen van sync actions.
  */
 async function runSignInStep3() {
-    // Opmerking: password wordt hier niet gebruikt voor de API call 
-    // omdat het schema dit niet toestaat. 
-    addLog("Stap 3: Inloggen bij bestaande familie...");
+    const password = document.getElementById('pass').value;
+    if (!password) {
+        addLog("Voer je wachtwoord in.", true);
+        return;
+    }
+
+    addLog("Stap 3: Wachtwoord verwerken en inloggen...");
 
     try {
-        // We sturen ALLEEN wat het schema toestaat
+        // STAP 1: Genereer de hashes van het wachtwoord (voor signing later)
+        addLog("Stap 3a: Wachtwoord hashing...");
+        const hRes = await fetch('generate-hashes', { 
+            method: 'POST', 
+            body: JSON.stringify({ password: password }) 
+        });
+        const hashes = await hRes.json();
+        
+        // Zorg voor schone bcrypt hash zonder het 2b prefix
+        let cleanHash = hashes.hash.replace('$2b$', '$2a$');
+        const validDummySalt = "$2a$12$1234567890123456789012";
+        const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
+
+        // STAP 2: Sla de hashes op in state.js (globaal beschikbaar voor signing)
+        if (typeof storeparentPasswordHashForSync === 'function') {
+            storeparentPasswordHashForSync({
+                hash: cleanHash,
+                secondHash: cleanHash,
+                secondSalt: finalSalt
+            });
+            addLog("✅ Wachtwoord hashes opgeslagen voor sync signing.");
+        } else {
+            console.warn("storeparentPasswordHashForSync niet beschikbaar, proberen direct in state.js");
+            window.parentPasswordHash = {
+                hash: cleanHash,
+                secondHash: cleanHash,
+                secondSalt: finalSalt
+            };
+        }
+
+        // STAP 3: Login payload verzenden naar server
+        addLog("Stap 3b: Inloggen bij server...");
         const payload = {
             mailAuthToken: wizardSession.mailAuthToken,
             parentDevice: { 
                 model: "WebDashboard-v60-Modular" 
-                // Zorg dat NewDeviceInfo definitie overeenkomt (meestal alleen model)
             },
             deviceName: "DashboardControl"
-            // Optioneel: clientLevel: 8 (als nummer, niet als string)
         };
 
         const inspector = document.getElementById('json-view');
-        inspector.textContent = ">>> VERZONDEN PAYLOAD (CLEAN SIGN-IN):\n" + JSON.stringify(payload, null, 2);
+        inspector.textContent = ">>> VERZONDEN PAYLOAD (SIGN-IN):\n" + JSON.stringify(payload, null, 2);
 
         const res = await fetch('wizard-login', { 
             method: 'POST', 
@@ -201,7 +236,7 @@ async function runSignInStep3() {
             TOKEN = data.deviceAuthToken;
             localStorage.setItem('timelimit_token', TOKEN);
             updateTokenDisplay();
-            addLog("🎉 Succesvol ingelogd!");
+            addLog("🎉 Succesvol ingelogd! Wachtwoord hashes opgeslagen.");
             showStep(0);
             runSync();
         } else {
