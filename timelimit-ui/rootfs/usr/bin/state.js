@@ -31,48 +31,59 @@ function initializeDraft(data) {
 /**
  * Converteert een bcrypt salt naar base64 voor HMAC signing
  * Bcrypt format: $2a$12$1234567890123456789012
- * We extraheren de salt deel (22 chars) en converteren naar base64
+ * We decoderen het bcrypt-base64 naar raw bytes, dan naar standaard base64
  */
 function bcryptSaltToBase64(bcryptSalt) {
     // Extract de salt: na $2a$12$ (8 chars) volgen 22 chars salt
     const saltMatch = bcryptSalt.match(/\$2[aby]\$\d{2}\$(.{22})/);
     if (!saltMatch) {
-        console.warn("[CRYPTO] Ongeldige bcrypt salt:", bcryptSalt);
+        console.warn("[CRYPTO] Ongeldige bcrypt salt format:", bcryptSalt);
         return null;
     }
     
     const saltChars = saltMatch[1]; // 22 karakter bcrypt-base64
+    console.log("[CRYPTO] Bcrypt salt gevonden (22 chars):", saltChars);
     
-    // Bcrypt gebruikt een aangepaste base64 alphabet, we moeten dit converteren
-    // Bcrypt alphabet: ./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
-    // Standaard base64: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
-    
-    // Maak conversie tabel
+    // Bcrypt alphabet (aanvullend base64)
     const bcryptAlpha = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const standardAlpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     
-    let converted = "";
+    // Decode bcrypt-base64 naar bytes
+    let bits = 0;
+    let bitCount = 0;
+    const bytes = [];
+    
     for (let i = 0; i < saltChars.length; i++) {
         const idx = bcryptAlpha.indexOf(saltChars[i]);
-        if (idx >= 0 && idx < standardAlpha.length) {
-            converted += standardAlpha[idx];
-        } else {
-            converted += saltChars[i];
+        if (idx === -1) {
+            console.warn("[CRYPTO] Ongeldig karakter in bcrypt salt:", saltChars[i]);
+            return null;
+        }
+        
+        bits = (bits << 6) | idx;
+        bitCount += 6;
+        
+        while (bitCount >= 8) {
+            bitCount -= 8;
+            bytes.push((bits >> bitCount) & 0xFF);
         }
     }
     
-    // Voeg padding toe als nodig (base64 moet veelvoud van 4 zijn)
-    while (converted.length % 4 !== 0) {
-        converted += "=";
-    }
+    console.log("[CRYPTO] Gedecodeerde bytes:", bytes.length, "bytes");
     
-    console.log("[CRYPTO] Bcrypt salt naar base64 geconverteerd");
-    return converted;
+    // Zet bytes om naar standaard base64
+    const binaryString = String.fromCharCode(...bytes);
+    const base64 = btoa(binaryString);
+    
+    console.log("[CRYPTO] Bcrypt salt succesvol geconverteerd naar base64");
+    console.log("[CRYPTO] Base64 result (first 30 chars):", base64.substring(0, 30) + "...");
+    
+    return base64;
 }
 
 /**
  * Stelt de parentPasswordHash in (gebruikt bij login om wachtwoord hashes opgeslagen)
  * Deze informatie is essentieel voor het HMAC-SHA512 signing van sync actions.
+ * BELANGRIJK: Wordt opgeslagen in localStorage zodat het persistent blijft.
  * 
  * @param {Object} hashObject - { hash, secondHash, secondSalt }
  */
@@ -91,6 +102,9 @@ function storeparentPasswordHashForSync(hashObject) {
         const converted = bcryptSaltToBase64(base64Salt);
         if (converted) {
             base64Salt = converted;
+        } else {
+            console.error("[STATE] Bcrypt conversie gefaald, niet opgeslagen!");
+            return;
         }
     }
     
@@ -100,9 +114,43 @@ function storeparentPasswordHashForSync(hashObject) {
         secondSalt: base64Salt
     };
     
-    console.log("✅ [STATE] Parent password hashes opgeslagen voor sync signing.");
-    console.log("   - hash:", hashObject.hash ? hashObject.hash.substring(0, 10) + "..." : "N/A");
-    console.log("   - secondSalt (base64):", base64Salt.substring(0, 20) + "...");
+    // CRUCIAAL: Sla op in localStorage zodat het na refresh/update beschikbaar blijft
+    try {
+        const toStore = {
+            hash: parentPasswordHash.hash,
+            secondHash: parentPasswordHash.secondHash,
+            secondSalt: parentPasswordHash.secondSalt
+        };
+        localStorage.setItem('timelimit_parentPasswordHash', JSON.stringify(toStore));
+        console.log("✅ [STATE] Parent password hashes opgeslagen ZOWEL in RAM als localStorage.");
+        console.log("   - hash:", parentPasswordHash.hash ? parentPasswordHash.hash.substring(0, 10) + "..." : "N/A");
+        console.log("   - secondSalt (base64):", base64Salt.substring(0, 30) + "...");
+    } catch (e) {
+        console.error("[STATE] Kon niet in localStorage opslaan:", e.message);
+    }
+}
+
+/**
+ * Laadt de parentPasswordHash uit localStorage (wordt aangeroepen bij pagina-load)
+ */
+function loadParentPasswordHashFromStorage() {
+    try {
+        const stored = localStorage.getItem('timelimit_parentPasswordHash');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.secondSalt) {
+                parentPasswordHash = parsed;
+                console.log("✅ [STATE] Parent password hashes HERSTELD uit localStorage.");
+                console.log("   - hash:", parsed.hash ? parsed.hash.substring(0, 10) + "..." : "N/A");
+                console.log("   - secondSalt (base64):", parsed.secondSalt.substring(0, 30) + "...");
+                return true;
+            }
+        }
+    } catch (e) {
+        console.error("[STATE] Kon niet uit localStorage laden:", e.message);
+    }
+    console.log("[STATE] Geen opgeslagen parentPasswordHash gevonden.");
+    return false;
 }
 
 /**

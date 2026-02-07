@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v64 - Session Manager</title>
-    <link rel="stylesheet" href="style.css?v=64">
+    <title>TimeLimit UI v65 - Session Manager</title>
+    <link rel="stylesheet" href="style.css?v=65">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v64</strong>
+        <strong>TimeLimit UI v65</strong>
         <div>
             <button class="btn btn-wizard" style="background: #673ab7;" onclick="startCreateFlow()">🆕 Nieuwe Familie</button>
             <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
@@ -168,11 +168,11 @@
         </div>
     </div>
 
-    <script src="state.js?v=64"></script>
-    <script src="ui.js?v=64"></script>
-    <script src="wizard.js?v=64"></script>
-    <script src="sync.js?v=64"></script>
-    <script src="tree.js?v=64"></script> 
+    <script src="state.js?v=65"></script>
+    <script src="ui.js?v=65"></script>
+    <script src="wizard.js?v=65"></script>
+    <script src="sync.js?v=65"></script>
+    <script src="tree.js?v=65"></script> 
     
     <script>
         // De switchServer en window.onload functies die je al had staan hieronder...
@@ -199,6 +199,11 @@
         }
 
         window.onload = async () => { // Maak hier async van
+            // 0. Laad opgeslagen wachtwoord hashes (essentieel voor HMAC signing)
+            if (typeof loadParentPasswordHashFromStorage === 'function') {
+                loadParentPasswordHashFromStorage();
+            }
+            
             // 1. Herstel de dropdown selectie uit localStorage
             const savedServer = localStorage.getItem('selected_timelimit_server');
             const selector = document.getElementById('server-select');

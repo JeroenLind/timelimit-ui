@@ -173,29 +173,46 @@ function buildUpdateRuleAction(change) {
  */
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     try {
+        // Check crypto API beschikbaarheid
+        if (!window.crypto || !window.crypto.subtle) {
+            console.error("[INTEGRITY] WebCrypto API niet beschikbaar!");
+            return "device";
+        }
+        
         // Check of we parentPasswordHash hebben
-        if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
-            console.warn("[INTEGRITY] Geen parentPasswordHash beschikbaar, fallback op 'device'");
+        if (!parentPasswordHash) {
+            console.warn("[INTEGRITY] parentPasswordHash is null/undefined, fallback op 'device'");
+            return "device";
+        }
+        
+        if (!parentPasswordHash.secondSalt) {
+            console.warn("[INTEGRITY] parentPasswordHash.secondSalt is null/undefined, fallback op 'device'");
+            console.log("[INTEGRITY] parentPasswordHash beschikbare velden:", Object.keys(parentPasswordHash));
             return "device";
         }
         
         // Decode secondSalt van base64
         const secondSalt = parentPasswordHash.secondSalt;
+        console.log("[INTEGRITY] secondSalt ontvangen (eerste 30 chars):", secondSalt.substring(0, 30) + "...");
         
         let saltBytes;
         try {
             saltBytes = Uint8Array.from(atob(secondSalt), c => c.charCodeAt(0));
+            console.log("[INTEGRITY] secondSalt decodeert naar", saltBytes.length, "bytes");
         } catch (decodeError) {
-            console.error("[INTEGRITY] DECODE ERROR - secondSalt is geen geldige base64:", secondSalt.substring(0, 30) + "...");
-            console.error("[INTEGRITY] atob() failed:", decodeError.message);
-            return "device"; // Fallback
+            console.error("[INTEGRITY] ❌ Base64 decode fout - secondSalt is geen geldige base64!");
+            console.error("[INTEGRITY] secondSalt waarde:", secondSalt.substring(0, 50));
+            console.error("[INTEGRITY] Decode error:", decodeError.message);
+            return "device";
         }
         
         // Bouw message: sequenceNumber|deviceId|encodedAction
         const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
         const messageBytes = new TextEncoder().encode(message);
+        console.log("[INTEGRITY] Message gebouwd:", message.length, "bytes");
         
         // Importeer de key (HMAC with SHA-512)
+        console.log("[INTEGRITY] Key importeren als HMAC-SHA512...");
         const key = await crypto.subtle.importKey(
             "raw",
             saltBytes,
@@ -203,9 +220,12 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
             false,
             ["sign"]
         );
+        console.log("[INTEGRITY] Key succesvol geïmporteerd");
         
         // Bereken HMAC-SHA512
+        console.log("[INTEGRITY] HMAC-SHA512 signing...");
         const hashBuffer = await crypto.subtle.sign("HMAC", key, messageBytes);
+        console.log("[INTEGRITY] Signing compleet, hash =", hashBuffer.byteLength, "bytes");
         
         // Encode naar base64
         const hashBytes = new Uint8Array(hashBuffer);
@@ -213,12 +233,16 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         const base64Hash = btoa(binaryString);
         
         console.log(`✅ [INTEGRITY] HMAC-SHA512 succesvol berekend voor seq ${sequenceNumber}`);
+        console.log(`   Hash (eerste 30 chars): ${base64Hash.substring(0, 30)}...`);
         return base64Hash;
         
     } catch (error) {
-        console.error("[INTEGRITY] Fout bij HMAC-SHA512 berekening:", error.message);
+        console.error("[INTEGRITY] ❌ FOUT bij HMAC-SHA512 berekening:");
+        console.error("  - Error type:", error.constructor.name);
+        console.error("  - Message:", error.message);
+        console.error("  - Stack:", error.stack);
         console.error("[INTEGRITY] FALLBACK op 'device'");
-        return "device"; // Fallback
+        return "device";
     }
 }
 
