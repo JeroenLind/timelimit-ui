@@ -179,13 +179,12 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         console.log("[INTEGRITY] Crypto check - self.crypto:", !!self.crypto);
         
         const cryptoObj = window.crypto || self.crypto || crypto;
+        const hasSubtle = cryptoObj && cryptoObj.subtle;
         
-        if (!cryptoObj || !cryptoObj.subtle) {
-            console.error("[INTEGRITY] WebCrypto API niet beschikbaar!");
-            console.error("[INTEGRITY] window.crypto =", window.crypto);
-            console.error("[INTEGRITY] Protocol =", window.location.protocol);
-            console.error("[INTEGRITY] Is secure context?", window.isSecureContext);
-            return "device";
+        if (!hasSubtle) {
+            console.warn("[INTEGRITY] WebCrypto API niet beschikbaar - gebruik server fallback");
+            console.log("[INTEGRITY] Protocol =", window.location.protocol);
+            console.log("[INTEGRITY] Is secure context?", window.isSecureContext);
         }
         
         // Check of we parentPasswordHash hebben
@@ -200,9 +199,42 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
             return "device";
         }
         
-        // Decode secondSalt van base64
         const secondSalt = parentPasswordHash.secondSalt;
         console.log("[INTEGRITY] secondSalt ontvangen (eerste 30 chars):", secondSalt.substring(0, 30) + "...");
+        
+        // NIEUWE LOGICA: Als crypto.subtle niet beschikbaar is, gebruik server-side berekening
+        if (!hasSubtle) {
+            console.log("[INTEGRITY] 🔄 Server-side HMAC berekening aanroepen...");
+            
+            const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
+            
+            try {
+                const response = await fetch('calculate-hmac', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        key: secondSalt,
+                        message: message
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log(`✅ [INTEGRITY] Server-side HMAC-SHA512 succesvol voor seq ${sequenceNumber}`);
+                console.log(`   Hash (eerste 30 chars): ${result.hash.substring(0, 30)}...`);
+                return result.hash;
+                
+            } catch (serverError) {
+                console.error("[INTEGRITY] Server-side HMAC fout:", serverError.message);
+                return "device";
+            }
+        }
+        
+        // ORIGINELE LOGICA: Browser-side WebCrypto (alleen bij HTTPS/secure context)
+        console.log("[INTEGRITY] ✨ Client-side WebCrypto HMAC berekening...");
         
         let saltBytes;
         try {
@@ -241,7 +273,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         const binaryString = String.fromCharCode(...hashBytes);
         const base64Hash = btoa(binaryString);
         
-        console.log(`✅ [INTEGRITY] HMAC-SHA512 succesvol berekend voor seq ${sequenceNumber}`);
+        console.log(`✅ [INTEGRITY] Client-side HMAC-SHA512 succesvol voor seq ${sequenceNumber}`);
         console.log(`   Hash (eerste 30 chars): ${base64Hash.substring(0, 30)}...`);
         return base64Hash;
         

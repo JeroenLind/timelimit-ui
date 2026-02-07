@@ -76,7 +76,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/wizard-step3': '/parent/create-family',
             '/wizard-login': '/parent/sign-in-into-family',
             '/sync': '/sync/pull-status',
-            '/generate-hashes': 'INTERNAL'
+            '/generate-hashes': 'INTERNAL',
+            '/calculate-hmac': 'INTERNAL'
         }
         
         # Speciale afhandeling voor interne hashing
@@ -88,6 +89,24 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 res = generate_family_hashes(data['password'])
                 self._send_raw(200, json.dumps(res).encode(), "application/json")
             except Exception as e:
+                self._send_raw(400, str(e).encode(), "text/plain")
+            return
+        
+        # Speciale afhandeling voor HMAC-SHA512 berekening (fallback voor non-secure contexts)
+        if self.path.endswith('/calculate-hmac'):
+            sys.stderr.write("[DEBUG] Server-side HMAC-SHA512 berekening gestart\n")
+            from crypto_utils import calculate_hmac_sha512
+            try:
+                data = json.loads(post_data)
+                key_base64 = data['key']
+                message = data['message']
+                
+                result = calculate_hmac_sha512(key_base64, message)
+                sys.stderr.write(f"[DEBUG] HMAC berekend: {result[:30]}...\n")
+                
+                self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
+            except Exception as e:
+                sys.stderr.write(f"[ERROR] HMAC fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
 
