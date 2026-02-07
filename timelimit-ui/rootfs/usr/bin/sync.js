@@ -172,116 +172,66 @@ function buildUpdateRuleAction(change) {
  * @returns {string} Base64-encoded HMAC hash of "device" fallback
  */
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
+    console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING START ===================`);
+    console.log(`[INTEGRITY] Sequence: ${sequenceNumber}`);
+    console.log(`[INTEGRITY] DeviceId: ${deviceId}`);
+    console.log(`[INTEGRITY] EncodedAction length: ${encodedAction.length} chars`);
+    
+    console.log(`[INTEGRITY] Verificatie parentPasswordHash:`);
+    console.log(`[INTEGRITY] - parentPasswordHash aanwezig:`, !!parentPasswordHash);
+    console.log(`[INTEGRITY] - parentPasswordHash.secondHash aanwezig:`, !!(parentPasswordHash && parentPasswordHash.secondHash));
+    
+    if (!parentPasswordHash || !parentPasswordHash.secondHash) {
+        console.error("[INTEGRITY] ❌ FOUT: Geen secondHash beschikbaar!");
+        console.error(`[INTEGRITY] parentPasswordHash:`, parentPasswordHash);
+        console.warn("[INTEGRITY] Fallback naar 'device'");
+        return "device";
+    }
+    
+    const secondHash = parentPasswordHash.secondHash; // Dit is de bcrypt hash string
+    
+    console.log(`[INTEGRITY] ✅ secondHash gevonden:`);
+    console.log(`[INTEGRITY] - Type: ${typeof secondHash}`);
+    console.log(`[INTEGRITY] - Length: ${secondHash.length} chars`);
+    console.log(`[INTEGRITY] - First 40 chars: ${secondHash.substring(0, 40)}...`);
+    console.log(`[INTEGRITY] - Is bcrypt format: ${secondHash.match(/^\$2[aby]\$/) ? 'YES' : 'NO'}`);
+    console.log(`[INTEGRITY] encodedAction (first 100 chars): ${encodedAction.substring(0, 100)}...`);
+    
+    // Gebruik ALTIJD server-side omdat we binary format moeten gebruiken
+    console.log("[INTEGRITY] 🔄 Server-side HMAC-SHA256 (binary format) berekening aanroepen...");
+    
     try {
-        // Check crypto API beschikbaarheid
-        console.log("[INTEGRITY] Crypto check - window.crypto:", !!window.crypto);
-        console.log("[INTEGRITY] Crypto check - crypto.subtle:", !!(window.crypto && window.crypto.subtle));
-        console.log("[INTEGRITY] Crypto check - self.crypto:", !!self.crypto);
+        const response = await fetch('calculate-hmac-sha256', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                secondHash: secondHash,
+                sequenceNumber: sequenceNumber,
+                deviceId: deviceId,
+                encodedAction: encodedAction
+            })
+        });
         
-        const cryptoObj = window.crypto || self.crypto || crypto;
-        const hasSubtle = cryptoObj && cryptoObj.subtle;
-        
-        if (!hasSubtle) {
-            console.warn("[INTEGRITY] WebCrypto API niet beschikbaar - gebruik server fallback");
-            console.log("[INTEGRITY] Protocol =", window.location.protocol);
-            console.log("[INTEGRITY] Is secure context?", window.isSecureContext);
-        }
-        
-        // Check of we parentPasswordHash hebben
-        if (!parentPasswordHash) {
-            console.warn("[INTEGRITY] parentPasswordHash is null/undefined, fallback op 'device'");
+        if (!response.ok) {
+            console.error(`[INTEGRITY] ❌ Server error: ${response.status}`);
+            const errorText = await response.text();
+            console.error(`[INTEGRITY] Error response: ${errorText.substring(0, 200)}`);
             return "device";
         }
         
-        if (!parentPasswordHash.secondSalt) {
-            console.warn("[INTEGRITY] parentPasswordHash.secondSalt is null/undefined, fallback op 'device'");
-            console.log("[INTEGRITY] parentPasswordHash beschikbare velden:", Object.keys(parentPasswordHash));
-            return "device";
-        }
+        const result = await response.json();
+        const integrityValue = result.integrity; // Should be "password:<base64>"
         
-        const secondSalt = parentPasswordHash.secondSalt;
-        console.log("[INTEGRITY] secondSalt ontvangen (eerste 30 chars):", secondSalt.substring(0, 30) + "...");
-        
-        // NIEUWE LOGICA: Als crypto.subtle niet beschikbaar is, gebruik server-side berekening
-        if (!hasSubtle) {
-            console.log("[INTEGRITY] 🔄 Server-side HMAC berekening aanroepen...");
-            
-            const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
-            
-            try {
-                const response = await fetch('calculate-hmac', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: secondSalt,
-                        message: message
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log(`✅ [INTEGRITY] Server-side HMAC-SHA512 succesvol voor seq ${sequenceNumber}`);
-                console.log(`   Hash (eerste 30 chars): ${result.hash.substring(0, 30)}...`);
-                return result.hash;
-                
-            } catch (serverError) {
-                console.error("[INTEGRITY] Server-side HMAC fout:", serverError.message);
-                return "device";
-            }
-        }
-        
-        // ORIGINELE LOGICA: Browser-side WebCrypto (alleen bij HTTPS/secure context)
-        console.log("[INTEGRITY] ✨ Client-side WebCrypto HMAC berekening...");
-        
-        let saltBytes;
-        try {
-            saltBytes = Uint8Array.from(atob(secondSalt), c => c.charCodeAt(0));
-            console.log("[INTEGRITY] secondSalt decodeert naar", saltBytes.length, "bytes");
-        } catch (decodeError) {
-            console.error("[INTEGRITY] ❌ Base64 decode fout - secondSalt is geen geldige base64!");
-            console.error("[INTEGRITY] secondSalt waarde:", secondSalt.substring(0, 50));
-            console.error("[INTEGRITY] Decode error:", decodeError.message);
-            return "device";
-        }
-        
-        // Bouw message: sequenceNumber|deviceId|encodedAction
-        const message = `${sequenceNumber}|${deviceId}|${encodedAction}`;
-        const messageBytes = new TextEncoder().encode(message);
-        console.log("[INTEGRITY] Message gebouwd:", message.length, "bytes");
-        
-        // Importeer de key (HMAC with SHA-512)
-        console.log("[INTEGRITY] Key importeren als HMAC-SHA512...");
-        const key = await cryptoObj.subtle.importKey(
-            "raw",
-            saltBytes,
-            { name: "HMAC", hash: "SHA-512" },
-            false,
-            ["sign"]
-        );
-        console.log("[INTEGRITY] Key succesvol geïmporteerd");
-        
-        // Bereken HMAC-SHA512
-        console.log("[INTEGRITY] HMAC-SHA512 signing...");
-        const hashBuffer = await cryptoObj.subtle.sign("HMAC", key, messageBytes);
-        console.log("[INTEGRITY] Signing compleet, hash =", hashBuffer.byteLength, "bytes");
-        
-        // Encode naar base64
-        const hashBytes = new Uint8Array(hashBuffer);
-        const binaryString = String.fromCharCode(...hashBytes);
-        const base64Hash = btoa(binaryString);
-        
-        console.log(`✅ [INTEGRITY] Client-side HMAC-SHA512 succesvol voor seq ${sequenceNumber}`);
-        console.log(`   Hash (eerste 30 chars): ${base64Hash.substring(0, 30)}...`);
-        return base64Hash;
+        console.log(`[INTEGRITY] ✅ Server-side HMAC-SHA256 succesvol!`);
+        console.log(`[INTEGRITY] Result format: ${integrityValue.substring(0, 50)}...`);
+        console.log(`[INTEGRITY] Has 'password:' prefix: ${integrityValue.startsWith('password:') ? 'YES' : 'NO'}`);
+        console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING COMPLEET ===================`);
+        return integrityValue;
         
     } catch (error) {
-        console.error("[INTEGRITY] ❌ FOUT bij HMAC-SHA512 berekening:");
+        console.error("[INTEGRITY] ❌ FOUT bij server-side HMAC-SHA256:");
         console.error("  - Error type:", error.constructor.name);
         console.error("  - Message:", error.message);
-        console.error("  - Stack:", error.stack);
         console.error("[INTEGRITY] FALLBACK op 'device'");
         return "device";
     }
@@ -354,12 +304,15 @@ async function testSyncActions() {
     const separator = `\n\n${"=".repeat(20)} TEST SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
 
     // ✅ DIAGNOSTISCHE INFO: parentPasswordHash status
-    console.log("=== INTEGRITY SETUP DEBUG ===");
+    console.log("=== INTEGRITY SETUP DEBUG (TEST MODE) ===");
     console.log("parentPasswordHash beschikbaar?", !!parentPasswordHash);
     if (parentPasswordHash) {
         console.log("  - hash:", parentPasswordHash.hash ? parentPasswordHash.hash.substring(0, 20) + "..." : "❌ MISSING");
         console.log("  - secondHash:", parentPasswordHash.secondHash ? parentPasswordHash.secondHash.substring(0, 20) + "..." : "❌ MISSING");
         console.log("  - secondSalt:", parentPasswordHash.secondSalt ? parentPasswordHash.secondSalt.substring(0, 20) + "..." : "❌ MISSING");
+        console.log("  - secondHash is bcrypt?", parentPasswordHash.secondHash ? (parentPasswordHash.secondHash.match(/^\$2[aby]\$/) ? 'YES' : 'NO') : 'N/A');
+    } else {
+        console.error("❌ parentPasswordHash is NULL/UNDEFINED - gebruik 'Wachtwoord Hashes Bijwerken' eerst!");
     }
     console.log("===========================\n");
 
@@ -392,16 +345,40 @@ BATCHES: ${syncData.batches.length}
 
     logContent += "\n--- VOLLEDIGE PAYLOAD MET INTEGRITY SIGNING ---\n";
 
-    if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
-        logContent += "\n⚠️  Geen parentPasswordHash.secondSalt beschikbaar; fallback op 'device'\n";
+    if (!parentPasswordHash || !parentPasswordHash.secondHash) {
+        logContent += "\n⚠️  Geen parentPasswordHash.secondHash beschikbaar; fallback op 'device'\n";
+        console.warn("[TEST] Geen secondHash beschikbaar voor integrity signing!");
+    } else {
+        logContent += "\n✅ parentPasswordHash.secondHash beschikbaar voor integrity signing\n";
+        console.log("[TEST] secondHash aanwezig, integrity signing zal worden uitgevoerd");
     }
 
-    // Haal deviceId (standaard gok: "device1")
-    const deviceId = "device1"; // TODO: Haal echte deviceId op
+    // Haal deviceId op uit draft (of gebruik standaard)
+    const deviceId = currentDataDraft?.deviceId || "device1";
+    console.log("[TEST] DeviceId:", deviceId);
+    
+    // Bepaal parent userId (net als in echte push sync)
+    let parentUserId = null;
+    if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
+        const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+        if (parentUser) {
+            parentUserId = parentUser.userId;
+            console.log("[TEST] Parent userId gevonden:", parentUserId);
+        } else {
+            console.warn("[TEST] Geen parent user gevonden!");
+        }
+    }
+    
+    if (!parentUserId) {
+        logContent += "\n⚠️  Geen parent userId gevonden - kan geen volledige payload testen!\n";
+        parentUserId = "UNKNOWN_PARENT_ID";
+    }
+    
     const firstBatch = syncData.batches[0];
 
     // Bereken integrity voor elke actie
     const mockPayload = {
+        deviceAuthToken: TOKEN ? TOKEN.substring(0, 20) + "..." : "MISSING_TOKEN",
         actions: []
     };
     let usedFallback = false;
@@ -415,7 +392,9 @@ BATCHES: ${syncData.batches.length}
             mockPayload.actions.push({
                 sequenceNumber: item.sequenceNumber,
                 encodedAction: item.encodedAction,
-                integrity: integrity
+                integrity: integrity,
+                type: "parent",           // UPDATE_TIMELIMIT_RULE is parent action
+                userId: parentUserId      // Parent die de actie uitvoert
             });
         }
 
@@ -423,7 +402,7 @@ BATCHES: ${syncData.batches.length}
         if (usedFallback) {
             logContent += "\n⚠️  INTEGRITY HASHING: fallback gebruikt (integrity = 'device')\n";
         } else {
-            logContent += "\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n";
+            logContent += "\n✅ INTEGRITY HASHING: HMAC-SHA256 (binary format) succesvol berekend met 'password:' prefix\n";
         }
     } catch (error) {
         logContent += `\n❌ FOUT bij integrity berekening: ${error.message}\n`;
@@ -432,7 +411,9 @@ BATCHES: ${syncData.batches.length}
         mockPayload.actions = firstBatch.map(item => ({
             sequenceNumber: item.sequenceNumber,
             encodedAction: item.encodedAction,
-            integrity: "device"
+            integrity: "device",
+            type: "parent",
+            userId: parentUserId
         }));
 
         logContent += `${JSON.stringify(mockPayload, null, 2)}\n`;
@@ -481,6 +462,27 @@ async function executePushSync() {
     
     console.log("[PUSH-SYNC] Token check: OK");
     console.log("[PUSH-SYNC] parentPasswordHash check: OK");
+    console.log("[PUSH-SYNC] ============ VERIFICATIE PARENT DATA ============");
+    console.log("[PUSH-SYNC] parentPasswordHash object:", parentPasswordHash);
+    console.log("[PUSH-SYNC] - hash aanwezig:", !!parentPasswordHash.hash);
+    console.log("[PUSH-SYNC] - secondHash aanwezig:", !!parentPasswordHash.secondHash);
+    console.log("[PUSH-SYNC] - secondHash (first 30 chars):", parentPasswordHash.secondHash ? parentPasswordHash.secondHash.substring(0, 30) + "..." : "N/A");
+    console.log("[PUSH-SYNC] - secondSalt aanwezig:", !!parentPasswordHash.secondSalt);
+    
+    if (currentDataDraft && currentDataDraft.users) {
+        console.log("[PUSH-SYNC] currentDataDraft.users:", currentDataDraft.users);
+        if (currentDataDraft.users.data) {
+            console.log("[PUSH-SYNC] - Aantal users:", currentDataDraft.users.data.length);
+            currentDataDraft.users.data.forEach((u, idx) => {
+                console.log(`[PUSH-SYNC] - User ${idx}: type='${u.type}', userId='${u.userId}', name='${u.name}'`);
+            });
+        } else {
+            console.warn("[PUSH-SYNC] - currentDataDraft.users.data is UNDEFINED!");
+        }
+    } else {
+        console.warn("[PUSH-SYNC] currentDataDraft.users is UNDEFINED!");
+    }
+    console.log("[PUSH-SYNC] =====================================================");
     
     // Bereid acties voor
     const syncData = prepareSync();
@@ -516,6 +518,36 @@ async function executePushSync() {
         console.log(`\n[PUSH-SYNC] ===== BATCH ${batchNum}/${syncData.batches.length} =====`);
         logContent += `\n--- BATCH ${batchNum}/${syncData.batches.length} (${batch.length} acties) ---\n`;
         
+        // Bepaal parent userId
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Parent userId detectie...`);
+        let parentUserId = null;
+        if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Users beschikbaar, zoeken naar parent...`);
+            const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+            if (parentUser) {
+                parentUserId = parentUser.userId;
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent gevonden:`, parentUser);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent userId: ${parentUserId}`);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent naam: ${parentUser.name}`);
+            } else {
+                console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ Geen user met type='parent' gevonden!`);
+                console.log(`[PUSH-SYNC] Batch ${batchNum}: Alle users:`, currentDataDraft.users.data);
+            }
+        } else {
+            console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ currentDataDraft.users.data niet beschikbaar!`);
+        }
+        
+        if (!parentUserId) {
+            console.error(`[PUSH-SYNC] Batch ${batchNum}: Geen parent userId gevonden!`);
+            logContent += `❌ FOUT: Geen parent userId beschikbaar\n`;
+            addLog(`❌ Batch ${batchNum}: Geen parent userId gevonden`, true);
+            failedBatches++;
+            continue;
+        }
+        
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Ga verder met parentUserId: ${parentUserId}`);
+        logContent += `Parent userId: ${parentUserId}\n`;
+        
         // Bouw de actions array met integrity signing
         const actions = [];
         
@@ -529,10 +561,12 @@ async function executePushSync() {
                 actions.push({
                     sequenceNumber: item.sequenceNumber,
                     encodedAction: item.encodedAction,
-                    integrity: integrity
+                    integrity: integrity,
+                    type: "parent",           // UPDATE_TIMELIMIT_RULE is een parent action
+                    userId: parentUserId      // De parent die de actie uitvoert
                 });
                 
-                console.log(`  [Seq ${item.sequenceNumber}] Action: ${item.action.type}, Integrity: ${integrity.substring(0, 20)}...`);
+                console.log(`  [Seq ${item.sequenceNumber}] Action: ${item.action.type}, Integrity: ${integrity.substring(0, 30)}...`);
             }
             
             logContent += `Acties met signing:\n${JSON.stringify(actions, null, 2)}\n\n`;
@@ -545,7 +579,7 @@ async function executePushSync() {
             continue;
         }
         
-        // Bouw de payload
+        // Bouw de payload - CORRECT FORMAAT ZONDER version/clientLevel
         const payload = {
             deviceAuthToken: TOKEN,
             actions: actions
@@ -560,18 +594,22 @@ async function executePushSync() {
         // Valideer de payload voordat we versturen
         const payloadString = JSON.stringify(payload);
         console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload size: ${payloadString.length} bytes`);
-        console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload preview (first 200 chars):`, payloadString.substring(0, 200));
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload preview (first 300 chars):`, payloadString.substring(0, 300));
         
         logContent += `>>> REQUEST PAYLOAD:\n${JSON.stringify(payload, null, 2)}\n\n`;
         logContent += `Payload stats:\n`;
         logContent += `  - Total size: ${payloadString.length} bytes\n`;
-        logContent += `  - Actions: ${actions.length}\n\n`;
+        logContent += `  - Actions: ${actions.length}\n`;
+        logContent += `  - Parent userId: ${parentUserId}\n\n`;
         
         addLog(`📡 Batch ${batchNum}: Verzenden naar server (${payloadString.length} bytes)...`, false);
         
         // Verstuur naar server
         try {
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Fetching sync/push-actions...`);
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Checking URL resolution...`);
+            console.log(`  - Current location: ${window.location.href}`);
+            console.log(`  - Resolved URL will be: ${new URL('sync/push-actions', window.location.href).href}`);
             
             const response = await fetch('sync/push-actions', {
                 method: 'POST',

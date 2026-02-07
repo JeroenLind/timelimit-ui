@@ -44,3 +44,56 @@ def calculate_hmac_sha512(key_base64, message):
         return base64.b64encode(hmac_obj.digest()).decode('utf-8')
     except Exception as e:
         raise ValueError(f"HMAC calculation failed: {str(e)}")
+
+def calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encoded_action):
+    """
+    Berekent HMAC-SHA256 voor sync action signing in CORRECT server formaat.
+    
+    Server verwacht: "password:" + base64(HMAC-SHA256(key=secondHash, message=binary_format))
+    
+    Binary format:
+      - sequenceNumber (8 bytes, big-endian long)
+      - deviceId_length (4 bytes, big-endian int)
+      - deviceId_bytes
+      - encodedAction_length (4 bytes, big-endian int)
+      - encodedAction_bytes
+    
+    Args:
+        second_hash: BCrypt hash string (bijvoorbeeld $2a$12$...)
+        sequence_number: Integer sequence number
+        device_id: String device ID
+        encoded_action: JSON string van de action
+    
+    Returns:
+        String in formaat "password:<base64_hmac>"
+    """
+    try:
+        import struct
+        
+        # secondHash (bcrypt string) wordt als UTF-8 bytes gebruikt als key
+        key_bytes = second_hash.encode('utf-8')
+        
+        # Bouw binary message:
+        # 1. sequenceNumber als 8-byte big-endian (long/int64)
+        seq_bytes = struct.pack('>Q', sequence_number)  # >Q = big-endian unsigned long long
+        
+        # 2. deviceId length + bytes
+        device_id_bytes = device_id.encode('utf-8')
+        device_id_len = struct.pack('>I', len(device_id_bytes))  # >I = big-endian unsigned int
+        
+        # 3. encodedAction length + bytes
+        encoded_action_bytes = encoded_action.encode('utf-8')
+        encoded_action_len = struct.pack('>I', len(encoded_action_bytes))
+        
+        # Combineer alle delen
+        message = seq_bytes + device_id_len + device_id_bytes + encoded_action_len + encoded_action_bytes
+        
+        # Bereken HMAC-SHA256 (niet SHA512!)
+        hmac_obj = hmac.new(key_bytes, message, hashlib.sha256)
+        
+        # Return met "password:" prefix
+        hash_base64 = base64.b64encode(hmac_obj.digest()).decode('utf-8')
+        return f"password:{hash_base64}"
+        
+    except Exception as e:
+        raise ValueError(f"HMAC-SHA256 binary calculation failed: {str(e)}")

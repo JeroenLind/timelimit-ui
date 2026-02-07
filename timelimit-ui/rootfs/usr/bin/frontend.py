@@ -78,7 +78,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/sync': '/sync/pull-status',
             '/sync/push-actions': '/sync/push-actions',
             '/generate-hashes': 'INTERNAL',
-            '/calculate-hmac': 'INTERNAL'
+            '/calculate-hmac': 'INTERNAL',
+            '/calculate-hmac-sha256': 'INTERNAL'
         }
         
         # Speciale afhandeling voor interne hashing
@@ -110,16 +111,43 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 sys.stderr.write(f"[ERROR] HMAC fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
+        
+        # NIEUWE afhandeling voor HMAC-SHA256 met binary format (CORRECT server formaat)
+        if self.path.endswith('/calculate-hmac-sha256'):
+            sys.stderr.write("[DEBUG] Server-side HMAC-SHA256 (binary format) berekening gestart\n")
+            from crypto_utils import calculate_hmac_sha256_binary
+            try:
+                data = json.loads(post_data)
+                second_hash = data['secondHash']
+                sequence_number = data['sequenceNumber']
+                device_id = data['deviceId']
+                encoded_action = data['encodedAction']
+                
+                result = calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encoded_action)
+                sys.stderr.write(f"[DEBUG] HMAC-SHA256 berekend: {result[:50]}...\n")
+                
+                self._send_raw(200, json.dumps({"integrity": result}).encode(), "application/json")
+            except Exception as e:
+                sys.stderr.write(f"[ERROR] HMAC-SHA256 fout: {str(e)}\n")
+                self._send_raw(400, str(e).encode(), "text/plain")
+            return
 
         # Bepaal het doelpad op de externe API
         # We gebruiken ook hier endswith voor de routering om robuust te blijven tegenover proxy-prefixen
-        target_path = '/sync/pull-status'
+        target_path = '/sync/pull-status'  # Standaard
+        matched_route = None
+        
         for ui_route, api_route in routes.items():
             if self.path.endswith(ui_route):
                 target_path = api_route
+                matched_route = ui_route
                 break
 
-        sys.stderr.write(f"[DEBUG] Proxying naar TimeLimit API pad: {target_path}\n")
+        sys.stderr.write(f"[DEBUG] === ROUTE MATCHING ===\n")
+        sys.stderr.write(f"[DEBUG] Incoming path: {self.path}\n")
+        sys.stderr.write(f"[DEBUG] Matched UI route: {matched_route}\n")
+        sys.stderr.write(f"[DEBUG] Target API path: {target_path}\n")
+        sys.stderr.write(f"[DEBUG] Final URL: {SELECTED_SERVER}{target_path}\n")
         sys.stderr.write(f"[DEBUG] POST data size: {content_length} bytes\n")
         
         # Log de eerste 500 bytes van de payload voor debugging (niet het hele wachtwoord!)
