@@ -174,8 +174,17 @@ function buildUpdateRuleAction(change) {
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     try {
         // Check crypto API beschikbaarheid
-        if (!window.crypto || !window.crypto.subtle) {
+        console.log("[INTEGRITY] Crypto check - window.crypto:", !!window.crypto);
+        console.log("[INTEGRITY] Crypto check - crypto.subtle:", !!(window.crypto && window.crypto.subtle));
+        console.log("[INTEGRITY] Crypto check - self.crypto:", !!self.crypto);
+        
+        const cryptoObj = window.crypto || self.crypto || crypto;
+        
+        if (!cryptoObj || !cryptoObj.subtle) {
             console.error("[INTEGRITY] WebCrypto API niet beschikbaar!");
+            console.error("[INTEGRITY] window.crypto =", window.crypto);
+            console.error("[INTEGRITY] Protocol =", window.location.protocol);
+            console.error("[INTEGRITY] Is secure context?", window.isSecureContext);
             return "device";
         }
         
@@ -213,7 +222,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         
         // Importeer de key (HMAC with SHA-512)
         console.log("[INTEGRITY] Key importeren als HMAC-SHA512...");
-        const key = await crypto.subtle.importKey(
+        const key = await cryptoObj.subtle.importKey(
             "raw",
             saltBytes,
             { name: "HMAC", hash: "SHA-512" },
@@ -224,7 +233,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         
         // Bereken HMAC-SHA512
         console.log("[INTEGRITY] HMAC-SHA512 signing...");
-        const hashBuffer = await crypto.subtle.sign("HMAC", key, messageBytes);
+        const hashBuffer = await cryptoObj.subtle.sign("HMAC", key, messageBytes);
         console.log("[INTEGRITY] Signing compleet, hash =", hashBuffer.byteLength, "bytes");
         
         // Encode naar base64
