@@ -266,57 +266,57 @@ function prepareSync() {
  * Log naar console/UI zonder daadwerkelijk te versturen
  */
 async function testSyncActions() {
-    addLog("🧪 TEST SYNC: Acties worden voorbereikt met HMAC-SHA512 signing...", false);
-    
+    addLog("🧪 TEST SYNC: Acties worden voorbereid met HMAC-SHA512 signing...", false);
+
     const syncData = prepareSync();
-    
+
     if (syncData.totalActions === 0) {
         return;
     }
-    
+
     // Log naar inspector
-    const jsonView = document.getElementById('json-view');
+    const jsonView = document.getElementById("json-view");
     const timestamp = new Date().toLocaleTimeString();
     const separator = `\n\n${"=".repeat(20)} TEST SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
-    
+
     let logContent = `
 TOTAAL WIJZIGINGEN: ${syncData.totalActions}
 BATCHES: ${syncData.batches.length}
 
 --- DETAIL PER WIJZIGING ---
 `;
-    
+
     syncData.changes.forEach((change, idx) => {
         const categoryId = String(change.categoryId);
         const ruleId = String(change.ruleId);
         const category = currentDataDraft.categoryBase && currentDataDraft.categoryBase[categoryId];
         const categoryName = category ? category.title : "(onbekend)";
-        
+
         logContent += `\n[${idx + 1}] ${categoryName} → Rule ${ruleId}\n`;
-        logContent += `    Voor: ${JSON.stringify(change.original, null, 2).replace(/\n/g, '\n    ')}\n`;
-        logContent += `    Na:   ${JSON.stringify(change.current, null, 2).replace(/\n/g, '\n    ')}\n`;
+        logContent += `    Voor: ${JSON.stringify(change.original, null, 2).replace(/\n/g, "\n    ")}\n`;
+        logContent += `    Na:   ${JSON.stringify(change.current, null, 2).replace(/\n/g, "\n    ")}\n`;
     });
-    
-    logContent += `\n--- ACTIES PER BATCH ---\n`;
-    
+
+    logContent += "\n--- ACTIES PER BATCH ---\n";
+
     syncData.batches.forEach((batch, batchIdx) => {
         logContent += `\nBatch ${batchIdx + 1} (${batch.length} acties):\n`;
         batch.forEach(item => {
-            logContent += `  [Seq ${item.sequenceNumber}] ${JSON.stringify(item.action, null, 2).replace(/\n/g, '\n  ')}\n`;
+            logContent += `  [Seq ${item.sequenceNumber}] ${JSON.stringify(item.action, null, 2).replace(/\n/g, "\n  ")}\n`;
         });
     });
-    
-    logContent += `\n--- VOLLEDIGE PAYLOAD MET INTEGRITY SIGNING ---\n`;
-    
+
+    logContent += "\n--- VOLLEDIGE PAYLOAD MET INTEGRITY SIGNING ---\n";
+
     // Haal deviceId (standaard gok: "device1")
     const deviceId = "device1"; // TODO: Haal echte deviceId op
     const firstBatch = syncData.batches[0];
-    
+
     // Bereken integrity voor elke actie
-    let mockPayload = {
+    const mockPayload = {
         actions: []
     };
-    
+
     try {
         for (const item of firstBatch) {
             const integrity = await calculateIntegrity(item.sequenceNumber, deviceId, item.encodedAction);
@@ -326,37 +326,34 @@ BATCHES: ${syncData.batches.length}
                 integrity: integrity
             });
         }
-        
+
         logContent += `\n${JSON.stringify(mockPayload, null, 2)}\n`;
-        logContent += `\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n`;
-        
+        logContent += "\n✅ INTEGRITY HASHING: HMAC-SHA512 berekend\n";
     } catch (error) {
         logContent += `\n❌ FOUT bij integrity berekening: ${error.message}\n`;
-        logContent += `Fallback op 'device' placeholder\n`;
-        
-        mockPayload = {
-            actions: firstBatch.map(item => ({
-                sequenceNumber: item.sequenceNumber,
-                encodedAction: item.encodedAction,
-                integrity: "device"
-            }))
-        };
-        
+        logContent += "Fallback op 'device' placeholder\n";
+
+        mockPayload.actions = firstBatch.map(item => ({
+            sequenceNumber: item.sequenceNumber,
+            encodedAction: item.encodedAction,
+            integrity: "device"
+        }));
+
         logContent += `${JSON.stringify(mockPayload, null, 2)}\n`;
     }
-    
-    logContent += `\n⚠️  DEZE DATA WORDT NIET DAADWERKELIJK VERZONDEN (TEST MODUS)\n`;
-    
+
+    logContent += "\n⚠️  DEZE DATA WORDT NIET DAADWERKELIJK VERZONDEN (TEST MODUS)\n";
+
     // Log naar console
     console.log("🧪 TEST SYNC DATA:", syncData);
     console.log("📤 PAYLOAD MET SIGNING:", mockPayload);
-    
+
     // Log naar inspector
     if (jsonView.textContent.length > 100000) {
         jsonView.textContent = jsonView.textContent.slice(-50000);
     }
     jsonView.textContent += separator + logContent;
     jsonView.scrollTop = jsonView.scrollHeight;
-    
+
     addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
-}    
+}
