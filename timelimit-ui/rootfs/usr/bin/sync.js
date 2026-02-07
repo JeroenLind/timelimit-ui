@@ -48,6 +48,15 @@ async function runSync() {
             if (typeof updateCategoryDisplay === "function") {
               updateCategoryDisplay(responseData);
             }
+            
+            // ✅ BELANGRIJK: Reset change tracking NADAT pull sync compleet is
+            // Dit zorgt ervoor dat wijzigingen niet verloren gaan als er een automatische pull volgt
+            if (typeof resetChangeTracking === 'function') {
+                resetChangeTracking();
+                console.log("✅ Change tracking gereset na succesvolle pull sync");
+                addLog("✅ Change tracking gereset", false);
+            }
+            
         } else {
             // De server stuurde een fout (401) of HTML. Lees als tekst om crash te voorkomen.
             const errorText = await res.text();
@@ -762,20 +771,9 @@ async function executePushSync() {
         logContent += `\n🎉 ALLE WIJZIGINGEN SUCCESVOL VERZONDEN!\n`;
         addLog(`🎉 Alle ${syncData.totalActions} wijzigingen succesvol verzonden!`, false);
         
-        // Check of er ergens een shouldDoFullSync flag was
-        // (we bewaren dit niet per batch, maar kunnen wel checken in de laatste response)
-        // Voor nu: als alle batches succesvol zijn, reset de change tracking
-        
-        // Reset change tracking
-        if (typeof resetChangeTracking === 'function') {
-            resetChangeTracking();
-            logContent += `Change tracking gereset.\n`;
-            addLog(`♻️ Change tracking gereset`, false);
-        }
-        
-        // Trigger automatische pull sync als de server daarom vroeg
-        // We kunnen dit detecteren via de console logs, maar voor nu laten we het handmatig
-        // Als je wilt dat dit automatisch gebeurt, voeg hier toe: needsFullSync = true;
+        // ⚠️ BELANGRIJK: We resetten NIET hier!
+        // We wachten tot pull sync compleet is
+        // Dan wordt resetChangeTracking() aangeroepen in runSync()
         
     } else if (successfulBatches > 0) {
         console.log(`[PUSH-SYNC] ⚠️ GEDEELTELIJK SUCCESVOL`);
@@ -784,20 +782,6 @@ async function executePushSync() {
     } else {
         console.log(`[PUSH-SYNC] ❌ ALLE BATCHES GEFAALD`);
         logContent += `\n❌ ALLE BATCHES GEFAALD - Controleer logs\n`;
-    
-    // Als alle batches succesvol waren EN we geen failures hadden, trigger een pull sync
-    // Dit zorgt ervoor dat als de server om een full sync vroeg, we die automatisch doen
-    if (successfulBatches === syncData.batches.length && failedBatches === 0) {
-        console.log(`[PUSH-SYNC] 🔄 Automatische pull sync starten om server state te synchroniseren...`);
-        addLog(`🔄 Pull sync starten om server state op te halen...`, false);
-        
-        // Kleine delay zodat logs zichtbaar zijn
-        setTimeout(() => {
-            if (typeof runSync === 'function') {
-                runSync();
-            }
-        }, 1000);
-    }
         addLog(`❌ Sync gefaald - controleer inspector en console`, true);
     }
     
@@ -809,4 +793,19 @@ async function executePushSync() {
     jsonView.scrollTop = jsonView.scrollHeight;
     
     console.log(`[PUSH-SYNC] ===== EINDE =====\n`);
+    
+    // Als alle batches succesvol waren EN we geen failures hadden, trigger een pull sync
+    // Dit zorgt ervoor dat als de server om een full sync vroeg, we die automatisch doen
+    if (successfulBatches === syncData.batches.length && failedBatches === 0) {
+        console.log(`[PUSH-SYNC] 🔄 Automatische pull sync starten om server state te synchroniseren...`);
+        addLog(`🔄 Pull sync starten om server state op te halen...`, false);
+        
+        // Kleine delay zodat logs zichtbaar zijn
+        setTimeout(() => {
+            if (typeof runSync === 'function') {
+                console.log(`[PUSH-SYNC] Triggering runSync() for automatic full sync...`);
+                runSync();
+            }
+        }, 1000);
+    }
 }
