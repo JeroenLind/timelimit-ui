@@ -359,7 +359,6 @@ BATCHES: ${syncData.batches.length}
     jsonView.scrollTop = jsonView.scrollHeight;
     
     addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
-}
     
     const syncData = prepareSync();
     
