@@ -472,6 +472,16 @@ async function executePushSync() {
         return;
     }
     
+    // Check parentPasswordHash
+    if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
+        addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
+        console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
+        return;
+    }
+    
+    console.log("[PUSH-SYNC] Token check: OK");
+    console.log("[PUSH-SYNC] parentPasswordHash check: OK");
+    
     // Bereid acties voor
     const syncData = prepareSync();
     
@@ -542,29 +552,57 @@ async function executePushSync() {
         };
         
         console.log(`[PUSH-SYNC] Batch ${batchNum}: Verzenden naar /sync/push-actions...`);
-        logContent += `>>> REQUEST PAYLOAD:\n${JSON.stringify(payload, null, 2)}\n\n`;
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload structure check:`);
+        console.log(`  - deviceAuthToken length: ${TOKEN.length}`);
+        console.log(`  - actions count: ${actions.length}`);
+        console.log(`  - First action structure:`, actions[0]);
         
-        addLog(`📡 Batch ${batchNum}: Verzenden naar server...`, false);
+        // Valideer de payload voordat we versturen
+        const payloadString = JSON.stringify(payload);
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload size: ${payloadString.length} bytes`);
+        console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload preview (first 200 chars):`, payloadString.substring(0, 200));
+        
+        logContent += `>>> REQUEST PAYLOAD:\n${JSON.stringify(payload, null, 2)}\n\n`;
+        logContent += `Payload stats:\n`;
+        logContent += `  - Total size: ${payloadString.length} bytes\n`;
+        logContent += `  - Actions: ${actions.length}\n\n`;
+        
+        addLog(`📡 Batch ${batchNum}: Verzenden naar server (${payloadString.length} bytes)...`, false);
         
         // Verstuur naar server
         try {
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Fetching sync/push-actions...`);
+            
             const response = await fetch('sync/push-actions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: payloadString
             });
             
             const responseStatus = response.status;
-            const responseText = await response.text();
+            const responseContentType = response.headers.get('content-type') || 'unknown';
             
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Server response status: ${responseStatus}`);
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Response content-type: ${responseContentType}`);
+            
+            const responseText = await response.text();
+            
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Response body length: ${responseText.length} bytes`);
+            console.log(`[PUSH-SYNC] Batch ${batchNum}: Response body preview (first 500 chars):`);
+            console.log(responseText.substring(0, 500));
+            
             logContent += `<<< SERVER RESPONSE:\n`;
             logContent += `Status: ${responseStatus} ${response.statusText}\n`;
+            logContent += `Content-Type: ${responseContentType}\n`;
             logContent += `Headers:\n`;
             response.headers.forEach((value, key) => {
                 logContent += `  ${key}: ${value}\n`;
             });
-            logContent += `\nBody:\n${responseText}\n\n`;
+            logContent += `\nBody (first 1000 chars):\n${responseText.substring(0, 1000)}\n`;
+            if (responseText.length > 1000) {
+                logContent += `\n... (truncated, total ${responseText.length} bytes)\n`;
+            }
+            logContent += `\n`;
             
             if (response.ok) {
                 // Parse response
@@ -596,11 +634,53 @@ async function executePushSync() {
                 console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ FOUT ${responseStatus}`);
                 logContent += `❌ BATCH ${batchNum} GEFAALD (Status ${responseStatus})\n`;
                 
+                // Probeer te detecteren of het HTML is
+                const isHtml = responseContentType.includes('text/html') || responseText.trim().startsWith('<');
+                
+                if (isHtml) {
+                    console.error(`[PUSH-SYNC] Batch ${batchNum}: Server stuurde HTML error page!`);
+                    logContent += `\n⚠️  SERVER STUURDE HTML ERROR PAGE (geen JSON)\n`;
+                    logContent += `Dit betekent meestal dat de route niet correct is of de payload structuur fout is.\n\n`;
+                }
+                
                 if (responseStatus === 401) {
+                    console.error(`[PUSH-SYNC] Batch ${batchNum}: Authenticatie fout`);
+                    logContent += `DIAGNOSE: Token niet geldig of verlopen\n`;
                     addLog(`❌ Batch ${batchNum}: Authenticatie fout - Token niet geldig`, true);
+                    
                 } else if (responseStatus === 400) {
-                    addLog(`❌ Batch ${batchNum}: Ongeldige data - ${responseText.substring(0, 100)}`, true);
+                    console.error(`[PUSH-SYNC] Batch ${batchNum}: Bad Request - server accepteert payload niet`);
+                    logContent += `DIAGNOSE: Bad Request - Mogelijke oorzaken:\n`;
+                    logContent += `  1. Payload structuur komt niet overeen met API schema\n`;
+                    logContent += `  2. Ontbrekende of ongeldige velden\n`;
+                    logContent += `  3. Integrity signature incorrect\n`;
+                    logContent += `  4. encodedAction is geen geldige JSON string\n\n`;
+                    logContent += `DEBUGGING STAPPEN:\n`;
+                    logContent += `  - Check dat encodedAction een JSON STRING is (niet object)\n`;
+                    logContent += `  - Verifieer dat alle vereiste velden aanwezig zijn\n`;
+                    logContent += `  - Test met een enkele simpele actie\n\n`;
+                    
+                    // Log de exacte actie structuur voor debugging
+                    if (actions.length > 0) {
+                        logContent += `EERSTE ACTIE DETAILS:\n`;
+                        logContent += `  sequenceNumber: ${actions[0].sequenceNumber} (type: ${typeof actions[0].sequenceNumber})\n`;
+                        logContent += `  encodedAction: ${actions[0].encodedAction.substring(0, 100)}... (type: ${typeof actions[0].encodedAction})\n`;
+                        logContent += `  integrity: ${actions[0].integrity.substring(0, 50)}... (type: ${typeof actions[0].integrity})\n`;
+                        
+                        // Valideer dat encodedAction daadwerkelijk valid JSON is
+                        try {
+                            const parsed = JSON.parse(actions[0].encodedAction);
+                            logContent += `  encodedAction parsed OK: type=${parsed.type}, ruleId=${parsed.ruleId}\n`;
+                        } catch (e) {
+                            logContent += `  ⚠️  encodedAction is GEEN geldige JSON! Error: ${e.message}\n`;
+                        }
+                    }
+                    
+                    addLog(`❌ Batch ${batchNum}: Bad Request - Payload structuur fout (zie inspector)`, true);
+                    
                 } else {
+                    console.error(`[PUSH-SYNC] Batch ${batchNum}: Server error ${responseStatus}`);
+                    logContent += `DIAGNOSE: Server error (${responseStatus})\n`;
                     addLog(`❌ Batch ${batchNum}: Server fout ${responseStatus}`, true);
                 }
                 

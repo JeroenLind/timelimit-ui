@@ -120,13 +120,32 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 break
 
         sys.stderr.write(f"[DEBUG] Proxying naar TimeLimit API pad: {target_path}\n")
+        sys.stderr.write(f"[DEBUG] POST data size: {content_length} bytes\n")
+        
+        # Log de eerste 500 bytes van de payload voor debugging (niet het hele wachtwoord!)
+        try:
+            preview_data = post_data[:500].decode('utf-8', errors='replace')
+            sys.stderr.write(f"[DEBUG] Payload preview (first 500 bytes): {preview_data}\n")
+        except:
+            sys.stderr.write(f"[DEBUG] Payload preview: (binary data)\n")
         
         try:
             status, body = api.post(target_path, post_data)
             sys.stderr.write(f"[DEBUG] API Response status: {status}\n")
+            sys.stderr.write(f"[DEBUG] API Response body size: {len(body)} bytes\n")
+            
+            # Log de response preview
+            try:
+                body_preview = body[:500].decode('utf-8', errors='replace')
+                sys.stderr.write(f"[DEBUG] Response preview (first 500 bytes): {body_preview}\n")
+            except:
+                sys.stderr.write(f"[DEBUG] Response preview: (binary data)\n")
+            
             self._send_raw(status, body, "application/json")
         except Exception as e:
             sys.stderr.write(f"❌ [PROXY ERROR]: {str(e)}\n")
+            import traceback
+            sys.stderr.write(f"Traceback:\n{traceback.format_exc()}\n")
             self._send_raw(500, b"Proxy connection failed", "text/plain")
 
     def do_GET(self):
