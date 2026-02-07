@@ -184,6 +184,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING START ===================`);
     console.log(`[INTEGRITY] Sequence: ${sequenceNumber}`);
     console.log(`[INTEGRITY] DeviceId: ${deviceId}`);
+    console.log(`[INTEGRITY] EncodedAction: ${encodedAction}`);
     console.log(`[INTEGRITY] EncodedAction length: ${encodedAction.length} chars`);
     
     console.log(`[INTEGRITY] Verificatie parentPasswordHash:`);
@@ -234,6 +235,13 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         console.log(`[INTEGRITY] ✅ Server-side HMAC-SHA256 succesvol!`);
         console.log(`[INTEGRITY] Result format: ${integrityValue.substring(0, 50)}...`);
         console.log(`[INTEGRITY] Has 'password:' prefix: ${integrityValue.startsWith('password:') ? 'YES' : 'NO'}`);
+        console.log(`[INTEGRITY] Result length: ${integrityValue.length} chars`);
+        
+        // Extract base64 part for debugging
+        const base64Part = integrityValue.substring(9);
+        console.log(`[INTEGRITY] Base64 part (first 40 chars): ${base64Part.substring(0, 40)}...`);
+        console.log(`[INTEGRITY] Base64 part length: ${base64Part.length} chars`);
+        
         console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING COMPLEET ===================`);
         return integrityValue;
         
