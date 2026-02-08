@@ -112,7 +112,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(200, json.dumps({"secondHash": second_hash}).encode(), "application/json")
             except Exception as e:
                 sys.stderr.write(f"[ERROR] Hash regeneratie fout: {str(e)}\n")
-                self._send_raw(400, str(e).encode(), "text/plain")
+                self._send_raw(400, json.dumps({"error": str(e)}).encode(), "application/json")
             return
         
         # Speciale afhandeling voor HMAC-SHA512 berekening (fallback voor non-secure contexts)

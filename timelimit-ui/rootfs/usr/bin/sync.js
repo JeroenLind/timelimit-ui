@@ -595,7 +595,190 @@ async function debugIntegrityCheck() {
 }
 
 /**
- * ECHTE SYNC: Verstuurt wijzigingen naar de server via /sync/push-actions
+ * TEST FUNCTIE: Maak een nieuwe category + rule aan op de server
+ * Dit test of push sync überhaupt werkt zonder te vertrouwen op bestaande data
+ */
+async function testCreateCategoryAndRule() {
+    addLog("🧪 TEST: Category + Rule aanmaken...", false);
+    
+    const inspector = document.getElementById("json-view");
+    const timestamp = new Date().toLocaleTimeString();
+    let logContent = `\n\n${"=".repeat(30)} CREATE TEST @ ${timestamp} ${"=".repeat(30)}\n`;
+    
+    // Check of we data hebben
+    if (!currentDataDraft || !currentDataDraft.users || !currentDataDraft.users.data) {
+        addLog("❌ Geen user data - voer eerst een pull sync uit", true);
+        return;
+    }
+    
+    // Vind parent en child users
+    const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+    const childUser = currentDataDraft.users.data.find(u => u.type === 'child');
+    
+    if (!parentUser) {
+        addLog("❌ Geen parent user gevonden", true);
+        return;
+    }
+    
+    if (!childUser) {
+        addLog("❌ Geen child user gevonden - maak eerst een child aan in de app", true);
+        return;
+    }
+    
+    const parentUserId = parentUser.id || parentUser.userId;
+    const childUserId = childUser.id || childUser.userId;
+    
+    logContent += `Parent userId: ${parentUserId}\n`;
+    logContent += `Child userId: ${childUserId}\n`;
+    logContent += `Child naam: ${childUser.name}\n\n`;
+    
+    // Genereer IDs voor category en rule
+    const categoryId = generateRandomId(6);
+    const ruleId = generateRandomId(6);
+    
+    logContent += `Nieuwe categoryId: ${categoryId}\n`;
+    logContent += `Nieuwe ruleId: ${ruleId}\n\n`;
+    
+    // Haal deviceId op
+    let deviceId = "unknown";
+    let deviceIdSource = "fallback";
+    
+    if (currentDataDraft?.devices && currentDataDraft.devices.data) {
+        const dashboardDevice = currentDataDraft.devices.data.find((d) =>
+            d.name === "DashboardControl" || d.model?.includes("Dashboard")
+        );
+        
+        if (dashboardDevice) {
+            deviceId = dashboardDevice.deviceId;
+            deviceIdSource = 'devices.data (DashboardControl)';
+        }
+    }
+    
+    logContent += `DeviceId: ${deviceId}\n`;
+    logContent += `DeviceId source: ${deviceIdSource}\n\n`;
+    
+    // Maak acties
+    const actions = [];
+    let sequenceNumber = 1;
+    
+    // Actie 1: CREATE_CATEGORY
+    const createCategoryAction = {
+        type: "CREATE_CATEGORY",
+        categoryId: categoryId,
+        childId: childUserId,
+        title: "Test Category " + new Date().toLocaleTimeString()
+    };
+    
+    const encodedCategory = JSON.stringify(createCategoryAction);
+    const categoryIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedCategory);
+    
+    actions.push({
+        sequenceNumber: sequenceNumber,
+        encodedAction: encodedCategory,
+        integrity: categoryIntegrity,
+        type: "parent",
+        userId: parentUserId
+    });
+    
+    sequenceNumber++;
+    
+    // Actie 2: CREATE_TIMELIMIT_RULE
+    const createRuleAction = {
+        type: "CREATE_TIMELIMIT_RULE",
+        rule: {
+            ruleId: ruleId,
+            categoryId: categoryId,
+            maxTimeInMillis: 3600000, // 1 uur
+            dayMask: 127, // Alle dagen (1111111 in binair)
+            start: 0, // 00:00
+            end: 1439, // 23:59
+            sessionDurationMilliseconds: 0,
+            sessionPauseMilliseconds: 0,
+            perDay: true,
+            applyToExtraTimeUsage: false
+        }
+    };
+    
+    const encodedRule = JSON.stringify(createRuleAction);
+    const ruleIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedRule);
+    
+    actions.push({
+        sequenceNumber: sequenceNumber,
+        encodedAction: encodedRule,
+        integrity: ruleIntegrity,
+        type: "parent",
+        userId: parentUserId
+    });
+    
+    logContent += `ACTIES:\n`;
+    logContent += `1. CREATE_CATEGORY: ${createCategoryAction.title}\n`;
+    logContent += `2. CREATE_TIMELIMIT_RULE: 1 uur per dag\n\n`;
+    
+    // Verstuur naar server
+    const payload = {
+        deviceAuthToken: TOKEN,
+        actions: actions
+    };
+    
+    logContent += `>>> VERZENDEN NAAR SERVER:\n`;
+    logContent += JSON.stringify(payload, null, 2) + '\n\n';
+    
+    inspector.textContent += logContent;
+    inspector.scrollTop = inspector.scrollHeight;
+    
+    addLog("Versturen test acties naar server...", false);
+    
+    try {
+        const response = await fetch('sync/push-actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        let resultLog = `<<< SERVER RESPONSE (${response.status}):\n`;
+        resultLog += JSON.stringify(result, null, 2) + '\n\n';
+        
+        if (result.shouldDoFullSync) {
+            resultLog += `⚠️  SERVER VRAAGT OM FULL SYNC\n`;
+            resultLog += `Dit betekent dat er een exception is opgetreden bij het verwerken.\n`;
+            addLog("❌ Server vraagt om full sync - actie mogelijk gefaald", true);
+        } else {
+            resultLog += `✅ SUCCESS! Geen full sync gevraagd.\n`;
+            resultLog += `Category en rule zijn succesvol aangemaakt!\n`;
+            addLog("✅ Category + Rule succesvol aangemaakt!", false);
+            
+            // Doe automatisch een pull sync
+            setTimeout(() => {
+                addLog("Pulling fresh data...", false);
+                runSync();
+            }, 1000);
+        }
+        
+        inspector.textContent += resultLog;
+        inspector.scrollTop = inspector.scrollHeight;
+        
+    } catch (e) {
+        addLog("❌ Fout bij versturen: " + e.message, true);
+        inspector.textContent += `\n❌ ERROR: ${e.message}\n`;
+    }
+}
+
+/**
+ * Genereert een random ID (zoals de server doet)
+ */
+function generateRandomId(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+/**
+ * TEST versie: Verstuurt wijzigingen naar de server via /sync/push-actions
  * Met uitgebreide logging van alle server responses
  */
 async function executePushSync() {

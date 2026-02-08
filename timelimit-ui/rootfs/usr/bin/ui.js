@@ -244,7 +244,8 @@ async function submitPasswordReset() {
             });
             
             if (!regenRes.ok) {
-                throw new Error("Hash regeneratie gefaald");
+                const errorText = await regenRes.text();
+                throw new Error(`Hash regeneratie gefaald: ${errorText}`);
             }
             
             const regenData = await regenRes.json();
@@ -262,7 +263,8 @@ async function submitPasswordReset() {
             });
             
             if (!hRes.ok) {
-                throw new Error("Fout bij hash generatie");
+                const errorText = await hRes.text();
+                throw new Error(`Fout bij hash generatie: ${errorText}`);
             }
             
             const hashes = await hRes.json();
