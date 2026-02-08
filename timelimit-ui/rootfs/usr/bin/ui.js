@@ -46,6 +46,40 @@ function renderUsers(data) {
     }
 }
 
+function copyInspectorToClipboard() {
+    const inspector = document.getElementById('json-view');
+    if (!inspector) return;
+
+    const text = inspector.textContent || '';
+    if (!text.trim()) {
+        addLog('⚠️ Geen data om te kopieren.', true);
+        return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => addLog('✅ Data Inspector gekopieerd naar klembord.'))
+            .catch(() => addLog('❌ Kopieren mislukt. Probeer opnieuw.', true));
+        return;
+    }
+
+    // Fallback for older browsers
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        addLog('✅ Data Inspector gekopieerd naar klembord.');
+    } catch (e) {
+        addLog('❌ Kopieren mislukt. Probeer opnieuw.', true);
+    }
+}
+
 /**
  * Toont een samenvatting van alle gewijzigde regels
  */

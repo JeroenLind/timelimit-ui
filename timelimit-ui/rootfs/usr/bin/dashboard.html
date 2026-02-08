@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeLimit UI v78 - Session Manager</title>
-    <link rel="stylesheet" href="style.css?v=78">
+    <title>TimeLimit UI v79 - Session Manager</title>
+    <link rel="stylesheet" href="style.css?v=79">
 </head>
 <body>
     <header>
-        <strong>TimeLimit UI v78</strong>
+        <strong>TimeLimit UI v79</strong>
         <div>
             <button class="btn btn-wizard" style="background: #673ab7;" onclick="startCreateFlow()">🆕 Nieuwe Familie</button>
             <button class="btn btn-wizard" style="background: #03a9f4;" onclick="startLoginFlow()">🔑 Inloggen op Familie</button>
@@ -82,7 +82,10 @@
         </div>
 
         <div class="inspector-panel">
-            <div style="padding:10px; font-size:10px; color:#555; background:#111;">DATA INSPECTOR</div>
+            <div style="padding:10px; font-size:10px; color:#555; background:#111; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <span>DATA INSPECTOR</span>
+                <button class="btn" style="padding:4px 8px; font-size:10px; background:#2d5a2d; border-color:#4a8a4a;" onclick="copyInspectorToClipboard()">Copy All</button>
+            </div>
             <div id="json-view">Wachtend op data...</div>
             <div id="log-area"></div>
         </div>
@@ -169,11 +172,11 @@
         </div>
     </div>
 
-    <script src="state.js?v=78"></script>
-    <script src="ui.js?v=78"></script>
-    <script src="wizard.js?v=78"></script>
-    <script src="sync.js?v=78"></script>
-    <script src="tree.js?v=78"></script> 
+    <script src="state.js?v=79"></script>
+    <script src="ui.js?v=79"></script>
+    <script src="wizard.js?v=79"></script>
+    <script src="sync.js?v=79"></script>
+    <script src="tree.js?v=79"></script> 
     
     <script>
         // De switchServer en window.onload functies die je al had staan hieronder...
