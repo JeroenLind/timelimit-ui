@@ -730,14 +730,14 @@ async function testCreateCategoryAndRule() {
         rule: {
             ruleId: ruleId,
             categoryId: categoryId,
-            maxTimeInMillis: 3600000, // 1 uur
-            dayMask: 127, // Alle dagen (1111111 in binair)
+            time: 3600000, // 1 uur
+            days: 127, // Alle dagen (1111111 in binair)
+            extraTime: false,
             start: 0, // 00:00
             end: 1439, // 23:59
-            sessionDurationMilliseconds: 0,
-            sessionPauseMilliseconds: 0,
-            perDay: true,
-            applyToExtraTimeUsage: false
+            dur: 0,
+            pause: 0,
+            perDay: true
         }
     };
     
@@ -753,8 +753,8 @@ async function testCreateCategoryAndRule() {
     });
     
     logContent += `ACTIES:\n`;
-    logContent += `1. CREATE_CATEGORY: ${createCategoryAction.title}\n`;
-    logContent += `2. CREATE_TIMELIMIT_RULE: 1 uur per dag\n\n`;
+    logContent += `1. CREATE_CATEGORY: ${JSON.stringify(createCategoryAction)}\n`;
+    logContent += `2. CREATE_TIMELIMIT_RULE: ${JSON.stringify(createRuleAction)}\n\n`;
     
     // Verstuur naar server
     const payload = {
