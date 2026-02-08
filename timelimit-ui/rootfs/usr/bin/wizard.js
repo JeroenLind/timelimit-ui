@@ -210,20 +210,15 @@ async function runSignInStep3() {
         }
 
         // STAP 3: Login payload verzenden naar server
-        // BELANGRIJK: Stuur ook password mee zodat server een ECHTE secondPasswordSalt genereert
+        // BELANGRIJK: Sign-in verwacht GEEN parentPassword (alleen create-family doet dat)
         addLog("Stap 3b: Inloggen bij server...");
         const payload = {
             mailAuthToken: wizardSession.mailAuthToken,
-            parentPassword: {
-                hash: cleanHash,
-                secondHash: cleanHash,
-                secondSalt: finalSalt
-            },
             parentDevice: { 
                 model: "WebDashboard-v2026-HMAC256"
             },
             deviceName: "DashboardControl",
-            clientLevel: 8  // ← Terug naar 8 (zoals Android app)
+            clientLevel: 8
         };
 
         const inspector = document.getElementById('json-view');
