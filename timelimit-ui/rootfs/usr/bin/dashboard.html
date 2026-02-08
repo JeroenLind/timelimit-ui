@@ -79,6 +79,7 @@
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #ff9800; border-color: #f57c00; margin-bottom: 10px;" onclick="debugIntegrityCheck()">🔍 Debug Integrity</button>
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #9c27b0; border-color: #7b1fa2; margin-bottom: 10px;" onclick="testCreateCategoryAndRule()">🎯 Test: Maak Category+Rule</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #d9534f; border-color: #d43f3a; font-weight: bold; margin-bottom: 10px;" onclick="executePushSync()">🚀 Push Sync (UI → Server)</button>
+                <button class="btn" style="width: 100%; font-size: 12px; background: #4caf50; border-color: #45a049; margin-bottom: 10px;" onclick="showAddChildModal()">👶 Kind Toevoegen</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #6f4c4e; border-color: #8b6b6d;" onclick="showPasswordResetModal()">🔐 Wachtwoord Hashes Bijwerken</button>
             </div>
         </div>
@@ -121,6 +122,19 @@
                 <button class="btn" style="background:#333; flex:1;" onclick="hidePasswordResetModal()">Annuleren</button>
             </div>
             <div id="password-reset-status" style="margin-top:15px; font-size:12px; color:#aaa;"></div>
+        </div>
+    </div>
+
+    <div id="add-child-modal" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #4caf50; width:95%; max-width:450px;">
+            <h3 style="margin-top:0; color:#4caf50;">👶 Kind Toevoegen</h3>
+            <p style="color:#aaa; font-size:13px; margin-bottom:20px;">Voeg een kind toe aan de familie.</p>
+            <input type="text" id="add-child-name-input" placeholder="Naam van het kind..." style="width:100%; padding:10px; margin-bottom:15px; background:#050505; border:1px solid #333; border-radius:4px; color:#fff;">
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="flex:1; background:#4caf50;" onclick="submitAddChild()">Toevoegen</button>
+                <button class="btn" style="background:#333; flex:1;" onclick="hideAddChildModal()">Annuleren</button>
+            </div>
+            <div id="add-child-status" style="margin-top:15px; font-size:12px; color:#aaa;"></div>
         </div>
     </div>
 
@@ -177,7 +191,7 @@
     <script src="state.js?v=81"></script>
     <script src="ui.js?v=84"></script>
     <script src="wizard.js?v=85"></script>
-    <script src="sync.js?v=83"></script>
+    <script src="sync.js?v=86"></script>
     <script src="tree.js?v=80"></script> 
     
     <script>

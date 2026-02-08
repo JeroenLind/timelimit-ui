@@ -1163,3 +1163,194 @@ async function executePushSync() {
         }, 1000);
     }
 }
+
+/**
+ * KIND TOEVOEGEN - Modal functies
+ */
+
+function showAddChildModal() {
+    const modal = document.getElementById('add-child-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('add-child-name-input');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        const status = document.getElementById('add-child-status');
+        if (status) {
+            status.textContent = '';
+            status.style.color = '#666';
+        }
+    }
+}
+
+function hideAddChildModal() {
+    const modal = document.getElementById('add-child-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Voegt een kind toe aan de familie via de server
+ */
+async function submitAddChild() {
+    const nameInput = document.getElementById('add-child-name-input');
+    const statusDiv = document.getElementById('add-child-status');
+    const inspector = document.getElementById('json-view');
+    
+    const childName = nameInput ? nameInput.value.trim() : '';
+    
+    if (!childName) {
+        if (statusDiv) statusDiv.textContent = "❌ Voer een naam in.";
+        return;
+    }
+    
+    if (!TOKEN || TOKEN === "") {
+        if (statusDiv) statusDiv.textContent = "❌ Geen token - log eerst in.";
+        return;
+    }
+    
+    if (!parentPasswordHash || !parentPasswordHash.secondHash) {
+        if (statusDiv) {
+            statusDiv.innerHTML = "❌ Geen wachtwoord hashes.<br><span style='font-size:11px;'>Gebruik eerst '🔐 Wachtwoord Hashes Bijwerken'.</span>";
+        }
+        return;
+    }
+    
+    if (statusDiv) statusDiv.textContent = "⏳ Kind toevoegen...";
+    
+    try {
+        // Genereer random userId (6 karakters, alfanumeriek)
+        const userId = generateRandomId(6);
+        
+        // Haal deviceId op
+        const dashboardDevice = currentDataDraft?.devices?.data?.find(d => 
+            d.name === "DashboardControl" || d.model?.includes("Dashboard")
+        );
+        
+        if (!dashboardDevice) {
+            throw new Error("Dashboard device niet gevonden");
+        }
+        
+        const deviceId = dashboardDevice.deviceId;
+        
+        // Haal parent userId op
+        const parentUser = currentDataDraft?.users?.data?.find(u => u.type === 'parent');
+        if (!parentUser) {
+            throw new Error("Parent user niet gevonden");
+        }
+        const parentUserId = parentUser.id || parentUser.userId;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        let logContent = `\n\n${"=".repeat(25)} KIND TOEVOEGEN @ ${timestamp} ${"=".repeat(25)}\n`;
+        logContent += `Kind naam: ${childName}\n`;
+        logContent += `Gegenereerd userId: ${userId}\n`;
+        logContent += `Parent userId: ${parentUserId}\n`;
+        logContent += `DeviceId: ${deviceId}\n\n`;
+        
+        // Maak ADD_USER action
+        const addUserAction = {
+            type: "ADD_USER",
+            userId: userId,
+            name: childName,
+            userType: "child",
+            timeZone: "Europe/Amsterdam"
+            // password: null (niet nodig voor child, wordt automatisch weggelaten)
+        };
+        
+        const encodedAction = JSON.stringify(addUserAction);
+        const sequenceNumber = 1;
+        
+        // Bereken integrity
+        const integrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
+        
+        const action = {
+            sequenceNumber: sequenceNumber,
+            encodedAction: encodedAction,
+            integrity: integrity,
+            type: "parent",
+            userId: parentUserId
+        };
+        
+        logContent += `ACTION:\n${JSON.stringify(addUserAction, null, 2)}\n\n`;
+        logContent += `PAYLOAD:\n`;
+        
+        const payload = {
+            deviceAuthToken: TOKEN,
+            actions: [action]
+        };
+        
+        logContent += JSON.stringify(payload, null, 2) + '\n\n';
+        
+        console.log("[ADD-CHILD] Versturen naar server:", payload);
+        
+        // Verstuur naar server
+        const response = await fetch('sync/push-actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        logContent += `<<< SERVER RESPONSE (${response.status}):\n`;
+        logContent += JSON.stringify(result, null, 2) + '\n\n';
+        
+        if (response.ok && !result.shouldDoFullSync) {
+            logContent += `✅ KIND SUCCESVOL TOEGEVOEGD!\n`;
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = `✅ Kind "${childName}" toegevoegd!<br><span style='font-size:11px;'>Doe een pull sync om te vernieuwen.</span>`;
+                statusDiv.style.color = '#4ade80';
+            }
+            
+            addLog(`✅ Kind "${childName}" succesvol toegevoegd!`, false);
+            
+            // Log naar inspector
+            if (inspector) {
+                if (inspector.textContent.length > 100000) {
+                    inspector.textContent = inspector.textContent.slice(-50000);
+                }
+                inspector.textContent += logContent;
+                inspector.scrollTop = inspector.scrollHeight;
+            }
+            
+            // Sluit modal na 2 seconden en doe pull sync
+            setTimeout(() => {
+                hideAddChildModal();
+                runSync(); // Haal nieuwe user data op
+            }, 2000);
+            
+        } else {
+            logContent += `⚠️ SERVER VRAAGT OM FULL SYNC of actie gefaald\n`;
+            
+            if (statusDiv) {
+                statusDiv.textContent = "❌ Fout bij toevoegen - zie inspector";
+                statusDiv.style.color = '#ff4444';
+            }
+            
+            addLog("❌ Kind toevoegen gefaald - controleer inspector", true);
+            
+            // Log naar inspector
+            if (inspector) {
+                if (inspector.textContent.length > 100000) {
+                    inspector.textContent = inspector.textContent.slice(-50000);
+                }
+                inspector.textContent += logContent;
+                inspector.scrollTop = inspector.scrollHeight;
+            }
+        }
+        
+    } catch (e) {
+        console.error("[ADD-CHILD] Error:", e);
+        
+        if (statusDiv) {
+            statusDiv.textContent = "❌ Fout: " + e.message;
+            statusDiv.style.color = '#ff4444';
+        }
+        
+        addLog("Fout bij kind toevoegen: " + e.message, true);
+    }
+}
