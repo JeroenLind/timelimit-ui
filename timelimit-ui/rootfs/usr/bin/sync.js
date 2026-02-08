@@ -233,13 +233,12 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         
         const result = await response.json();
         const integrityValue = result.integrity; // Should be "password:<base64>"
-        : ${integrityValue}`);
+        console.log(`[INTEGRITY] Result: ${integrityValue}`);
         console.log(`[INTEGRITY] Result length: ${integrityValue.length} chars`);
         
         // Extract base64 part for debugging
         const base64Part = integrityValue.substring(9);
-        console.log(`[INTEGRITY] Base64 digest (first 50 chars): ${base64Part.substring(0, 50)}...
-        console.log(`[INTEGRITY] Base64 part (first 40 chars): ${base64Part.substring(0, 40)}...`);
+        console.log(`[INTEGRITY] Base64 digest (first 50 chars): ${base64Part.substring(0, 50)}...`);
         console.log(`[INTEGRITY] Base64 part length: ${base64Part.length} chars`);
         
         console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING COMPLEET ===================`);
