@@ -1165,6 +1165,143 @@ async function executePushSync() {
 }
 
 /**
+ * Debug functie: Test AddUser integrity
+ */
+async function debugAddUserIntegrity() {
+    const inspector = document.getElementById('json-view');
+    
+    if (!TOKEN || TOKEN === "") {
+        addLog("❌ Geen token - log eerst in.", true);
+        return;
+    }
+    
+    if (!parentPasswordHash || !parentPasswordHash.secondHash) {
+        addLog("❌ Geen wachtwoord hashes - update eerst!", true);
+        return;
+    }
+    
+    if (!currentDataDraft?.devices?.data || !currentDataDraft?.users?.data) {
+        addLog("❌ Geen data geladen - doe eerst een pull sync", true);
+        return;
+    }
+    
+    const timestamp = new Date().toLocaleTimeString();
+    let logContent = `\n\n${"=".repeat(20)} DEBUG ADD USER INTEGRITY @ ${timestamp} ${"=".repeat(20)}\n`;
+    
+    addLog("🔍 Debug: AddUser integrity check...", false);
+    
+    // Haal parent user op
+    const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+    if (!parentUser) {
+        addLog("❌ Parent user niet gevonden", true);
+        return;
+    }
+    const parentUserId = parentUser.id || parentUser.userId;
+    const secondPasswordSalt = parentUser.secondPasswordSalt;
+    
+    // Haal deviceId op
+    const dashboardDevice = currentDataDraft.devices.data.find(d => 
+        d.name === "DashboardControl" || d.model?.includes("Dashboard")
+    );
+    
+    if (!dashboardDevice) {
+        addLog("❌ DashboardControl device niet gevonden", true);
+        return;
+    }
+    
+    const deviceId = dashboardDevice.deviceId;
+    
+    logContent += `\nINPUT DATA:\n`;
+    logContent += `- Parent userId: ${parentUserId}\n`;
+    logContent += `- SecondPasswordSalt: ${secondPasswordSalt}\n`;
+    logContent += `- DeviceId: ${deviceId}\n`;
+    logContent += `- Device naam: ${dashboardDevice.name}\n`;
+    
+    // Maak een test ADD_USER actie (zoals we net verstuurden)
+    const testUserId = "vCzYlU";
+    const testAction = {
+        type: "ADD_USER",
+        userId: testUserId,
+        name: "Jantje",
+        userType: "child",
+        timeZone: "Europe/Amsterdam"
+    };
+    
+    const encodedAction = JSON.stringify(testAction);
+    const sequenceNumber = 1;
+    
+    logContent += `- SequenceNumber: ${sequenceNumber}\n`;
+    logContent += `- EncodedAction: ${encodedAction}\n\n`;
+    
+    // Bereken onze eigen integrity
+    addLog("Berekenen lokale integrity...", false);
+    const ourIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
+    
+    logContent += `ONZE BEREKENING:\n`;
+    logContent += `- Integrity: ${ourIntegrity}\n\n`;
+    
+    // Vraag server om zijn berekening
+    addLog("Vragen aan server om correcte integrity...", false);
+    
+    try {
+        const response = await fetch('debug-integrity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceAuthToken: TOKEN,
+                sequenceNumber: sequenceNumber,
+                deviceId: deviceId,
+                encodedAction: encodedAction,
+                parentUserId: parentUserId
+            })
+        });
+        
+        const result = await response.json();
+        
+        logContent += `SERVER BEREKENING:\n`;
+        logContent += JSON.stringify(result, null, 2) + '\n\n';
+        
+        if (result.match) {
+            logContent += `✅ INTEGRITY MATCH! De berekening is correct.\n`;
+            addLog("✅ Integrity check: MATCH", false);
+            
+            // Als integrity correct is, maar server toch shouldDoFullSync geeft,
+            // is er iets anders aan de hand...
+            logContent += `\n⚠️ Als de server toch shouldDoFullSync=true geeft, kan het zijn dat:\n`;
+            logContent += `  1. De actie zelf validation fouten heeft\n`;
+            logContent += `  2. De database in een inconsistente state is\n`;
+            logContent += `  3. Er server-side errors zijn die niet gelogd worden\n`;
+            
+        } else {
+            logContent += `❌ INTEGRITY MISMATCH!\n`;
+            logContent += `  Verwacht: ${result.expected}\n`;
+            logContent += `  Ontvangen: ${ourIntegrity}\n`;
+            
+            if (result.binaryDebug) {
+                logContent += `\nBINARY DEBUG:\n${result.binaryDebug}\n`;
+            }
+            
+            addLog("❌ Integrity check: MISMATCH - zie inspector", true);
+        }
+        
+    } catch (e) {
+        logContent += `❌ ERROR bij debug check: ${e.message}\n`;
+        addLog(`❌ Error bij debug: ${e.message}`, true);
+    }
+    
+    // Log naar inspector
+    if (inspector) {
+        if (inspector.textContent.length > 100000) {
+            inspector.textContent = inspector.textContent.slice(-50000);
+        }
+        inspector.textContent += logContent;
+        inspector.scrollTop = inspector.scrollHeight;
+    }
+    
+    console.log("[DEBUG-ADD-USER] Check compleet");
+}
+
+/**
  * KIND TOEVOEGEN - Modal functies
  */
 
