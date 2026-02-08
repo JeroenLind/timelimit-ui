@@ -517,17 +517,33 @@ async function executePushSync() {
     console.log(`[PUSH-SYNC] ${syncData.totalActions} wijzigingen gevonden in ${syncData.batches.length} batch(es)`);
     addLog(`📦 ${syncData.totalActions} wijzigingen gevonden...`, false);
     
-    // Haal deviceId op (gebruik standaard als niet beschikbaar)
-    const deviceId = currentDataDraft?.deviceId || "device1";
-    console.log(`[PUSH-SYNC] DeviceId: ${deviceId}`);
-    console.log(`[PUSH-SYNC] DeviceId source: ${currentDataDraft?.deviceId ? 'from draft' : 'FALLBACK'}`);
+    // Haal deviceId op (bij voorkeur het dashboard device)
+    let deviceId = currentDataDraft?.deviceId || null;
+    let deviceIdSource = currentDataDraft?.deviceId ? 'from draft' : 'unknown';
     
     if (currentDataDraft?.devices && currentDataDraft.devices.data) {
         console.log(`[PUSH-SYNC] Available devices in data:`);
         currentDataDraft.devices.data.forEach((d, idx) => {
             console.log(`[PUSH-SYNC]   - Device ${idx}: ID='${d.deviceId}', name='${d.name}', model='${d.model}'`);
         });
+        
+        const dashboardDevice = currentDataDraft.devices.data.find((d) =>
+            d.name === 'DashboardControl' || d.model === 'WebDashboard-v60-Modular'
+        );
+        
+        if (dashboardDevice && dashboardDevice.deviceId) {
+            deviceId = dashboardDevice.deviceId;
+            deviceIdSource = 'devices.data (DashboardControl)';
+        }
     }
+    
+    if (!deviceId) {
+        deviceId = "device1";
+        deviceIdSource = 'FALLBACK';
+    }
+    
+    console.log(`[PUSH-SYNC] DeviceId: ${deviceId}`);
+    console.log(`[PUSH-SYNC] DeviceId source: ${deviceIdSource}`);
     
     let logContent = `PUSH SYNC NAAR SERVER\n`;
     logContent += `Timestamp: ${timestamp}\n`;
