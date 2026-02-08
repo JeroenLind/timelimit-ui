@@ -6,6 +6,44 @@ let syncTimer = null;
 let secondsCounter = 0;
 const SYNC_INTERVAL = 30; // seconden
 
+const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
+
+function normalizeSequenceNumber(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return 0;
+    }
+    return parsed;
+}
+
+function peekNextSequenceNumber() {
+    return normalizeSequenceNumber(localStorage.getItem(SEQUENCE_STORAGE_KEY));
+}
+
+function getNextSequenceNumber() {
+    const current = peekNextSequenceNumber();
+    localStorage.setItem(SEQUENCE_STORAGE_KEY, String(current + 1));
+    if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
+        window.updateSequenceDisplay();
+    }
+    return current;
+}
+
+function resetSequenceNumber() {
+    localStorage.removeItem(SEQUENCE_STORAGE_KEY);
+    if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
+        window.updateSequenceDisplay();
+    }
+}
+
+function setSequenceNumber(value) {
+    const normalized = normalizeSequenceNumber(value);
+    localStorage.setItem(SEQUENCE_STORAGE_KEY, String(normalized));
+    if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
+        window.updateSequenceDisplay();
+    }
+}
+
 async function runSync() {
     const badge = document.getElementById('status-badge');
     const jsonView = document.getElementById('json-view');
@@ -256,7 +294,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
 /**
  * Bundelt alle changes in acties voor verzending (max 50 per batch)
  */
-function prepareSync() {
+function prepareSync(options = {}) {
     const changes = getChangedRules();
     
     if (changes.length === 0) {
@@ -266,19 +304,24 @@ function prepareSync() {
     
     const batches = [];
     let currentBatch = [];
-    let sequenceNumber = 1;
+    const consumeSequenceNumbers = options.consumeSequenceNumbers !== false;
+    let previewSequenceNumber = consumeSequenceNumbers ? null : peekNextSequenceNumber();
     
     changes.forEach(change => {
         const action = buildUpdateRuleAction(change);
         const encodedAction = JSON.stringify(action);
         
+        const sequenceNumber = consumeSequenceNumbers ? getNextSequenceNumber() : previewSequenceNumber;
+
         currentBatch.push({
             sequenceNumber: sequenceNumber,
             encodedAction: encodedAction,
             action: action // Ook het originele object voor debugging
         });
-        
-        sequenceNumber++;
+
+        if (!consumeSequenceNumbers) {
+            previewSequenceNumber += 1;
+        }
         
         // Start nieuwe batch als we 50 bereikt hebben
         if (currentBatch.length === 50) {
@@ -308,7 +351,7 @@ function prepareSync() {
 async function testSyncActions() {
     addLog("🧪 TEST SYNC: Acties worden voorbereid met HMAC-SHA512 signing...", false);
 
-    const syncData = prepareSync();
+    const syncData = prepareSync({ consumeSequenceNumbers: false });
 
     if (syncData.totalActions === 0) {
         return;
@@ -659,7 +702,7 @@ async function testCreateCategoryAndRule() {
     
     // Maak acties
     const actions = [];
-    let sequenceNumber = 1;
+    const categorySequenceNumber = getNextSequenceNumber();
     
     // Actie 1: CREATE_CATEGORY
     const createCategoryAction = {
@@ -670,19 +713,18 @@ async function testCreateCategoryAndRule() {
     };
     
     const encodedCategory = JSON.stringify(createCategoryAction);
-    const categoryIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedCategory);
+    const categoryIntegrity = await calculateIntegrity(categorySequenceNumber, deviceId, encodedCategory);
     
     actions.push({
-        sequenceNumber: sequenceNumber,
+        sequenceNumber: categorySequenceNumber,
         encodedAction: encodedCategory,
         integrity: categoryIntegrity,
         type: "parent",
         userId: parentUserId
     });
     
-    sequenceNumber++;
-    
     // Actie 2: CREATE_TIMELIMIT_RULE
+    const ruleSequenceNumber = getNextSequenceNumber();
     const createRuleAction = {
         type: "CREATE_TIMELIMIT_RULE",
         rule: {
@@ -700,10 +742,10 @@ async function testCreateCategoryAndRule() {
     };
     
     const encodedRule = JSON.stringify(createRuleAction);
-    const ruleIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedRule);
+    const ruleIntegrity = await calculateIntegrity(ruleSequenceNumber, deviceId, encodedRule);
     
     actions.push({
-        sequenceNumber: sequenceNumber,
+        sequenceNumber: ruleSequenceNumber,
         encodedAction: encodedRule,
         integrity: ruleIntegrity,
         type: "parent",
@@ -1385,7 +1427,7 @@ async function submitAddChild() {
         };
         
         const encodedAction = JSON.stringify(addUserAction);
-        const sequenceNumber = 1;
+        const sequenceNumber = getNextSequenceNumber();
         
         // Bereken integrity
         const integrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);

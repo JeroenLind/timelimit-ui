@@ -21,6 +21,11 @@
             <option value="https://api.timelimit.io">🌍 Officieel</option>
           </select>
         </div>
+                <div style="display: inline-block; margin-left: 8px; padding: 4px 8px; background: #151921; border-radius: 4px; border: 1px solid #333;">
+                    <span style="font-size: 10px; color: #888; text-transform: uppercase; margin-right: 5px;">Seq:</span>
+                    <span id="sequence-display" style="font-size: 11px; font-family: monospace; color: #4caf50;">0</span>
+                    <button class="btn" style="margin-left: 6px; padding: 3px 6px; font-size: 10px; background:#333;" onclick="setSequencePrompt()">Set</button>
+                </div>
     </header>
 
     <div id="wizard-ui" class="wizard-container">
@@ -204,6 +209,25 @@
             const display = document.querySelector('#active-token-display span');
             if (display) display.innerText = TOKEN;
         }
+
+        function updateSequenceDisplay() {
+            const display = document.getElementById('sequence-display');
+            if (!display) return;
+            if (typeof peekNextSequenceNumber === 'function') {
+                display.innerText = String(peekNextSequenceNumber());
+            } else {
+                display.innerText = '0';
+            }
+        }
+
+        function setSequencePrompt() {
+            const current = typeof peekNextSequenceNumber === 'function' ? peekNextSequenceNumber() : 0;
+            const input = prompt('Nieuwe sequence waarde (0 of hoger):', String(current));
+            if (input === null) return;
+            if (typeof setSequenceNumber !== 'function') return;
+            setSequenceNumber(input);
+            addLog(`Sequence ingesteld op ${String(peekNextSequenceNumber())}`);
+        }
         
         function logout() {
             if (confirm("Weet je zeker dat je wilt uitloggen?\n\nDit verwijdert:\n- Je token\n- Opgeslagen wachtwoord hashes\n- Change tracking\n\nJe kunt daarna opnieuw inloggen.")) {
@@ -218,6 +242,10 @@
                 // Reset state
                 if (typeof resetChangeTracking === 'function') {
                     resetChangeTracking();
+                }
+
+                if (typeof resetSequenceNumber === 'function') {
+                    resetSequenceNumber();
                 }
                 
                 updateTokenDisplay();
@@ -273,6 +301,7 @@
 
             // 2. Bestaande acties
             updateTokenDisplay();
+            updateSequenceDisplay();
             if (TOKEN) runSync();
         };
     </script>
