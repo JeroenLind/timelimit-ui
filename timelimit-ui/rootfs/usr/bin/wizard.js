@@ -214,9 +214,10 @@ async function runSignInStep3() {
         const payload = {
             mailAuthToken: wizardSession.mailAuthToken,
             parentDevice: { 
-                model: "WebDashboard-v60-Modular" 
+                model: "WebDashboard-v2026-HMAC256"
             },
-            deviceName: "DashboardControl"
+            deviceName: "DashboardControl",
+            clientLevel: 8  // ← Terug naar 8 (zoals Android app)
         };
 
         const inspector = document.getElementById('json-view');
