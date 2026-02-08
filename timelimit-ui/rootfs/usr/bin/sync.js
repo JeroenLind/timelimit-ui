@@ -455,6 +455,146 @@ BATCHES: ${syncData.batches.length}
     addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
 }
 /**
+ * DEBUG FUNCTIE: Verifieer integrity berekening met server
+ * Roept /debug-integrity endpoint aan om te zien of onze HMAC klopt
+ */
+async function debugIntegrityCheck() {
+    addLog("🔍 DEBUG: Integrity verificatie starten...", false);
+    
+    const inspector = document.getElementById('json-view');
+    const timestamp = new Date().toLocaleTimeString();
+    let logContent = `\n\n${"=".repeat(30)} INTEGRITY DEBUG @ ${timestamp} ${"=".repeat(30)}\n`;
+    
+    // Haal wachtwoord op (tijdelijk - alleen voor debug)
+    const password = prompt("Voer je parent wachtwoord in voor verificatie (alleen lokaal gebruikt):");
+    if (!password) {
+        addLog("Verificatie geannuleerd", true);
+        return;
+    }
+    
+    // Controleer of we de benodigde data hebben
+    if (!currentDataDraft?.users?.data) {
+        addLog("❌ Geen user data beschikbaar - voer eerst een pull sync uit", true);
+        return;
+    }
+    
+    if (!currentDataDraft?.devices?.data) {
+        addLog("❌ Geen device data beschikbaar", true);
+        return;
+    }
+    
+    // Haal parent user op
+    const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
+    if (!parentUser) {
+        addLog("❌ Geen parent user gevonden", true);
+        return;
+    }
+    
+    const parentUserId = parentUser.id || parentUser.userId;
+    const secondPasswordSalt = parentUser.secondPasswordSalt;
+    
+    if (!secondPasswordSalt) {
+        addLog("❌ Geen secondPasswordSalt gevonden in user data", true);
+        return;
+    }
+    
+    // Haal deviceId op (DashboardControl device)
+    const dashboardDevice = currentDataDraft.devices.data.find(d => 
+        d.name === "DashboardControl" || d.model?.includes("Dashboard")
+    );
+    
+    if (!dashboardDevice) {
+        addLog("❌ DashboardControl device niet gevonden", true);
+        return;
+    }
+    
+    const deviceId = dashboardDevice.deviceId;
+    
+    logContent += `\nINPUT DATA:\n`;
+    logContent += `- Parent userId: ${parentUserId}\n`;
+    logContent += `- SecondPasswordSalt: ${secondPasswordSalt}\n`;
+    logContent += `- DeviceId: ${deviceId}\n`;
+    logContent += `- Device naam: ${dashboardDevice.name}\n`;
+    
+    // Maak een test actie
+    const testAction = {
+        type: "UPDATE_TIMELIMIT_RULE",
+        ruleId: "iox6Sg",
+        time: 7200000,
+        days: 1,
+        extraTime: false,
+        start: 0,
+        end: 1439,
+        pause: 0,
+        perDay: true
+    };
+    
+    const encodedAction = JSON.stringify(testAction);
+    const sequenceNumber = 1;
+    
+    logContent += `- SequenceNumber: ${sequenceNumber}\n`;
+    logContent += `- EncodedAction: ${encodedAction}\n\n`;
+    
+    // Bereken onze eigen integrity
+    addLog("Berekenen lokale integrity...", false);
+    const ourIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
+    
+    logContent += `ONZE BEREKENING:\n`;
+    logContent += `- Integrity: ${ourIntegrity}\n\n`;
+    
+    // Vraag server om zijn berekening
+    addLog("Vragen aan server om correcte integrity...", false);
+    
+    try {
+        const response = await fetch('debug-integrity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                password: password,
+                secondSalt: secondPasswordSalt,
+                sequenceNumber: sequenceNumber,
+                deviceId: deviceId,
+                encodedAction: encodedAction,
+                providedIntegrity: ourIntegrity
+            })
+        });
+        
+        const result = await response.json();
+        
+        logContent += `SERVER BEREKENING:\n`;
+        logContent += `- Calculated: ${result.calculatedIntegrity}\n`;
+        logContent += `- SecondHash: ${result.secondHash}\n`;
+        logContent += `- MATCH: ${result.match ? '✅ JA' : '❌ NEE'}\n\n`;
+        
+        if (!result.match) {
+            logContent += `❌ PROBLEEM GEVONDEN:\n`;
+            logContent += `  De HMAC die wij berekenen komt niet overeen met wat de server verwacht!\n`;
+            logContent += `  Dit betekent dat de server je push sync zal afwijzen.\n\n`;
+            logContent += `  Mogelijke oorzaken:\n`;
+            logContent += `  1. SecondHash verschil: Check of je wachtwoord correct is\n`;
+            logContent += `  2. DeviceId verschil: Check of je de juiste device gebruikt\n`;
+            logContent += `  3. Encoding verschil: Check binary format details\n\n`;
+            
+            addLog("❌ INTEGRITY MISMATCH - zie inspector voor details", true);
+        } else {
+            logContent += `✅ PERFECT! De integrity berekening is correct.\n`;
+            logContent += `   Dit betekent dat push sync zou moeten werken.\n`;
+            addLog("✅ Integrity verificatie geslaagd!", false);
+        }
+        
+        logContent += `\nDEBUG INFO:\n`;
+        logContent += JSON.stringify(result.debugInfo, null, 2);
+        
+    } catch (e) {
+        logContent += `\n❌ ERROR: ${e.message}\n`;
+        addLog("❌ Debug verificatie mislukt: " + e.message, true);
+    }
+    
+    inspector.textContent += logContent;
+    inspector.scrollTop = inspector.scrollHeight;
+}
+
+/**
  * ECHTE SYNC: Verstuurt wijzigingen naar de server via /sync/push-actions
  * Met uitgebreide logging van alle server responses
  */

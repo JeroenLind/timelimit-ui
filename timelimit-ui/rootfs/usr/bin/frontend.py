@@ -80,7 +80,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/generate-hashes': 'INTERNAL',
             '/regenerate-hash': 'INTERNAL',
             '/calculate-hmac': 'INTERNAL',
-            '/calculate-hmac-sha256': 'INTERNAL'
+            '/calculate-hmac-sha256': 'INTERNAL',
+            '/debug-integrity': 'INTERNAL'
         }
         
         # Speciale afhandeling voor interne hashing
@@ -149,6 +150,77 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 sys.stderr.write(f"[ERROR] HMAC-SHA256 fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
+            return
+        
+        # DEBUG endpoint: uitgebreide integrity diagnostiek
+        if self.path.endswith('/debug-integrity'):
+            sys.stderr.write("[DEBUG] === INTEGRITY DIAGNOSTIEK START ===\n")
+            from crypto_utils import calculate_hmac_sha256_binary, regenerate_second_hash
+            import base64
+            try:
+                data = json.loads(post_data)
+                password = data.get('password')
+                second_salt = data.get('secondSalt')
+                sequence_number = data.get('sequenceNumber')
+                device_id = data.get('deviceId')
+                encoded_action = data.get('encodedAction')
+                provided_integrity = data.get('providedIntegrity')
+                
+                sys.stderr.write(f"[DEBUG-INT] Password: {'*' * len(password) if password else 'MISSING'}\n")
+                sys.stderr.write(f"[DEBUG-INT] SecondSalt: {second_salt}\n")
+                sys.stderr.write(f"[DEBUG-INT] SequenceNumber: {sequence_number}\n")
+                sys.stderr.write(f"[DEBUG-INT] DeviceId: '{device_id}' (length: {len(device_id)})\n")
+                sys.stderr.write(f"[DEBUG-INT] EncodedAction length: {len(encoded_action)}\n")
+                sys.stderr.write(f"[DEBUG-INT] ProvidedIntegrity: {provided_integrity}\n")
+                
+                # Stap 1: Regenereer secondHash
+                second_hash = regenerate_second_hash(password, second_salt)
+                sys.stderr.write(f"[DEBUG-INT] Regenerated secondHash: {second_hash}\n")
+                sys.stderr.write(f"[DEBUG-INT] SecondHash as bytes: {second_hash.encode('utf-8')}\n")
+                
+                # Stap 2: Bereken HMAC
+                calculated_integrity = calculate_hmac_sha256_binary(
+                    second_hash, sequence_number, device_id, encoded_action
+                )
+                sys.stderr.write(f"[DEBUG-INT] Calculated integrity: {calculated_integrity}\n")
+                
+                # Stap 3: Vergelijk
+                match = (calculated_integrity == provided_integrity)
+                sys.stderr.write(f"[DEBUG-INT] MATCH: {match}\n")
+                
+                if not match:
+                    sys.stderr.write(f"[DEBUG-INT] ❌ MISMATCH DETAILS:\n")
+                    sys.stderr.write(f"[DEBUG-INT]   Expected: {calculated_integrity}\n")
+                    sys.stderr.write(f"[DEBUG-INT]   Got:      {provided_integrity}\n")
+                    
+                    # Decodeer beide base64 strings en vergelijk bytes
+                    if provided_integrity.startswith('password:'):
+                        expected_bytes = base64.b64decode(calculated_integrity.split(':')[1])
+                        provided_bytes = base64.b64decode(provided_integrity.split(':')[1])
+                        sys.stderr.write(f"[DEBUG-INT]   Expected bytes (hex): {expected_bytes.hex()}\n")
+                        sys.stderr.write(f"[DEBUG-INT]   Provided bytes (hex): {provided_bytes.hex()}\n")
+                
+                sys.stderr.write("[DEBUG] === INTEGRITY DIAGNOSTIEK END ===\n")
+                
+                response = {
+                    "calculatedIntegrity": calculated_integrity,
+                    "providedIntegrity": provided_integrity,
+                    "match": match,
+                    "secondHash": second_hash,
+                    "debugInfo": {
+                        "deviceIdLength": len(device_id),
+                        "actionLength": len(encoded_action),
+                        "sequenceNumber": sequence_number
+                    }
+                }
+                
+                self._send_raw(200, json.dumps(response, indent=2).encode(), "application/json")
+            except Exception as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                sys.stderr.write(f"[ERROR] Debug integrity fout: {str(e)}\n")
+                sys.stderr.write(f"{error_trace}\n")
+                self._send_raw(400, json.dumps({"error": str(e), "trace": error_trace}).encode(), "application/json")
             return
 
         # Bepaal het doelpad op de externe API
