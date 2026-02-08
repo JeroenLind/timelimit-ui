@@ -25,6 +25,7 @@
                     <span style="font-size: 10px; color: #888; text-transform: uppercase; margin-right: 5px;">Seq:</span>
                     <span id="sequence-display" style="font-size: 11px; font-family: monospace; color: #4caf50;">0</span>
                     <button class="btn" style="margin-left: 6px; padding: 3px 6px; font-size: 10px; background:#333;" onclick="setSequencePrompt()">Set</button>
+                    <button class="btn" style="margin-left: 4px; padding: 3px 6px; font-size: 10px; background:#2d5a2d; border-color:#4a8a4a;" onclick="safeBumpSequencePrompt()">Bump</button>
                 </div>
     </header>
 
@@ -227,6 +228,20 @@
             if (typeof setSequenceNumber !== 'function') return;
             setSequenceNumber(input);
             addLog(`Sequence ingesteld op ${String(peekNextSequenceNumber())}`);
+        }
+
+        function safeBumpSequencePrompt() {
+            const current = typeof peekNextSequenceNumber === 'function' ? peekNextSequenceNumber() : 0;
+            const input = prompt('Safe bump: hoeveel wil je optellen?', '100');
+            if (input === null) return;
+            const bump = Number.parseInt(input, 10);
+            if (!Number.isFinite(bump) || bump <= 0) {
+                addLog('Ongeldige bump-waarde. Gebruik een getal > 0.', true);
+                return;
+            }
+            if (typeof setSequenceNumber !== 'function') return;
+            setSequenceNumber(current + bump);
+            addLog(`Sequence verhoogd naar ${String(peekNextSequenceNumber())} (+${bump})`);
         }
         
         function logout() {
