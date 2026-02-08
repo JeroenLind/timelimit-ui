@@ -173,10 +173,10 @@
         </div>
     </div>
 
-    <script src="state.js?v=80"></script>
+    <script src="state.js?v=81"></script>
     <script src="ui.js?v=80"></script>
     <script src="wizard.js?v=80"></script>
-    <script src="sync.js?v=80"></script>
+    <script src="sync.js?v=81"></script>
     <script src="tree.js?v=80"></script> 
     
     <script>
@@ -187,6 +187,31 @@
         function updateTokenDisplay() {
             const display = document.querySelector('#active-token-display span');
             if (display) display.innerText = TOKEN;
+        }
+        
+        function logout() {
+            if (confirm("Weet je zeker dat je wilt uitloggen?\n\nDit verwijdert:\n- Je token\n- Opgeslagen wachtwoord hashes\n- Change tracking\n\nJe kunt daarna opnieuw inloggen.")) {
+                TOKEN = "";
+                localStorage.removeItem('timelimit_token');
+                
+                // Wis ook de parentPasswordHash
+                if (typeof clearParentPasswordHash === 'function') {
+                    clearParentPasswordHash();
+                }
+                
+                // Reset state
+                if (typeof resetChangeTracking === 'function') {
+                    resetChangeTracking();
+                }
+                
+                updateTokenDisplay();
+                document.getElementById('user-list').innerHTML = "<p style='color: #888;'>Uitgelogd. Gebruik 'Inloggen op Familie' om opnieuw in te loggen.</p>";
+                document.getElementById('category-tree-container').innerHTML = "Wachtend op login...";
+                document.getElementById('status-badge').innerText = "Uitgelogd";
+                document.getElementById('status-badge').className = "status-badge status-offline";
+                
+                addLog("✅ Volledig uitgelogd - alle lokale data gewist", false);
+            }
         }
 
         async function switchServer(url) {

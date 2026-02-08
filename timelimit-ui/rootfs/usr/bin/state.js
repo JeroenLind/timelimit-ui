@@ -11,6 +11,15 @@ let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 let parentPasswordHash = null;
 
 /**
+ * Wist de opgeslagen parent password hash
+ */
+function clearParentPasswordHash() {
+    parentPasswordHash = null;
+    localStorage.removeItem('parentPasswordHash');
+    console.log("[STATE] Parent password hash gewist");
+}
+
+/**
  * Initialiseert het concept EN slaat de originele data op voor change tracking
  */
 function initializeDraft(data) {

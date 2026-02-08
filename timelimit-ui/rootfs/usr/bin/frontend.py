@@ -81,7 +81,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/regenerate-hash': 'INTERNAL',
             '/calculate-hmac': 'INTERNAL',
             '/calculate-hmac-sha256': 'INTERNAL',
-            '/debug-integrity': 'INTERNAL'
+            '/debug-integrity': 'INTERNAL',
+            '/get-token-device': 'INTERNAL'
         }
         
         # Speciale afhandeling voor interne hashing
@@ -221,6 +222,82 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 sys.stderr.write(f"[ERROR] Debug integrity fout: {str(e)}\n")
                 sys.stderr.write(f"{error_trace}\n")
                 self._send_raw(400, json.dumps({"error": str(e), "trace": error_trace}).encode(), "application/json")
+            return
+        
+        # Endpoint om deviceId op te halen die hoort bij een token
+        if self.path.endswith('/get-token-device'):
+            sys.stderr.write("[DEBUG] === TOKEN DEVICE LOOKUP START ===\n")
+            try:
+                data = json.loads(post_data)
+                device_auth_token = data.get('deviceAuthToken')
+                
+                sys.stderr.write(f"[DEBUG] Looking up device for token: {device_auth_token[:10]}...\n")
+                
+                # Vraag aan server via pull-status (dit geeft ons de deviceId terug)
+                pull_request = {
+                    "deviceAuthToken": device_auth_token,
+                    "status": {
+                        "apps": {},
+                        "categories": {},
+                        "devices": "0",
+                        "users": "0",
+                        "clientLevel": 8
+                    }
+                }
+                
+                status, body = api.post('/sync/pull-status', json.dumps(pull_request).encode())
+                
+                if status == 200:
+                    response_data = json.loads(body)
+                    
+                    # Zoek in devices.data naar het device dat deze token heeft
+                    # Helaas bevat pull-status response geen deviceId field direct
+                    # Maar we kunnen wel de devices lijst gebruiken
+                    
+                    if 'devices' in response_data and 'data' in response_data['devices']:
+                        devices = response_data['devices']['data']
+                        sys.stderr.write(f"[DEBUG] Found {len(devices)} devices in response\n")
+                        
+                        for device in devices:
+                            sys.stderr.write(f"[DEBUG] Device: {device.get('name')} - ID: {device.get('deviceId')}\n")
+                        
+                        # Probeer DashboardControl to vinden
+                        dashboard_device = next((d for d in devices if 'Dashboard' in d.get('name', '')), None)
+                        
+                        if dashboard_device:
+                            device_id = dashboard_device['deviceId']
+                            sys.stderr.write(f"[DEBUG] Found dashboard device: {device_id}\n")
+                            
+                            result = {
+                                "deviceId": device_id,
+                                "deviceName": dashboard_device.get('name'),
+                                "allDevices": devices,
+                                "note": "Dit is de deviceId die bij je token zou moeten horen"
+                            }
+                            
+                            self._send_raw(200, json.dumps(result, indent=2).encode(), "application/json")
+                        else:
+                            result = {
+                                "error": "DashboardControl device not found",
+                                "allDevices": devices
+                            }
+                            self._send_raw(404, json.dumps(result, indent=2).encode(), "application/json")
+                    else:
+                        result = {"error": "No devices in response"}
+                        self._send_raw(500, json.dumps(result).encode(), "application/json")
+                else:
+                    sys.stderr.write(f"[ERROR] Pull status failed: {status}\n")
+                    result = {"error": f"Pull status failed with {status}"}
+                    self._send_raw(status, json.dumps(result).encode(), "application/json")
+                    
+            except Exception as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                sys.stderr.write(f"[ERROR] Token device lookup failed: {str(e)}\n")
+                sys.stderr.write(f"{error_trace}\n")
+                self._send_raw(500, json.dumps({"error": str(e), "trace": error_trace}).encode(), "application/json")
+            
+            sys.stderr.write("[DEBUG] === TOKEN DEVICE LOOKUP END ===\n")
             return
 
         # Bepaal het doelpad op de externe API
