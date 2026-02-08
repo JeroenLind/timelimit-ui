@@ -105,15 +105,26 @@ async function runStep3() {
         });
         const hashes = await hRes.json();
         
+        // STRIKTE VALIDATIE: Alleen echte bcrypt waarden accepteren
+        if (!hashes.hash || !hashes.hash.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige primaryHash");
+        }
+        if (!hashes.secondHash || !hashes.secondHash.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige secondHash");
+        }
+        if (!hashes.secondSalt || !hashes.secondSalt.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige secondSalt. Dit kan problemen veroorzaken bij latere operaties.");
+        }
+        
         let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-        const validDummySalt = "$2a$12$1234567890123456789012";
-        const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
+        let cleanSecondHash = hashes.secondHash.replace('$2b$', '$2a$');
+        const finalSalt = hashes.secondSalt.replace('$2b$', '$2a$');
 
         const payload = {
             mailAuthToken: wizardSession.mailAuthToken,
             parentPassword: {
                 hash: cleanHash,
-                secondHash: cleanHash,
+                secondHash: cleanSecondHash,
                 secondSalt: finalSalt
             },
             parentDevice: { model: "WebDashboard-v60-Modular" },
@@ -187,16 +198,27 @@ async function runSignInStep3() {
         });
         const hashes = await hRes.json();
         
+        // STRIKTE VALIDATIE: Alleen echte bcrypt waarden accepteren
+        if (!hashes.hash || !hashes.hash.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige primaryHash");
+        }
+        if (!hashes.secondHash || !hashes.secondHash.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige secondHash");
+        }
+        if (!hashes.secondSalt || !hashes.secondSalt.includes('$2')) {
+            throw new Error("Server retourneerde geen geldige secondSalt. Dit kan problemen veroorzaken bij latere operaties.");
+        }
+        
         // Zorg voor schone bcrypt hash zonder het 2b prefix
         let cleanHash = hashes.hash.replace('$2b$', '$2a$');
-        const validDummySalt = "$2a$12$1234567890123456789012";
-        const finalSalt = (hashes.salt && hashes.salt.includes('$2a$')) ? hashes.salt : validDummySalt;
+        let cleanSecondHash = hashes.secondHash.replace('$2b$', '$2a$');
+        const finalSalt = hashes.secondSalt.replace('$2b$', '$2a$');
 
         // STAP 2: Sla de hashes op in state.js (globaal beschikbaar voor signing)
         if (typeof storeparentPasswordHashForSync === 'function') {
             storeparentPasswordHashForSync({
                 hash: cleanHash,
-                secondHash: cleanHash,
+                secondHash: cleanSecondHash,
                 secondSalt: finalSalt
             });
             addLog("✅ Wachtwoord hashes opgeslagen voor sync signing.");

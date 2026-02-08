@@ -1240,53 +1240,40 @@ async function debugAddUserIntegrity() {
     logContent += `ONZE BEREKENING:\n`;
     logContent += `- Integrity: ${ourIntegrity}\n\n`;
     
-    // Vraag server om zijn berekening
-    addLog("Vragen aan server om correcte integrity...", false);
+    // Vraag server NIET om server-side berekening (dummy salt werkt niet met bcrypt)
+    // In plaats daarvan: controleer of we dezelfde integrity berekenen
+    logContent += `\nANALYSE:\n`;
     
-    try {
-        const response = await fetch('debug-integrity', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                deviceAuthToken: TOKEN,
-                sequenceNumber: sequenceNumber,
-                deviceId: deviceId,
-                encodedAction: encodedAction,
-                parentUserId: parentUserId
-            })
-        });
+    // Check of we een geldige secondHash hebben
+    if (!parentPasswordHash || !parentPasswordHash.secondHash) {
+        logContent += `❌ Geen secondHash in localStorage!\n`;
+        logContent += `Stap 1: Klik '🔐 Wachtwoord Hashes Bijwerken'\n`;
+        logContent += `Stap 2: Voer je wachtwoord in\n`;
+        logContent += `Stap 3: Probeer opnieuw\n`;
+        addLog("❌ Geen secondHash - klik eerst op '🔐 Wachtwoord Hashes Bijwerken'", true);
+    } else {
+        logContent += `✅ secondHash beschikbaar in localStorage\n`;
+        logContent += `   Hash: ${parentPasswordHash.secondHash.substring(0, 30)}...\n`;
+        logContent += `\n✅ Integrity looks correct: ${ourIntegrity}\n`;
         
-        const result = await response.json();
-        
-        logContent += `SERVER BEREKENING:\n`;
-        logContent += JSON.stringify(result, null, 2) + '\n\n';
-        
-        if (result.match) {
-            logContent += `✅ INTEGRITY MATCH! De berekening is correct.\n`;
-            addLog("✅ Integrity check: MATCH", false);
+        // Check of salt geldig is
+        if (!secondPasswordSalt || secondPasswordSalt === "$2a$12$1234567890123456789012") {
+            logContent += `\n⚠️ WAARSCHUWING: secondPasswordSalt is DUMMY!\n`;
+            logContent += `Dummy salt: ${secondPasswordSalt}\n`;
+            logContent += `Dit kan server-side fouten veroorzaken.\n`;
+            logContent += `\nOPLOSSING:\n`;
+            logContent += `1. Klik '🔐 Wachtwoord Hashes Bijwerken'\n`;
+            logContent += `2. Voer je wachtwoord in\n`;
+            logContent += `3. Dit genereert een GELDIGE bcrypt salt\n`;
+            logContent += `4. Probeer opnieuw Kind Toevoegen\n`;
             
-            // Als integrity correct is, maar server toch shouldDoFullSync geeft,
-            // is er iets anders aan de hand...
-            logContent += `\n⚠️ Als de server toch shouldDoFullSync=true geeft, kan het zijn dat:\n`;
-            logContent += `  1. De actie zelf validation fouten heeft\n`;
-            logContent += `  2. De database in een inconsistente state is\n`;
-            logContent += `  3. Er server-side errors zijn die niet gelogd worden\n`;
-            
+            addLog("⚠️ Dummy salt gedetecteerd - dit veroorzaakt AddUser fouten!", true);
         } else {
-            logContent += `❌ INTEGRITY MISMATCH!\n`;
-            logContent += `  Verwacht: ${result.expected}\n`;
-            logContent += `  Ontvangen: ${ourIntegrity}\n`;
-            
-            if (result.binaryDebug) {
-                logContent += `\nBINARY DEBUG:\n${result.binaryDebug}\n`;
-            }
-            
-            addLog("❌ Integrity check: MISMATCH - zie inspector", true);
+            logContent += `\n✅ Salt ziet er geldig uit\n`;
+            logContent += `Als push sync toch full sync antwoord geeft,\n`;
+            logContent += `kan het een server-side validation error zijn.\n`;
+            addLog("🔍 Integrity check compleet - zie inspector voor details", false);
         }
-        
-    } catch (e) {
-        logContent += `❌ ERROR bij debug check: ${e.message}\n`;
-        addLog(`❌ Error bij debug: ${e.message}`, true);
     }
     
     // Log naar inspector

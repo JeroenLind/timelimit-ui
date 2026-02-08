@@ -268,8 +268,17 @@ async function submitPasswordReset() {
             }
             
             const hashes = await hRes.json();
+            
+            // STRIKTE VALIDATIE: Alleen echte bcrypt waarden accepteren
+            if (!hashes.secondHash || !hashes.secondHash.includes('$2')) {
+                throw new Error("Server retourneerde geen geldige secondHash");
+            }
+            if (!hashes.secondSalt || !hashes.secondSalt.includes('$2')) {
+                throw new Error("Server retourneerde geen geldige secondSalt");
+            }
+            
             secondHash = hashes.secondHash.replace('$2b$', '$2a$');
-            secondSalt = hashes.secondSalt || "$2a$12$1234567890123456789012";
+            secondSalt = hashes.secondSalt.replace('$2b$', '$2a$');
             
             console.log("[PASSWORD-RESET] Nieuwe hashes gegenereerd");
         }
