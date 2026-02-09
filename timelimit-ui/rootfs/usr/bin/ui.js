@@ -80,6 +80,61 @@ function copyInspectorToClipboard() {
     }
 }
 
+function showLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+    resetLoginModal();
+}
+
+function hideLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function showManualTokenField() {
+    const choice = document.getElementById('login-choice');
+    const form = document.getElementById('manual-token-form');
+    if (choice) choice.style.display = 'none';
+    if (form) form.style.display = 'block';
+
+    const input = document.getElementById('manual-token-input');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+}
+
+function resetLoginModal() {
+    const choice = document.getElementById('login-choice');
+    const form = document.getElementById('manual-token-form');
+    if (choice) choice.style.display = 'block';
+    if (form) form.style.display = 'none';
+
+    const input = document.getElementById('manual-token-input');
+    if (input) input.value = '';
+}
+
+function loginWithToken() {
+    const input = document.getElementById('manual-token-input');
+    const tokenValue = input ? input.value.trim() : '';
+
+    if (!tokenValue) {
+        addLog('❌ Voer een geldige token in.', true);
+        return;
+    }
+
+    TOKEN = tokenValue;
+    localStorage.setItem('timelimit_token', TOKEN);
+    updateTokenDisplay();
+    hideLoginModal();
+    addLog('✅ Token ingesteld en opgeslagen.');
+    runSync();
+}
+
 /**
  * Toont een samenvatting van alle gewijzigde regels
  */
