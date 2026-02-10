@@ -70,6 +70,17 @@ function getReadableAppName(packageName) {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function compareCategoryOrder(a, b) {
+    const aSort = Number.isFinite(a.sort) ? a.sort : 0;
+    const bSort = Number.isFinite(b.sort) ? b.sort : 0;
+    if (aSort !== bSort) return aSort - bSort;
+    const aTitle = (a.title || "").toLowerCase();
+    const bTitle = (b.title || "").toLowerCase();
+    if (aTitle < bTitle) return -1;
+    if (aTitle > bTitle) return 1;
+    return 0;
+}
+
 function getTodayUsage(categoryId, usedTimes) {
     const todayEpoch = Math.floor(Date.now() / 86400000);
     const categoryUsage = usedTimes.find(u => u.categoryId === categoryId);
@@ -95,17 +106,6 @@ function buildCategoryTree(data) {
     
     const categoryMap = {};
     const tree = [];
-
-    function compareCategoryOrder(a, b) {
-        const aSort = Number.isFinite(a.sort) ? a.sort : 0;
-        const bSort = Number.isFinite(b.sort) ? b.sort : 0;
-        if (aSort !== bSort) return aSort - bSort;
-        const aTitle = (a.title || "").toLowerCase();
-        const bTitle = (b.title || "").toLowerCase();
-        if (aTitle < bTitle) return -1;
-        if (aTitle > bTitle) return 1;
-        return 0;
-    }
 
     // STAP 1: Maak een object-map voor snelle opzoeking en koppel Apps/Rules direct aan de categorie
     categories.forEach(cat => {
@@ -143,6 +143,118 @@ function buildCategoryTree(data) {
     tree.sort(compareCategoryOrder);
 
     return tree;
+}
+
+let appIndexItems = [];
+
+function buildAppIndex(data) {
+    const categories = data.categoryBase || [];
+    const appsMap = data.categoryApp || [];
+
+    const categoryById = new Map();
+    categories.forEach(cat => {
+        categoryById.set(cat.categoryId, { title: cat.title || "(onbekend)", sort: cat.sort });
+    });
+
+    const appMap = new Map();
+    appsMap.forEach(entry => {
+        const categoryMeta = categoryById.get(entry.categoryId) || { title: "(onbekend)", sort: 0 };
+        const apps = entry.apps || [];
+
+        apps.forEach(packageName => {
+            if (!appMap.has(packageName)) {
+                appMap.set(packageName, {
+                    packageName,
+                    readableName: getReadableAppName(packageName),
+                    categories: []
+                });
+            }
+            appMap.get(packageName).categories.push({
+                title: categoryMeta.title,
+                sort: categoryMeta.sort
+            });
+        });
+    });
+
+    const items = Array.from(appMap.values()).map(item => {
+        const uniqueCategories = new Map();
+        item.categories.forEach(cat => {
+            uniqueCategories.set(cat.title, cat);
+        });
+        const categoriesSorted = Array.from(uniqueCategories.values()).sort(compareCategoryOrder);
+        return {
+            packageName: item.packageName,
+            readableName: item.readableName,
+            categories: categoriesSorted.map(cat => cat.title)
+        };
+    });
+
+    items.sort((a, b) => {
+        const aName = a.readableName.toLowerCase();
+        const bName = b.readableName.toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return a.packageName.localeCompare(b.packageName);
+    });
+
+    return items;
+}
+
+function renderAppIndexList(items, query) {
+    const list = document.getElementById('app-index-list');
+    if (!list) return;
+
+    const normalized = (query || "").trim().toLowerCase();
+    const filtered = normalized
+        ? items.filter(item => {
+            const catText = item.categories.join(' ').toLowerCase();
+            return item.readableName.toLowerCase().includes(normalized)
+                || item.packageName.toLowerCase().includes(normalized)
+                || catText.includes(normalized);
+        })
+        : items;
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="app-index-item">Geen apps gevonden.</div>';
+        return;
+    }
+
+    list.innerHTML = filtered.map(item => {
+        const categoriesText = item.categories.length > 0 ? item.categories.join(', ') : '(geen categorie)';
+        return `
+            <div class="app-index-item">
+                <span class="app-index-name">${item.readableName}</span>
+                <span class="app-index-package">${item.packageName}</span>
+                <span class="app-index-categories">${categoriesText}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function initAppIndexSearch() {
+    const input = document.getElementById('app-index-search');
+    if (!input || input.dataset.bound === 'true') return;
+    input.dataset.bound = 'true';
+
+    input.addEventListener('input', () => {
+        renderAppIndexList(appIndexItems, input.value);
+    });
+}
+
+function updateAppIndexDisplay(data) {
+    const list = document.getElementById('app-index-list');
+    if (!list) return;
+
+    appIndexItems = buildAppIndex(data);
+    initAppIndexSearch();
+
+    const input = document.getElementById('app-index-search');
+    const query = input ? input.value : '';
+    if (appIndexItems.length === 0) {
+        list.innerHTML = '<div class="app-index-item">Geen app data beschikbaar.</div>';
+        return;
+    }
+    renderAppIndexList(appIndexItems, query);
 }
 
 
@@ -290,6 +402,8 @@ function updateCategoryDisplay(data) {
     const tree = buildCategoryTree(data);
     // Geef 'data' (de hele JSON) mee als derde argument
     container.innerHTML = renderTreeHTML(tree, 0, data);
+
+    updateAppIndexDisplay(data);
 
     // Herstel geopende categorieën
     restoreOpenCategoryIds(openCategoryIds);
