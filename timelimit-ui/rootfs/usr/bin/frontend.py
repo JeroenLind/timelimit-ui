@@ -37,9 +37,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         
         # DEBUG: Log welk pad wordt aangeroepen
         sys.stderr.write(f"\n[DEBUG] Binnenkomend POST verzoek op pad: {self.path}\n")
+        sys.stderr.write(f"[DEBUG] Request headers: {dict(self.headers)}\n")
         
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
+        sys.stderr.write(f"[DEBUG] Content-Length: {content_length} bytes\n")
         
         # Initialiseer SELECTED_SERVER
         if SELECTED_SERVER is None:
@@ -91,9 +93,12 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             from crypto_utils import generate_family_hashes
             try:
                 data = json.loads(post_data)
+                sys.stderr.write(f"[DEBUG] generate-hashes payload keys: {list(data.keys())}\n")
                 res = generate_family_hashes(data['password'])
+                sys.stderr.write("[DEBUG] generate-hashes succesvol afgerond\n")
                 self._send_raw(200, json.dumps(res).encode(), "application/json")
             except Exception as e:
+                sys.stderr.write(f"[ERROR] generate-hashes fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         
