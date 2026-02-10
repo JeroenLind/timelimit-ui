@@ -83,6 +83,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             '/regenerate-hash': 'INTERNAL',
             '/calculate-hmac': 'INTERNAL',
             '/calculate-hmac-sha256': 'INTERNAL',
+            '/calculate-sha512': 'INTERNAL',
             '/debug-integrity': 'INTERNAL',
             '/get-token-device': 'INTERNAL'
         }
@@ -94,7 +95,10 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(post_data)
                 sys.stderr.write(f"[DEBUG] generate-hashes payload keys: {list(data.keys())}\n")
+                start_ts = time.time()
                 res = generate_family_hashes(data['password'])
+                duration_ms = int((time.time() - start_ts) * 1000)
+                sys.stderr.write(f"[DEBUG] generate-hashes duur: {duration_ms} ms\n")
                 sys.stderr.write("[DEBUG] generate-hashes succesvol afgerond\n")
                 self._send_raw(200, json.dumps(res).encode(), "application/json")
             except Exception as e:
@@ -135,6 +139,23 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
             except Exception as e:
                 sys.stderr.write(f"[ERROR] HMAC fout: {str(e)}\n")
+                self._send_raw(400, str(e).encode(), "text/plain")
+            return
+
+        # Legacy SHA512 hex digest (voor serverLevel < 6)
+        if self.path.endswith('/calculate-sha512'):
+            sys.stderr.write("[DEBUG] Server-side SHA512 berekening gestart\n")
+            from crypto_utils import calculate_sha512_hex
+            try:
+                data = json.loads(post_data)
+                message = data['message']
+
+                result = calculate_sha512_hex(message)
+                sys.stderr.write(f"[DEBUG] SHA512 berekend: {result[:30]}...\n")
+
+                self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
+            except Exception as e:
+                sys.stderr.write(f"[ERROR] SHA512 fout: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         

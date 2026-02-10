@@ -65,6 +65,22 @@ def calculate_hmac_sha512(key_base64, message):
     except Exception as e:
         raise ValueError(f"HMAC calculation failed: {str(e)}")
 
+def calculate_sha512_hex(message):
+    """
+    Berekent SHA512 hex digest voor legacy integrity signing.
+
+    Args:
+        message: String message (sequenceNumber + deviceId + secondHash + encodedAction)
+
+    Returns:
+        Hex string van de SHA512 digest.
+    """
+    try:
+        message_bytes = message.encode('utf-8')
+        return hashlib.sha512(message_bytes).hexdigest()
+    except Exception as e:
+        raise ValueError(f"SHA512 calculation failed: {str(e)}")
+
 def calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encoded_action):
     """
     Berekent HMAC-SHA256 voor sync action signing in CORRECT server formaat.

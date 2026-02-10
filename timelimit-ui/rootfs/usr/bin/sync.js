@@ -5,6 +5,7 @@
 let syncTimer = null;
 let secondsCounter = 0;
 const SYNC_INTERVAL = 30; // seconden
+let serverApiLevel = null;
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
 
@@ -78,6 +79,9 @@ async function runSync() {
         if (res.ok && contentType && contentType.includes("application/json")) {
             // Alleen parsen als de status 200 (OK) is EN het JSON is
             responseData = await res.json();
+
+            serverApiLevel = typeof responseData.apiLevel === "number" ? responseData.apiLevel : null;
+            console.log(`[SYNC] Server apiLevel: ${serverApiLevel}`);
             
             addLog("Sync voltooid.");
             badge.innerText = "Online";
@@ -212,14 +216,12 @@ function buildUpdateRuleAction(change) {
 }
 
 /**
- * Berekent HMAC-SHA512 integrity hash met WebCrypto API
+ * Berekent integrity voor parent actions, compatibel met Android app.
  * 
- * HMAC-SHA512(
- *   key = parentPasswordHash.secondSalt (base64),
- *   message = sequenceNumber + "|" + deviceId + "|" + encodedAction
- * )
+ * - apiLevel >= 6: HMAC-SHA256 (binary format) met "password:" prefix
+ * - apiLevel < 6: legacy SHA512 hex digest
  * 
- * @returns {string} Base64-encoded HMAC hash of "device" fallback
+ * @returns {string} Integrity string of "device" fallback
  */
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING START ===================`);
@@ -250,7 +252,43 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     console.log(`[INTEGRITY] - Is bcrypt format: ${secondHash.match(/^\$2[aby]\$/) ? 'YES' : 'NO'}`);
     console.log(`[INTEGRITY] encodedAction (first 100 chars): ${encodedAction.substring(0, 100)}...`);
     
-    // Gebruik ALTIJD server-side omdat we binary format moeten gebruiken
+    const useLegacyIntegrity = typeof serverApiLevel === "number" && serverApiLevel < 6;
+
+    if (useLegacyIntegrity) {
+        console.log(`[INTEGRITY] 🔄 Legacy SHA512 signing (apiLevel ${serverApiLevel})...`);
+
+        const integrityData = String(sequenceNumber) + deviceId + secondHash + encodedAction;
+
+        try {
+            const response = await fetch('calculate-sha512', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: integrityData
+                })
+            });
+
+            if (!response.ok) {
+                console.error(`[INTEGRITY] ❌ Server error: ${response.status}`);
+                const errorText = await response.text();
+                console.error(`[INTEGRITY] Error response: ${errorText.substring(0, 200)}`);
+                return "device";
+            }
+
+            const result = await response.json();
+            const integrityValue = result.hash;
+            console.log(`[INTEGRITY] Legacy SHA512 hash: ${integrityValue.substring(0, 30)}...`);
+            return integrityValue;
+        } catch (error) {
+            console.error("[INTEGRITY] ❌ FOUT bij server-side SHA512:");
+            console.error("  - Error type:", error.constructor.name);
+            console.error("  - Message:", error.message);
+            console.error("[INTEGRITY] FALLBACK op 'device'");
+            return "device";
+        }
+    }
+
+    // Gebruik server-side omdat we binary format moeten gebruiken
     console.log("[INTEGRITY] 🔄 Server-side HMAC-SHA256 (binary format) berekening aanroepen...");
     
     try {
