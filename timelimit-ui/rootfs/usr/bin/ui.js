@@ -18,6 +18,43 @@ function addLog(m, isError = false) {
     log.scrollTop = log.scrollHeight;
 }
 
+const DEBUG_MODE_KEY = 'timelimit_debugMode';
+
+function isDebugMode() {
+    return localStorage.getItem(DEBUG_MODE_KEY) === '1';
+}
+
+function applyDebugMode(enabled) {
+    document.body.classList.toggle('debug-mode', enabled);
+
+    const debugOnlyElements = document.querySelectorAll('[data-debug-only="true"]');
+    debugOnlyElements.forEach((el) => {
+        el.style.display = enabled ? '' : 'none';
+    });
+
+    const toggle = document.getElementById('debug-toggle');
+    if (toggle) toggle.checked = enabled;
+
+    const label = document.getElementById('debug-toggle-label');
+    if (label) label.textContent = enabled ? 'On' : 'Off';
+}
+
+function setDebugMode(enabled) {
+    localStorage.setItem(DEBUG_MODE_KEY, enabled ? '1' : '0');
+    applyDebugMode(enabled);
+}
+
+function initDebugToggle() {
+    const toggle = document.getElementById('debug-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('change', () => {
+        setDebugMode(toggle.checked);
+    });
+
+    applyDebugMode(isDebugMode());
+}
+
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');
     if (!wizardUi) return;

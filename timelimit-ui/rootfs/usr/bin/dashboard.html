@@ -22,6 +22,13 @@
           </select>
         </div>
                 <div style="display: inline-block; margin-left: 8px; padding: 4px 8px; background: #151921; border-radius: 4px; border: 1px solid #333;">
+                    <span style="font-size: 10px; color: #888; text-transform: uppercase; margin-right: 6px;">Debug:</span>
+                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; color: #aaa;">
+                        <input id="debug-toggle" type="checkbox" style="margin: 0; width: 14px; height: 14px;">
+                        <span id="debug-toggle-label" style="font-family: monospace;">Off</span>
+                    </label>
+                </div>
+                <div style="display: inline-block; margin-left: 8px; padding: 4px 8px; background: #151921; border-radius: 4px; border: 1px solid #333;">
                     <span style="font-size: 10px; color: #888; text-transform: uppercase; margin-right: 5px;">Seq:</span>
                     <span id="sequence-display" style="font-size: 11px; font-family: monospace; color: #4caf50;">0</span>
                     <button class="btn" style="margin-left: 6px; padding: 3px 6px; font-size: 10px; background:#333;" onclick="setSequencePrompt()">Set</button>
@@ -82,10 +89,10 @@
                 </label>
                 <button class="btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="runSync()">⬇️ Pull Sync (Server → UI)</button>
                 <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; margin-bottom: 10px;" onclick="showChangesSummary()">📝 Wijzigingen Weergeven</button>
-                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #2d5a2d; border-color: #4a8a4a; margin-bottom: 10px;" onclick="testSyncActions()">🧪 Test Sync (Log Acties)</button>
-                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #ff9800; border-color: #f57c00; margin-bottom: 10px;" onclick="debugIntegrityCheck()">🔍 Debug Integrity</button>
-                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #e91e63; border-color: #c2185b; margin-bottom: 10px;" onclick="debugAddUserIntegrity()">🔍 Debug AddUser</button>
-                <button class="btn show-changes-btn" style="width: 100%; font-size: 12px; background: #9c27b0; border-color: #7b1fa2; margin-bottom: 10px;" onclick="testCreateCategoryAndRule()">🎯 Test: Maak Category+Rule</button>
+                <button class="btn show-changes-btn" data-debug-only="true" style="width: 100%; font-size: 12px; background: #2d5a2d; border-color: #4a8a4a; margin-bottom: 10px;" onclick="testSyncActions()">🧪 Test Sync (Log Acties)</button>
+                <button class="btn show-changes-btn" data-debug-only="true" style="width: 100%; font-size: 12px; background: #ff9800; border-color: #f57c00; margin-bottom: 10px;" onclick="debugIntegrityCheck()">🔍 Debug Integrity</button>
+                <button class="btn show-changes-btn" data-debug-only="true" style="width: 100%; font-size: 12px; background: #e91e63; border-color: #c2185b; margin-bottom: 10px;" onclick="debugAddUserIntegrity()">🔍 Debug AddUser</button>
+                <button class="btn show-changes-btn" data-debug-only="true" style="width: 100%; font-size: 12px; background: #9c27b0; border-color: #7b1fa2; margin-bottom: 10px;" onclick="testCreateCategoryAndRule()">🎯 Test: Maak Category+Rule</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #d9534f; border-color: #d43f3a; font-weight: bold; margin-bottom: 10px;" onclick="executePushSync()">🚀 Push Sync (UI → Server)</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #4caf50; border-color: #45a049; margin-bottom: 10px;" onclick="showAddChildModal()">👶 Kind Toevoegen</button>
                 <button class="btn" style="width: 100%; font-size: 12px; background: #6f4c4e; border-color: #8b6b6d;" onclick="showPasswordResetModal()">🔐 Wachtwoord Hashes Bijwerken</button>
@@ -336,6 +343,9 @@
             // 2. Bestaande acties
             updateTokenDisplay();
             updateSequenceDisplay();
+            if (typeof initDebugToggle === 'function') {
+                initDebugToggle();
+            }
             if (TOKEN) runSync();
         };
     </script>
