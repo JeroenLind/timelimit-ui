@@ -5,7 +5,31 @@
 let syncTimer = null;
 let secondsCounter = 0;
 const SYNC_INTERVAL = 30; // seconden
+const SERVER_API_LEVEL_KEY = "timelimit_serverApiLevel";
 let serverApiLevel = null;
+
+function normalizeServerApiLevel(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return null;
+    }
+    return parsed;
+}
+
+function loadServerApiLevel() {
+    return normalizeServerApiLevel(localStorage.getItem(SERVER_API_LEVEL_KEY));
+}
+
+function setServerApiLevel(value) {
+    serverApiLevel = normalizeServerApiLevel(value);
+    if (serverApiLevel === null) {
+        localStorage.removeItem(SERVER_API_LEVEL_KEY);
+    } else {
+        localStorage.setItem(SERVER_API_LEVEL_KEY, String(serverApiLevel));
+    }
+}
+
+serverApiLevel = loadServerApiLevel();
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
 
@@ -80,7 +104,7 @@ async function runSync() {
             // Alleen parsen als de status 200 (OK) is EN het JSON is
             responseData = await res.json();
 
-            serverApiLevel = typeof responseData.apiLevel === "number" ? responseData.apiLevel : null;
+            setServerApiLevel(typeof responseData.apiLevel === "number" ? responseData.apiLevel : null);
             console.log(`[SYNC] Server apiLevel: ${serverApiLevel}`);
             
             addLog("Sync voltooid.");
