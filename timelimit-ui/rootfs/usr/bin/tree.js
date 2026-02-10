@@ -96,6 +96,17 @@ function buildCategoryTree(data) {
     const categoryMap = {};
     const tree = [];
 
+    function compareCategoryOrder(a, b) {
+        const aSort = Number.isFinite(a.sort) ? a.sort : 0;
+        const bSort = Number.isFinite(b.sort) ? b.sort : 0;
+        if (aSort !== bSort) return aSort - bSort;
+        const aTitle = (a.title || "").toLowerCase();
+        const bTitle = (b.title || "").toLowerCase();
+        if (aTitle < bTitle) return -1;
+        if (aTitle > bTitle) return 1;
+        return 0;
+    }
+
     // STAP 1: Maak een object-map voor snelle opzoeking en koppel Apps/Rules direct aan de categorie
     categories.forEach(cat => {
         // Zoek de bijbehorende apps en regels voor deze specifieke categoryId
@@ -122,6 +133,14 @@ function buildCategoryTree(data) {
             tree.push(current);
         }
     });
+
+    // Sorteer op de server-volgorde (sort), met titel als stabiele fallback
+    Object.values(categoryMap).forEach(cat => {
+        if (cat.children && cat.children.length > 0) {
+            cat.children.sort(compareCategoryOrder);
+        }
+    });
+    tree.sort(compareCategoryOrder);
 
     return tree;
 }
