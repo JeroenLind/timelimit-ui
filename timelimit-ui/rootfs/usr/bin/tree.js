@@ -244,8 +244,6 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                 </div>
                 
                 <div class="tree-content" style="display: none;"> 
-                    ${renderTreeHTML(node.children, level + 1, fullData)}
-
                     ${node.linkedRules.length > 0 ? `
                         <div class="tree-node">
                             <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
@@ -268,6 +266,8 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                             </div>
                         </div>
                     ` : ''}
+
+                    ${renderTreeHTML(node.children, level + 1, fullData)}
                 </div>
             </div>
         `;
