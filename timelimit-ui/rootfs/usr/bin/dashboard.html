@@ -60,6 +60,7 @@
                 <div style="margin-top: 15px; display: flex; gap: 10px;">
                     <button class="btn" style="background: #f44336; flex: 1; font-size: 12px;" onclick="logout()">Uitloggen</button>
                     <button class="btn" style="background: #03a9f4; flex: 1; font-size: 12px;" onclick="showLoginModal()">Token Beheer</button>
+                    <button class="btn" style="background: #2d5a2d; border-color: #4a8a4a; flex: 1; font-size: 12px;" onclick="showLoginModal(); showManualTokenField();">Ik heb al een Token</button>
                 </div>
             </div>
 
@@ -105,8 +106,6 @@
         <div style="background:#151921; padding:30px; border-radius:8px; border:1px solid #03a9f4; width:95%; max-width:450px;">
             <div id="login-choice">
                 <h3 style="margin-top:0;">Verbinden met Familie</h3>
-                <button class="btn" style="width:100%; margin-bottom:12px; padding:15px;" onclick="showManualTokenField()">🔑 Ik heb al een Token</button>
-                <button class="btn btn-wizard" style="width:100%; margin-bottom:12px; padding:15px; background: #03a9f4;" onclick="hideLoginModal(); startLoginFlow();">📧 Inloggen via E-mail</button>
                 <button class="btn" style="width:100%; background:#333;" onclick="hideLoginModal()">Annuleren</button>
             </div>
             <div id="manual-token-form" style="display:none;">
@@ -114,6 +113,25 @@
                 <div style="display:flex; gap:10px; margin-top:20px;">
                     <button class="btn" style="flex:1;" onclick="loginWithToken()">Verbinden</button>
                     <button class="btn" style="background:#333; flex:1;" onclick="resetLoginModal()">Terug</button>
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #888; font-size: 11px; text-transform: uppercase;">Account Geschiedenis</h4>
+                <div style="border: 1px solid #232a35; border-radius: 6px; overflow: auto; max-height: 180px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                        <thead style="background: #0b0e14; color: #888;">
+                            <tr>
+                                <th style="text-align: left; padding: 6px;">Server</th>
+                                <th style="text-align: left; padding: 6px;">E-mail</th>
+                                <th style="text-align: left; padding: 6px;">Token</th>
+                                <th style="text-align: left; padding: 6px;">Seq</th>
+                                <th style="text-align: left; padding: 6px;">Actie</th>
+                            </tr>
+                        </thead>
+                        <tbody id="account-history-body">
+                            <tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

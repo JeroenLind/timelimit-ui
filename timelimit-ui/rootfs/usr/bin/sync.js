@@ -26,6 +26,9 @@ function getNextSequenceNumber() {
     if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
         window.updateSequenceDisplay();
     }
+    if (typeof window !== "undefined" && typeof window.updateHistorySeqForToken === "function") {
+        window.updateHistorySeqForToken(typeof TOKEN !== 'undefined' ? TOKEN : '', current + 1);
+    }
     return current;
 }
 

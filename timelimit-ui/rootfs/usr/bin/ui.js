@@ -86,6 +86,7 @@ function showLoginModal() {
         modal.style.display = 'flex';
     }
     resetLoginModal();
+    renderAccountHistory();
 }
 
 function hideLoginModal() {
@@ -127,13 +128,181 @@ function loginWithToken() {
         return;
     }
 
+    const emailInput = prompt('E-mailadres (optioneel):', loadLastEmail() || '');
+    if (emailInput === null) return;
+    const emailValue = emailInput.trim();
+    if (emailValue) {
+        saveLastEmail(emailValue);
+    }
+
     TOKEN = tokenValue;
     localStorage.setItem('timelimit_token', TOKEN);
     updateTokenDisplay();
     hideLoginModal();
+    recordAccountHistory({
+        token: TOKEN,
+        email: emailValue || loadLastEmail(),
+        serverUrl: getCurrentServerUrl(),
+        seq: peekNextSequenceNumber()
+    });
     addLog('✅ Token ingesteld en opgeslagen.');
     runSync();
 }
+
+const HISTORY_STORAGE_KEY = 'timelimit_account_history';
+const LAST_EMAIL_STORAGE_KEY = 'timelimit_last_email';
+
+function loadLastEmail() {
+    return localStorage.getItem(LAST_EMAIL_STORAGE_KEY) || '';
+}
+
+function saveLastEmail(email) {
+    if (!email) return;
+    localStorage.setItem(LAST_EMAIL_STORAGE_KEY, email);
+}
+
+function getCurrentServerUrl() {
+    const saved = localStorage.getItem('selected_timelimit_server');
+    if (saved) return saved;
+    const selector = document.getElementById('server-select');
+    if (selector) return selector.value;
+    return '';
+}
+
+function getServerLabelFromUrl(url) {
+    const selector = document.getElementById('server-select');
+    if (selector) {
+        const match = Array.from(selector.options).find((opt) => opt.value === url);
+        if (match) return match.textContent.trim();
+    }
+    if (url.includes('timelimit.io')) return 'Officieel';
+    if (url) return 'Lokaal';
+    return '';
+}
+
+function loadAccountHistory() {
+    try {
+        const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed;
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveAccountHistory(entries) {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
+}
+
+function recordAccountHistory({ token, email, serverUrl, seq }) {
+    if (!token) return;
+    const entries = loadAccountHistory();
+    const now = Date.now();
+    const serverLabel = getServerLabelFromUrl(serverUrl);
+    const normalizedSeq = Number.isFinite(Number(seq)) ? Number(seq) : 0;
+
+    const existingIndex = entries.findIndex((entry) => entry.token === token);
+    const entry = {
+        token,
+        email: email || '',
+        serverUrl: serverUrl || '',
+        serverLabel: serverLabel || '',
+        seq: normalizedSeq,
+        lastUsedAt: now
+    };
+
+    if (existingIndex >= 0) {
+        entries[existingIndex] = { ...entries[existingIndex], ...entry };
+    } else {
+        entries.unshift(entry);
+    }
+
+    saveAccountHistory(entries.slice(0, 20));
+    renderAccountHistory();
+}
+
+function updateHistorySeqForToken(token, seq) {
+    if (!token) return;
+    const entries = loadAccountHistory();
+    const index = entries.findIndex((entry) => entry.token === token);
+    if (index < 0) return;
+    const normalizedSeq = Number.isFinite(Number(seq)) ? Number(seq) : entries[index].seq;
+    entries[index] = { ...entries[index], seq: normalizedSeq, lastUsedAt: Date.now() };
+    saveAccountHistory(entries);
+    renderAccountHistory();
+}
+
+function renderAccountHistory() {
+    const tableBody = document.getElementById('account-history-body');
+    if (!tableBody) return;
+
+    const entries = loadAccountHistory();
+    if (entries.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="5" style="color:#666;">Geen geschiedenis</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = entries.map((entry, index) => {
+        const tokenShort = entry.token ? `${entry.token.substring(0, 6)}...${entry.token.substring(entry.token.length - 4)}` : '';
+        const email = entry.email || '-';
+        const server = entry.serverLabel || entry.serverUrl || '-';
+        const seq = Number.isFinite(Number(entry.seq)) ? entry.seq : 0;
+        return `
+            <tr>
+                <td>${server}</td>
+                <td>${email}</td>
+                <td>${tokenShort}</td>
+                <td>${seq}</td>
+                <td><button class="btn" style="padding:4px 8px; font-size:10px;" onclick="applyAccountHistory(${index})">Switch</button></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function applyAccountHistory(index) {
+    const entries = loadAccountHistory();
+    const entry = entries[index];
+    if (!entry) return;
+
+    if (entry.token) {
+        TOKEN = entry.token;
+        localStorage.setItem('timelimit_token', TOKEN);
+    }
+
+    if (Number.isFinite(Number(entry.seq))) {
+        setSequenceNumber(entry.seq);
+    }
+
+    if (entry.serverUrl) {
+        localStorage.setItem('selected_timelimit_server', entry.serverUrl);
+        if (typeof switchServer === 'function') {
+            switchServer(entry.serverUrl);
+            return;
+        }
+    }
+
+    updateTokenDisplay();
+    updateSequenceDisplay();
+    runSync();
+}
+
+function recordAccountHistoryFromCurrent() {
+    recordAccountHistory({
+        token: TOKEN,
+        email: loadLastEmail(),
+        serverUrl: getCurrentServerUrl(),
+        seq: peekNextSequenceNumber()
+    });
+}
+
+window.recordAccountHistoryFromCurrent = recordAccountHistoryFromCurrent;
+window.recordAccountHistory = recordAccountHistory;
+window.updateHistorySeqForToken = updateHistorySeqForToken;
+window.renderAccountHistory = renderAccountHistory;
+window.applyAccountHistory = applyAccountHistory;
+window.saveLastEmail = saveLastEmail;
 
 /**
  * Toont een samenvatting van alle gewijzigde regels

@@ -46,6 +46,10 @@ async function runStep1() {
     const mailInput = document.getElementById('mail').value;
     if (!mailInput) return addLog("Voer een e-mailadres in.", true);
 
+    if (typeof saveLastEmail === 'function') {
+        saveLastEmail(mailInput);
+    }
+
     addLog("Stap 1: Code aanvragen voor " + mailInput);
     try {
         const res = await fetch('wizard-step1', { 
@@ -157,6 +161,10 @@ async function runStep3() {
                 
                 // 3. Update de UI (het blauwe kader bovenin)
                 updateTokenDisplay(); 
+
+                if (typeof recordAccountHistoryFromCurrent === 'function') {
+                    recordAccountHistoryFromCurrent();
+                }
                 
                 addLog("🎉 SUCCES! Gezin aangemaakt en automatisch ingelogd.");
             } else {
@@ -260,6 +268,9 @@ async function runSignInStep3() {
             TOKEN = data.deviceAuthToken;
             localStorage.setItem('timelimit_token', TOKEN);
             updateTokenDisplay();
+            if (typeof recordAccountHistoryFromCurrent === 'function') {
+                recordAccountHistoryFromCurrent();
+            }
             addLog("🎉 Succesvol ingelogd! Wachtwoord hashes opgeslagen.");
             showStep(0);
             runSync();
