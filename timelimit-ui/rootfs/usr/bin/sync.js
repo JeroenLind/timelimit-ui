@@ -27,6 +27,9 @@ function setServerApiLevel(value) {
     } else {
         localStorage.setItem(SERVER_API_LEVEL_KEY, String(serverApiLevel));
     }
+    if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
+        window.scheduleHaStorageShadowSync('server-api-level');
+    }
 }
 
 serverApiLevel = loadServerApiLevel();
@@ -48,6 +51,9 @@ function peekNextSequenceNumber() {
 function getNextSequenceNumber() {
     const current = peekNextSequenceNumber();
     localStorage.setItem(SEQUENCE_STORAGE_KEY, String(current + 1));
+    if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
+        window.scheduleHaStorageShadowSync('sequence-next');
+    }
     if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
         window.updateSequenceDisplay();
     }
@@ -59,6 +65,9 @@ function getNextSequenceNumber() {
 
 function resetSequenceNumber() {
     localStorage.removeItem(SEQUENCE_STORAGE_KEY);
+    if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
+        window.scheduleHaStorageShadowSync('sequence-reset');
+    }
     if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
         window.updateSequenceDisplay();
     }
@@ -67,6 +76,9 @@ function resetSequenceNumber() {
 function setSequenceNumber(value) {
     const normalized = normalizeSequenceNumber(value);
     localStorage.setItem(SEQUENCE_STORAGE_KEY, String(normalized));
+    if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
+        window.scheduleHaStorageShadowSync('sequence-set');
+    }
     if (typeof window !== "undefined" && typeof window.updateSequenceDisplay === "function") {
         window.updateSequenceDisplay();
     }

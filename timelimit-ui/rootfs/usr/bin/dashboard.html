@@ -282,6 +282,9 @@
             if (confirm("Weet je zeker dat je wilt uitloggen?\n\nDit verwijdert:\n- Je token\n- Opgeslagen wachtwoord hashes\n- Change tracking\n\nJe kunt daarna opnieuw inloggen.")) {
                 TOKEN = "";
                 localStorage.removeItem('timelimit_token');
+                if (typeof scheduleHaStorageShadowSync === 'function') {
+                    scheduleHaStorageShadowSync('logout');
+                }
                 
                 // Wis ook de parentPasswordHash
                 if (typeof clearParentPasswordHash === 'function') {
@@ -316,6 +319,9 @@
                 });
                 if (res.ok) {
                     localStorage.setItem('selected_timelimit_server', url);
+                    if (typeof scheduleHaStorageShadowSync === 'function') {
+                        scheduleHaStorageShadowSync('switch-server');
+                    }
                     setTimeout(() => location.reload(), 500);
                 }
             } catch (e) { console.error(e); }
@@ -355,6 +361,9 @@
                 initDebugToggle();
             }
             if (TOKEN) runSync();
+            if (typeof scheduleHaStorageShadowSync === 'function') {
+                scheduleHaStorageShadowSync('page-load');
+            }
         };
     </script>
 </body>

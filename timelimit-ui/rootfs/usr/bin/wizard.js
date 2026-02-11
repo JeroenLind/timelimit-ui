@@ -158,6 +158,9 @@ async function runStep3() {
                 
                 // 2. Sla op in de browser (voor na een refresh)
                 localStorage.setItem('timelimit_token', TOKEN); 
+                if (typeof scheduleHaStorageShadowSync === 'function') {
+                    scheduleHaStorageShadowSync('wizard-create-token');
+                }
                 
                 // 3. Update de UI (het blauwe kader bovenin)
                 updateTokenDisplay(); 
@@ -267,6 +270,9 @@ async function runSignInStep3() {
             const data = JSON.parse(text);
             TOKEN = data.deviceAuthToken;
             localStorage.setItem('timelimit_token', TOKEN);
+            if (typeof scheduleHaStorageShadowSync === 'function') {
+                scheduleHaStorageShadowSync('wizard-login-token');
+            }
             updateTokenDisplay();
             if (typeof recordAccountHistoryFromCurrent === 'function') {
                 recordAccountHistoryFromCurrent();

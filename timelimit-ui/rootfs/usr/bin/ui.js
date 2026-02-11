@@ -18,6 +18,59 @@ function addLog(m, isError = false) {
     log.scrollTop = log.scrollHeight;
 }
 
+const HA_STORAGE_ENDPOINT = 'ha-storage';
+const HA_STORAGE_KEYS = [
+    'timelimit_token',
+    'timelimit_parentPasswordHash',
+    'timelimit_account_history',
+    'timelimit_last_email',
+    'selected_timelimit_server',
+    'timelimit_debugMode',
+    'timelimit_nextSyncSequenceNumber',
+    'timelimit_serverApiLevel'
+];
+
+let haShadowTimer = null;
+
+function buildHaStorageSnapshot() {
+    const data = {};
+    HA_STORAGE_KEYS.forEach((key) => {
+        const value = localStorage.getItem(key);
+        data[key] = value === null ? null : value;
+    });
+    return {
+        version: 1,
+        updatedAt: Date.now(),
+        data
+    };
+}
+
+async function pushHaStorageSnapshot(reason) {
+    try {
+        const payload = buildHaStorageSnapshot();
+        payload.reason = reason || 'unknown';
+        await fetch(HA_STORAGE_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        // Shadow copy only; ignore failures.
+    }
+}
+
+function scheduleHaStorageShadowSync(reason) {
+    if (haShadowTimer) {
+        clearTimeout(haShadowTimer);
+    }
+    haShadowTimer = setTimeout(() => {
+        haShadowTimer = null;
+        pushHaStorageSnapshot(reason);
+    }, 300);
+}
+
+window.scheduleHaStorageShadowSync = scheduleHaStorageShadowSync;
+
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
 
 function isDebugMode() {
@@ -41,6 +94,7 @@ function applyDebugMode(enabled) {
 
 function setDebugMode(enabled) {
     localStorage.setItem(DEBUG_MODE_KEY, enabled ? '1' : '0');
+    scheduleHaStorageShadowSync('debug-mode');
     applyDebugMode(enabled);
 }
 
@@ -174,6 +228,7 @@ function loginWithToken() {
 
     TOKEN = tokenValue;
     localStorage.setItem('timelimit_token', TOKEN);
+    scheduleHaStorageShadowSync('login-token');
     updateTokenDisplay();
     hideLoginModal();
     recordAccountHistory({
@@ -196,6 +251,7 @@ function loadLastEmail() {
 function saveLastEmail(email) {
     if (!email) return;
     localStorage.setItem(LAST_EMAIL_STORAGE_KEY, email);
+    scheduleHaStorageShadowSync('last-email');
 }
 
 function getCurrentServerUrl() {
@@ -231,6 +287,7 @@ function loadAccountHistory() {
 
 function saveAccountHistory(entries) {
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
+    scheduleHaStorageShadowSync('account-history');
 }
 
 function recordAccountHistory({ token, email, serverUrl, seq }) {
@@ -306,6 +363,7 @@ function applyAccountHistory(index) {
     if (entry.token) {
         TOKEN = entry.token;
         localStorage.setItem('timelimit_token', TOKEN);
+        scheduleHaStorageShadowSync('account-switch-token');
     }
 
     if (Number.isFinite(Number(entry.seq))) {
@@ -314,6 +372,7 @@ function applyAccountHistory(index) {
 
     if (entry.serverUrl) {
         localStorage.setItem('selected_timelimit_server', entry.serverUrl);
+        scheduleHaStorageShadowSync('account-switch-server');
         if (typeof switchServer === 'function') {
             switchServer(entry.serverUrl);
             return;

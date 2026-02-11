@@ -9,6 +9,8 @@ from api_client import TimeLimitAPI
 
 CONFIG_PATH = "/data/options.json"
 HTML_PATH = "/usr/bin/dashboard.html" 
+STORAGE_PATH = "/data/timelimit_ui_storage.json"
+STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 
 # NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
 SELECTED_SERVER = None
@@ -64,6 +66,26 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 return 
             except Exception as e:
                 sys.stderr.write(f"❌ [ERROR] Fout in /set-server: {str(e)}\n")
+                self._send_raw(400, str(e).encode(), "text/plain")
+                return
+
+        # --- CHECK 1b: HA storage shadow copy ---
+        if self.path.endswith('/ha-storage'):
+            try:
+                payload = json.loads(post_data) if post_data else {}
+                if not isinstance(payload, dict):
+                    raise ValueError("Invalid payload")
+
+                payload["serverTimestamp"] = int(time.time() * 1000)
+
+                with open(STORAGE_TMP_PATH, 'w') as f:
+                    json.dump(payload, f)
+                os.replace(STORAGE_TMP_PATH, STORAGE_PATH)
+
+                self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
+                return
+            except Exception as e:
+                sys.stderr.write(f"❌ [ERROR] Fout in /ha-storage: {str(e)}\n")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 

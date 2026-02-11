@@ -16,6 +16,9 @@ let parentPasswordHash = null;
 function clearParentPasswordHash() {
     parentPasswordHash = null;
     localStorage.removeItem('parentPasswordHash');
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('parent-hash-clear');
+    }
     console.log("[STATE] Parent password hash gewist");
 }
 
@@ -131,6 +134,9 @@ function storeparentPasswordHashForSync(hashObject) {
             secondSalt: parentPasswordHash.secondSalt
         };
         localStorage.setItem('timelimit_parentPasswordHash', JSON.stringify(toStore));
+        if (typeof scheduleHaStorageShadowSync === 'function') {
+            scheduleHaStorageShadowSync('parent-hash-store');
+        }
         console.log("✅ [STATE] Parent password hashes opgeslagen ZOWEL in RAM als localStorage.");
         console.log("   - hash:", parentPasswordHash.hash ? parentPasswordHash.hash.substring(0, 10) + "..." : "N/A");
         console.log("   - secondSalt (base64):", base64Salt.substring(0, 30) + "...");
