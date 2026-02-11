@@ -49,11 +49,14 @@ async function pushHaStorageSnapshot(reason) {
     try {
         const payload = buildHaStorageSnapshot();
         payload.reason = reason || 'unknown';
-        await fetch(HA_STORAGE_ENDPOINT, {
+        const res = await fetch(HA_STORAGE_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        if (res && res.ok && typeof loadHaStorageStatus === 'function') {
+            loadHaStorageStatus();
+        }
     } catch (e) {
         // Shadow copy only; ignore failures.
     }
@@ -70,6 +73,105 @@ function scheduleHaStorageShadowSync(reason) {
 }
 
 window.scheduleHaStorageShadowSync = scheduleHaStorageShadowSync;
+
+function formatTokenShort(token) {
+    if (!token) return '';
+    if (token.length <= 10) return token;
+    return `${token.substring(0, 6)}...${token.substring(token.length - 4)}`;
+}
+
+function formatTimestamp(ts) {
+    if (!ts || !Number.isFinite(Number(ts))) return '-';
+    return new Date(Number(ts)).toLocaleString();
+}
+
+function renderHaStorageDetails(storage) {
+    const statusEl = document.getElementById('ha-storage-status');
+    const detailsEl = document.getElementById('ha-storage-details');
+    const historyBody = document.getElementById('ha-storage-history-body');
+
+    if (!statusEl || !detailsEl || !historyBody) return;
+
+    if (!storage || !storage.data) {
+        statusEl.textContent = 'Geen HA storage data gevonden.';
+        detailsEl.textContent = '';
+        historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
+        return;
+    }
+
+    const data = storage.data;
+    const token = data.timelimit_token || '';
+    const lastEmail = data.timelimit_last_email || '';
+    const selectedServer = data.selected_timelimit_server || '';
+    const debugMode = data.timelimit_debugMode === '1' ? 'On' : 'Off';
+    const sequence = data.timelimit_nextSyncSequenceNumber || '0';
+    const apiLevel = data.timelimit_serverApiLevel || '-';
+
+    statusEl.textContent = `Laatst bijgewerkt: ${formatTimestamp(storage.updatedAt || storage.serverTimestamp)}`;
+
+    const parentHashPresent = data.timelimit_parentPasswordHash ? 'ja' : 'nee';
+    const historyRaw = data.timelimit_account_history || '[]';
+
+    detailsEl.innerHTML = `
+        <div style="margin-bottom:6px;">Token: <span style="color:#fff; font-family: monospace;">${formatTokenShort(token) || '-'}</span></div>
+        <div style="margin-bottom:6px;">Parent hash aanwezig: <span style="color:#fff;">${parentHashPresent}</span></div>
+        <div style="margin-bottom:6px;">Laatste e-mail: <span style="color:#fff;">${lastEmail || '-'}</span></div>
+        <div style="margin-bottom:6px;">Server: <span style="color:#fff;">${selectedServer || '-'}</span></div>
+        <div style="margin-bottom:6px;">Debug: <span style="color:#fff;">${debugMode}</span></div>
+        <div style="margin-bottom:6px;">Sequence: <span style="color:#fff; font-family: monospace;">${sequence}</span></div>
+        <div>Server API Level: <span style="color:#fff; font-family: monospace;">${apiLevel}</span></div>
+    `;
+
+    let history = [];
+    try {
+        const parsed = JSON.parse(historyRaw);
+        if (Array.isArray(parsed)) history = parsed;
+    } catch (e) {
+        history = [];
+    }
+
+    if (history.length === 0) {
+        historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
+        return;
+    }
+
+    historyBody.innerHTML = history.map((entry) => {
+        const email = entry.email || '-';
+        const server = entry.serverLabel || entry.serverUrl || '-';
+        const seq = Number.isFinite(Number(entry.seq)) ? entry.seq : 0;
+        const lastUsed = formatTimestamp(entry.lastUsedAt);
+        const tokenShort = formatTokenShort(entry.token || '');
+        return `
+            <tr>
+                <td style="padding: 6px;">${server}</td>
+                <td style="padding: 6px;">${email}</td>
+                <td style="padding: 6px; font-family: monospace;">${tokenShort}</td>
+                <td style="padding: 6px;">${seq}</td>
+                <td style="padding: 6px;">${lastUsed}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadHaStorageStatus() {
+    try {
+        const res = await fetch(HA_STORAGE_ENDPOINT, { method: 'GET' });
+        if (!res.ok) throw new Error('status');
+        const data = await res.json();
+        renderHaStorageDetails(data);
+    } catch (e) {
+        const statusEl = document.getElementById('ha-storage-status');
+        const detailsEl = document.getElementById('ha-storage-details');
+        const historyBody = document.getElementById('ha-storage-history-body');
+        if (statusEl) statusEl.textContent = 'Kon HA storage niet laden.';
+        if (detailsEl) detailsEl.textContent = '';
+        if (historyBody) {
+            historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
+        }
+    }
+}
+
+window.loadHaStorageStatus = loadHaStorageStatus;
 
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
 

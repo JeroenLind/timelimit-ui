@@ -394,6 +394,18 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
+        if self.path.endswith('/ha-storage'):
+            try:
+                if os.path.exists(STORAGE_PATH):
+                    with open(STORAGE_PATH, 'r') as f:
+                        data = json.load(f)
+                else:
+                    data = {"status": "empty"}
+                self._send_raw(200, json.dumps(data).encode(), "application/json")
+            except Exception as e:
+                sys.stderr.write(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}\n")
+                self._send_raw(500, str(e).encode(), "text/plain")
+            return
         if self.path in ['/', '', '/index.html']:
             try:
                 config = get_config()
