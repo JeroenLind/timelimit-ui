@@ -146,6 +146,20 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     margin-top: 2px;
 }
 
+.rule-add-btn {
+    margin-left: auto;
+    padding: 4px 8px;
+    font-size: 12px;
+    background: #2d5a2d;
+    border-color: #4a8a4a;
+}
+
+.rule-empty {
+    color: #777;
+    font-style: italic;
+    cursor: default;
+}
+
 .app-info {
     display: flex;
     align-items: center;

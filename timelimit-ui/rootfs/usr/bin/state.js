@@ -7,6 +7,9 @@ let originalDataSnapshot = null;
 // Tracked welke regels zijn gewijzigd
 let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 
+// Tracked welke regels nieuw zijn
+let newRules = [];
+
 // Parent password hash - nodig voor HMAC-SHA512 signing
 let parentPasswordHash = null;
 
@@ -30,6 +33,7 @@ function initializeDraft(data) {
     currentDataDraft = JSON.parse(JSON.stringify(data));
     originalDataSnapshot = JSON.parse(JSON.stringify(data));
     changedRules.clear();
+    newRules = [];
     
     // Sla parent password hash op voor HMAC-SHA512 signing
     if (data.parentPasswordHash) {
@@ -175,8 +179,72 @@ function loadParentPasswordHashFromStorage() {
 function resetChangeTracking() {
     const previousSize = changedRules.size;
     changedRules.clear();
+    newRules = [];
     console.log(`♻️ [STATE] Change tracking gereset (${previousSize} wijzigingen verwijderd)`);
     addLog(`♻️ Change tracking gereset - ${previousSize} wijzigingen verwerkt`, false);
+}
+
+function getNewRules() {
+    return Array.isArray(newRules) ? [...newRules] : [];
+}
+
+function addRuleToCategory(categoryId, evt) {
+    if (evt && typeof evt.stopPropagation === 'function') {
+        evt.stopPropagation();
+    }
+    if (!currentDataDraft) {
+        addLog('❌ Geen data geladen - doe eerst een pull sync', true);
+        return;
+    }
+
+    if (!currentDataDraft.rules) {
+        currentDataDraft.rules = [];
+    }
+
+    let categoryRules = currentDataDraft.rules.find(r => r.categoryId == categoryId);
+    if (!categoryRules) {
+        categoryRules = { categoryId: categoryId, rules: [] };
+        currentDataDraft.rules.push(categoryRules);
+    }
+
+    const existingIds = new Set((categoryRules.rules || []).map(r => String(r.id)));
+    let ruleId = null;
+    if (typeof generateRandomId === 'function') {
+        for (let i = 0; i < 10; i++) {
+            const candidate = generateRandomId(6);
+            if (!existingIds.has(String(candidate))) {
+                ruleId = candidate;
+                break;
+            }
+        }
+    }
+    if (!ruleId) {
+        ruleId = String(Date.now());
+    }
+
+    const newRule = {
+        id: ruleId,
+        categoryId: categoryId,
+        maxTime: 3600000,
+        dayMask: 127,
+        start: 0,
+        end: 1439,
+        perDay: true,
+        extraTime: false,
+        dur: 0,
+        pause: 0,
+        _isNew: true
+    };
+
+    categoryRules.rules.push(newRule);
+    newRules.push(newRule);
+
+    if (typeof updateCategoryDisplay === 'function') {
+        updateCategoryDisplay(currentDataDraft);
+    }
+    if (typeof openRuleModal === 'function') {
+        openRuleModal(String(categoryId), String(ruleId));
+    }
 }
 
 /**
@@ -403,6 +471,8 @@ function closeModal() {
 
 // Global scope expose
 window.openRuleModal = openRuleModal;
+window.addRuleToCategory = addRuleToCategory;
+window.getNewRules = getNewRules;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {

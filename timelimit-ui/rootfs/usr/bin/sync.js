@@ -255,6 +255,25 @@ function buildUpdateRuleAction(change) {
     return action;
 }
 
+function buildCreateRuleAction(rule) {
+    const current = rule || {};
+    return {
+        type: "CREATE_TIMELIMIT_RULE",
+        rule: {
+            ruleId: String(current.id || current.ruleId || ''),
+            categoryId: String(current.categoryId || ''),
+            time: Number(current.maxTime !== undefined ? current.maxTime : (current.time || 0)),
+            days: Number(current.dayMask !== undefined ? current.dayMask : (current.days || 0)),
+            extraTime: Boolean(current.extraTime || false),
+            start: Number(current.start || 0),
+            end: Number(current.end || 0),
+            dur: Number(current.dur || 0),
+            pause: Number(current.pause || 0),
+            perDay: Boolean(current.perDay)
+        }
+    };
+}
+
 /**
  * Berekent integrity voor parent actions, compatibel met Android app.
  * 
@@ -377,8 +396,9 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
  */
 function prepareSync(options = {}) {
     const changes = getChangedRules();
+    const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
     
-    if (changes.length === 0) {
+    if (changes.length === 0 && createdRules.length === 0) {
         addLog("Geen wijzigingen om te synchroniseren.", false);
         return { batches: [], totalActions: 0 };
     }
@@ -388,23 +408,28 @@ function prepareSync(options = {}) {
     const consumeSequenceNumbers = options.consumeSequenceNumbers !== false;
     let previewSequenceNumber = consumeSequenceNumbers ? null : peekNextSequenceNumber();
     
+    const actionItems = [];
     changes.forEach(change => {
-        const action = buildUpdateRuleAction(change);
-        const encodedAction = JSON.stringify(action);
-        
+        actionItems.push({ action: buildUpdateRuleAction(change) });
+    });
+    createdRules.forEach(rule => {
+        actionItems.push({ action: buildCreateRuleAction(rule) });
+    });
+
+    actionItems.forEach(item => {
+        const encodedAction = JSON.stringify(item.action);
         const sequenceNumber = consumeSequenceNumbers ? getNextSequenceNumber() : previewSequenceNumber;
 
         currentBatch.push({
             sequenceNumber: sequenceNumber,
             encodedAction: encodedAction,
-            action: action // Ook het originele object voor debugging
+            action: item.action
         });
 
         if (!consumeSequenceNumbers) {
             previewSequenceNumber += 1;
         }
-        
-        // Start nieuwe batch als we 50 bereikt hebben
+
         if (currentBatch.length === 50) {
             batches.push(currentBatch);
             currentBatch = [];
@@ -416,12 +441,13 @@ function prepareSync(options = {}) {
         batches.push(currentBatch);
     }
     
-    addLog(`✅ ${changes.length} wijzigingen voorbereidt in ${batches.length} batch(es)`, false);
+    addLog(`✅ ${actionItems.length} wijzigingen voorbereidt in ${batches.length} batch(es)`, false);
     
     return {
         batches: batches,
-        totalActions: changes.length,
-        changes: changes
+        totalActions: actionItems.length,
+        changes: changes,
+        createdRules: createdRules
     };
 }
 

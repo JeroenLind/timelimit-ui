@@ -263,7 +263,9 @@ function updateAppIndexDisplay(data) {
  * Aangepast: categoryId wordt nu meegegeven als argument
  */
 function renderRulesHTML(rules, categoryId) {
-    if (!rules || rules.length === 0) return '';
+    if (!rules || rules.length === 0) {
+        return '<div class="tree-leaf rule-leaf rule-empty">Geen regels. Klik op + om toe te voegen.</div>';
+    }
     
     return rules.map(r => {
         let title = "Beperking";
@@ -356,16 +358,16 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                 </div>
                 
                 <div class="tree-content" style="display: none;"> 
-                    ${node.linkedRules.length > 0 ? `
-                        <div class="tree-node">
-                            <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
-                                <span class="tree-icon">▶</span>
-                                <span class="tree-title folder-title">Rules</span>
-                            </div>
-                            <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
-                                ${renderRulesHTML(node.linkedRules, node.categoryId)} </div>
+                    <div class="tree-node">
+                        <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                            <span class="tree-icon">▶</span>
+                            <span class="tree-title folder-title">Rules</span>
+                            <button class="btn rule-add-btn" onclick="addRuleToCategory('${node.categoryId}', event)">+</button>
                         </div>
-                    ` : ''}
+                        <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
+                            ${renderRulesHTML(node.linkedRules, node.categoryId)}
+                        </div>
+                    </div>
 
                     ${node.linkedApps.length > 0 ? `
                         <div class="tree-node">
