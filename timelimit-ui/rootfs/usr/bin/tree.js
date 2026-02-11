@@ -277,8 +277,11 @@ function renderRulesHTML(rules, categoryId) {
 
         // Check of deze regel gewijzigd is
         const isChanged = isRuleChanged(categoryId, r.id);
-        const changedClass = isChanged ? 'rule-changed' : '';
-        const changedBadge = isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '';
+        const isNew = !!r._isNew;
+        const changedClass = isChanged || isNew ? 'rule-changed' : '';
+        const changedBadge = isNew
+            ? '<span class="change-badge">🆕 Nieuw</span>'
+            : (isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '');
 
         // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `

@@ -772,7 +772,7 @@ function showChangesSummary() {
         if (existing) existing.remove();
         
         container.insertAdjacentHTML('beforebegin', html);
-        addLog(`✏️ ${changes.length} wijziging${changes.length !== 1 ? 'en' : ''} gedetecteerd!`);
+        addLog(`✏️ ${totalChanges} wijziging${totalChanges !== 1 ? 'en' : ''} gedetecteerd!`);
     } else {
         console.error("[ERROR] category-tree-container niet gevonden!");
     }
