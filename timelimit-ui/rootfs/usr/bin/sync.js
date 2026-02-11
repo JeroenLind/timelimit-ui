@@ -125,6 +125,9 @@ async function runSync() {
             renderUsers(responseData);
 
             initializeDraft(responseData);
+            if (typeof mergePendingNewRules === 'function') {
+                mergePendingNewRules(responseData);
+            }
             if (typeof reconcileNewRules === 'function') {
                 reconcileNewRules(responseData);
             }

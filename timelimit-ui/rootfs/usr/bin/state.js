@@ -33,7 +33,6 @@ function initializeDraft(data) {
     currentDataDraft = JSON.parse(JSON.stringify(data));
     originalDataSnapshot = JSON.parse(JSON.stringify(data));
     changedRules.clear();
-    newRules = [];
     
     // Sla parent password hash op voor HMAC-SHA512 signing
     if (data.parentPasswordHash) {
@@ -42,6 +41,24 @@ function initializeDraft(data) {
     }
     
     console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
+}
+
+function mergePendingNewRules(data) {
+    if (!data || !Array.isArray(data.rules)) return;
+    if (!Array.isArray(newRules) || newRules.length === 0) return;
+
+    newRules.forEach((rule) => {
+        const categoryId = String(rule.categoryId);
+        let categoryRules = data.rules.find(r => String(r.categoryId) === categoryId);
+        if (!categoryRules) {
+            categoryRules = { categoryId: rule.categoryId, rules: [] };
+            data.rules.push(categoryRules);
+        }
+        const exists = (categoryRules.rules || []).some(r => String(r.id) === String(rule.id));
+        if (!exists) {
+            categoryRules.rules.push({ ...rule, _isNew: true });
+        }
+    });
 }
 
 function reconcileNewRules(data) {
@@ -58,7 +75,17 @@ function reconcileNewRules(data) {
         const catKey = String(rule.categoryId);
         const ruleIds = byCategory.get(catKey);
         if (!ruleIds) return true;
-        return !ruleIds.includes(String(rule.id));
+        const existsOnServer = ruleIds.includes(String(rule.id));
+        if (existsOnServer && currentDataDraft && Array.isArray(currentDataDraft.rules)) {
+            const draftCategory = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+            if (draftCategory && Array.isArray(draftCategory.rules)) {
+                const draftRule = draftCategory.rules.find(r => String(r.id) === String(rule.id));
+                if (draftRule) {
+                    delete draftRule._isNew;
+                }
+            }
+        }
+        return !existsOnServer;
     });
 }
 
@@ -259,6 +286,34 @@ function addRuleToCategory(categoryId, evt) {
     if (typeof updateCategoryDisplay === 'function') {
         updateCategoryDisplay(currentDataDraft);
     }
+    setTimeout(() => {
+        try {
+            const idMatch = String(categoryId).replace(/"/g, '\\"');
+            const catItem = document.querySelector(`.tree-item[style*="margin-left:"] .tree-id`);
+            const allTreeItems = document.querySelectorAll('.tree-item');
+            let categoryHeader = null;
+            allTreeItems.forEach((item) => {
+                const idSpan = item.querySelector('.tree-id');
+                if (idSpan && idSpan.textContent === String(categoryId)) {
+                    categoryHeader = item;
+                }
+            });
+            if (categoryHeader && typeof toggleNode === 'function') {
+                if (!categoryHeader.classList.contains('is-open')) {
+                    toggleNode(categoryHeader);
+                }
+                const content = categoryHeader.nextElementSibling;
+                if (content) {
+                    const rulesHeader = content.querySelector('.tree-item.folder-node');
+                    if (rulesHeader && !rulesHeader.classList.contains('is-open')) {
+                        toggleNode(rulesHeader);
+                    }
+                }
+            }
+        } catch (e) {
+            // Best-effort only.
+        }
+    }, 0);
     if (typeof openRuleModal === 'function') {
         openRuleModal(String(categoryId), String(ruleId));
     }
@@ -490,6 +545,7 @@ function closeModal() {
 window.openRuleModal = openRuleModal;
 window.addRuleToCategory = addRuleToCategory;
 window.getNewRules = getNewRules;
+window.mergePendingNewRules = mergePendingNewRules;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {
