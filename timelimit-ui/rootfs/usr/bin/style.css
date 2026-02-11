@@ -398,3 +398,78 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .show-changes-btn:hover {
     background: #ffb300 !important;
 }
+
+/* ===== RESPONSIVE LAYOUT ===== */
+@media (max-width: 900px) {
+    body {
+        height: auto;
+        overflow: auto;
+    }
+
+    header {
+        height: auto;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px;
+        align-items: flex-start;
+    }
+
+    header > div {
+        margin-left: 0 !important;
+    }
+
+    .main-container {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-view {
+        padding: 14px;
+    }
+
+    .inspector-panel {
+        border-left: none;
+        border-top: 1px solid #232a35;
+        max-height: 45vh;
+    }
+
+    #json-view {
+        font-size: 10px;
+    }
+
+    #log-area {
+        height: 140px;
+        font-size: 10px;
+    }
+
+    .btn {
+        margin-right: 0;
+    }
+
+    input {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    header strong {
+        font-size: 13px;
+    }
+
+    .status-badge {
+        font-size: 11px;
+    }
+
+    .tree-title {
+        font-size: 13px;
+    }
+
+    .app-index-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .app-index-categories {
+        margin-left: 0;
+    }
+}
