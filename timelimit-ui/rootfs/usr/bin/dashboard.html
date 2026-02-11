@@ -76,8 +76,13 @@
             <div id="ha-storage-panel" style="margin-top: 20px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #2b2f38;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <h4 style="margin: 0; color: #8ab4f8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">HA Storage Status</h4>
-                    <button class="btn" style="padding:4px 8px; font-size:10px; background:#333;" onclick="if (window.loadHaStorageStatus) window.loadHaStorageStatus();">Refresh</button>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" style="padding:4px 8px; font-size:10px; background:#2d5a2d; border-color:#4a8a4a;" onclick="if (window.exportHaStorage) window.exportHaStorage();">Export</button>
+                        <button class="btn" style="padding:4px 8px; font-size:10px; background:#444;" onclick="document.getElementById('ha-storage-import-file').click();">Import</button>
+                        <button class="btn" style="padding:4px 8px; font-size:10px; background:#333;" onclick="if (window.loadHaStorageStatus) window.loadHaStorageStatus();">Refresh</button>
+                    </div>
                 </div>
+                <input id="ha-storage-import-file" type="file" accept="application/json" style="display:none;" onchange="if (window.importHaStorageFromFile) window.importHaStorageFromFile(event);">
                 <div id="ha-storage-status" style="margin-top: 10px; font-size: 12px; color: #aaa;">Nog geen data geladen.</div>
                 <div id="ha-storage-details" style="margin-top: 10px; font-size: 12px; color: #aaa;"></div>
                 <div style="margin-top: 10px; border-top: 1px solid #232a35; padding-top: 10px;">
@@ -259,7 +264,7 @@
     </div>
 
     <script src="state.js?v=81"></script>
-    <script src="ui.js?v=88"></script>
+    <script src="ui.js?v=89"></script>
     <script src="wizard.js?v=87"></script>
     <script src="sync.js?v=89"></script>
     <script src="tree.js?v=80"></script> 

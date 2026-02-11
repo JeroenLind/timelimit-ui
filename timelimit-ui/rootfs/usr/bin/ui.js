@@ -222,6 +222,92 @@ async function loadHaStorageStatus() {
 window.loadHaStorageStatus = loadHaStorageStatus;
 window.applyHaStorageHistory = applyHaStorageHistory;
 
+function exportHaStorage() {
+    fetch(HA_STORAGE_ENDPOINT, { method: 'GET' })
+        .then((res) => {
+            if (!res.ok) throw new Error('status');
+            return res.json();
+        })
+        .then((data) => {
+            const payload = JSON.stringify(data, null, 2);
+            const blob = new Blob([payload], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const ts = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `timelimit-ha-storage-${ts}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        })
+        .catch(() => {
+            addLog('❌ Export mislukt. Controleer verbinding.', true);
+        });
+}
+
+function applyHaStorageDataToLocal(storage) {
+    if (!storage || !storage.data) return;
+    const data = storage.data;
+
+    HA_STORAGE_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            const value = data[key];
+            if (value === null || typeof value === 'undefined') {
+                localStorage.removeItem(key);
+            } else {
+                localStorage.setItem(key, String(value));
+            }
+        }
+    });
+
+    if (data.timelimit_token) {
+        TOKEN = data.timelimit_token;
+    }
+
+    updateTokenDisplay();
+    updateSequenceDisplay();
+}
+
+function importHaStorageFromFile(event) {
+    const input = event && event.target ? event.target : null;
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+        try {
+            const parsed = JSON.parse(String(reader.result || ''));
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('invalid');
+            }
+
+            await fetch(HA_STORAGE_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(parsed)
+            });
+
+            applyHaStorageDataToLocal(parsed);
+            if (typeof scheduleHaStorageShadowSync === 'function') {
+                scheduleHaStorageShadowSync('import');
+            }
+            if (typeof loadHaStorageStatus === 'function') {
+                loadHaStorageStatus();
+            }
+            addLog('✅ Import voltooid.', false);
+        } catch (e) {
+            addLog('❌ Import mislukt. Ongeldig bestand.', true);
+        } finally {
+            if (input) input.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
+window.exportHaStorage = exportHaStorage;
+window.importHaStorageFromFile = importHaStorageFromFile;
+
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
 
 function isDebugMode() {
