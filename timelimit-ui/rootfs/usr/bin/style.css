@@ -149,14 +149,17 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .rule-add-btn {
     margin-left: 6px;
     padding: 0 6px;
-    font-size: 13px;
-    line-height: 1;
+    height: 18px;
+    min-width: 18px;
+    font-size: 12px;
+    line-height: 16px;
     background: transparent;
     border: 1px solid #2a394a;
     color: #8aa1c1;
-    opacity: 0.8;
+    opacity: 0.85;
     border-radius: 4px;
     font-weight: normal;
+    cursor: pointer;
 }
 
 .rule-add-btn:hover {
