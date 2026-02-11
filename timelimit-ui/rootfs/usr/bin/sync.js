@@ -129,6 +129,10 @@ async function runSync() {
             if (typeof updateCategoryDisplay === "function") {
               updateCategoryDisplay(responseData);
             }
+
+                        if (typeof ensureAccountHistoryForCurrent === 'function') {
+                                ensureAccountHistoryForCurrent();
+                        }
             
             // ✅ BELANGRIJK: Reset change tracking NADAT pull sync compleet is
             // Dit zorgt ervoor dat wijzigingen niet verloren gaan als er een automatische pull volgt

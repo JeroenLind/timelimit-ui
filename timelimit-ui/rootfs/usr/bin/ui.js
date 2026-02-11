@@ -495,7 +495,21 @@ function recordAccountHistoryFromCurrent() {
     });
 }
 
+function ensureAccountHistoryForCurrent() {
+    try {
+        if (typeof TOKEN === 'undefined' || !TOKEN) return;
+        const entries = loadAccountHistory();
+        const exists = entries.some((entry) => entry && entry.token === TOKEN);
+        if (!exists) {
+            recordAccountHistoryFromCurrent();
+        }
+    } catch (e) {
+        // Best-effort only.
+    }
+}
+
 window.recordAccountHistoryFromCurrent = recordAccountHistoryFromCurrent;
+window.ensureAccountHistoryForCurrent = ensureAccountHistoryForCurrent;
 window.recordAccountHistory = recordAccountHistory;
 window.updateHistorySeqForToken = updateHistorySeqForToken;
 window.renderAccountHistory = renderAccountHistory;
