@@ -92,10 +92,12 @@ function renderHaStorageDetails(storage) {
 
     if (!statusEl || !detailsEl || !historyBody) return;
 
+    window.haStorageCache = storage || null;
+
     if (!storage || !storage.data) {
         statusEl.textContent = 'Geen HA storage data gevonden.';
         detailsEl.textContent = '';
-        historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
+        historyBody.innerHTML = '<tr><td colspan="6" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
         return;
     }
 
@@ -131,11 +133,11 @@ function renderHaStorageDetails(storage) {
     }
 
     if (history.length === 0) {
-        historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
+        historyBody.innerHTML = '<tr><td colspan="6" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
         return;
     }
 
-    historyBody.innerHTML = history.map((entry) => {
+    historyBody.innerHTML = history.map((entry, index) => {
         const email = entry.email || '-';
         const server = entry.serverLabel || entry.serverUrl || '-';
         const seq = Number.isFinite(Number(entry.seq)) ? entry.seq : 0;
@@ -148,9 +150,55 @@ function renderHaStorageDetails(storage) {
                 <td style="padding: 6px; font-family: monospace;">${tokenShort}</td>
                 <td style="padding: 6px;">${seq}</td>
                 <td style="padding: 6px;">${lastUsed}</td>
+                <td style="padding: 6px;"><button class="btn" style="padding:4px 8px; font-size:10px;" onclick="applyHaStorageHistory(${index})">Herstel</button></td>
             </tr>
         `;
     }).join('');
+}
+
+function applyHaStorageHistory(index) {
+    const storage = window.haStorageCache;
+    const historyRaw = storage && storage.data ? storage.data.timelimit_account_history : null;
+    if (!historyRaw) return;
+
+    let history = [];
+    try {
+        const parsed = JSON.parse(historyRaw);
+        if (Array.isArray(parsed)) history = parsed;
+    } catch (e) {
+        history = [];
+    }
+
+    const entry = history[index];
+    if (!entry) return;
+
+    if (entry.token) {
+        TOKEN = entry.token;
+        localStorage.setItem('timelimit_token', TOKEN);
+    }
+
+    if (entry.email) {
+        localStorage.setItem('timelimit_last_email', entry.email);
+    }
+
+    if (Number.isFinite(Number(entry.seq))) {
+        setSequenceNumber(entry.seq);
+    }
+
+    if (entry.serverUrl) {
+        localStorage.setItem('selected_timelimit_server', entry.serverUrl);
+        if (typeof switchServer === 'function') {
+            switchServer(entry.serverUrl);
+            return;
+        }
+    }
+
+    updateTokenDisplay();
+    updateSequenceDisplay();
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('ha-restore');
+    }
+    runSync();
 }
 
 async function loadHaStorageStatus() {
@@ -172,6 +220,7 @@ async function loadHaStorageStatus() {
 }
 
 window.loadHaStorageStatus = loadHaStorageStatus;
+window.applyHaStorageHistory = applyHaStorageHistory;
 
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
 
