@@ -207,6 +207,7 @@ async function loadHaStorageStatus() {
         if (!res.ok) throw new Error('status');
         const data = await res.json();
         renderHaStorageDetails(data);
+        return data;
     } catch (e) {
         const statusEl = document.getElementById('ha-storage-status');
         const detailsEl = document.getElementById('ha-storage-details');
@@ -216,11 +217,23 @@ async function loadHaStorageStatus() {
         if (historyBody) {
             historyBody.innerHTML = '<tr><td colspan="5" style="padding: 8px; color: #666;">Geen geschiedenis</td></tr>';
         }
+        return null;
     }
 }
 
 window.loadHaStorageStatus = loadHaStorageStatus;
 window.applyHaStorageHistory = applyHaStorageHistory;
+
+async function loadHaStorageAndApply() {
+    const data = await loadHaStorageStatus();
+    if (data && data.data) {
+        applyHaStorageDataToLocal(data);
+        return true;
+    }
+    return false;
+}
+
+window.loadHaStorageAndApply = loadHaStorageAndApply;
 
 function exportHaStorage() {
     fetch(HA_STORAGE_ENDPOINT, { method: 'GET' })

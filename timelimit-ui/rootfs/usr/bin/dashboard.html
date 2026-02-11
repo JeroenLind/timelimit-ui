@@ -366,6 +366,10 @@
             if (typeof loadParentPasswordHashFromStorage === 'function') {
                 loadParentPasswordHashFromStorage();
             }
+
+            if (typeof loadHaStorageAndApply === 'function') {
+                await loadHaStorageAndApply();
+            }
             
             // 1. Herstel de dropdown selectie uit localStorage
             const savedServer = localStorage.getItem('selected_timelimit_server');
