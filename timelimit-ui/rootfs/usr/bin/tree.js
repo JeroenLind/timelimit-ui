@@ -362,7 +362,7 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                         <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
                             <span class="tree-icon">▶</span>
                             <span class="tree-title folder-title">Rules</span>
-                            <button class="btn rule-add-btn" onclick="addRuleToCategory('${node.categoryId}', event)">+</button>
+                            <button class="btn rule-add-btn" type="button" onclick="event.stopPropagation(); addRuleToCategory('${node.categoryId}');">+</button>
                         </div>
                         <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
                             ${renderRulesHTML(node.linkedRules, node.categoryId)}

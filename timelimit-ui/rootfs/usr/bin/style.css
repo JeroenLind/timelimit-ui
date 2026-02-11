@@ -147,11 +147,22 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 }
 
 .rule-add-btn {
-    margin-left: auto;
-    padding: 4px 8px;
-    font-size: 12px;
-    background: #2d5a2d;
-    border-color: #4a8a4a;
+    margin-left: 6px;
+    padding: 0 6px;
+    font-size: 13px;
+    line-height: 1;
+    background: transparent;
+    border: 1px solid #2a394a;
+    color: #8aa1c1;
+    opacity: 0.8;
+    border-radius: 4px;
+    font-weight: normal;
+}
+
+.rule-add-btn:hover {
+    opacity: 1;
+    background: rgba(3, 169, 244, 0.08);
+    border-color: #35607a;
 }
 
 .rule-empty {
