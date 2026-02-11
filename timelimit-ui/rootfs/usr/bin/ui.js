@@ -669,17 +669,19 @@ window.saveLastEmail = saveLastEmail;
  */
 function showChangesSummary() {
     const changes = getChangedRules();
+    const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
     
     console.log("[DEBUG] showChangesSummary() aangeroepen. Aantal wijzigingen:", changes.length);
     
-    if (changes.length === 0) {
+    if (changes.length === 0 && createdRules.length === 0) {
         alert('❌ Geen wijzigingen aangebracht.');
         console.log("[DEBUG] Geen wijzigingen gevonden!");
         return;
     }
 
+    const totalChanges = changes.length + createdRules.length;
     let html = `<div class="changes-summary">
-        <h3>📋 Wijzigingen (${changes.length})</h3>
+        <h3>📋 Wijzigingen (${totalChanges})</h3>
         <ul>`;
 
     changes.forEach(change => {
@@ -723,6 +725,39 @@ function showChangesSummary() {
                 Origineel: maxTime=${original.maxTime}ms, start=${original.start}min, end=${original.end}min, dayMask=${original.dayMask}, perDay=${original.perDay}
                 <br>Huidig: maxTime=${current.maxTime}ms, start=${current.start}min, end=${current.end}min, dayMask=${current.dayMask}, perDay=${current.perDay}
             </div>
+        </li>`;
+    });
+
+    createdRules.forEach((rule) => {
+        const catId = rule.categoryId;
+        const ruleId = rule.id;
+        let catTitle = catId;
+        try {
+            if (typeof currentDataDraft !== 'undefined' && currentDataDraft && currentDataDraft.categoryBase) {
+                const cat = currentDataDraft.categoryBase.find(c => c.categoryId == catId);
+                if (cat && cat.title) catTitle = cat.title;
+            }
+        } catch (e) {
+            console.warn('[DEBUG] kon categorie-naam niet ophalen', e);
+        }
+
+        const details = [];
+        if (rule.maxTime !== undefined) {
+            details.push(`Limiet: ${formatDuration(rule.maxTime)}`);
+        }
+        if (rule.start !== undefined && rule.end !== undefined) {
+            details.push(`Tijd: ${formatClockTime(rule.start)}-${formatClockTime(rule.end)}`);
+        }
+        if (rule.dayMask !== undefined) {
+            details.push(`Dagen: ${formatDays(rule.dayMask)}`);
+        }
+        if (rule.perDay !== undefined) {
+            details.push(`Per dag: ${rule.perDay ? 'ja' : 'nee'}`);
+        }
+
+        html += `<li>
+            <strong>Nieuwe regel ${ruleId}</strong> (Categorie: ${catTitle})
+            <div class="change-detail">${details.length > 0 ? details.join(' | ') : 'Nieuwe regel'}</div>
         </li>`;
     });
 

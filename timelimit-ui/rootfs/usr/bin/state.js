@@ -44,6 +44,24 @@ function initializeDraft(data) {
     console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
 }
 
+function reconcileNewRules(data) {
+    if (!Array.isArray(newRules) || newRules.length === 0) return;
+    if (!data || !Array.isArray(data.rules)) return;
+
+    const byCategory = new Map();
+    data.rules.forEach((entry) => {
+        const rules = Array.isArray(entry.rules) ? entry.rules : [];
+        byCategory.set(String(entry.categoryId), rules.map(r => String(r.id)));
+    });
+
+    newRules = newRules.filter((rule) => {
+        const catKey = String(rule.categoryId);
+        const ruleIds = byCategory.get(catKey);
+        if (!ruleIds) return true;
+        return !ruleIds.includes(String(rule.id));
+    });
+}
+
 /**
  * Converteert een bcrypt salt naar base64 voor HMAC signing
  * Bcrypt format: $2a$12$1234567890123456789012
@@ -179,7 +197,6 @@ function loadParentPasswordHashFromStorage() {
 function resetChangeTracking() {
     const previousSize = changedRules.size;
     changedRules.clear();
-    newRules = [];
     console.log(`♻️ [STATE] Change tracking gereset (${previousSize} wijzigingen verwijderd)`);
     addLog(`♻️ Change tracking gereset - ${previousSize} wijzigingen verwerkt`, false);
 }

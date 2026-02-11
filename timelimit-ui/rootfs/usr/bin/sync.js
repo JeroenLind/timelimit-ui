@@ -125,6 +125,9 @@ async function runSync() {
             renderUsers(responseData);
 
             initializeDraft(responseData);
+            if (typeof reconcileNewRules === 'function') {
+                reconcileNewRules(responseData);
+            }
            
             if (typeof updateCategoryDisplay === "function") {
               updateCategoryDisplay(responseData);
