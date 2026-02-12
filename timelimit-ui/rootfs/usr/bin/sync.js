@@ -131,6 +131,18 @@ async function runSync() {
             if (typeof reconcileNewRules === 'function') {
                 reconcileNewRules(responseData);
             }
+            if (typeof mergePendingNewApps === 'function') {
+                mergePendingNewApps(responseData);
+            }
+            if (typeof reconcileNewApps === 'function') {
+                reconcileNewApps(responseData);
+            }
+            if (typeof mergePendingAppRemovals === 'function') {
+                mergePendingAppRemovals(responseData);
+            }
+            if (typeof reconcileRemovedApps === 'function') {
+                reconcileRemovedApps(responseData);
+            }
            
             if (typeof updateCategoryDisplay === "function") {
               updateCategoryDisplay(responseData);
@@ -280,6 +292,22 @@ function buildCreateRuleAction(rule) {
     };
 }
 
+function buildAddCategoryAppsAction(categoryId, packageNames) {
+    return {
+        type: "ADD_CATEGORY_APPS",
+        categoryId: String(categoryId),
+        packageNames: packageNames.map(p => String(p))
+    };
+}
+
+function buildRemoveCategoryAppsAction(categoryId, packageNames) {
+    return {
+        type: "REMOVE_CATEGORY_APPS",
+        categoryId: String(categoryId),
+        packageNames: packageNames.map(p => String(p))
+    };
+}
+
 /**
  * Berekent integrity voor parent actions, compatibel met Android app.
  * 
@@ -403,8 +431,10 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
 function prepareSync(options = {}) {
     const changes = getChangedRules();
     const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
+    const newCategoryApps = typeof getNewCategoryApps === 'function' ? getNewCategoryApps() : [];
+    const removedCategoryApps = typeof getRemovedCategoryApps === 'function' ? getRemovedCategoryApps() : [];
     
-    if (changes.length === 0 && createdRules.length === 0) {
+    if (changes.length === 0 && createdRules.length === 0 && newCategoryApps.length === 0 && removedCategoryApps.length === 0) {
         addLog("Geen wijzigingen om te synchroniseren.", false);
         return { batches: [], totalActions: 0 };
     }
@@ -421,6 +451,40 @@ function prepareSync(options = {}) {
     createdRules.forEach(rule => {
         actionItems.push({ action: buildCreateRuleAction(rule) });
     });
+
+    if (newCategoryApps.length > 0) {
+        const byCategory = new Map();
+        newCategoryApps.forEach(item => {
+            const key = String(item.categoryId);
+            if (!byCategory.has(key)) {
+                byCategory.set(key, new Set());
+            }
+            byCategory.get(key).add(String(item.packageName));
+        });
+        byCategory.forEach((pkgSet, categoryId) => {
+            const packages = Array.from(pkgSet);
+            if (packages.length > 0) {
+                actionItems.push({ action: buildAddCategoryAppsAction(categoryId, packages) });
+            }
+        });
+    }
+
+    if (removedCategoryApps.length > 0) {
+        const byCategory = new Map();
+        removedCategoryApps.forEach(item => {
+            const key = String(item.categoryId);
+            if (!byCategory.has(key)) {
+                byCategory.set(key, new Set());
+            }
+            byCategory.get(key).add(String(item.packageName));
+        });
+        byCategory.forEach((pkgSet, categoryId) => {
+            const packages = Array.from(pkgSet);
+            if (packages.length > 0) {
+                actionItems.push({ action: buildRemoveCategoryAppsAction(categoryId, packages) });
+            }
+        });
+    }
 
     actionItems.forEach(item => {
         const encodedAction = JSON.stringify(item.action);

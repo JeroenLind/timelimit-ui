@@ -9,6 +9,8 @@ let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 
 // Tracked welke regels nieuw zijn
 let newRules = [];
+let newCategoryApps = [];
+let removedCategoryApps = [];
 
 // Track nieuw toegevoegde rule terwijl modal open is
 let pendingNewRule = null;
@@ -230,6 +232,116 @@ function resetChangeTracking() {
     changedRules.clear();
     console.log(`♻️ [STATE] Change tracking gereset (${previousSize} wijzigingen verwijderd)`);
     addLog(`♻️ Change tracking gereset - ${previousSize} wijzigingen verwerkt`, false);
+}
+
+function getNewCategoryApps() {
+    return Array.isArray(newCategoryApps) ? [...newCategoryApps] : [];
+}
+
+function getRemovedCategoryApps() {
+    return Array.isArray(removedCategoryApps) ? [...removedCategoryApps] : [];
+}
+
+function addAppToCategory(categoryId, packageName) {
+    if (!currentDataDraft) {
+        addLog('❌ Geen data geladen - doe eerst een pull sync', true);
+        return;
+    }
+    if (!packageName) return;
+
+    if (!Array.isArray(currentDataDraft.categoryApp)) {
+        currentDataDraft.categoryApp = [];
+    }
+
+    const targetCategoryId = String(categoryId);
+    const targetPackage = String(packageName);
+
+    currentDataDraft.categoryApp.forEach((entry) => {
+        if (String(entry.categoryId) === targetCategoryId) return;
+        if (!Array.isArray(entry.apps)) return;
+        const idx = entry.apps.findIndex(a => String(a) === targetPackage);
+        if (idx >= 0) {
+            entry.apps.splice(idx, 1);
+            removedCategoryApps.push({ categoryId: String(entry.categoryId), packageName: targetPackage });
+        }
+    });
+
+    let entry = currentDataDraft.categoryApp.find(a => String(a.categoryId) === targetCategoryId);
+    if (!entry) {
+        entry = { categoryId: targetCategoryId, apps: [] };
+        currentDataDraft.categoryApp.push(entry);
+    }
+    if (!Array.isArray(entry.apps)) {
+        entry.apps = [];
+    }
+
+    const exists = entry.apps.some(a => String(a) === targetPackage);
+    if (exists) return;
+
+    entry.apps.push(targetPackage);
+    newCategoryApps.push({ categoryId: targetCategoryId, packageName: targetPackage });
+
+    if (typeof updateCategoryDisplay === 'function') {
+        updateCategoryDisplay(currentDataDraft);
+    }
+}
+
+function mergePendingNewApps(data) {
+    if (!data || !Array.isArray(data.categoryApp)) return;
+    if (!Array.isArray(newCategoryApps) || newCategoryApps.length === 0) return;
+
+    newCategoryApps.forEach((item) => {
+        let entry = data.categoryApp.find(a => String(a.categoryId) === String(item.categoryId));
+        if (!entry) {
+            entry = { categoryId: item.categoryId, apps: [] };
+            data.categoryApp.push(entry);
+        }
+        if (!Array.isArray(entry.apps)) entry.apps = [];
+        if (!entry.apps.some(a => String(a) === String(item.packageName))) {
+            entry.apps.push(item.packageName);
+        }
+    });
+}
+
+function mergePendingAppRemovals(data) {
+    if (!data || !Array.isArray(data.categoryApp)) return;
+    if (!Array.isArray(removedCategoryApps) || removedCategoryApps.length === 0) return;
+
+    removedCategoryApps.forEach((item) => {
+        const entry = data.categoryApp.find(a => String(a.categoryId) === String(item.categoryId));
+        if (!entry || !Array.isArray(entry.apps)) return;
+        entry.apps = entry.apps.filter(a => String(a) !== String(item.packageName));
+    });
+}
+
+function reconcileRemovedApps(data) {
+    if (!Array.isArray(removedCategoryApps) || removedCategoryApps.length === 0) return;
+    if (!data || !Array.isArray(data.categoryApp)) return;
+
+    const map = new Map();
+    data.categoryApp.forEach((entry) => {
+        map.set(String(entry.categoryId), new Set((entry.apps || []).map(a => String(a))));
+    });
+
+    removedCategoryApps = removedCategoryApps.filter((item) => {
+        const set = map.get(String(item.categoryId));
+        return !!(set && set.has(String(item.packageName)));
+    });
+}
+
+function reconcileNewApps(data) {
+    if (!Array.isArray(newCategoryApps) || newCategoryApps.length === 0) return;
+    if (!data || !Array.isArray(data.categoryApp)) return;
+
+    const map = new Map();
+    data.categoryApp.forEach((entry) => {
+        map.set(String(entry.categoryId), new Set((entry.apps || []).map(a => String(a))));
+    });
+
+    newCategoryApps = newCategoryApps.filter((item) => {
+        const set = map.get(String(item.categoryId));
+        return !(set && set.has(String(item.packageName)));
+    });
 }
 
 function getNewRules() {
@@ -591,6 +703,13 @@ window.openRuleModal = openRuleModal;
 window.addRuleToCategory = addRuleToCategory;
 window.getNewRules = getNewRules;
 window.mergePendingNewRules = mergePendingNewRules;
+window.addAppToCategory = addAppToCategory;
+window.getNewCategoryApps = getNewCategoryApps;
+window.mergePendingNewApps = mergePendingNewApps;
+window.reconcileNewApps = reconcileNewApps;
+window.getRemovedCategoryApps = getRemovedCategoryApps;
+window.mergePendingAppRemovals = mergePendingAppRemovals;
+window.reconcileRemovedApps = reconcileRemovedApps;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {

@@ -255,6 +255,24 @@ function updateAppIndexDisplay(data) {
         return;
     }
     renderAppIndexList(appIndexItems, query);
+
+    const modalSearch = document.getElementById('add-app-search');
+    if (modalSearch && !modalSearch.dataset.bound) {
+        modalSearch.dataset.bound = 'true';
+        modalSearch.addEventListener('input', () => {
+            renderAddAppList(appIndexItems || [], modalSearch.value);
+        });
+    }
+
+    const onlyToggle = document.getElementById('add-app-only-uncategorized');
+    if (onlyToggle && !onlyToggle.dataset.bound) {
+        onlyToggle.dataset.bound = 'true';
+        onlyToggle.addEventListener('change', () => {
+            const searchInput = document.getElementById('add-app-search');
+            const q = searchInput ? searchInput.value : '';
+            renderAddAppList(appIndexItems || [], q);
+        });
+    }
 }
 
 
@@ -301,7 +319,9 @@ function renderRulesHTML(rules, categoryId) {
  * Genereert de HTML voor de lijst met applicaties binnen een categorie
  */
 function renderAppsHTML(apps) {
-    if (!apps || apps.length === 0) return '';
+    if (!apps || apps.length === 0) {
+        return '<div class="tree-leaf app-leaf rule-empty">Geen apps. Klik op + om toe te voegen.</div>';
+    }
 
     return apps.map(app => {
         const readableName = getReadableAppName(app);
@@ -316,6 +336,79 @@ function renderAppsHTML(apps) {
             </div>
         `;
     }).join('');
+}
+
+let addAppCategoryId = null;
+
+function getCategoryApps(categoryId) {
+    if (!currentDataDraft || !Array.isArray(currentDataDraft.categoryApp)) return [];
+    const entry = currentDataDraft.categoryApp.find(a => String(a.categoryId) === String(categoryId));
+    return entry && Array.isArray(entry.apps) ? entry.apps : [];
+}
+
+function renderAddAppList(items, query) {
+    const list = document.getElementById('add-app-list');
+    if (!list) return;
+    const onlyUncategorizedToggle = document.getElementById('add-app-only-uncategorized');
+    const onlyUncategorized = !!(onlyUncategorizedToggle && onlyUncategorizedToggle.checked);
+
+    const normalized = (query || '').trim().toLowerCase();
+    const existingApps = new Set(getCategoryApps(addAppCategoryId).map(a => String(a)));
+
+    const filtered = (items || []).filter(item => {
+        const match = !normalized
+            || item.readableName.toLowerCase().includes(normalized)
+            || item.packageName.toLowerCase().includes(normalized);
+        if (!match) return false;
+        if (existingApps.has(String(item.packageName))) return false;
+        if (onlyUncategorized) {
+            return !Array.isArray(item.categories) || item.categories.length === 0;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div style="padding:10px; color:#666; font-size:12px;">Geen apps beschikbaar.</div>';
+        return;
+    }
+
+    list.innerHTML = filtered.map(item => {
+        const categoriesText = Array.isArray(item.categories) && item.categories.length > 0
+            ? item.categories.join(', ')
+            : '';
+        return `
+            <div class="app-select-item" onclick="selectAppForCategory('${item.packageName}')">
+                <div class="app-select-name">${item.readableName}</div>
+                <div class="app-select-package">${item.packageName}</div>
+                ${categoriesText ? `<div class="app-select-categories">${categoriesText}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function showAddAppModal(categoryId) {
+    addAppCategoryId = String(categoryId);
+    const modal = document.getElementById('add-app-modal');
+    const search = document.getElementById('add-app-search');
+    if (search) search.value = '';
+    const onlyToggle = document.getElementById('add-app-only-uncategorized');
+    if (onlyToggle) onlyToggle.checked = false;
+    renderAddAppList(appIndexItems || [], '');
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideAddAppModal() {
+    const modal = document.getElementById('add-app-modal');
+    if (modal) modal.style.display = 'none';
+    addAppCategoryId = null;
+}
+
+function selectAppForCategory(packageName) {
+    if (!addAppCategoryId || !packageName) return;
+    if (typeof addAppToCategory === 'function') {
+        addAppToCategory(addAppCategoryId, packageName);
+    }
+    hideAddAppModal();
 }
 
 /**
@@ -372,17 +465,16 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                         </div>
                     </div>
 
-                    ${node.linkedApps.length > 0 ? `
-                        <div class="tree-node">
-                            <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
-                                <span class="tree-icon">▶</span>
-                                <span class="tree-title folder-title">Apps</span>
-                            </div>
-                            <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
-                                ${renderAppsHTML(node.linkedApps)}
-                            </div>
+                    <div class="tree-node">
+                        <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                            <span class="tree-icon">▶</span>
+                            <span class="tree-title folder-title">Apps</span>
+                            <button class="rule-add-btn" type="button" onclick="event.stopPropagation(); showAddAppModal('${node.categoryId}');">+</button>
                         </div>
-                    ` : ''}
+                        <div class="tree-content" style="display: none; margin-left: ${leafIndent}px;">
+                            ${renderAppsHTML(node.linkedApps)}
+                        </div>
+                    </div>
 
                     ${renderTreeHTML(node.children, level + 1, fullData)}
                 </div>
@@ -413,6 +505,10 @@ function updateCategoryDisplay(data) {
     // Herstel geopende categorieën
     restoreOpenCategoryIds(openCategoryIds);
 }
+
+window.showAddAppModal = showAddAppModal;
+window.hideAddAppModal = hideAddAppModal;
+window.selectAppForCategory = selectAppForCategory;
 
 /**
  * Haal de lijst van geopende categoryId's uit de huidige DOM

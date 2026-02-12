@@ -174,6 +174,35 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     cursor: default;
 }
 
+.app-select-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid #232a35;
+    cursor: pointer;
+    background: #11151c;
+}
+
+.app-select-item:hover {
+    background: rgba(3, 169, 244, 0.12);
+}
+
+.app-select-name {
+    font-size: 13px;
+    color: #e1e1e1;
+    font-weight: 600;
+}
+
+.app-select-package {
+    font-size: 10px;
+    color: #666;
+    font-family: monospace;
+}
+
+.app-select-categories {
+    font-size: 11px;
+    color: #03a9f4;
+    margin-top: 4px;
+}
+
 .app-info {
     display: flex;
     align-items: center;
