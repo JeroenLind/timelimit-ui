@@ -35,6 +35,30 @@ function setServerApiLevel(value) {
 serverApiLevel = loadServerApiLevel();
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
+const ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
+
+function loadEncryptedAppsCache() {
+    try {
+        const raw = localStorage.getItem(ENCRYPTED_APPS_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
+
+function setEncryptedAppsCache(value) {
+    if (!value || typeof value !== "object") {
+        localStorage.removeItem(ENCRYPTED_APPS_CACHE_KEY);
+    } else {
+        localStorage.setItem(ENCRYPTED_APPS_CACHE_KEY, JSON.stringify(value));
+    }
+    if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
+        window.scheduleHaStorageShadowSync('encrypted-apps-cache');
+    }
+}
 
 function normalizeSequenceNumber(value) {
     const parsed = Number.parseInt(value, 10);
@@ -118,6 +142,28 @@ async function runSync() {
 
             setServerApiLevel(typeof responseData.apiLevel === "number" ? responseData.apiLevel : null);
             console.log(`[SYNC] Server apiLevel: ${serverApiLevel}`);
+
+            if (Array.isArray(responseData.devices2)) {
+                const existingCache = loadEncryptedAppsCache();
+                const updatedCache = { ...existingCache };
+
+                responseData.devices2.forEach((device) => {
+                    if (!device || !device.deviceId) return;
+
+                    const nextEntry = updatedCache[device.deviceId] || {};
+
+                    if (device.appsBase) {
+                        nextEntry.appsBase = device.appsBase;
+                    }
+                    if (device.appsDiff) {
+                        nextEntry.appsDiff = device.appsDiff;
+                    }
+
+                    updatedCache[device.deviceId] = nextEntry;
+                });
+
+                setEncryptedAppsCache(updatedCache);
+            }
             
             addLog("Sync voltooid.");
             badge.innerText = "Online";
