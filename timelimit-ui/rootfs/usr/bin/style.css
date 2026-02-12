@@ -7,9 +7,11 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
 
 .dashboard-view { padding: 20px; overflow-y: auto; }
 
-.inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.inspector-panel { background: #050505; border-left: 1px solid #232a35; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-height: 0; }
 
-#json-view { flex: 1; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; min-height: 0; }
+.inspector-debug { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+#json-view { flex: 1 1 auto; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; min-height: 0; }
 
 #log-area { background: #000; color: #00ff00; padding: 10px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 11px; border-top: 1px solid #232a35; flex-shrink: 0; }
 
