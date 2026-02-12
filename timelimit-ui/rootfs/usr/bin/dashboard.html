@@ -123,6 +123,11 @@
 
             <div style="margin-top: 30px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #232a35; max-width: 300px;">
                 <h4 style="margin: 0 0 10px 0; color: #888; font-size: 11px; text-transform: uppercase;">Sync Instellingen</h4>
+                <label data-debug-only="true" style="display: flex; align-items: center; cursor: pointer; margin-bottom: 12px;">
+                    <input type="checkbox" id="encrypted-apps-toggle" style="width: 16px; height: 16px; margin-right: 10px; cursor: pointer;">
+                    <span style="font-size: 12px;">Gebruik encrypted app lijst</span>
+                    <span id="encrypted-apps-toggle-label" style="margin-left: auto; font-size: 11px; font-family: monospace; color: #8ab4f8;">Off</span>
+                </label>
                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
                     <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                     <span style="font-size: 14px;">Auto-sync (30s)</span>
@@ -413,6 +418,9 @@
             updateSequenceDisplay();
             if (typeof initDebugToggle === 'function') {
                 initDebugToggle();
+            }
+            if (typeof initEncryptedAppsToggle === 'function') {
+                initEncryptedAppsToggle();
             }
             if (TOKEN) runSync();
             if (typeof scheduleHaStorageShadowSync === 'function') {

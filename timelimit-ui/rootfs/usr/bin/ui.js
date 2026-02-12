@@ -26,6 +26,7 @@ const HA_STORAGE_KEYS = [
     'timelimit_last_email',
     'selected_timelimit_server',
     'timelimit_debugMode',
+    'timelimit_useEncryptedApps',
     'timelimit_nextSyncSequenceNumber',
     'timelimit_serverApiLevel'
 ];
@@ -106,6 +107,7 @@ function renderHaStorageDetails(storage) {
     const lastEmail = data.timelimit_last_email || '';
     const selectedServer = data.selected_timelimit_server || '';
     const debugMode = data.timelimit_debugMode === '1' ? 'On' : 'Off';
+    const encryptedAppsMode = data.timelimit_useEncryptedApps === '1' ? 'On' : 'Off';
     const sequence = data.timelimit_nextSyncSequenceNumber || '0';
     const apiLevel = data.timelimit_serverApiLevel || '-';
 
@@ -120,6 +122,7 @@ function renderHaStorageDetails(storage) {
         <div style="margin-bottom:6px;">Laatste e-mail: <span style="color:#fff;">${lastEmail || '-'}</span></div>
         <div style="margin-bottom:6px;">Server: <span style="color:#fff;">${selectedServer || '-'}</span></div>
         <div style="margin-bottom:6px;">Debug: <span style="color:#fff;">${debugMode}</span></div>
+        <div style="margin-bottom:6px;">Encrypted apps: <span style="color:#fff;">${encryptedAppsMode}</span></div>
         <div style="margin-bottom:6px;">Sequence: <span style="color:#fff; font-family: monospace;">${sequence}</span></div>
         <div>Server API Level: <span style="color:#fff; font-family: monospace;">${apiLevel}</span></div>
     `;
@@ -322,6 +325,7 @@ window.exportHaStorage = exportHaStorage;
 window.importHaStorageFromFile = importHaStorageFromFile;
 
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
+const ENCRYPTED_APPS_TOGGLE_KEY = 'timelimit_useEncryptedApps';
 
 function isDebugMode() {
     return localStorage.getItem(DEBUG_MODE_KEY) === '1';
@@ -358,6 +362,38 @@ function initDebugToggle() {
 
     applyDebugMode(isDebugMode());
 }
+
+function isEncryptedAppsEnabled() {
+    return localStorage.getItem(ENCRYPTED_APPS_TOGGLE_KEY) === '1';
+}
+
+function applyEncryptedAppsToggle(enabled) {
+    const toggle = document.getElementById('encrypted-apps-toggle');
+    if (toggle) toggle.checked = enabled;
+
+    const label = document.getElementById('encrypted-apps-toggle-label');
+    if (label) label.textContent = enabled ? 'On' : 'Off';
+}
+
+function setEncryptedAppsEnabled(enabled) {
+    localStorage.setItem(ENCRYPTED_APPS_TOGGLE_KEY, enabled ? '1' : '0');
+    scheduleHaStorageShadowSync('encrypted-apps-toggle');
+    applyEncryptedAppsToggle(enabled);
+}
+
+function initEncryptedAppsToggle() {
+    const toggle = document.getElementById('encrypted-apps-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('change', () => {
+        setEncryptedAppsEnabled(toggle.checked);
+    });
+
+    applyEncryptedAppsToggle(isEncryptedAppsEnabled());
+}
+
+window.isEncryptedAppsEnabled = isEncryptedAppsEnabled;
+window.setEncryptedAppsEnabled = setEncryptedAppsEnabled;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');
