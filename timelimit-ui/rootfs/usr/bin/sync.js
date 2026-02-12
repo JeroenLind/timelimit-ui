@@ -95,7 +95,7 @@ async function runSync() {
 
     const syncPayload = {
         deviceAuthToken: TOKEN,
-        status: { apps: {}, categories: {}, devices: "0", users: "0", clientLevel: 8 }
+        status: { apps: {}, categories: {}, devices: "0", users: "0", clientLevel: 8, devicesDetail: {} }
     };
 
     addLog("Syncing data...");
