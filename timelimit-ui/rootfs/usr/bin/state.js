@@ -10,6 +10,10 @@ let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 // Tracked welke regels nieuw zijn
 let newRules = [];
 
+// Track nieuw toegevoegde rule terwijl modal open is
+let pendingNewRule = null;
+let pendingNewRuleSaved = false;
+
 // Parent password hash - nodig voor HMAC-SHA512 signing
 let parentPasswordHash = null;
 
@@ -277,7 +281,8 @@ function addRuleToCategory(categoryId, evt) {
         extraTime: false,
         dur: 0,
         pause: 0,
-        _isNew: true
+        _isNew: true,
+        _pendingNew: true
     };
 
     categoryRules.rules.push(newRule);
@@ -436,6 +441,14 @@ function openRuleModal(catId, ruleId) {
         return;
     }
 
+    if (rule._isNew && rule._pendingNew) {
+        pendingNewRule = { catId: String(catId), ruleId: String(ruleId) };
+        pendingNewRuleSaved = false;
+    } else {
+        pendingNewRule = null;
+        pendingNewRuleSaved = false;
+    }
+
     // 1. Basis ID's opslaan
     document.getElementById('edit-cat-id').value = catId;
     document.getElementById('edit-rule-id').value = ruleId;
@@ -493,6 +506,16 @@ function saveModalChanges() {
 
     console.log(`[DEBUG] Aangepaste waarden:`, updatedValues);
     updateRuleInDraft(catId, ruleId, updatedValues);
+    if (pendingNewRule && pendingNewRule.ruleId === String(ruleId)) {
+        pendingNewRuleSaved = true;
+        const category = currentDataDraft.rules.find(r => r.categoryId == catId);
+        if (category) {
+            const rule = category.rules.find(r => r.id == ruleId);
+            if (rule) {
+                rule._pendingNew = false;
+            }
+        }
+    }
     closeModal();
     
     if (typeof updateCategoryDisplay === "function") {
@@ -538,6 +561,28 @@ function updateMaskFromButtons() {
 }
 
 function closeModal() {
+    if (pendingNewRule && !pendingNewRuleSaved) {
+        const catId = pendingNewRule.catId;
+        const ruleId = pendingNewRule.ruleId;
+
+        if (currentDataDraft && Array.isArray(currentDataDraft.rules)) {
+            const category = currentDataDraft.rules.find(r => r.categoryId == catId);
+            if (category && Array.isArray(category.rules)) {
+                category.rules = category.rules.filter(r => String(r.id) !== String(ruleId));
+            }
+        }
+
+        if (Array.isArray(newRules)) {
+            newRules = newRules.filter(r => String(r.id) !== String(ruleId));
+        }
+
+        if (typeof updateCategoryDisplay === "function") {
+            updateCategoryDisplay(currentDataDraft);
+        }
+    }
+
+    pendingNewRule = null;
+    pendingNewRuleSaved = false;
     document.getElementById('rule-modal').classList.remove('is-visible');
 }
 
