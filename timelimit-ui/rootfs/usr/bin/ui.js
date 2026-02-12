@@ -372,7 +372,12 @@ function applyEncryptedAppsToggle(enabled) {
     if (toggle) toggle.checked = enabled;
 
     const label = document.getElementById('encrypted-apps-toggle-label');
-    if (label) label.textContent = enabled ? 'On' : 'Off';
+    if (label) {
+        label.textContent = enabled ? 'AAN' : 'UIT';
+        label.style.borderColor = enabled ? '#2d5a2d' : '#333';
+        label.style.background = enabled ? '#123116' : '#111';
+        label.style.color = enabled ? '#8fe39b' : '#bbb';
+    }
 }
 
 function setEncryptedAppsEnabled(enabled) {
