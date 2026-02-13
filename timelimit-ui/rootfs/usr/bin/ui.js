@@ -1382,6 +1382,18 @@ function renderUsers(data) {
             treeHtml = renderTreeHTML(childTree, 0, data);
         }
 
+        const appIndexId = userId ? `app-index-${userId}` : '';
+        const appSearchId = userId ? `app-index-search-${userId}` : '';
+        const appListId = userId ? `app-index-list-${userId}` : '';
+        const appIndexHtml = isParent
+            ? "<div style='color:#666;'>App overzicht alleen voor child gebruikers.</div>"
+            : userId
+                ? `
+                    <input type="text" id="${appSearchId}" placeholder="Zoek app of package..." class="app-index-search">
+                    <div id="${appListId}" class="app-index-list">Wachtend op app data...</div>
+                `
+                : "<div style='color:#666;'>Geen childId voor app overzicht.</div>";
+
         html += `
             <div style='background: #151921; padding: 12px; border-radius: 6px; border-left: 3px solid #03a9f4;'>
                 <div style='display:flex; align-items:center; gap:8px; margin-bottom: 8px;'>
@@ -1394,6 +1406,10 @@ function renderUsers(data) {
                 <div class='tree-container' style='padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;'>
                     ${treeHtml}
                 </div>
+                <div id="${appIndexId}" class="tree-container app-index-container" style="margin-top: 10px; padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;">
+                    <div style="font-size: 11px; color: #8ab4f8; text-transform: uppercase; margin-bottom: 6px;">App Overzicht</div>
+                    ${appIndexHtml}
+                </div>
             </div>
         `;
     });
@@ -1403,6 +1419,61 @@ function renderUsers(data) {
 
     if (typeof restoreOpenCategoryIds === 'function') {
         restoreOpenCategoryIds(openCategoryIds);
+    }
+
+    if (typeof buildAppIndex === 'function') {
+        users.forEach(u => {
+            if (u.type === 'parent') return;
+            const userId = u.id || u.userId || '';
+            if (!userId) return;
+
+            const input = document.getElementById(`app-index-search-${userId}`);
+            const listEl = document.getElementById(`app-index-list-${userId}`);
+            if (!listEl) return;
+
+            const filteredCategories = (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId));
+            const categoryIds = new Set(filteredCategories.map(cat => cat.categoryId));
+            const filteredApps = (data.categoryApp || []).filter(entry => categoryIds.has(entry.categoryId));
+            const items = buildAppIndex({
+                ...data,
+                categoryBase: filteredCategories,
+                categoryApp: filteredApps
+            });
+
+            const renderList = (query) => {
+                const normalized = (query || '').trim().toLowerCase();
+                const filtered = normalized
+                    ? items.filter(item => {
+                        const catText = item.categories.join(' ').toLowerCase();
+                        return item.readableName.toLowerCase().includes(normalized)
+                            || item.packageName.toLowerCase().includes(normalized)
+                            || catText.includes(normalized);
+                    })
+                    : items;
+
+                if (filtered.length === 0) {
+                    listEl.innerHTML = '<div class="app-index-item">Geen apps gevonden.</div>';
+                    return;
+                }
+
+                listEl.innerHTML = filtered.map(item => {
+                    const categoriesText = item.categories.length > 0 ? item.categories.join(', ') : '(geen categorie)';
+                    return `
+                        <div class="app-index-item">
+                            <span class="app-index-name">${escapeHtml(item.readableName)}</span>
+                            <span class="app-index-package">${escapeHtml(item.packageName)}</span>
+                            <span class="app-index-categories">${escapeHtml(categoriesText)}</span>
+                        </div>
+                    `;
+                }).join('');
+            };
+
+            renderList(input ? input.value : '');
+
+            if (input) {
+                input.oninput = () => renderList(input.value);
+            }
+        });
     }
 }
 

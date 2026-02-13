@@ -242,19 +242,20 @@ function initAppIndexSearch() {
 }
 
 function updateAppIndexDisplay(data) {
-    const list = document.getElementById('app-index-list');
-    if (!list) return;
-
     appIndexItems = buildAppIndex(data);
-    initAppIndexSearch();
 
-    const input = document.getElementById('app-index-search');
-    const query = input ? input.value : '';
-    if (appIndexItems.length === 0) {
-        list.innerHTML = '<div class="app-index-item">Geen app data beschikbaar.</div>';
-        return;
+    const list = document.getElementById('app-index-list');
+    if (list) {
+        initAppIndexSearch();
+
+        const input = document.getElementById('app-index-search');
+        const query = input ? input.value : '';
+        if (appIndexItems.length === 0) {
+            list.innerHTML = '<div class="app-index-item">Geen app data beschikbaar.</div>';
+        } else {
+            renderAppIndexList(appIndexItems, query);
+        }
     }
-    renderAppIndexList(appIndexItems, query);
 
     const modalSearch = document.getElementById('add-app-search');
     if (modalSearch && !modalSearch.dataset.bound) {
