@@ -1406,10 +1406,12 @@ function renderUsers(data) {
                 <div class='tree-container' style='padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;'>
                     ${treeHtml}
                 </div>
-                <div id="${appIndexId}" class="tree-container app-index-container" style="margin-top: 10px; padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;">
-                    <div style="font-size: 11px; color: #8ab4f8; text-transform: uppercase; margin-bottom: 6px;">App Overzicht</div>
-                    ${appIndexHtml}
-                </div>
+                <details style="margin-top: 10px;">
+                    <summary style="cursor:pointer; font-size: 11px; color: #8ab4f8; text-transform: uppercase;">App Overzicht</summary>
+                    <div id="${appIndexId}" class="tree-container app-index-container" style="margin-top: 6px; padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;">
+                        ${appIndexHtml}
+                    </div>
+                </details>
             </div>
         `;
     });
