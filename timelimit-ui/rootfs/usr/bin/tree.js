@@ -491,19 +491,20 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
  */
 function updateCategoryDisplay(data) {
     const container = document.getElementById('category-tree-container');
-    if (!container) return;
 
-    // Bewaar geopende categorieën (categoryId strings) zodat we ze kunnen herstellen
-    const openCategoryIds = getOpenCategoryIds();
+    if (container) {
+        // Bewaar geopende categorieën (categoryId strings) zodat we ze kunnen herstellen
+        const openCategoryIds = getOpenCategoryIds();
 
-    const tree = buildCategoryTree(data);
-    // Geef 'data' (de hele JSON) mee als derde argument
-    container.innerHTML = renderTreeHTML(tree, 0, data);
+        const tree = buildCategoryTree(data);
+        // Geef 'data' (de hele JSON) mee als derde argument
+        container.innerHTML = renderTreeHTML(tree, 0, data);
+
+        // Herstel geopende categorieën
+        restoreOpenCategoryIds(openCategoryIds);
+    }
 
     updateAppIndexDisplay(data);
-
-    // Herstel geopende categorieën
-    restoreOpenCategoryIds(openCategoryIds);
 }
 
 window.showAddAppModal = showAddAppModal;

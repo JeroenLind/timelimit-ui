@@ -1352,18 +1352,57 @@ function renderUsers(data) {
     const list = document.getElementById('user-list');
     if (!list) return;
 
-    if (data && data.users && data.users.data && data.users.data.length > 0) {
-        let html = "<ul style='list-style: none; padding: 0;'>";
-        data.users.data.forEach(u => {
-            const icon = u.type === 'parent' ? '🛡️' : '👤';
-            html += `<li style='background: #151921; margin-bottom: 5px; padding: 10px; border-radius: 4px; border-left: 3px solid #03a9f4;'>
-                        ${icon} <strong>${u.name}</strong> <span style='color: #888; font-size: 0.8em;'>(${u.type})</span>
-                     </li>`;
-        });
-        html += "</ul>";
-        list.innerHTML = html;
-    } else {
+    if (!data || !data.users || !data.users.data || data.users.data.length === 0) {
         list.innerHTML = "<p style='color: #888;'>Geen gebruikers gevonden in deze familie.</p>";
+        return;
+    }
+
+    const openCategoryIds = typeof getOpenCategoryIds === 'function' ? getOpenCategoryIds() : [];
+    const users = data.users.data;
+    let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
+
+    users.forEach(u => {
+        const icon = u.type === 'parent' ? '🛡️' : '👤';
+        const userName = escapeHtml(u.name || 'Onbekend');
+        const userType = escapeHtml(u.type || 'onbekend');
+        const userId = u.id || u.userId || '';
+        const isParent = u.type === 'parent';
+        const childTree = (!isParent && userId && typeof buildCategoryTree === 'function')
+            ? buildCategoryTree({
+                ...data,
+                categoryBase: (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId))
+            })
+            : [];
+        let treeHtml = "<div style='color:#666;'>Geen categorieen gevonden.</div>";
+        if (isParent) {
+            treeHtml = "<div style='color:#666;'>Geen categorieen voor parent.</div>";
+        } else if (!userId) {
+            treeHtml = "<div style='color:#666;'>Geen childId gevonden voor deze gebruiker.</div>";
+        } else if (childTree && childTree.length > 0 && typeof renderTreeHTML === 'function') {
+            treeHtml = renderTreeHTML(childTree, 0, data);
+        }
+
+        html += `
+            <div style='background: #151921; padding: 12px; border-radius: 6px; border-left: 3px solid #03a9f4;'>
+                <div style='display:flex; align-items:center; gap:8px; margin-bottom: 8px;'>
+                    <div>${icon}</div>
+                    <div>
+                        <strong>${userName}</strong>
+                        <span style='color: #888; font-size: 0.8em;'>(${userType})</span>
+                    </div>
+                </div>
+                <div class='tree-container' style='padding: 8px; background:#0f141b; border:1px solid #1b232c; border-radius:6px;'>
+                    ${treeHtml}
+                </div>
+            </div>
+        `;
+    });
+
+    html += "</div>";
+    list.innerHTML = html;
+
+    if (typeof restoreOpenCategoryIds === 'function') {
+        restoreOpenCategoryIds(openCategoryIds);
     }
 }
 
