@@ -221,6 +221,21 @@ async function runSync() {
                     if (!device || !device.deviceId) return;
 
                     const nextEntry = updatedCache[device.deviceId] || {};
+                    const deviceId = String(device.deviceId);
+
+                    if (device.appsBase) {
+                        const baseVersion = device.appsBase.version || '-';
+                        const baseSize = device.appsBase.data ? String(device.appsBase.data).length : 0;
+                        addLog(`Apps data ${deviceId}: appsBase v=${baseVersion}, dataLen=${baseSize}.`);
+                    }
+                    if (device.appsDiff) {
+                        const diffVersion = device.appsDiff.version || '-';
+                        const diffSize = device.appsDiff.data ? String(device.appsDiff.data).length : 0;
+                        addLog(`Apps data ${deviceId}: appsDiff v=${diffVersion}, dataLen=${diffSize}.`);
+                    }
+                    if (!device.appsBase && !device.appsDiff) {
+                        addLog(`Apps data ${deviceId}: geen appsBase/appsDiff in devices2.`);
+                    }
 
                     if (device.appsBase) {
                         nextEntry.appsBase = device.appsBase;
