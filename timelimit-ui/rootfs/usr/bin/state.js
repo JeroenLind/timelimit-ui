@@ -123,6 +123,10 @@ function initializeDraft(data) {
     currentDataDraft = JSON.parse(JSON.stringify(data));
     originalDataSnapshot = JSON.parse(JSON.stringify(data));
     changedRules.clear();
+
+    disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
+    deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
+    mergeDisabledRulesIntoDraft(currentDataDraft);
     
     // Sla parent password hash op voor HMAC-SHA512 signing
     if (data.parentPasswordHash) {
@@ -131,6 +135,29 @@ function initializeDraft(data) {
     }
     
     console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
+}
+
+function mergeDisabledRulesIntoDraft(draft) {
+    if (!draft || !Array.isArray(draft.rules)) return;
+    if (!Array.isArray(disabledRules) || disabledRules.length === 0) return;
+
+    disabledRules.forEach((rule) => {
+        if (!rule || !rule.categoryId || !rule.id) return;
+        const catKey = String(rule.categoryId);
+        const ruleKey = String(rule.id);
+        let category = draft.rules.find(r => String(r.categoryId) === catKey);
+        if (!category) {
+            category = { categoryId: catKey, rules: [] };
+            draft.rules.push(category);
+        }
+        if (!Array.isArray(category.rules)) category.rules = [];
+        const existing = category.rules.find(r => String(r.id) === ruleKey);
+        if (existing) {
+            existing._disabled = true;
+        } else {
+            category.rules.push({ ...rule, _disabled: true });
+        }
+    });
 }
 
 function mergePendingNewRules(data) {
