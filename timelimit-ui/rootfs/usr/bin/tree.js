@@ -287,6 +287,7 @@ function renderRulesHTML(rules, categoryId) {
     }
     
     return rules.map(r => {
+        const isDisabled = !!r._disabled;
         let title = "Beperking";
         if (r.maxTime > 0) {
             title = `Limiet: ${formatDuration(r.maxTime)}`;
@@ -298,18 +299,28 @@ function renderRulesHTML(rules, categoryId) {
         const isChanged = isRuleChanged(categoryId, r.id);
         const isNew = !!r._isNew;
         const changedClass = isChanged || isNew ? 'rule-changed' : '';
-        const changedBadge = isNew
-            ? '<span class="change-badge">🆕 Nieuw</span>'
-            : (isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '');
+        const changedBadge = isDisabled
+            ? '<span class="change-badge">⏸️ Uitgeschakeld</span>'
+            : isNew
+                ? '<span class="change-badge">🆕 Nieuw</span>'
+                : (isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '');
+
+        const toggleHtml = `
+            <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:10px; color:${isDisabled ? '#f48fb1' : '#8ab4f8'};" onclick="event.stopPropagation();">
+                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
+                <span>${isDisabled ? 'Uit' : 'Aan'}</span>
+            </label>
+        `;
 
         // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `
-            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="openRuleModal('${categoryId}', '${r.id}')">
+            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="if (window.isRuleDisabled && window.isRuleDisabled('${categoryId}', '${r.id}')) return; openRuleModal('${categoryId}', '${r.id}')" style="${isDisabled ? 'opacity:0.55;' : ''}">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
                     <div class="rule-title">${title} ${changedBadge}</div>
                     <div class="rule-subtitle">${formatDays(r.dayMask)}</div>
                 </div>
+                ${toggleHtml}
                 <span class="rule-id">${r.id}</span>
             </div>
         `;

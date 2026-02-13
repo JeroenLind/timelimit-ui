@@ -1348,6 +1348,28 @@ function showStep(s) {
     steps.forEach((el, idx) => el.style.display = (idx + 1 === s) ? 'block' : 'none');
 }
 
+function mergeRulesWithDisabled(rules, disabledList) {
+    const byCategory = new Map();
+    (rules || []).forEach((entry) => {
+        const categoryId = String(entry.categoryId);
+        const nextRules = Array.isArray(entry.rules) ? entry.rules.map(r => ({ ...r })) : [];
+        byCategory.set(categoryId, { categoryId, rules: nextRules });
+    });
+
+    (disabledList || []).forEach((rule) => {
+        if (!rule || !rule.categoryId || !rule.id) return;
+        const categoryId = String(rule.categoryId);
+        const entry = byCategory.get(categoryId) || { categoryId, rules: [] };
+        const exists = entry.rules.some(r => String(r.id) === String(rule.id));
+        if (!exists) {
+            entry.rules.push({ ...rule, _disabled: true });
+        }
+        byCategory.set(categoryId, entry);
+    });
+
+    return Array.from(byCategory.values());
+}
+
 function renderUsers(data) {
     const list = document.getElementById('user-list');
     if (!list) return;
@@ -1358,6 +1380,7 @@ function renderUsers(data) {
     }
 
     const openCategoryIds = typeof getOpenCategoryIds === 'function' ? getOpenCategoryIds() : [];
+    const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
     const users = data.users.data;
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
 
@@ -1367,10 +1390,13 @@ function renderUsers(data) {
         const userType = escapeHtml(u.type || 'onbekend');
         const userId = u.id || u.userId || '';
         const isParent = u.type === 'parent';
+        const scopedCategories = (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId));
+        const scopedRules = mergeRulesWithDisabled(data.rules || [], disabledList);
         const childTree = (!isParent && userId && typeof buildCategoryTree === 'function')
             ? buildCategoryTree({
                 ...data,
-                categoryBase: (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId))
+                categoryBase: scopedCategories,
+                rules: scopedRules
             })
             : [];
         let treeHtml = "<div style='color:#666;'>Geen categorieen gevonden.</div>";

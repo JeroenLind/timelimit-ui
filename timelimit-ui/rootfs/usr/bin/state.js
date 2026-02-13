@@ -12,12 +12,96 @@ let newRules = [];
 let newCategoryApps = [];
 let removedCategoryApps = [];
 
+// Lokaal uitgeschakelde regels (blijven in dashboard, maar worden op server verwijderd)
+const DISABLED_RULES_STORAGE_KEY = 'timelimit_disabledRules';
+const DELETED_RULES_STORAGE_KEY = 'timelimit_deletedRules';
+let disabledRules = [];
+let deletedRules = [];
+
 // Track nieuw toegevoegde rule terwijl modal open is
 let pendingNewRule = null;
 let pendingNewRuleSaved = false;
 
 // Parent password hash - nodig voor HMAC-SHA512 signing
 let parentPasswordHash = null;
+
+function loadRulesListFromStorage(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveRulesListToStorage(key, value) {
+    if (!Array.isArray(value) || value.length === 0) {
+        localStorage.removeItem(key);
+    } else {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('disabled-rules');
+    }
+}
+
+disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
+deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
+
+function getDisabledRules() {
+    return Array.isArray(disabledRules) ? disabledRules.map(r => ({ ...r })) : [];
+}
+
+function getDeletedRules() {
+    return Array.isArray(deletedRules) ? deletedRules.map(r => ({ ...r })) : [];
+}
+
+function isRuleDisabled(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    return disabledRules.some(r => String(r.categoryId) === catKey && String(r.id) === ruleKey);
+}
+
+function ruleExistsInSnapshot(categoryId, ruleId) {
+    if (!originalDataSnapshot || !Array.isArray(originalDataSnapshot.rules)) return false;
+    const category = originalDataSnapshot.rules.find(r => String(r.categoryId) === String(categoryId));
+    if (!category || !Array.isArray(category.rules)) return false;
+    return category.rules.some(r => String(r.id) === String(ruleId));
+}
+
+function addDeletedRule(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    if (!deletedRules.some(r => String(r.categoryId) === catKey && String(r.ruleId) === ruleKey)) {
+        deletedRules.push({ categoryId: catKey, ruleId: ruleKey });
+        saveRulesListToStorage(DELETED_RULES_STORAGE_KEY, deletedRules);
+    }
+}
+
+function removeDeletedRule(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    deletedRules = deletedRules.filter(r => !(String(r.categoryId) === catKey && String(r.ruleId) === ruleKey));
+    saveRulesListToStorage(DELETED_RULES_STORAGE_KEY, deletedRules);
+}
+
+function addDisabledRule(rule) {
+    const catKey = String(rule.categoryId);
+    const ruleKey = String(rule.id);
+    if (!disabledRules.some(r => String(r.categoryId) === catKey && String(r.id) === ruleKey)) {
+        disabledRules.push({ ...rule, categoryId: catKey, id: ruleKey, _disabled: true });
+        saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
+    }
+}
+
+function removeDisabledRule(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    disabledRules = disabledRules.filter(r => !(String(r.categoryId) === catKey && String(r.id) === ruleKey));
+    saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
+}
 
 /**
  * Wist de opgeslagen parent password hash
@@ -520,6 +604,97 @@ function isRuleChanged(categoryId, ruleId) {
     return changedRules.has(key);
 }
 
+function disableRule(categoryId, ruleId) {
+    if (!currentDataDraft || !Array.isArray(currentDataDraft.rules)) return;
+    if (isRuleDisabled(categoryId, ruleId)) return;
+
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    const category = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+    if (!category || !Array.isArray(category.rules)) return;
+
+    const ruleIndex = category.rules.findIndex(r => String(r.id) === ruleKey);
+    if (ruleIndex === -1) return;
+
+    const rule = category.rules[ruleIndex];
+    addDisabledRule(rule);
+
+    category.rules.splice(ruleIndex, 1);
+
+    newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
+    changedRules.delete(`${catKey}_${ruleKey}`);
+
+    if (ruleExistsInSnapshot(catKey, ruleKey)) {
+        addDeletedRule(catKey, ruleKey);
+    }
+
+    if (typeof renderUsers === 'function') {
+        renderUsers(currentDataDraft);
+    }
+}
+
+function enableRule(categoryId, ruleId) {
+    if (!currentDataDraft || !Array.isArray(currentDataDraft.rules)) return;
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+
+    const disabledRule = disabledRules.find(r => String(r.categoryId) === catKey && String(r.id) === ruleKey);
+    if (!disabledRule) return;
+
+    removeDisabledRule(catKey, ruleKey);
+    removeDeletedRule(catKey, ruleKey);
+
+    let category = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+    if (!category) {
+        category = { categoryId: catKey, rules: [] };
+        currentDataDraft.rules.push(category);
+    }
+    if (!Array.isArray(category.rules)) category.rules = [];
+    if (!category.rules.some(r => String(r.id) === ruleKey)) {
+        const restoredRule = { ...disabledRule };
+        delete restoredRule._disabled;
+        category.rules.push(restoredRule);
+    }
+
+    if (!ruleExistsInSnapshot(catKey, ruleKey)) {
+        const exists = newRules.some(r => String(r.id) === ruleKey && String(r.categoryId) === catKey);
+        if (!exists) {
+            const restoredRule = { ...disabledRule };
+            delete restoredRule._disabled;
+            newRules.push(restoredRule);
+        }
+    }
+
+    if (typeof renderUsers === 'function') {
+        renderUsers(currentDataDraft);
+    }
+}
+
+function toggleRuleEnabled(categoryId, ruleId, enabled) {
+    if (enabled) {
+        enableRule(categoryId, ruleId);
+    } else {
+        disableRule(categoryId, ruleId);
+    }
+}
+
+function reconcileDeletedRules(data) {
+    if (!Array.isArray(deletedRules) || deletedRules.length === 0) return;
+    if (!data || !Array.isArray(data.rules)) return;
+
+    const byCategory = new Map();
+    data.rules.forEach((entry) => {
+        const rules = Array.isArray(entry.rules) ? entry.rules : [];
+        byCategory.set(String(entry.categoryId), rules.map(r => String(r.id)));
+    });
+
+    deletedRules = deletedRules.filter((item) => {
+        const ruleIds = byCategory.get(String(item.categoryId));
+        return !!(ruleIds && ruleIds.includes(String(item.ruleId)));
+    });
+    saveRulesListToStorage(DELETED_RULES_STORAGE_KEY, deletedRules);
+}
+
 /**
  * Reset alle wijzigingen
  */
@@ -710,6 +885,13 @@ window.reconcileNewApps = reconcileNewApps;
 window.getRemovedCategoryApps = getRemovedCategoryApps;
 window.mergePendingAppRemovals = mergePendingAppRemovals;
 window.reconcileRemovedApps = reconcileRemovedApps;
+window.disableRule = disableRule;
+window.enableRule = enableRule;
+window.toggleRuleEnabled = toggleRuleEnabled;
+window.isRuleDisabled = isRuleDisabled;
+window.getDisabledRules = getDisabledRules;
+window.getDeletedRules = getDeletedRules;
+window.reconcileDeletedRules = reconcileDeletedRules;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {

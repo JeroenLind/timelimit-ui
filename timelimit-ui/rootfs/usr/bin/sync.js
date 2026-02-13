@@ -281,6 +281,9 @@ async function runSync() {
             if (typeof reconcileNewRules === 'function') {
                 reconcileNewRules(responseData);
             }
+            if (typeof reconcileDeletedRules === 'function') {
+                reconcileDeletedRules(responseData);
+            }
             if (typeof mergePendingNewApps === 'function') {
                 mergePendingNewApps(responseData);
             }
@@ -442,6 +445,13 @@ function buildCreateRuleAction(rule) {
     };
 }
 
+function buildDeleteRuleAction(ruleId) {
+    return {
+        type: "DELETE_TIMELIMIT_RULE",
+        ruleId: String(ruleId)
+    };
+}
+
 function buildAddCategoryAppsAction(categoryId, packageNames) {
     return {
         type: "ADD_CATEGORY_APPS",
@@ -581,10 +591,11 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
 function prepareSync(options = {}) {
     const changes = getChangedRules();
     const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
+    const deletedRules = typeof getDeletedRules === 'function' ? getDeletedRules() : [];
     const newCategoryApps = typeof getNewCategoryApps === 'function' ? getNewCategoryApps() : [];
     const removedCategoryApps = typeof getRemovedCategoryApps === 'function' ? getRemovedCategoryApps() : [];
     
-    if (changes.length === 0 && createdRules.length === 0 && newCategoryApps.length === 0 && removedCategoryApps.length === 0) {
+    if (changes.length === 0 && createdRules.length === 0 && deletedRules.length === 0 && newCategoryApps.length === 0 && removedCategoryApps.length === 0) {
         addLog("Geen wijzigingen om te synchroniseren.", false);
         return { batches: [], totalActions: 0 };
     }
@@ -600,6 +611,10 @@ function prepareSync(options = {}) {
     });
     createdRules.forEach(rule => {
         actionItems.push({ action: buildCreateRuleAction(rule) });
+    });
+    deletedRules.forEach(item => {
+        if (!item || !item.ruleId) return;
+        actionItems.push({ action: buildDeleteRuleAction(item.ruleId) });
     });
 
     if (newCategoryApps.length > 0) {
