@@ -261,6 +261,9 @@ async function runSync() {
                 });
 
                 setEncryptedAppsCache(updatedCache);
+                if (typeof window.renderDeviceOverview === 'function') {
+                    window.renderDeviceOverview();
+                }
                 if (typeof window.decryptEncryptedAppsIfEnabled === 'function') {
                     window.decryptEncryptedAppsIfEnabled();
                 }

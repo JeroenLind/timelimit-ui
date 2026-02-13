@@ -488,6 +488,7 @@ function setDeviceListCache(devices) {
     }
     renderEncryptedAppsDeviceOptions();
     renderKeyRequestList();
+    renderDeviceOverview();
 }
 
 function loadKeyRequestsCache() {
@@ -508,6 +509,7 @@ function setKeyRequestsCache(items) {
         localStorage.setItem(KEY_REQUESTS_CACHE_KEY, JSON.stringify(items));
     }
     renderKeyRequestList();
+    renderDeviceOverview();
 }
 
 function setEncryptedAppsKeys(value) {
@@ -516,6 +518,7 @@ function setEncryptedAppsKeys(value) {
     } else {
         localStorage.setItem(ENCRYPTED_APPS_KEYS_KEY, JSON.stringify(value));
     }
+    renderDeviceOverview();
 }
 
 function loadParentKeyPair() {
@@ -881,6 +884,91 @@ function renderEncryptedAppsKeyList() {
     }).join('');
 }
 
+function getDeviceDisplayName(device) {
+    if (!device || typeof device !== 'object') return 'Onbekend';
+    return device.name || device.title || device.model || device.deviceId || 'Onbekend';
+}
+
+function getDeviceKeyStatus(deviceId, keyRequests, appKeys) {
+    const hasKey = !!appKeys[deviceId];
+    const pending = keyRequests.some((item) => item && item.deviceId && String(item.deviceId) === String(deviceId));
+    return { hasKey, pending };
+}
+
+function formatAppsDataSummary(entry) {
+    if (!entry || typeof entry !== 'object') return 'Geen apps data.';
+    const parts = [];
+    if (entry.appsBase) {
+        const baseVersion = entry.appsBase.version || '-';
+        const baseLen = entry.appsBase.data ? String(entry.appsBase.data).length : 0;
+        parts.push(`appsBase v=${baseVersion}, len=${baseLen}`);
+    }
+    if (entry.appsDiff) {
+        const diffVersion = entry.appsDiff.version || '-';
+        const diffLen = entry.appsDiff.data ? String(entry.appsDiff.data).length : 0;
+        parts.push(`appsDiff v=${diffVersion}, len=${diffLen}`);
+    }
+    return parts.length > 0 ? parts.join(' | ') : 'Geen apps data.';
+}
+
+function renderDeviceOverview() {
+    const container = document.getElementById('device-overview-container');
+    if (!container) return;
+
+    const devices = loadDeviceListCache();
+    if (!devices.length) {
+        container.innerHTML = '<div style="color:#666;">Geen devices beschikbaar.</div>';
+        return;
+    }
+
+    const keyRequests = loadKeyRequestsCache();
+    const appKeys = loadEncryptedAppsKeys();
+    const appsCache = loadEncryptedAppsCache();
+
+    const html = devices.map((device) => {
+        const deviceId = device && device.deviceId ? String(device.deviceId) : '';
+        const safeName = escapeHtml(getDeviceDisplayName(device));
+        const safeId = escapeHtml(deviceId || '-');
+        const status = getDeviceKeyStatus(deviceId, keyRequests, appKeys);
+        const appsSummary = escapeHtml(formatAppsDataSummary(appsCache[deviceId]));
+        const keyLabel = status.hasKey ? 'key: yes' : 'key: no';
+        const pendingLabel = status.pending ? 'pending request: yes' : 'pending request: no';
+
+        const infoRows = [];
+        const addRow = (label, value) => {
+            if (value === null || typeof value === 'undefined' || value === '') return;
+            infoRows.push(`<div style="display:flex; gap:8px; padding:2px 0;">
+                <div style="min-width:120px; color:#888;">${escapeHtml(label)}</div>
+                <div style="color:#bbb; word-break: break-all;">${escapeHtml(String(value))}</div>
+            </div>`);
+        };
+
+        addRow('DeviceId', deviceId);
+        addRow('Name', device.name || device.title || device.model || '');
+        addRow('Type', device.type || device.platformType || '');
+        addRow('Platform', device.platformLevel || '');
+        addRow('UserId', device.currentUserId || '');
+        addRow('PublicKey', device.pk ? formatBase64Short(device.pk) : '');
+
+        return `
+            <details style="border:1px solid #1b232c; border-radius:6px; padding:8px; margin-bottom:8px; background:#0f141b;">
+                <summary style="cursor:pointer; color:#bbb; font-size:12px;">
+                    ${safeName} (${safeId}) - ${keyLabel}, ${pendingLabel}
+                </summary>
+                <div style="margin-top:6px; font-size:11px;">
+                    ${infoRows.join('')}
+                    <div style="margin-top:6px; color:#8ab4f8;">Apps data</div>
+                    <div style="color:#aaa;">${appsSummary}</div>
+                    <div style="margin-top:6px; color:#8ab4f8;">Key status</div>
+                    <div style="color:#aaa;">${keyLabel} | ${pendingLabel}</div>
+                </div>
+            </details>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
 function clearEncryptedAppsKeyInputs() {
     const deviceInput = document.getElementById('encrypted-apps-device-id');
     const manualInput = document.getElementById('encrypted-apps-device-id-manual');
@@ -939,6 +1027,7 @@ function removeEncryptedAppsKey(deviceId) {
 function initEncryptedAppsKeyPanel() {
     renderEncryptedAppsKeyList();
     renderEncryptedAppsDeviceOptions();
+    renderDeviceOverview();
 }
 
 function base64ToBytes(value) {
@@ -1248,6 +1337,7 @@ window.clearParentKeyPairInputs = clearParentKeyPairInputs;
 window.initParentKeyPairPanel = initParentKeyPairPanel;
 window.setKeyRequestCache = setKeyRequestsCache;
 window.setKeyRequestIndicator = setKeyRequestIndicator;
+window.renderDeviceOverview = renderDeviceOverview;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');
