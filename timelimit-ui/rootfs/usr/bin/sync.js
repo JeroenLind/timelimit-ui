@@ -152,8 +152,11 @@ async function runSync() {
                 if (typeof window.setKeyRequestCache === 'function') {
                     window.setKeyRequestCache(responseData.krq);
                 }
-            } else if (typeof window.setKeyRequestCache === 'function') {
-                window.setKeyRequestCache([]);
+            } else {
+                addLog('Key requests: geen krq in response.');
+                if (typeof window.setKeyRequestCache === 'function') {
+                    window.setKeyRequestCache([]);
+                }
             }
 
             if (Array.isArray(responseData.devices2)) {
