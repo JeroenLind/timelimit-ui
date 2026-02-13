@@ -137,6 +137,13 @@ function initializeDraft(data) {
     console.log("Concept-modus actief. Data geladen en snapshot opgeslagen voor change tracking.");
 }
 
+function refreshRuleViews() {
+    refreshRuleViews();
+    if (typeof renderUsers === 'function') {
+        renderUsers(currentDataDraft);
+    }
+}
+
 function mergeDisabledRulesIntoDraft(draft) {
     if (!draft || !Array.isArray(draft.rules)) return;
     if (!Array.isArray(disabledRules) || disabledRules.length === 0) return;
@@ -392,9 +399,7 @@ function addAppToCategory(categoryId, packageName) {
     entry.apps.push(targetPackage);
     newCategoryApps.push({ categoryId: targetCategoryId, packageName: targetPackage });
 
-    if (typeof updateCategoryDisplay === 'function') {
-        updateCategoryDisplay(currentDataDraft);
-    }
+    refreshRuleViews();
 }
 
 function mergePendingNewApps(data) {
@@ -738,9 +743,7 @@ function resetAllChanges() {
         currentDataDraft = JSON.parse(JSON.stringify(originalDataSnapshot));
         changedRules.clear();
         console.log("Alle wijzigingen teruggedraaid!");
-        if (typeof updateCategoryDisplay === "function") {
-            updateCategoryDisplay(currentDataDraft);
-        }
+        refreshRuleViews();
     }
 }
 
@@ -840,9 +843,7 @@ function saveModalChanges() {
     }
     closeModal();
     
-    if (typeof updateCategoryDisplay === "function") {
-        updateCategoryDisplay(currentDataDraft);
-    }
+    refreshRuleViews();
 }
 
 /**
@@ -898,9 +899,7 @@ function closeModal() {
             newRules = newRules.filter(r => String(r.id) !== String(ruleId));
         }
 
-        if (typeof updateCategoryDisplay === "function") {
-            updateCategoryDisplay(currentDataDraft);
-        }
+        refreshRuleViews();
     }
 
     pendingNewRule = null;
