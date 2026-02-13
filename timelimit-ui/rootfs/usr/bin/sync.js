@@ -36,11 +36,11 @@ serverApiLevel = loadServerApiLevel();
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
 const SYNC_ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
-const ENCRYPTED_APPS_KEYS_KEY = "timelimit_appListKeys";
+const ENCRYPTED_APPS_KEYS_KEY_FOR_LOG = "timelimit_appListKeys";
 
 function loadEncryptedAppsKeysForLog() {
     try {
-        const raw = localStorage.getItem(ENCRYPTED_APPS_KEYS_KEY);
+        const raw = localStorage.getItem(ENCRYPTED_APPS_KEYS_KEY_FOR_LOG);
         if (!raw) return {};
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return {};
