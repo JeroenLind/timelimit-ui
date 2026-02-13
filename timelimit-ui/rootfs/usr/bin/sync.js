@@ -171,6 +171,9 @@ async function runSync() {
                     window.setKeyRequestCache(responseData.krq);
                 }
                 addLog(`Key requests: krq ontvangen (${responseData.krq.length}).`);
+                if (typeof window.setKeyRequestIndicator === 'function') {
+                    window.setKeyRequestIndicator({ krqCount: responseData.krq.length });
+                }
             } else {
                 const responseKeys = responseData && typeof responseData === 'object'
                     ? Object.keys(responseData)
@@ -181,6 +184,9 @@ async function runSync() {
                 addLog(`Key requests: geen krq in response. Keys: [${responseKeys.join(', ')}], apiLevel: ${apiLevelInfo}, payload clientLevel: ${syncPayload.status.clientLevel}.`);
                 if (typeof window.setKeyRequestCache === 'function') {
                     window.setKeyRequestCache([]);
+                }
+                if (typeof window.setKeyRequestIndicator === 'function') {
+                    window.setKeyRequestIndicator({ krqCount: 0 });
                 }
             }
 
@@ -212,6 +218,13 @@ async function runSync() {
                 }
                 if (missingKeyDevices.length > 0) {
                     addLog(`Apps data missing keys: ${missingKeyDevices.join(', ')}`);
+                }
+                if (typeof window.setKeyRequestIndicator === 'function') {
+                    window.setKeyRequestIndicator({
+                        devices2Count: deviceIds.length,
+                        missingKeys: missingKeyDevices.length,
+                        krqCount: Array.isArray(responseData.krq) ? responseData.krq.length : 0
+                    });
                 }
 
                 const existingCache = loadEncryptedAppsCache();

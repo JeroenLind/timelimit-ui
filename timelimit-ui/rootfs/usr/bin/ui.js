@@ -770,6 +770,38 @@ function renderKeyRequestList() {
     }).join('');
 }
 
+function setKeyRequestIndicator(state) {
+    const indicator = document.getElementById('key-request-indicator');
+    if (!indicator) return;
+
+    const data = state && typeof state === 'object' ? state : {};
+    const devices2Count = Number.isFinite(data.devices2Count) ? data.devices2Count : null;
+    const missingKeys = Number.isFinite(data.missingKeys) ? data.missingKeys : null;
+    const krqCount = Number.isFinite(data.krqCount) ? data.krqCount : null;
+
+    if (krqCount !== null && krqCount > 0) {
+        indicator.textContent = `Key requests ontvangen: ${krqCount}.`;
+        return;
+    }
+
+    if (devices2Count === null) {
+        indicator.textContent = 'Nog geen status.';
+        return;
+    }
+
+    if (devices2Count === 0) {
+        indicator.textContent = 'Geen apps data (devices2 leeg).';
+        return;
+    }
+
+    if (missingKeys !== null && missingKeys > 0) {
+        indicator.textContent = `Apps data ontvangen, maar ${missingKeys} device(s) missen key. Wacht op key request van child.`;
+        return;
+    }
+
+    indicator.textContent = 'Apps data aanwezig en keys zijn compleet.';
+}
+
 function clearParentKeyPairInputs() {
     const publicInput = document.getElementById('parent-public-key');
     const privateInput = document.getElementById('parent-private-key');
@@ -1215,6 +1247,7 @@ window.clearParentKeyPair = clearParentKeyPair;
 window.clearParentKeyPairInputs = clearParentKeyPairInputs;
 window.initParentKeyPairPanel = initParentKeyPairPanel;
 window.setKeyRequestCache = setKeyRequestsCache;
+window.setKeyRequestIndicator = setKeyRequestIndicator;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');
