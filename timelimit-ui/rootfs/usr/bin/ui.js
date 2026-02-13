@@ -339,6 +339,7 @@ const ENCRYPTED_APPS_KEYS_KEY = 'timelimit_appListKeys';
 const DEVICE_LIST_CACHE_KEY = 'timelimit_deviceListCache';
 const PARENT_PUBLIC_KEY_STORAGE = 'timelimit_parentPublicKey';
 const PARENT_PRIVATE_KEY_STORAGE = 'timelimit_parentPrivateKey';
+const KEY_REQUESTS_CACHE_KEY = 'timelimit_keyRequestsCache';
 
 function isDebugMode() {
     return localStorage.getItem(DEBUG_MODE_KEY) === '1';
@@ -488,6 +489,26 @@ function setDeviceListCache(devices) {
     renderEncryptedAppsDeviceOptions();
 }
 
+function loadKeyRequestsCache() {
+    try {
+        const raw = localStorage.getItem(KEY_REQUESTS_CACHE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setKeyRequestsCache(items) {
+    if (!Array.isArray(items)) {
+        localStorage.removeItem(KEY_REQUESTS_CACHE_KEY);
+    } else {
+        localStorage.setItem(KEY_REQUESTS_CACHE_KEY, JSON.stringify(items));
+    }
+    renderKeyRequestList();
+}
+
 function setEncryptedAppsKeys(value) {
     if (!value || typeof value !== 'object') {
         localStorage.removeItem(ENCRYPTED_APPS_KEYS_KEY);
@@ -600,6 +621,33 @@ function renderParentKeyPairStatus() {
     status.textContent = `Public: ${formatBase64Short(publicKey)} | Private: ${formatBase64Short(privateKey)}`;
 }
 
+function formatKeyRequestItem(item) {
+    const deviceId = item && item.deviceId ? String(item.deviceId) : '-';
+    const categoryId = item && item.categoryId ? String(item.categoryId) : '-';
+    const type = item && typeof item.type !== 'undefined' ? String(item.type) : '-';
+    const sender = item && item.senId ? String(item.senId) : '-';
+    const seq = item && typeof item.senSeq !== 'undefined' ? String(item.senSeq) : '-';
+    return `Device: ${deviceId} | Category: ${categoryId} | Type: ${type} | Sender: ${sender}/${seq}`;
+}
+
+function renderKeyRequestList() {
+    const list = document.getElementById('key-request-list');
+    const count = document.getElementById('key-request-count');
+    if (!list || !count) return;
+
+    const items = loadKeyRequestsCache();
+    count.textContent = String(items.length);
+
+    if (items.length === 0) {
+        list.innerHTML = '<div style="color:#666;">Geen key requests.</div>';
+        return;
+    }
+
+    list.innerHTML = items.map((item) => {
+        return `<div style="padding:4px 0; border-top:1px solid #1b232c;">${escapeHtml(formatKeyRequestItem(item))}</div>`;
+    }).join('');
+}
+
 function clearParentKeyPairInputs() {
     const publicInput = document.getElementById('parent-public-key');
     const privateInput = document.getElementById('parent-private-key');
@@ -651,6 +699,7 @@ function initParentKeyPairPanel() {
     if (publicInput) publicInput.value = publicKey;
     if (privateInput) privateInput.value = privateKey;
     renderParentKeyPairStatus();
+    renderKeyRequestList();
 }
 
 function renderEncryptedAppsKeyList() {
@@ -1043,6 +1092,7 @@ window.saveParentKeyPair = saveParentKeyPair;
 window.clearParentKeyPair = clearParentKeyPair;
 window.clearParentKeyPairInputs = clearParentKeyPairInputs;
 window.initParentKeyPairPanel = initParentKeyPairPanel;
+window.setKeyRequestCache = setKeyRequestsCache;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');

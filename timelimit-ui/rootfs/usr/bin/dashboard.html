@@ -150,6 +150,13 @@
                     </div>
                     <div id="parent-keypair-status" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
                 </div>
+                <div data-debug-only="true" style="margin-bottom: 12px; padding: 10px; border-radius: 6px; border: 1px solid #232a35; background: #0f141b;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                        <div style="font-size: 11px; color: #888; text-transform: uppercase;">Key requests</div>
+                        <div id="key-request-count" style="font-size: 10px; color: #666;">0</div>
+                    </div>
+                    <div id="key-request-list" style="margin-top: 8px; font-size: 11px; color: #aaa; max-height: 140px; overflow:auto;"></div>
+                </div>
                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
                     <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                     <span style="font-size: 14px;">Auto-sync (30s)</span>
@@ -307,9 +314,9 @@
     </div>
 
     <script src="state.js?v=83"></script>
-    <script src="ui.js?v=94"></script>
+    <script src="ui.js?v=95"></script>
     <script src="wizard.js?v=87"></script>
-    <script src="sync.js?v=93"></script>
+    <script src="sync.js?v=94"></script>
     <script src="tree.js?v=87"></script> 
     
     <script>

@@ -148,6 +148,13 @@ async function runSync() {
                     window.setDeviceListCache(responseData.devices.data);
                 }
             }
+            if (Array.isArray(responseData.krq)) {
+                if (typeof window.setKeyRequestCache === 'function') {
+                    window.setKeyRequestCache(responseData.krq);
+                }
+            } else if (typeof window.setKeyRequestCache === 'function') {
+                window.setKeyRequestCache([]);
+            }
 
             if (Array.isArray(responseData.devices2)) {
                 const existingCache = loadEncryptedAppsCache();
