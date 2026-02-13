@@ -139,6 +139,17 @@
                     </div>
                     <div id="encrypted-apps-keys" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
                 </div>
+                <div data-debug-only="true" style="margin-bottom: 12px; padding: 10px; border-radius: 6px; border: 1px solid #232a35; background: #0f141b;">
+                    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 6px;">Parent keypair</div>
+                    <input type="text" id="parent-public-key" placeholder="Public key (base64, 32 bytes)" style="width: 100%; padding: 8px; margin-bottom: 6px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;">
+                    <input type="text" id="parent-private-key" placeholder="Private key (base64, 32 bytes)" style="width: 100%; padding: 8px; margin-bottom: 8px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;">
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn" style="flex: 1; font-size: 11px; background:#2d5a2d; border-color:#4a8a4a;" onclick="if (window.saveParentKeyPair) window.saveParentKeyPair();">Opslaan</button>
+                        <button class="btn" style="flex: 1; font-size: 11px; background:#333;" onclick="if (window.clearParentKeyPairInputs) window.clearParentKeyPairInputs();">Wissen</button>
+                        <button class="btn" style="flex: 1; font-size: 11px; background:#333;" onclick="if (window.clearParentKeyPair) window.clearParentKeyPair();">Verwijder</button>
+                    </div>
+                    <div id="parent-keypair-status" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
+                </div>
                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
                     <input type="checkbox" id="auto-sync-tgl" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                     <span style="font-size: 14px;">Auto-sync (30s)</span>
@@ -296,7 +307,7 @@
     </div>
 
     <script src="state.js?v=83"></script>
-    <script src="ui.js?v=93"></script>
+    <script src="ui.js?v=94"></script>
     <script src="wizard.js?v=87"></script>
     <script src="sync.js?v=93"></script>
     <script src="tree.js?v=87"></script> 
@@ -435,6 +446,9 @@
             }
             if (typeof initEncryptedAppsKeyPanel === 'function') {
                 initEncryptedAppsKeyPanel();
+            }
+            if (typeof initParentKeyPairPanel === 'function') {
+                initParentKeyPairPanel();
             }
             if (TOKEN) runSync();
             if (typeof scheduleHaStorageShadowSync === 'function') {

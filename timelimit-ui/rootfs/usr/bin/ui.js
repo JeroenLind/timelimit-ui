@@ -22,6 +22,8 @@ const HA_STORAGE_ENDPOINT = 'ha-storage';
 const HA_STORAGE_KEYS = [
     'timelimit_token',
     'timelimit_parentPasswordHash',
+    'timelimit_parentPublicKey',
+    'timelimit_parentPrivateKey',
     'timelimit_account_history',
     'timelimit_last_email',
     'selected_timelimit_server',
@@ -110,6 +112,8 @@ function renderHaStorageDetails(storage) {
     const encryptedAppsMode = data.timelimit_useEncryptedApps === '1' ? 'On' : 'Off';
     const sequence = data.timelimit_nextSyncSequenceNumber || '0';
     const apiLevel = data.timelimit_serverApiLevel || '-';
+    const parentPublicPresent = data.timelimit_parentPublicKey ? 'ja' : 'nee';
+    const parentPrivatePresent = data.timelimit_parentPrivateKey ? 'ja' : 'nee';
 
     statusEl.textContent = `Laatst bijgewerkt: ${formatTimestamp(storage.updatedAt || storage.serverTimestamp)}`;
 
@@ -123,6 +127,8 @@ function renderHaStorageDetails(storage) {
         <div style="margin-bottom:6px;">Server: <span style="color:#fff;">${selectedServer || '-'}</span></div>
         <div style="margin-bottom:6px;">Debug: <span style="color:#fff;">${debugMode}</span></div>
         <div style="margin-bottom:6px;">Encrypted apps: <span style="color:#fff;">${encryptedAppsMode}</span></div>
+        <div style="margin-bottom:6px;">Parent public key: <span style="color:#fff;">${parentPublicPresent}</span></div>
+        <div style="margin-bottom:6px;">Parent private key: <span style="color:#fff;">${parentPrivatePresent}</span></div>
         <div style="margin-bottom:6px;">Sequence: <span style="color:#fff; font-family: monospace;">${sequence}</span></div>
         <div>Server API Level: <span style="color:#fff; font-family: monospace;">${apiLevel}</span></div>
     `;
@@ -331,6 +337,8 @@ const DECRYPTED_APPS_CACHE_KEY = 'timelimit_decryptedAppsCache';
 const ENCRYPTED_APPS_STATUS_KEY = 'timelimit_encryptedAppsStatus';
 const ENCRYPTED_APPS_KEYS_KEY = 'timelimit_appListKeys';
 const DEVICE_LIST_CACHE_KEY = 'timelimit_deviceListCache';
+const PARENT_PUBLIC_KEY_STORAGE = 'timelimit_parentPublicKey';
+const PARENT_PRIVATE_KEY_STORAGE = 'timelimit_parentPrivateKey';
 
 function isDebugMode() {
     return localStorage.getItem(DEBUG_MODE_KEY) === '1';
@@ -488,6 +496,31 @@ function setEncryptedAppsKeys(value) {
     }
 }
 
+function loadParentKeyPair() {
+    return {
+        publicKey: localStorage.getItem(PARENT_PUBLIC_KEY_STORAGE) || '',
+        privateKey: localStorage.getItem(PARENT_PRIVATE_KEY_STORAGE) || ''
+    };
+}
+
+function setParentKeyPair({ publicKey, privateKey }) {
+    if (publicKey) {
+        localStorage.setItem(PARENT_PUBLIC_KEY_STORAGE, publicKey);
+    } else {
+        localStorage.removeItem(PARENT_PUBLIC_KEY_STORAGE);
+    }
+
+    if (privateKey) {
+        localStorage.setItem(PARENT_PRIVATE_KEY_STORAGE, privateKey);
+    } else {
+        localStorage.removeItem(PARENT_PRIVATE_KEY_STORAGE);
+    }
+
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('parent-keypair');
+    }
+}
+
 function escapeHtml(value) {
     return String(value)
         .replace(/&/g, '&amp;')
@@ -546,6 +579,78 @@ function renderEncryptedAppsDeviceOptions() {
     if (manualInput) {
         manualInput.style.display = select.value === '__manual__' ? '' : 'none';
     }
+}
+
+function formatBase64Short(value) {
+    if (!value) return '-';
+    if (value.length <= 12) return value;
+    return `${value.slice(0, 6)}...${value.slice(-4)} (${value.length})`;
+}
+
+function renderParentKeyPairStatus() {
+    const status = document.getElementById('parent-keypair-status');
+    if (!status) return;
+
+    const { publicKey, privateKey } = loadParentKeyPair();
+    if (!publicKey || !privateKey) {
+        status.textContent = 'Geen keypair opgeslagen.';
+        return;
+    }
+
+    status.textContent = `Public: ${formatBase64Short(publicKey)} | Private: ${formatBase64Short(privateKey)}`;
+}
+
+function clearParentKeyPairInputs() {
+    const publicInput = document.getElementById('parent-public-key');
+    const privateInput = document.getElementById('parent-private-key');
+    if (publicInput) publicInput.value = '';
+    if (privateInput) privateInput.value = '';
+}
+
+function saveParentKeyPair() {
+    const publicInput = document.getElementById('parent-public-key');
+    const privateInput = document.getElementById('parent-private-key');
+    const publicKey = publicInput ? publicInput.value.trim() : '';
+    const privateKey = privateInput ? privateInput.value.trim() : '';
+
+    if (!publicKey || !privateKey) {
+        if (typeof addLog === 'function') addLog('❌ Public en private key zijn verplicht.', true);
+        return;
+    }
+
+    let publicBytes;
+    let privateBytes;
+    try {
+        publicBytes = base64ToBytes(publicKey);
+        privateBytes = base64ToBytes(privateKey);
+    } catch (e) {
+        if (typeof addLog === 'function') addLog('❌ Ongeldige base64 key(s).', true);
+        return;
+    }
+
+    if (publicBytes.length !== 32 || privateBytes.length !== 32) {
+        if (typeof addLog === 'function') addLog(`❌ Keys moeten 32 bytes zijn. Public: ${publicBytes.length}, Private: ${privateBytes.length}.`, true);
+        return;
+    }
+
+    setParentKeyPair({ publicKey, privateKey });
+    renderParentKeyPairStatus();
+    if (typeof addLog === 'function') addLog('✅ Parent keypair opgeslagen.');
+}
+
+function clearParentKeyPair() {
+    setParentKeyPair({ publicKey: '', privateKey: '' });
+    renderParentKeyPairStatus();
+    if (typeof addLog === 'function') addLog('✅ Parent keypair verwijderd.');
+}
+
+function initParentKeyPairPanel() {
+    const { publicKey, privateKey } = loadParentKeyPair();
+    const publicInput = document.getElementById('parent-public-key');
+    const privateInput = document.getElementById('parent-private-key');
+    if (publicInput) publicInput.value = publicKey;
+    if (privateInput) privateInput.value = privateKey;
+    renderParentKeyPairStatus();
 }
 
 function renderEncryptedAppsKeyList() {
@@ -934,6 +1039,10 @@ window.removeEncryptedAppsKey = removeEncryptedAppsKey;
 window.clearEncryptedAppsKeyInputs = clearEncryptedAppsKeyInputs;
 window.initEncryptedAppsKeyPanel = initEncryptedAppsKeyPanel;
 window.setDeviceListCache = setDeviceListCache;
+window.saveParentKeyPair = saveParentKeyPair;
+window.clearParentKeyPair = clearParentKeyPair;
+window.clearParentKeyPairInputs = clearParentKeyPairInputs;
+window.initParentKeyPairPanel = initParentKeyPairPanel;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');
