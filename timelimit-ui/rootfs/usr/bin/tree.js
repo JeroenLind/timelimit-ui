@@ -307,7 +307,7 @@ function renderRulesHTML(rules, categoryId) {
 
         const toggleHtml = `
             <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:10px; color:${isDisabled ? '#f48fb1' : '#8ab4f8'};" onclick="event.stopPropagation();">
-                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
+                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.persistOpenSectionState) window.persistOpenSectionState(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
                 <span>${isDisabled ? 'Uit' : 'Aan'}</span>
             </label>
         `;
@@ -459,6 +459,15 @@ function loadOpenSectionKeys() {
     } catch (e) {
         return [];
     }
+}
+
+function setOpenSectionKeys(keys) {
+    if (!Array.isArray(keys) || keys.length === 0) {
+        localStorage.removeItem(OPEN_SECTIONS_STORAGE_KEY);
+        return;
+    }
+    const unique = Array.from(new Set(keys.map(k => String(k))));
+    localStorage.setItem(OPEN_SECTIONS_STORAGE_KEY, JSON.stringify(unique));
 }
 
 function storeOpenSectionKey(key, isOpen) {
@@ -618,6 +627,11 @@ function getOpenSectionState() {
     return keys;
 }
 
+function persistOpenSectionState() {
+    const keys = getOpenSectionState();
+    setOpenSectionKeys(keys);
+}
+
 /**
  * Herstel open rules/apps secties op basis van keys.
  * @param {Array<string>} keys
@@ -642,3 +656,5 @@ function restoreOpenSectionState(keys) {
         console.warn('[DEBUG] restoreOpenSectionState fout:', e);
     }
 }
+
+window.persistOpenSectionState = persistOpenSectionState;
