@@ -272,9 +272,11 @@ async function runSync() {
             addLog("Sync voltooid.");
             badge.innerText = "Online";
             badge.className = "status-badge status-online";
-            renderUsers(responseData);
 
             initializeDraft(responseData);
+            if (typeof renderUsers === 'function') {
+                renderUsers(typeof currentDataDraft !== 'undefined' && currentDataDraft ? currentDataDraft : responseData);
+            }
             if (typeof mergePendingNewRules === 'function') {
                 mergePendingNewRules(responseData);
             }
