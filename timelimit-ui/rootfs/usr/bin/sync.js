@@ -128,7 +128,12 @@ async function runSync() {
     try {
         const res = await fetch('sync/pull-status', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            },
             body: JSON.stringify(syncPayload)
         });
 
@@ -152,8 +157,15 @@ async function runSync() {
                 if (typeof window.setKeyRequestCache === 'function') {
                     window.setKeyRequestCache(responseData.krq);
                 }
+                addLog(`Key requests: krq ontvangen (${responseData.krq.length}).`);
             } else {
-                addLog('Key requests: geen krq in response.');
+                const responseKeys = responseData && typeof responseData === 'object'
+                    ? Object.keys(responseData)
+                    : [];
+                const apiLevelInfo = typeof responseData.apiLevel === 'number'
+                    ? responseData.apiLevel
+                    : 'onbekend';
+                addLog(`Key requests: geen krq in response. Keys: [${responseKeys.join(', ')}], apiLevel: ${apiLevelInfo}, payload clientLevel: ${syncPayload.status.clientLevel}.`);
                 if (typeof window.setKeyRequestCache === 'function') {
                     window.setKeyRequestCache([]);
                 }
