@@ -36,6 +36,19 @@ serverApiLevel = loadServerApiLevel();
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
 const SYNC_ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
+const ENCRYPTED_APPS_KEYS_KEY = "timelimit_appListKeys";
+
+function loadEncryptedAppsKeysForLog() {
+    try {
+        const raw = localStorage.getItem(ENCRYPTED_APPS_KEYS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
 
 function loadEncryptedAppsCache() {
     try {
@@ -186,6 +199,21 @@ async function runSync() {
             }
 
             if (Array.isArray(responseData.devices2)) {
+                const deviceIds = responseData.devices2
+                    .map((device) => (device && device.deviceId ? String(device.deviceId) : ''))
+                    .filter((id) => id);
+                const appListKeys = loadEncryptedAppsKeysForLog();
+                const missingKeyDevices = deviceIds.filter((id) => !appListKeys[id]);
+                const withKeyCount = deviceIds.length - missingKeyDevices.length;
+
+                addLog(`Apps data: devices2 ${deviceIds.length}. With key: ${withKeyCount}. Missing key: ${missingKeyDevices.length}.`);
+                if (deviceIds.length > 0) {
+                    addLog(`Apps data deviceIds: ${deviceIds.join(', ')}`);
+                }
+                if (missingKeyDevices.length > 0) {
+                    addLog(`Apps data missing keys: ${missingKeyDevices.join(', ')}`);
+                }
+
                 const existingCache = loadEncryptedAppsCache();
                 const updatedCache = { ...existingCache };
 
