@@ -1380,6 +1380,7 @@ function renderUsers(data) {
     }
 
     const openCategoryIds = typeof getOpenCategoryIds === 'function' ? getOpenCategoryIds() : [];
+    const openSectionKeys = typeof getOpenSectionState === 'function' ? getOpenSectionState() : [];
     const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
     const users = data.users.data;
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
@@ -1447,6 +1448,9 @@ function renderUsers(data) {
 
     if (typeof restoreOpenCategoryIds === 'function') {
         restoreOpenCategoryIds(openCategoryIds);
+    }
+    if (typeof restoreOpenSectionState === 'function') {
+        restoreOpenSectionState(openSectionKeys);
     }
 
     if (typeof buildAppIndex === 'function') {

@@ -564,3 +564,48 @@ function restoreOpenCategoryIds(ids) {
         console.warn('[DEBUG] restoreOpenCategoryIds fout:', e);
     }
 }
+
+/**
+ * Haal open rules/apps secties op per categoryId.
+ * @returns {Array<string>} Array met "categoryId::section" keys
+ */
+function getOpenSectionState() {
+    const keys = [];
+    try {
+        document.querySelectorAll('.tree-item.folder-node.is-open').forEach(item => {
+            const categoryId = item.getAttribute('data-category-id');
+            const section = item.getAttribute('data-section');
+            if (categoryId && section) {
+                keys.push(`${categoryId}::${section}`);
+            }
+        });
+    } catch (e) {
+        console.warn('[DEBUG] getOpenSectionState fout:', e);
+    }
+    return keys;
+}
+
+/**
+ * Herstel open rules/apps secties op basis van keys.
+ * @param {Array<string>} keys
+ */
+function restoreOpenSectionState(keys) {
+    if (!keys || keys.length === 0) return;
+    try {
+        document.querySelectorAll('.tree-item.folder-node').forEach(item => {
+            const categoryId = item.getAttribute('data-category-id');
+            const section = item.getAttribute('data-section');
+            if (!categoryId || !section) return;
+            const key = `${categoryId}::${section}`;
+            if (keys.indexOf(key) !== -1) {
+                item.classList.add('is-open');
+                const icon = item.querySelector('.tree-icon');
+                if (icon) icon.innerText = '▼';
+                const content = item.nextElementSibling;
+                if (content) content.style.display = 'block';
+            }
+        });
+    } catch (e) {
+        console.warn('[DEBUG] restoreOpenSectionState fout:', e);
+    }
+}
