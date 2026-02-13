@@ -640,8 +640,6 @@ function enableRule(categoryId, ruleId) {
     const ruleKey = String(ruleId);
 
     const disabledRule = disabledRules.find(r => String(r.categoryId) === catKey && String(r.id) === ruleKey);
-    if (!disabledRule) return;
-
     const deletePending = deletedRules.some(r => String(r.categoryId) === catKey && String(r.ruleId) === ruleKey);
 
     removeDisabledRule(catKey, ruleKey);
@@ -654,18 +652,22 @@ function enableRule(categoryId, ruleId) {
     }
     if (!Array.isArray(category.rules)) category.rules = [];
     const existingRule = category.rules.find(r => String(r.id) === ruleKey);
+
     if (existingRule) {
         existingRule._disabled = false;
-    } else {
+    } else if (disabledRule) {
         const restoredRule = { ...disabledRule };
         delete restoredRule._disabled;
         category.rules.push(restoredRule);
     }
 
-    if (!deletePending) {
-        const exists = newRules.some(r => String(r.id) === ruleKey && String(r.categoryId) === catKey);
-        if (!exists) {
-            const restoredRule = { ...disabledRule };
+    const existsInSnapshot = ruleExistsInSnapshot(catKey, ruleKey);
+    newRules = newRules.filter(r => !(String(r.id) === ruleKey && String(r.categoryId) === catKey));
+
+    if (deletePending || !existsInSnapshot) {
+        const sourceRule = existingRule || disabledRule;
+        if (sourceRule) {
+            const restoredRule = { ...sourceRule };
             delete restoredRule._disabled;
             newRules.push(restoredRule);
         }

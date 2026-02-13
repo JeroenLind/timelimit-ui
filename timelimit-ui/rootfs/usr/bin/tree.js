@@ -431,15 +431,45 @@ function toggleNode(element) {
     // De 'content' is de div direct na de header die we hebben aangeklikt
     const content = element.nextElementSibling;
     const icon = element.querySelector('.tree-icon');
+    const categoryId = element.getAttribute('data-category-id');
+    const section = element.getAttribute('data-section');
+    const key = categoryId && section ? `${categoryId}::${section}` : null;
     
     if (content.style.display === "none") {
         content.style.display = "block";
         icon.innerText = "▼";
         element.classList.add('is-open'); // Trigger voor CSS animaties/kleuren
+        if (key) storeOpenSectionKey(key, true);
     } else {
         content.style.display = "none";
         icon.innerText = "▶";
         element.classList.remove('is-open');
+        if (key) storeOpenSectionKey(key, false);
+    }
+}
+
+const OPEN_SECTIONS_STORAGE_KEY = 'timelimit_openSections';
+
+function loadOpenSectionKeys() {
+    try {
+        const raw = localStorage.getItem(OPEN_SECTIONS_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function storeOpenSectionKey(key, isOpen) {
+    if (!key) return;
+    const current = new Set(loadOpenSectionKeys());
+    if (isOpen) current.add(key);
+    else current.delete(key);
+    if (current.size === 0) {
+        localStorage.removeItem(OPEN_SECTIONS_STORAGE_KEY);
+    } else {
+        localStorage.setItem(OPEN_SECTIONS_STORAGE_KEY, JSON.stringify(Array.from(current)));
     }
 }
 
@@ -582,6 +612,9 @@ function getOpenSectionState() {
     } catch (e) {
         console.warn('[DEBUG] getOpenSectionState fout:', e);
     }
+    loadOpenSectionKeys().forEach((key) => {
+        if (keys.indexOf(key) === -1) keys.push(key);
+    });
     return keys;
 }
 
