@@ -138,7 +138,9 @@ function initializeDraft(data) {
 }
 
 function refreshRuleViews() {
-    refreshRuleViews();
+    if (typeof updateCategoryDisplay === 'function') {
+        updateCategoryDisplay(currentDataDraft);
+    }
     if (typeof renderUsers === 'function') {
         renderUsers(currentDataDraft);
     }
