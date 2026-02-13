@@ -35,11 +35,11 @@ function setServerApiLevel(value) {
 serverApiLevel = loadServerApiLevel();
 
 const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
-const ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
+const SYNC_ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
 
 function loadEncryptedAppsCache() {
     try {
-        const raw = localStorage.getItem(ENCRYPTED_APPS_CACHE_KEY);
+        const raw = localStorage.getItem(SYNC_ENCRYPTED_APPS_CACHE_KEY);
         if (!raw) return {};
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return {};
@@ -51,9 +51,9 @@ function loadEncryptedAppsCache() {
 
 function setEncryptedAppsCache(value) {
     if (!value || typeof value !== "object") {
-        localStorage.removeItem(ENCRYPTED_APPS_CACHE_KEY);
+        localStorage.removeItem(SYNC_ENCRYPTED_APPS_CACHE_KEY);
     } else {
-        localStorage.setItem(ENCRYPTED_APPS_CACHE_KEY, JSON.stringify(value));
+        localStorage.setItem(SYNC_ENCRYPTED_APPS_CACHE_KEY, JSON.stringify(value));
     }
     if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
         window.scheduleHaStorageShadowSync('encrypted-apps-cache');
