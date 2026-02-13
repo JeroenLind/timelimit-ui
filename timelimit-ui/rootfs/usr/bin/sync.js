@@ -143,6 +143,12 @@ async function runSync() {
             setServerApiLevel(typeof responseData.apiLevel === "number" ? responseData.apiLevel : null);
             console.log(`[SYNC] Server apiLevel: ${serverApiLevel}`);
 
+            if (responseData.devices && Array.isArray(responseData.devices.data)) {
+                if (typeof window.setDeviceListCache === 'function') {
+                    window.setDeviceListCache(responseData.devices.data);
+                }
+            }
+
             if (Array.isArray(responseData.devices2)) {
                 const existingCache = loadEncryptedAppsCache();
                 const updatedCache = { ...existingCache };

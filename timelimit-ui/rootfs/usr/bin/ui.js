@@ -330,6 +330,7 @@ const ENCRYPTED_APPS_CACHE_KEY = 'timelimit_encryptedAppsCache';
 const DECRYPTED_APPS_CACHE_KEY = 'timelimit_decryptedAppsCache';
 const ENCRYPTED_APPS_STATUS_KEY = 'timelimit_encryptedAppsStatus';
 const ENCRYPTED_APPS_KEYS_KEY = 'timelimit_appListKeys';
+const DEVICE_LIST_CACHE_KEY = 'timelimit_deviceListCache';
 
 function isDebugMode() {
     return localStorage.getItem(DEBUG_MODE_KEY) === '1';
@@ -459,6 +460,26 @@ function loadEncryptedAppsKeys() {
     }
 }
 
+function loadDeviceListCache() {
+    try {
+        const raw = localStorage.getItem(DEVICE_LIST_CACHE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setDeviceListCache(devices) {
+    if (!Array.isArray(devices)) {
+        localStorage.removeItem(DEVICE_LIST_CACHE_KEY);
+    } else {
+        localStorage.setItem(DEVICE_LIST_CACHE_KEY, JSON.stringify(devices));
+    }
+    renderEncryptedAppsDeviceOptions();
+}
+
 function setEncryptedAppsKeys(value) {
     if (!value || typeof value !== 'object') {
         localStorage.removeItem(ENCRYPTED_APPS_KEYS_KEY);
@@ -480,6 +501,51 @@ function formatKeyShort(value) {
     if (!value) return '-';
     if (value.length <= 10) return value;
     return `${value.slice(0, 4)}...${value.slice(-4)} (${value.length})`;
+}
+
+function renderEncryptedAppsDeviceOptions() {
+    const select = document.getElementById('encrypted-apps-device-id');
+    const manualInput = document.getElementById('encrypted-apps-device-id-manual');
+    if (!select) return;
+
+    const currentValue = select.value || '';
+    const devices = loadDeviceListCache();
+    const options = [];
+
+    options.push({ value: '', label: 'Kies device...' });
+    if (devices.length > 0) {
+        devices.forEach((device) => {
+            const deviceId = device && device.deviceId ? String(device.deviceId) : '';
+            if (!deviceId) return;
+            const name = device && device.name ? String(device.name) : 'Onbekend';
+            options.push({ value: deviceId, label: `${name} (${deviceId})` });
+        });
+    }
+    options.push({ value: '__manual__', label: 'Handmatig invoeren...' });
+
+    select.innerHTML = options.map((opt) => {
+        return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
+    }).join('');
+
+    if (currentValue) {
+        select.value = currentValue;
+    }
+
+    if (!select.value) {
+        select.value = '';
+    }
+
+    select.onchange = () => {
+        const isManual = select.value === '__manual__';
+        if (manualInput) {
+            manualInput.style.display = isManual ? '' : 'none';
+            if (!isManual) manualInput.value = '';
+        }
+    };
+
+    if (manualInput) {
+        manualInput.style.display = select.value === '__manual__' ? '' : 'none';
+    }
 }
 
 function renderEncryptedAppsKeyList() {
@@ -509,15 +575,20 @@ function renderEncryptedAppsKeyList() {
 
 function clearEncryptedAppsKeyInputs() {
     const deviceInput = document.getElementById('encrypted-apps-device-id');
+    const manualInput = document.getElementById('encrypted-apps-device-id-manual');
     const keyInput = document.getElementById('encrypted-apps-key');
     if (deviceInput) deviceInput.value = '';
+    if (manualInput) manualInput.value = '';
     if (keyInput) keyInput.value = '';
 }
 
 function saveEncryptedAppsKey() {
     const deviceInput = document.getElementById('encrypted-apps-device-id');
+    const manualInput = document.getElementById('encrypted-apps-device-id-manual');
     const keyInput = document.getElementById('encrypted-apps-key');
-    const deviceId = deviceInput ? deviceInput.value.trim() : '';
+    const selectedValue = deviceInput ? deviceInput.value.trim() : '';
+    const manualValue = manualInput ? manualInput.value.trim() : '';
+    const deviceId = selectedValue === '__manual__' ? manualValue : selectedValue;
     const keyBase64 = keyInput ? keyInput.value.trim() : '';
 
     if (!deviceId || !keyBase64) {
@@ -559,6 +630,7 @@ function removeEncryptedAppsKey(deviceId) {
 
 function initEncryptedAppsKeyPanel() {
     renderEncryptedAppsKeyList();
+    renderEncryptedAppsDeviceOptions();
 }
 
 function base64ToBytes(value) {
@@ -861,6 +933,7 @@ window.saveEncryptedAppsKey = saveEncryptedAppsKey;
 window.removeEncryptedAppsKey = removeEncryptedAppsKey;
 window.clearEncryptedAppsKeyInputs = clearEncryptedAppsKeyInputs;
 window.initEncryptedAppsKeyPanel = initEncryptedAppsKeyPanel;
+window.setDeviceListCache = setDeviceListCache;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');

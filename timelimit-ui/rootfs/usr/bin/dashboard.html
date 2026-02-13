@@ -130,7 +130,8 @@
                 </label>
                 <div data-debug-only="true" style="margin-bottom: 12px; padding: 10px; border-radius: 6px; border: 1px solid #232a35; background: #0f141b;">
                     <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 6px;">Encrypted app key</div>
-                    <input type="text" id="encrypted-apps-device-id" placeholder="DeviceId" style="width: 100%; padding: 8px; margin-bottom: 6px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;">
+                    <select id="encrypted-apps-device-id" style="width: 100%; padding: 8px; margin-bottom: 6px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;"></select>
+                    <input type="text" id="encrypted-apps-device-id-manual" placeholder="DeviceId (handmatig)" style="display:none; width: 100%; padding: 8px; margin-bottom: 6px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;">
                     <input type="text" id="encrypted-apps-key" placeholder="Base64 key (16 bytes)" style="width: 100%; padding: 8px; margin-bottom: 8px; background: #050505; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 12px;">
                     <div style="display:flex; gap:8px;">
                         <button class="btn" style="flex: 1; font-size: 11px; background:#2d5a2d; border-color:#4a8a4a;" onclick="if (window.saveEncryptedAppsKey) window.saveEncryptedAppsKey();">Opslaan</button>
@@ -295,9 +296,9 @@
     </div>
 
     <script src="state.js?v=83"></script>
-    <script src="ui.js?v=92"></script>
+    <script src="ui.js?v=93"></script>
     <script src="wizard.js?v=87"></script>
-    <script src="sync.js?v=92"></script>
+    <script src="sync.js?v=93"></script>
     <script src="tree.js?v=87"></script> 
     
     <script>
