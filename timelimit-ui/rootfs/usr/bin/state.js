@@ -49,6 +49,7 @@ function saveRulesListToStorage(key, value) {
 
 disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
 deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
+normalizeDisabledRules();
 
 function getDisabledRules() {
     return Array.isArray(disabledRules) ? disabledRules.map(r => ({ ...r })) : [];
@@ -87,11 +88,44 @@ function removeDeletedRule(categoryId, ruleId) {
     saveRulesListToStorage(DELETED_RULES_STORAGE_KEY, deletedRules);
 }
 
-function addDisabledRule(rule) {
-    const catKey = String(rule.categoryId);
-    const ruleKey = String(rule.id);
+function addDisabledRule(rule, categoryIdOverride) {
+    if (!rule) return;
+    const catKey = String(categoryIdOverride !== undefined ? categoryIdOverride : rule.categoryId);
+    const ruleKey = String(rule.id || rule.ruleId || '');
+    if (!catKey || catKey === 'undefined' || !ruleKey) return;
     if (!disabledRules.some(r => String(r.categoryId) === catKey && String(r.id) === ruleKey)) {
         disabledRules.push({ ...rule, categoryId: catKey, id: ruleKey, _disabled: true });
+        saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
+    }
+}
+
+function normalizeDisabledRules() {
+    if (!Array.isArray(disabledRules) || disabledRules.length === 0) return;
+
+    const ruleToCategory = new Map();
+    if (Array.isArray(deletedRules)) {
+        deletedRules.forEach((item) => {
+            if (!item || !item.ruleId || !item.categoryId) return;
+            ruleToCategory.set(String(item.ruleId), String(item.categoryId));
+        });
+    }
+
+    let updated = false;
+    disabledRules = disabledRules.map((rule) => {
+        if (!rule) return rule;
+        const ruleKey = String(rule.id || rule.ruleId || '');
+        const catKey = rule.categoryId ? String(rule.categoryId) : '';
+        if ((!catKey || catKey === 'undefined') && ruleKey) {
+            const inferredCategory = ruleToCategory.get(ruleKey);
+            if (inferredCategory) {
+                updated = true;
+                return { ...rule, categoryId: inferredCategory, id: ruleKey, _disabled: true };
+            }
+        }
+        return rule;
+    });
+
+    if (updated) {
         saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
     }
 }
@@ -126,6 +160,7 @@ function initializeDraft(data) {
 
     disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
     deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
+    normalizeDisabledRules();
     mergeDisabledRulesIntoDraft(currentDataDraft);
     
     // Sla parent password hash op voor HMAC-SHA512 signing
@@ -655,7 +690,7 @@ function disableRule(categoryId, ruleId) {
 
     const rule = category.rules[ruleIndex];
     rule._disabled = true;
-    addDisabledRule(rule);
+    addDisabledRule(rule, catKey);
 
     const isNewRule = !ruleExistsInSnapshot(catKey, ruleKey) || !!rule._isNew;
     if (isNewRule) {
