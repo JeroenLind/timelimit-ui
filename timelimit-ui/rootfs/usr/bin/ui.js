@@ -326,6 +326,10 @@ window.importHaStorageFromFile = importHaStorageFromFile;
 
 const DEBUG_MODE_KEY = 'timelimit_debugMode';
 const ENCRYPTED_APPS_TOGGLE_KEY = 'timelimit_useEncryptedApps';
+const ENCRYPTED_APPS_CACHE_KEY = 'timelimit_encryptedAppsCache';
+const DECRYPTED_APPS_CACHE_KEY = 'timelimit_decryptedAppsCache';
+const ENCRYPTED_APPS_STATUS_KEY = 'timelimit_encryptedAppsStatus';
+const ENCRYPTED_APPS_KEYS_KEY = 'timelimit_appListKeys';
 
 function isDebugMode() {
     return localStorage.getItem(DEBUG_MODE_KEY) === '1';
@@ -399,6 +403,464 @@ function initEncryptedAppsToggle() {
 
 window.isEncryptedAppsEnabled = isEncryptedAppsEnabled;
 window.setEncryptedAppsEnabled = setEncryptedAppsEnabled;
+
+function loadEncryptedAppsCache() {
+    try {
+        const raw = localStorage.getItem(ENCRYPTED_APPS_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
+
+function loadDecryptedAppsCache() {
+    try {
+        const raw = localStorage.getItem(DECRYPTED_APPS_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
+
+function setDecryptedAppsCache(value) {
+    if (!value || typeof value !== 'object') {
+        localStorage.removeItem(DECRYPTED_APPS_CACHE_KEY);
+    } else {
+        localStorage.setItem(DECRYPTED_APPS_CACHE_KEY, JSON.stringify(value));
+    }
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('decrypted-apps-cache');
+    }
+}
+
+function setEncryptedAppsStatus(value) {
+    if (!value || typeof value !== 'object') {
+        localStorage.removeItem(ENCRYPTED_APPS_STATUS_KEY);
+    } else {
+        localStorage.setItem(ENCRYPTED_APPS_STATUS_KEY, JSON.stringify(value));
+    }
+}
+
+function loadEncryptedAppsKeys() {
+    try {
+        const raw = localStorage.getItem(ENCRYPTED_APPS_KEYS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
+
+function setEncryptedAppsKeys(value) {
+    if (!value || typeof value !== 'object') {
+        localStorage.removeItem(ENCRYPTED_APPS_KEYS_KEY);
+    } else {
+        localStorage.setItem(ENCRYPTED_APPS_KEYS_KEY, JSON.stringify(value));
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatKeyShort(value) {
+    if (!value) return '-';
+    if (value.length <= 10) return value;
+    return `${value.slice(0, 4)}...${value.slice(-4)} (${value.length})`;
+}
+
+function renderEncryptedAppsKeyList() {
+    const container = document.getElementById('encrypted-apps-keys');
+    if (!container) return;
+
+    const keys = loadEncryptedAppsKeys();
+    const deviceIds = Object.keys(keys);
+    if (deviceIds.length === 0) {
+        container.innerHTML = '<div style="color:#666;">Geen keys opgeslagen.</div>';
+        return;
+    }
+
+    container.innerHTML = deviceIds.map((deviceId) => {
+        const key = keys[deviceId];
+        const safeId = escapeHtml(deviceId);
+        const btnArg = escapeHtml(JSON.stringify(deviceId));
+        return `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; border-top:1px solid #1b232c;">
+                <div style="font-family: monospace; color:#bbb;">${safeId}</div>
+                <div style="color:#8ab4f8;">${escapeHtml(formatKeyShort(key))}</div>
+                <button class="btn" style="padding:2px 6px; font-size:10px; background:#333;" onclick="if (window.removeEncryptedAppsKey) window.removeEncryptedAppsKey(${btnArg});">Verwijder</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function clearEncryptedAppsKeyInputs() {
+    const deviceInput = document.getElementById('encrypted-apps-device-id');
+    const keyInput = document.getElementById('encrypted-apps-key');
+    if (deviceInput) deviceInput.value = '';
+    if (keyInput) keyInput.value = '';
+}
+
+function saveEncryptedAppsKey() {
+    const deviceInput = document.getElementById('encrypted-apps-device-id');
+    const keyInput = document.getElementById('encrypted-apps-key');
+    const deviceId = deviceInput ? deviceInput.value.trim() : '';
+    const keyBase64 = keyInput ? keyInput.value.trim() : '';
+
+    if (!deviceId || !keyBase64) {
+        if (typeof addLog === 'function') addLog('❌ DeviceId en key zijn verplicht.', true);
+        return;
+    }
+
+    let keyBytes;
+    try {
+        keyBytes = base64ToBytes(keyBase64);
+    } catch (e) {
+        if (typeof addLog === 'function') addLog('❌ Ongeldige base64 key.', true);
+        return;
+    }
+
+    if (keyBytes.length !== 16) {
+        if (typeof addLog === 'function') addLog(`❌ Key moet 16 bytes zijn, nu ${keyBytes.length}.`, true);
+        return;
+    }
+
+    const keys = loadEncryptedAppsKeys();
+    keys[deviceId] = keyBase64;
+    setEncryptedAppsKeys(keys);
+    renderEncryptedAppsKeyList();
+    if (typeof addLog === 'function') addLog('✅ Encrypted app key opgeslagen.');
+    if (typeof decryptEncryptedAppsIfEnabled === 'function') {
+        decryptEncryptedAppsIfEnabled();
+    }
+}
+
+function removeEncryptedAppsKey(deviceId) {
+    const keys = loadEncryptedAppsKeys();
+    if (!keys[deviceId]) return;
+    delete keys[deviceId];
+    setEncryptedAppsKeys(keys);
+    renderEncryptedAppsKeyList();
+    if (typeof addLog === 'function') addLog('✅ Encrypted app key verwijderd.');
+}
+
+function initEncryptedAppsKeyPanel() {
+    renderEncryptedAppsKeyList();
+}
+
+function base64ToBytes(value) {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
+function readInt64BE(view, offset) {
+    const high = view.getUint32(offset, false);
+    const low = view.getUint32(offset + 4, false);
+    return BigInt(high) << 32n | BigInt(low);
+}
+
+async function decryptCryptContainer(keyBytes, base64Data) {
+    const input = base64ToBytes(base64Data);
+    if (input.length < 20 + 16) {
+        throw new Error('crypt-container-too-short');
+    }
+
+    const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
+    const generation = readInt64BE(view, 0);
+    const counter = readInt64BE(view, 8);
+    const ivPart = view.getInt32(16, false);
+
+    const iv = new Uint8Array(12);
+    const ivView = new DataView(iv.buffer);
+    ivView.setInt32(0, ivPart, false);
+    ivView.setBigInt64(4, counter, false);
+
+    const aad = new Uint8Array(8);
+    new DataView(aad.buffer).setBigInt64(0, generation, false);
+
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    const cipherText = input.slice(20);
+
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, cipherText));
+}
+
+async function inflateDeflate(data) {
+    if (!('DecompressionStream' in window)) {
+        throw new Error('decompression-not-supported');
+    }
+
+    const stream = new DecompressionStream('deflate');
+    const writer = stream.writable.getWriter();
+    writer.write(data);
+    writer.close();
+
+    const response = new Response(stream.readable);
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer);
+}
+
+function ProtoReader(bytes) {
+    this.bytes = bytes;
+    this.pos = 0;
+    this.length = bytes.length;
+}
+
+ProtoReader.prototype.eof = function () {
+    return this.pos >= this.length;
+};
+
+ProtoReader.prototype.readVarint = function () {
+    let result = 0n;
+    let shift = 0n;
+    while (this.pos < this.length) {
+        const byte = this.bytes[this.pos++];
+        result |= BigInt(byte & 0x7f) << shift;
+        if ((byte & 0x80) === 0) break;
+        shift += 7n;
+    }
+    return result;
+};
+
+ProtoReader.prototype.readBytes = function () {
+    const length = Number(this.readVarint());
+    const start = this.pos;
+    this.pos += length;
+    return this.bytes.slice(start, start + length);
+};
+
+ProtoReader.prototype.readString = function () {
+    const bytes = this.readBytes();
+    return new TextDecoder('utf-8').decode(bytes);
+};
+
+function decodeInstalledAppProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { package_name: '', title: '', is_launchable: false, recommendation: 0 };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.package_name = reader.readString();
+        else if (field === 2 && wire === 2) result.title = reader.readString();
+        else if (field === 3 && wire === 0) result.is_launchable = reader.readVarint() !== 0n;
+        else if (field === 4 && wire === 0) result.recommendation = Number(reader.readVarint());
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function decodeInstalledAppActivityProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { package_name: '', class_name: '', title: '' };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.package_name = reader.readString();
+        else if (field === 2 && wire === 2) result.class_name = reader.readString();
+        else if (field === 3 && wire === 2) result.title = reader.readString();
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function decodeRemovedAppActivityProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { package_name: '', class_name: '' };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.package_name = reader.readString();
+        else if (field === 2 && wire === 2) result.class_name = reader.readString();
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function decodeInstalledAppsProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { apps: [], activities: [] };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.apps.push(decodeInstalledAppProto(reader.readBytes()));
+        else if (field === 2 && wire === 2) result.activities.push(decodeInstalledAppActivityProto(reader.readBytes()));
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function decodeInstalledAppsDifferenceProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { added: null, removed_packages: [], removed_activities: [] };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.added = decodeInstalledAppsProto(reader.readBytes());
+        else if (field === 2 && wire === 2) result.removed_packages.push(reader.readString());
+        else if (field === 3 && wire === 2) result.removed_activities.push(decodeRemovedAppActivityProto(reader.readBytes()));
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function decodeSavedAppsDifferenceProto(bytes) {
+    const reader = new ProtoReader(bytes);
+    const result = { apps: null };
+    while (!reader.eof()) {
+        const tag = Number(reader.readVarint());
+        const field = tag >> 3;
+        const wire = tag & 7;
+        if (field === 1 && wire === 2) result.apps = decodeInstalledAppsDifferenceProto(reader.readBytes());
+        else if (wire === 2) reader.readBytes();
+        else reader.readVarint();
+    }
+    return result;
+}
+
+function applyAppsDifference(base, diff) {
+    const appsByPackage = new Map();
+    const activitiesByKey = new Map();
+
+    base.apps.forEach((app) => {
+        if (app && app.package_name) appsByPackage.set(app.package_name, app);
+    });
+    base.activities.forEach((activity) => {
+        const key = `${activity.package_name}::${activity.class_name}`;
+        activitiesByKey.set(key, activity);
+    });
+
+    if (diff && diff.added) {
+        diff.added.apps.forEach((app) => {
+            if (app && app.package_name) appsByPackage.set(app.package_name, app);
+        });
+        diff.added.activities.forEach((activity) => {
+            const key = `${activity.package_name}::${activity.class_name}`;
+            activitiesByKey.set(key, activity);
+        });
+    }
+
+    if (diff && Array.isArray(diff.removed_packages)) {
+        diff.removed_packages.forEach((pkg) => {
+            appsByPackage.delete(pkg);
+        });
+    }
+
+    if (diff && Array.isArray(diff.removed_activities)) {
+        diff.removed_activities.forEach((activity) => {
+            const key = `${activity.package_name}::${activity.class_name}`;
+            activitiesByKey.delete(key);
+        });
+    }
+
+    return {
+        apps: Array.from(appsByPackage.values()),
+        activities: Array.from(activitiesByKey.values())
+    };
+}
+
+async function decryptEncryptedAppsIfEnabled() {
+    if (!isEncryptedAppsEnabled()) return;
+    if (!window.crypto || !window.crypto.subtle) {
+        setEncryptedAppsStatus({ error: 'webcrypto-not-available', updatedAt: Date.now() });
+        if (typeof addLog === 'function') addLog('❌ WebCrypto niet beschikbaar voor decryptie.', true);
+        return;
+    }
+
+    const encryptedCache = loadEncryptedAppsCache();
+    const decryptedCache = loadDecryptedAppsCache();
+    const keys = loadEncryptedAppsKeys();
+    const status = { updatedAt: Date.now(), devices: {} };
+
+    const deviceIds = Object.keys(encryptedCache || {});
+    for (let i = 0; i < deviceIds.length; i += 1) {
+        const deviceId = deviceIds[i];
+        const entry = encryptedCache[deviceId];
+        if (!entry) continue;
+
+        const keyBase64 = keys[deviceId];
+        if (!keyBase64) {
+            status.devices[deviceId] = { ok: false, reason: 'missing-key' };
+            continue;
+        }
+
+        const cached = decryptedCache[deviceId];
+        const baseVersion = entry.appsBase && entry.appsBase.version ? entry.appsBase.version : null;
+        const diffVersion = entry.appsDiff && entry.appsDiff.version ? entry.appsDiff.version : null;
+        if (cached && cached.baseVersion === baseVersion && cached.diffVersion === diffVersion) {
+            status.devices[deviceId] = { ok: true, cached: true };
+            continue;
+        }
+
+        if (!entry.appsBase || !entry.appsBase.data) {
+            status.devices[deviceId] = { ok: false, reason: 'missing-base' };
+            continue;
+        }
+
+        try {
+            const keyBytes = base64ToBytes(keyBase64);
+            const baseDecrypted = await decryptCryptContainer(keyBytes, entry.appsBase.data);
+            const baseInflated = await inflateDeflate(baseDecrypted);
+            const baseApps = decodeInstalledAppsProto(baseInflated);
+
+            let finalApps = baseApps;
+            if (entry.appsDiff && entry.appsDiff.data) {
+                const diffDecrypted = await decryptCryptContainer(keyBytes, entry.appsDiff.data);
+                const diffInflated = await inflateDeflate(diffDecrypted);
+                const savedDiff = decodeSavedAppsDifferenceProto(diffInflated);
+                if (savedDiff && savedDiff.apps) {
+                    finalApps = applyAppsDifference(baseApps, savedDiff.apps);
+                }
+            }
+
+            decryptedCache[deviceId] = {
+                baseVersion,
+                diffVersion,
+                updatedAt: Date.now(),
+                apps: finalApps.apps,
+                activities: finalApps.activities
+            };
+            status.devices[deviceId] = { ok: true, apps: finalApps.apps.length };
+        } catch (e) {
+            status.devices[deviceId] = { ok: false, reason: String(e && e.message ? e.message : e) };
+        }
+    }
+
+    setDecryptedAppsCache(decryptedCache);
+    setEncryptedAppsStatus(status);
+}
+
+window.decryptEncryptedAppsIfEnabled = decryptEncryptedAppsIfEnabled;
+window.getDecryptedAppsCache = loadDecryptedAppsCache;
+window.saveEncryptedAppsKey = saveEncryptedAppsKey;
+window.removeEncryptedAppsKey = removeEncryptedAppsKey;
+window.clearEncryptedAppsKeyInputs = clearEncryptedAppsKeyInputs;
+window.initEncryptedAppsKeyPanel = initEncryptedAppsKeyPanel;
 
 function showStep(s) {
     const wizardUi = document.getElementById('wizard-ui');

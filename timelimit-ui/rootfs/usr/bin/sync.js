@@ -163,6 +163,9 @@ async function runSync() {
                 });
 
                 setEncryptedAppsCache(updatedCache);
+                if (typeof window.decryptEncryptedAppsIfEnabled === 'function') {
+                    window.decryptEncryptedAppsIfEnabled();
+                }
             }
             
             addLog("Sync voltooid.");
