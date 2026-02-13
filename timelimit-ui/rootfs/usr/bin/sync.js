@@ -171,6 +171,20 @@ async function runSync() {
                 }
             }
 
+            if (Array.isArray(responseData.kr)) {
+                addLog(`Key responses: kr ontvangen (${responseData.kr.length}).`);
+            } else if (typeof responseData.kr !== 'undefined') {
+                addLog(`Key responses: kr type is ${typeof responseData.kr}.`);
+            } else {
+                addLog('Key responses: geen kr in response.');
+            }
+
+            if (typeof responseData.kri !== 'undefined') {
+                addLog(`Key requests: kri in response = ${responseData.kri}.`);
+            } else {
+                addLog('Key requests: geen kri in response.');
+            }
+
             if (Array.isArray(responseData.devices2)) {
                 const existingCache = loadEncryptedAppsCache();
                 const updatedCache = { ...existingCache };
