@@ -314,7 +314,7 @@ function renderRulesHTML(rules, categoryId) {
 
         // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `
-            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="if (window.isRuleDisabled && window.isRuleDisabled('${categoryId}', '${r.id}')) return; openRuleModal('${categoryId}', '${r.id}')" style="${isDisabled ? 'opacity:0.55;' : ''}">
+            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="if (window.isRuleDisabled && window.isRuleDisabled('${categoryId}', '${r.id}')) return; openRuleModal('${categoryId}', '${r.id}')" style="${isDisabled ? 'opacity:0.65; border-left: 3px solid #e53935; background:#2a1212;' : ''}">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
                     <div class="rule-title">${title} ${changedBadge}</div>

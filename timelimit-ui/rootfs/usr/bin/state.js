@@ -617,16 +617,17 @@ function disableRule(categoryId, ruleId) {
     if (ruleIndex === -1) return;
 
     const rule = category.rules[ruleIndex];
+    rule._disabled = true;
     addDisabledRule(rule);
 
-    category.rules.splice(ruleIndex, 1);
-
-    newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
-    changedRules.delete(`${catKey}_${ruleKey}`);
-
-    if (ruleExistsInSnapshot(catKey, ruleKey)) {
+    const isNewRule = !ruleExistsInSnapshot(catKey, ruleKey) || !!rule._isNew;
+    if (isNewRule) {
+        newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
+    } else {
         addDeletedRule(catKey, ruleKey);
     }
+
+    changedRules.delete(`${catKey}_${ruleKey}`);
 
     if (typeof renderUsers === 'function') {
         renderUsers(currentDataDraft);
@@ -641,6 +642,8 @@ function enableRule(categoryId, ruleId) {
     const disabledRule = disabledRules.find(r => String(r.categoryId) === catKey && String(r.id) === ruleKey);
     if (!disabledRule) return;
 
+    const deletePending = deletedRules.some(r => String(r.categoryId) === catKey && String(r.ruleId) === ruleKey);
+
     removeDisabledRule(catKey, ruleKey);
     removeDeletedRule(catKey, ruleKey);
 
@@ -650,13 +653,16 @@ function enableRule(categoryId, ruleId) {
         currentDataDraft.rules.push(category);
     }
     if (!Array.isArray(category.rules)) category.rules = [];
-    if (!category.rules.some(r => String(r.id) === ruleKey)) {
+    const existingRule = category.rules.find(r => String(r.id) === ruleKey);
+    if (existingRule) {
+        existingRule._disabled = false;
+    } else {
         const restoredRule = { ...disabledRule };
         delete restoredRule._disabled;
         category.rules.push(restoredRule);
     }
 
-    if (!ruleExistsInSnapshot(catKey, ruleKey)) {
+    if (!deletePending) {
         const exists = newRules.some(r => String(r.id) === ruleKey && String(r.categoryId) === catKey);
         if (!exists) {
             const restoredRule = { ...disabledRule };
