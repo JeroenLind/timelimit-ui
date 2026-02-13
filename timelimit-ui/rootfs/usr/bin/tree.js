@@ -466,6 +466,10 @@ function loadOpenSectionKeys() {
     }
 }
 
+function getPersistedOpenSectionKeys() {
+    return loadOpenSectionKeys();
+}
+
 function loadOpenCategoryKeys() {
     try {
         const raw = localStorage.getItem(OPEN_CATEGORIES_STORAGE_KEY);
@@ -475,6 +479,10 @@ function loadOpenCategoryKeys() {
     } catch (e) {
         return [];
     }
+}
+
+function getPersistedOpenCategoryIds() {
+    return loadOpenCategoryKeys();
 }
 
 function setOpenSectionKeys(keys) {
@@ -633,6 +641,8 @@ function restoreOpenCategoryIds(ids) {
 }
 
 window.persistOpenCategoryState = persistOpenCategoryState;
+window.getPersistedOpenSectionKeys = getPersistedOpenSectionKeys;
+window.getPersistedOpenCategoryIds = getPersistedOpenCategoryIds;
 
 /**
  * Haal open rules/apps secties op per categoryId.

@@ -1380,8 +1380,9 @@ function renderUsers(data) {
     }
 
     const openCategoryIds = typeof getOpenCategoryIds === 'function' ? getOpenCategoryIds() : [];
-    const persistedCategoryIds = typeof getOpenCategoryState === 'function' ? getOpenCategoryState() : [];
+    const persistedCategoryIds = typeof getPersistedOpenCategoryIds === 'function' ? getPersistedOpenCategoryIds() : [];
     const openSectionKeys = typeof getOpenSectionState === 'function' ? getOpenSectionState() : [];
+    const persistedSectionKeys = typeof getPersistedOpenSectionKeys === 'function' ? getPersistedOpenSectionKeys() : [];
     const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
     const users = data.users.data;
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
@@ -1452,7 +1453,8 @@ function renderUsers(data) {
         restoreOpenCategoryIds(mergedIds);
     }
     if (typeof restoreOpenSectionState === 'function') {
-        restoreOpenSectionState(openSectionKeys);
+        const mergedSections = Array.from(new Set([...(openSectionKeys || []), ...(persistedSectionKeys || [])]));
+        restoreOpenSectionState(mergedSections);
     }
 
     if (typeof buildAppIndex === 'function') {
