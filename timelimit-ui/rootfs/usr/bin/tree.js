@@ -307,7 +307,7 @@ function renderRulesHTML(rules, categoryId) {
 
         const toggleHtml = `
             <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:10px; color:${isDisabled ? '#f48fb1' : '#8ab4f8'};" onclick="event.stopPropagation();">
-                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.persistOpenSectionState) window.persistOpenSectionState(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
+                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.persistOpenCategoryState) window.persistOpenCategoryState(); if (window.persistOpenSectionState) window.persistOpenSectionState(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
                 <span>${isDisabled ? 'Uit' : 'Aan'}</span>
             </label>
         `;
@@ -434,25 +434,41 @@ function toggleNode(element) {
     const categoryId = element.getAttribute('data-category-id');
     const section = element.getAttribute('data-section');
     const key = categoryId && section ? `${categoryId}::${section}` : null;
+    const categoryIdSpan = element.querySelector('.tree-id');
+    const categoryKey = categoryIdSpan ? categoryIdSpan.textContent.trim() : null;
     
     if (content.style.display === "none") {
         content.style.display = "block";
         icon.innerText = "▼";
         element.classList.add('is-open'); // Trigger voor CSS animaties/kleuren
         if (key) storeOpenSectionKey(key, true);
+        if (categoryKey) storeOpenCategoryKey(categoryKey, true);
     } else {
         content.style.display = "none";
         icon.innerText = "▶";
         element.classList.remove('is-open');
         if (key) storeOpenSectionKey(key, false);
+        if (categoryKey) storeOpenCategoryKey(categoryKey, false);
     }
 }
 
 const OPEN_SECTIONS_STORAGE_KEY = 'timelimit_openSections';
+const OPEN_CATEGORIES_STORAGE_KEY = 'timelimit_openCategories';
 
 function loadOpenSectionKeys() {
     try {
         const raw = localStorage.getItem(OPEN_SECTIONS_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function loadOpenCategoryKeys() {
+    try {
+        const raw = localStorage.getItem(OPEN_CATEGORIES_STORAGE_KEY);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
@@ -479,6 +495,18 @@ function storeOpenSectionKey(key, isOpen) {
         localStorage.removeItem(OPEN_SECTIONS_STORAGE_KEY);
     } else {
         localStorage.setItem(OPEN_SECTIONS_STORAGE_KEY, JSON.stringify(Array.from(current)));
+    }
+}
+
+function storeOpenCategoryKey(key, isOpen) {
+    if (!key) return;
+    const current = new Set(loadOpenCategoryKeys());
+    if (isOpen) current.add(key);
+    else current.delete(key);
+    if (current.size === 0) {
+        localStorage.removeItem(OPEN_CATEGORIES_STORAGE_KEY);
+    } else {
+        localStorage.setItem(OPEN_CATEGORIES_STORAGE_KEY, JSON.stringify(Array.from(current)));
     }
 }
 
@@ -604,6 +632,8 @@ function restoreOpenCategoryIds(ids) {
     }
 }
 
+window.persistOpenCategoryState = persistOpenCategoryState;
+
 /**
  * Haal open rules/apps secties op per categoryId.
  * @returns {Array<string>} Array met "categoryId::section" keys
@@ -627,9 +657,34 @@ function getOpenSectionState() {
     return keys;
 }
 
+function getOpenCategoryState() {
+    const ids = [];
+    try {
+        document.querySelectorAll('.tree-item.is-open').forEach(item => {
+            const idSpan = item.querySelector('.tree-id');
+            if (idSpan) ids.push(idSpan.textContent.trim());
+        });
+    } catch (e) {
+        console.warn('[DEBUG] getOpenCategoryState fout:', e);
+    }
+    loadOpenCategoryKeys().forEach((key) => {
+        if (ids.indexOf(key) === -1) ids.push(key);
+    });
+    return ids;
+}
+
 function persistOpenSectionState() {
     const keys = getOpenSectionState();
     setOpenSectionKeys(keys);
+}
+
+function persistOpenCategoryState() {
+    const ids = getOpenCategoryState();
+    if (!ids || ids.length === 0) {
+        localStorage.removeItem(OPEN_CATEGORIES_STORAGE_KEY);
+        return;
+    }
+    localStorage.setItem(OPEN_CATEGORIES_STORAGE_KEY, JSON.stringify(ids));
 }
 
 /**

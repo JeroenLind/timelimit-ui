@@ -1380,6 +1380,7 @@ function renderUsers(data) {
     }
 
     const openCategoryIds = typeof getOpenCategoryIds === 'function' ? getOpenCategoryIds() : [];
+    const persistedCategoryIds = typeof getOpenCategoryState === 'function' ? getOpenCategoryState() : [];
     const openSectionKeys = typeof getOpenSectionState === 'function' ? getOpenSectionState() : [];
     const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
     const users = data.users.data;
@@ -1447,7 +1448,8 @@ function renderUsers(data) {
     list.innerHTML = html;
 
     if (typeof restoreOpenCategoryIds === 'function') {
-        restoreOpenCategoryIds(openCategoryIds);
+        const mergedIds = Array.from(new Set([...(openCategoryIds || []), ...(persistedCategoryIds || [])]));
+        restoreOpenCategoryIds(mergedIds);
     }
     if (typeof restoreOpenSectionState === 'function') {
         restoreOpenSectionState(openSectionKeys);
