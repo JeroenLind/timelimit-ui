@@ -147,7 +147,10 @@ function refreshRuleViews() {
 }
 
 function mergeDisabledRulesIntoDraft(draft) {
-    if (!draft || !Array.isArray(draft.rules)) return;
+    if (!draft) return;
+    if (!Array.isArray(draft.rules)) {
+        draft.rules = [];
+    }
     if (!Array.isArray(disabledRules) || disabledRules.length === 0) return;
 
     disabledRules.forEach((rule) => {
