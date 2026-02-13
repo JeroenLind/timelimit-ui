@@ -487,6 +487,7 @@ function setDeviceListCache(devices) {
         localStorage.setItem(DEVICE_LIST_CACHE_KEY, JSON.stringify(devices));
     }
     renderEncryptedAppsDeviceOptions();
+    renderKeyRequestList();
 }
 
 function loadKeyRequestsCache() {
@@ -608,6 +609,126 @@ function formatBase64Short(value) {
     return `${value.slice(0, 6)}...${value.slice(-4)} (${value.length})`;
 }
 
+function getDevicePublicKeyBase64(deviceId) {
+    if (!deviceId) return '';
+    const devices = loadDeviceListCache();
+    for (let i = 0; i < devices.length; i += 1) {
+        const device = devices[i];
+        if (!device || !device.deviceId) continue;
+        if (String(device.deviceId) !== String(deviceId)) continue;
+        return device.pk ? String(device.pk) : '';
+    }
+    return '';
+}
+
+function isNaclAvailable() {
+    return typeof nacl !== 'undefined'
+        && nacl.sign
+        && nacl.sign.detached
+        && typeof nacl.sign.detached.verify === 'function';
+}
+
+function pushInt32BE(buffer, value) {
+    buffer.push((value >>> 24) & 0xff);
+    buffer.push((value >>> 16) & 0xff);
+    buffer.push((value >>> 8) & 0xff);
+    buffer.push(value & 0xff);
+}
+
+function pushInt64BE(buffer, value) {
+    let big = typeof value === 'bigint' ? value : BigInt(value);
+    if (big < 0) big = 0n;
+    for (let i = 7; i >= 0; i -= 1) {
+        buffer.push(Number((big >> BigInt(i * 8)) & 0xffn));
+    }
+}
+
+function pushBytes(buffer, bytes) {
+    for (let i = 0; i < bytes.length; i += 1) {
+        buffer.push(bytes[i]);
+    }
+}
+
+function writeBool(buffer, value) {
+    buffer.push(value ? 1 : 0);
+}
+
+function writeString(buffer, value) {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(String(value));
+    pushInt32BE(buffer, bytes.length);
+    pushBytes(buffer, bytes);
+}
+
+function writeOptionalString(buffer, value) {
+    if (value === null || typeof value === 'undefined') {
+        writeBool(buffer, false);
+        return;
+    }
+    writeBool(buffer, true);
+    writeString(buffer, value);
+}
+
+function buildKeyRequestSignedDataBytes(item, tempKeyBytes) {
+    const bytes = [];
+    writeString(bytes, 'KeyRequestSignedData');
+
+    const seq = item && typeof item.senSeq !== 'undefined' ? item.senSeq : 0;
+    pushInt64BE(bytes, seq);
+
+    const deviceId = item && item.deviceId ? String(item.deviceId) : null;
+    writeBool(bytes, deviceId !== null);
+    writeOptionalString(bytes, deviceId);
+
+    const categoryId = item && item.categoryId ? String(item.categoryId) : null;
+    writeOptionalString(bytes, categoryId);
+
+    const typeValue = item && typeof item.type !== 'undefined' ? Number(item.type) : 0;
+    pushInt32BE(bytes, typeValue | 0);
+
+    const tempKey = tempKeyBytes || (item && item.tempKey ? base64ToBytes(item.tempKey) : new Uint8Array());
+    pushBytes(bytes, tempKey);
+
+    return new Uint8Array(bytes);
+}
+
+function verifyKeyRequestSignature(item) {
+    if (!item) return { ok: false, reason: 'missing item' };
+    if (!isNaclAvailable()) return { ok: false, reason: 'no nacl' };
+
+    const senderId = item.senId ? String(item.senId) : '';
+    if (!senderId) return { ok: false, reason: 'missing sender' };
+
+    const senderPublicKeyBase64 = getDevicePublicKeyBase64(senderId);
+    if (!senderPublicKeyBase64) return { ok: false, reason: 'no sender pk' };
+
+    let signatureBytes;
+    let publicKeyBytes;
+    let tempKeyBytes;
+    let messageBytes;
+
+    try {
+        signatureBytes = base64ToBytes(item.signature || '');
+        publicKeyBytes = base64ToBytes(senderPublicKeyBase64);
+        tempKeyBytes = item.tempKey ? base64ToBytes(item.tempKey) : new Uint8Array();
+        messageBytes = buildKeyRequestSignedDataBytes(item, tempKeyBytes);
+    } catch (e) {
+        return { ok: false, reason: 'bad base64' };
+    }
+
+    if (publicKeyBytes.length !== 32) return { ok: false, reason: `pk len ${publicKeyBytes.length}` };
+    if (signatureBytes.length !== 64) return { ok: false, reason: `sig len ${signatureBytes.length}` };
+    if (tempKeyBytes.length !== 32) return { ok: false, reason: `tempKey len ${tempKeyBytes.length}` };
+
+    const ok = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+    return ok ? { ok: true, reason: 'ok' } : { ok: false, reason: 'sig invalid' };
+}
+
+function getKeyRequestSignatureLabel(item) {
+    const result = verifyKeyRequestSignature(item);
+    return result.ok ? 'ok' : result.reason;
+}
+
 function renderParentKeyPairStatus() {
     const status = document.getElementById('parent-keypair-status');
     if (!status) return;
@@ -627,7 +748,8 @@ function formatKeyRequestItem(item) {
     const type = item && typeof item.type !== 'undefined' ? String(item.type) : '-';
     const sender = item && item.senId ? String(item.senId) : '-';
     const seq = item && typeof item.senSeq !== 'undefined' ? String(item.senSeq) : '-';
-    return `Device: ${deviceId} | Category: ${categoryId} | Type: ${type} | Sender: ${sender}/${seq}`;
+    const sigLabel = getKeyRequestSignatureLabel(item);
+    return `Device: ${deviceId} | Category: ${categoryId} | Type: ${type} | Sender: ${sender}/${seq} | Sig: ${sigLabel}`;
 }
 
 function renderKeyRequestList() {
