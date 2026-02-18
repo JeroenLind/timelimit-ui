@@ -447,9 +447,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", "no-cache, no-transform")
+            self.send_header("Pragma", "no-cache")
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Content-Encoding", "identity")
             self.end_headers()
             self.wfile.flush()
             self.close_connection = False
@@ -460,9 +462,11 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 self.wfile.write(b": connected\n\n")
+                self.wfile.write(b"retry: 5000\n\n")
                 hello_payload = f"event: hello\ndata: clientId={client_id}\n\n".encode('utf-8')
                 self.wfile.write(hello_payload)
                 self.wfile.flush()
+                sse_log(f"[SSE] Sent event=hello to client={client_id}")
                 while True:
                     time.sleep(15)
                     with client["lock"]:

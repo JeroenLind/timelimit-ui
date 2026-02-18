@@ -277,6 +277,11 @@ function initHaEventStream() {
         const type = evt && evt.type ? evt.type : 'message';
         const data = evt && typeof evt.data !== 'undefined' ? String(evt.data) : '';
         addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
+        try {
+            console.log(`[HA-SSE] event=${type}${data ? ` data=${data}` : ''}`);
+        } catch (e) {
+            // Ignore console errors.
+        }
         const now = Date.now();
 
         if (type === 'storage') {
