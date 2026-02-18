@@ -121,6 +121,29 @@ function setSequenceNumber(value) {
     }
 }
 
+function setPendingBadgeSyncState(isSyncing) {
+    const pendingBadge = document.getElementById('pending-badge');
+    if (!pendingBadge) return;
+
+    const isVisible = typeof window.getComputedStyle === 'function'
+        ? window.getComputedStyle(pendingBadge).display !== 'none'
+        : pendingBadge.style.display !== 'none';
+    if (!isVisible) return;
+
+    if (isSyncing) {
+        if (!pendingBadge.dataset.prevText) {
+            pendingBadge.dataset.prevText = pendingBadge.innerText;
+        }
+        pendingBadge.innerText = 'Bezig met sync...';
+        return;
+    }
+
+    if (pendingBadge.dataset.prevText) {
+        pendingBadge.innerText = pendingBadge.dataset.prevText;
+        delete pendingBadge.dataset.prevText;
+    }
+}
+
 async function runSync() {
     const badge = document.getElementById('status-badge');
     const jsonView = document.getElementById('json-view');
@@ -129,6 +152,8 @@ async function runSync() {
         addLog("Sync overgeslagen: Geen geldig token.", true);
         return;
     }
+
+    setPendingBadgeSyncState(true);
 
     const syncPayload = {
         deviceAuthToken: TOKEN,
@@ -343,6 +368,11 @@ async function runSync() {
         addLog("Netwerkfout: " + e.message, true);
         badge.innerText = "Offline";
         badge.className = "status-badge status-offline";
+    } finally {
+        setPendingBadgeSyncState(false);
+        if (typeof updatePendingChangesIndicator === 'function') {
+            updatePendingChangesIndicator();
+        }
     }
 }
 
