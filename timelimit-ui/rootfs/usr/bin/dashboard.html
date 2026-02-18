@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>TimeLimit UI v85 - Session Manager</title>
-    <link rel="stylesheet" href="style.css?v=88">
+    <link rel="stylesheet" href="style.css?v=89">
 </head>
 <body>
     <header>
@@ -74,7 +74,10 @@
                 </div>
             </div>
 
-            <div id="status-badge" class="status-badge status-offline">Sync Status...</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                <div id="status-badge" class="status-badge status-offline" style="margin-bottom:0;">Sync Status...</div>
+                <div id="pending-badge" class="status-badge status-pending" style="margin-bottom:0; display:none;">Niet gesynchroniseerd</div>
+            </div>
 
             <div id="ha-storage-panel" data-debug-only="true" style="margin-top: 20px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #2b2f38;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -312,9 +315,9 @@
         </div>
     </div>
 
-    <script src="state.js?v=92"></script>
+    <script src="state.js?v=93"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl.min.js" crossorigin="anonymous"></script>
-    <script src="ui.js?v=104"></script>
+    <script src="ui.js?v=105"></script>
     <script src="wizard.js?v=87"></script>
     <script src="sync.js?v=95"></script>
     <script src="tree.js?v=96"></script> 

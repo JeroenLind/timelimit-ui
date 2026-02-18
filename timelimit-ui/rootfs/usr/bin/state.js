@@ -179,6 +179,9 @@ function refreshRuleViews() {
     if (typeof renderUsers === 'function') {
         renderUsers(currentDataDraft);
     }
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
 }
 
 function mergeDisabledRulesIntoDraft(draft) {
@@ -390,6 +393,33 @@ function resetChangeTracking() {
     changedRules.clear();
     console.log(`♻️ [STATE] Change tracking gereset (${previousSize} wijzigingen verwijderd)`);
     addLog(`♻️ Change tracking gereset - ${previousSize} wijzigingen verwerkt`, false);
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
+}
+
+function hasPendingChanges() {
+    const hasChangedRules = changedRules.size > 0;
+    const hasNewRules = Array.isArray(newRules) && newRules.length > 0;
+    const hasDeletedRules = Array.isArray(deletedRules) && deletedRules.length > 0;
+    const hasNewApps = Array.isArray(newCategoryApps) && newCategoryApps.length > 0;
+    const hasRemovedApps = Array.isArray(removedCategoryApps) && removedCategoryApps.length > 0;
+    return hasChangedRules || hasNewRules || hasDeletedRules || hasNewApps || hasRemovedApps;
+}
+
+function updatePendingChangesIndicator() {
+    const badge = document.getElementById('pending-badge');
+    if (!badge) return;
+
+    const pending = hasPendingChanges();
+    if (!pending) {
+        badge.style.display = 'none';
+        return;
+    }
+
+    badge.style.display = 'inline-block';
+    badge.innerText = 'Niet gesynchroniseerd';
+    badge.className = 'status-badge status-pending';
 }
 
 function getNewCategoryApps() {
@@ -704,6 +734,9 @@ function disableRule(categoryId, ruleId) {
     if (typeof renderUsers === 'function') {
         renderUsers(currentDataDraft);
     }
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
 }
 
 function enableRule(categoryId, ruleId) {
@@ -966,6 +999,8 @@ window.isRuleDisabled = isRuleDisabled;
 window.getDisabledRules = getDisabledRules;
 window.getDeletedRules = getDeletedRules;
 window.reconcileDeletedRules = reconcileDeletedRules;
+window.hasPendingChanges = hasPendingChanges;
+window.updatePendingChangesIndicator = updatePendingChangesIndicator;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {

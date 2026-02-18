@@ -28,6 +28,7 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
 .status-online { background: #1b4721; color: #4caf50; border: 1px solid #4caf50; }
 .status-offline { background: #471b1b; color: #f44336; border: 1px solid #f44336; }
+.status-pending { background: #3a2f12; color: #ffc107; border: 1px solid #ffc107; }
 
 /* Categorie Boomstructuur */
 .tree-container { background: #151921; padding: 20px; border-radius: 8px; border: 1px solid #232a35; margin-top: 10px; }

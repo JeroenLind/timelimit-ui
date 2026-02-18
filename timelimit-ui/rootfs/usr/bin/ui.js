@@ -1553,6 +1553,10 @@ function renderUsers(data) {
             }
         });
     }
+
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
 }
 
 window.expandDisabledRulesForUser = expandDisabledRulesForUser;
