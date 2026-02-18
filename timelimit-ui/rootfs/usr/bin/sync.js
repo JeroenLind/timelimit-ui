@@ -1273,6 +1273,12 @@ async function executePushSync() {
     if (syncData.totalActions === 0) {
         addLog("ℹ️ Geen wijzigingen om te synchroniseren.", false);
         console.log("[PUSH-SYNC] Geen wijzigingen gevonden");
+        if (typeof clearDisabledRulesDirty === 'function') {
+            clearDisabledRulesDirty();
+        }
+        if (typeof updatePendingChangesIndicator === 'function') {
+            updatePendingChangesIndicator();
+        }
         return;
     }
     
@@ -1563,6 +1569,10 @@ async function executePushSync() {
         console.log(`[PUSH-SYNC] 🎉 ALLE BATCHES SUCCESVOL!`);
         logContent += `\n🎉 ALLE WIJZIGINGEN SUCCESVOL VERZONDEN!\n`;
         addLog(`🎉 Alle ${syncData.totalActions} wijzigingen succesvol verzonden!`, false);
+
+        if (typeof clearDisabledRulesDirty === 'function') {
+            clearDisabledRulesDirty();
+        }
         
         // ⚠️ BELANGRIJK: We resetten NIET hier!
         // We wachten tot pull sync compleet is

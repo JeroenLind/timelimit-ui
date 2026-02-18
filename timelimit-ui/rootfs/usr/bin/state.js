@@ -15,8 +15,10 @@ let removedCategoryApps = [];
 // Lokaal uitgeschakelde regels (blijven in dashboard, maar worden op server verwijderd)
 const DISABLED_RULES_STORAGE_KEY = 'timelimit_disabledRules';
 const DELETED_RULES_STORAGE_KEY = 'timelimit_deletedRules';
+const DISABLED_RULES_DIRTY_KEY = 'timelimit_disabledRulesDirty';
 let disabledRules = [];
 let deletedRules = [];
+let disabledRulesDirty = localStorage.getItem(DISABLED_RULES_DIRTY_KEY) === '1';
 
 // Track nieuw toegevoegde rule terwijl modal open is
 let pendingNewRule = null;
@@ -45,6 +47,22 @@ function saveRulesListToStorage(key, value) {
     if (typeof scheduleHaStorageShadowSync === 'function') {
         scheduleHaStorageShadowSync('disabled-rules');
     }
+}
+
+function setDisabledRulesDirty(value) {
+    disabledRulesDirty = !!value;
+    if (disabledRulesDirty) {
+        localStorage.setItem(DISABLED_RULES_DIRTY_KEY, '1');
+    } else {
+        localStorage.removeItem(DISABLED_RULES_DIRTY_KEY);
+    }
+    if (typeof scheduleHaStorageShadowSync === 'function') {
+        scheduleHaStorageShadowSync('disabled-rules-dirty');
+    }
+}
+
+function clearDisabledRulesDirty() {
+    setDisabledRulesDirty(false);
 }
 
 disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
@@ -96,6 +114,7 @@ function addDisabledRule(rule, categoryIdOverride) {
     if (!disabledRules.some(r => String(r.categoryId) === catKey && String(r.id) === ruleKey)) {
         disabledRules.push({ ...rule, categoryId: catKey, id: ruleKey, _disabled: true });
         saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
+        setDisabledRulesDirty(true);
     }
 }
 
@@ -135,6 +154,7 @@ function removeDisabledRule(categoryId, ruleId) {
     const ruleKey = String(ruleId);
     disabledRules = disabledRules.filter(r => !(String(r.categoryId) === catKey && String(r.id) === ruleKey));
     saveRulesListToStorage(DISABLED_RULES_STORAGE_KEY, disabledRules);
+    setDisabledRulesDirty(true);
 }
 
 /**
@@ -1191,6 +1211,7 @@ window.getDeletedRules = getDeletedRules;
 window.reconcileDeletedRules = reconcileDeletedRules;
 window.hasPendingChanges = hasPendingChanges;
 window.updatePendingChangesIndicator = updatePendingChangesIndicator;
+window.clearDisabledRulesDirty = clearDisabledRulesDirty;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {
