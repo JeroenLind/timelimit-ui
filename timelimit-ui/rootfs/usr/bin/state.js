@@ -452,8 +452,8 @@ function hasPendingChanges() {
     const hasDeletedRules = Array.isArray(deletedRules) && deletedRules.length > 0;
     const hasNewApps = Array.isArray(newCategoryApps) && newCategoryApps.length > 0;
     const hasRemovedApps = Array.isArray(removedCategoryApps) && removedCategoryApps.length > 0;
-    const hasDisabledRules = Array.isArray(disabledRules) && disabledRules.length > 0;
-    return hasChangedRules || hasNewRules || hasDeletedRules || hasNewApps || hasRemovedApps || hasDisabledRules;
+    const hasDisabledChanges = !!disabledRulesDirty;
+    return hasChangedRules || hasNewRules || hasDeletedRules || hasNewApps || hasRemovedApps || hasDisabledChanges;
 }
 
 function updatePendingChangesIndicator() {
