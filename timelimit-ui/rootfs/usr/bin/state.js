@@ -177,6 +177,7 @@ function refreshRuleViews() {
     if (typeof updateCategoryDisplay === 'function') {
         updateCategoryDisplay(currentDataDraft);
     }
+    mergeDeletedRulesIntoDraft(currentDataDraft);
     if (typeof renderUsers === 'function') {
         renderUsers(currentDataDraft);
     }
@@ -213,18 +214,27 @@ function mergeDisabledRulesIntoDraft(draft) {
 
 function mergeDeletedRulesIntoDraft(draft) {
     if (!draft || !Array.isArray(draft.rules)) return;
-    if (!Array.isArray(deletedRules) || deletedRules.length === 0) return;
 
-    deletedRules.forEach((item) => {
-        if (!item || !item.categoryId || !item.ruleId) return;
-        const catKey = String(item.categoryId);
-        const ruleKey = String(item.ruleId);
-        const category = draft.rules.find(r => String(r.categoryId) === catKey);
+    const deletedSet = new Set(
+        Array.isArray(deletedRules)
+            ? deletedRules
+                .filter(item => item && item.categoryId && item.ruleId)
+                .map(item => `${String(item.categoryId)}::${String(item.ruleId)}`)
+            : []
+    );
+
+    draft.rules.forEach((category) => {
         if (!category || !Array.isArray(category.rules)) return;
-        const existing = category.rules.find(r => String(r.id) === ruleKey);
-        if (existing) {
-            existing._deletedPending = true;
-        }
+        const catKey = String(category.categoryId);
+        category.rules.forEach((rule) => {
+            if (!rule) return;
+            const key = `${catKey}::${String(rule.id)}`;
+            if (deletedSet.has(key)) {
+                rule._deletedPending = true;
+            } else if (rule._deletedPending) {
+                delete rule._deletedPending;
+            }
+        });
     });
 }
 
