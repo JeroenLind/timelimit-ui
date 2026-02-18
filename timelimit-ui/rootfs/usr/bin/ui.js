@@ -1370,7 +1370,42 @@ function mergeRulesWithDisabled(rules, disabledList) {
     return Array.from(byCategory.values());
 }
 
+let lastRenderedUsersData = null;
+
+function expandDisabledRulesForUser(userId) {
+    const data = lastRenderedUsersData;
+    if (!data || !userId) return;
+
+    const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
+    const scopedCategories = (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId));
+    const scopedCategoryIds = new Set(scopedCategories.map(cat => String(cat.categoryId)));
+    if (scopedCategoryIds.size === 0) return;
+
+    const disabledCategories = disabledList
+        .map(rule => String(rule.categoryId))
+        .filter(categoryId => scopedCategoryIds.has(categoryId));
+
+    if (disabledCategories.length === 0) return;
+
+    const uniqueCategoryIds = Array.from(new Set(disabledCategories));
+    const sectionKeys = uniqueCategoryIds.map(categoryId => `${categoryId}::rules`);
+
+    if (typeof storeOpenCategoryKey === 'function') {
+        uniqueCategoryIds.forEach(categoryId => storeOpenCategoryKey(categoryId, true));
+    }
+    if (typeof storeOpenSectionKey === 'function') {
+        sectionKeys.forEach(key => storeOpenSectionKey(key, true));
+    }
+    if (typeof restoreOpenCategoryIds === 'function') {
+        restoreOpenCategoryIds(uniqueCategoryIds);
+    }
+    if (typeof restoreOpenSectionState === 'function') {
+        restoreOpenSectionState(sectionKeys);
+    }
+}
+
 function renderUsers(data) {
+    lastRenderedUsersData = data;
     const list = document.getElementById('user-list');
     if (!list) return;
 
@@ -1395,6 +1430,13 @@ function renderUsers(data) {
         const isParent = u.type === 'parent';
         const scopedCategories = (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId));
         const scopedRules = mergeRulesWithDisabled(data.rules || [], disabledList);
+        const scopedCategoryIds = new Set(scopedCategories.map(cat => String(cat.categoryId)));
+        const hasDisabledRules = !isParent && scopedCategoryIds.size > 0
+            ? disabledList.some(rule => scopedCategoryIds.has(String(rule.categoryId)))
+            : false;
+        const disabledBadge = hasDisabledRules
+            ? `<button type="button" onclick="event.stopPropagation(); expandDisabledRulesForUser('${userId}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-radius:4px; background:#3a2400; color:#f7c35b; border:1px solid #6b4300; cursor:pointer;">Regel uit</button>`
+            : "";
         const childTree = (!isParent && userId && typeof buildCategoryTree === 'function')
             ? buildCategoryTree({
                 ...data,
@@ -1428,7 +1470,7 @@ function renderUsers(data) {
                 <div style='display:flex; align-items:center; gap:8px; margin-bottom: 8px;'>
                     <div>${icon}</div>
                     <div>
-                        <strong>${userName}</strong>
+                        <strong>${userName}</strong>${disabledBadge}
                         <span style='color: #888; font-size: 0.8em;'>(${userType})</span>
                     </div>
                 </div>
@@ -1512,6 +1554,8 @@ function renderUsers(data) {
         });
     }
 }
+
+window.expandDisabledRulesForUser = expandDisabledRulesForUser;
 
 function copyInspectorToClipboard() {
     const inspector = document.getElementById('json-view');
