@@ -254,27 +254,44 @@ let haEventLastSyncAt = 0;
 function initHaEventStream() {
     if (haEventSource || typeof EventSource === 'undefined') return;
 
-    const scheduleSync = (evt) => {
-        if (evt && evt.type) {
-            addLog(`🔔 HA event: ${evt.type}`, false);
-        } else {
-            addLog('🔔 HA event: message', false);
+    const triggerStorageApply = () => {
+        if (typeof loadHaStorageAndApply === 'function') {
+            loadHaStorageAndApply();
         }
-        const now = Date.now();
-        if (now - haEventLastSyncAt < 2000) return;
-        haEventLastSyncAt = now;
+        if (typeof reloadDisabledRulesFromStorage === 'function') {
+            reloadDisabledRulesFromStorage();
+        }
+    };
+
+    const triggerPullSync = () => {
         if (typeof runSync === 'function') {
             addLog('🔄 HA event: trigger pull sync', false);
             runSync();
         }
     };
 
+    const scheduleEvent = (evt) => {
+        const type = evt && evt.type ? evt.type : 'message';
+        addLog(`🔔 HA event: ${type}`, false);
+        const now = Date.now();
+        if (now - haEventLastSyncAt < 2000) return;
+        haEventLastSyncAt = now;
+
+        if (type === 'storage') {
+            addLog('🔄 HA event: apply HA storage', false);
+            triggerStorageApply();
+            return;
+        }
+
+        triggerPullSync();
+    };
+
     try {
         haEventSource = new EventSource('ha-events');
         addLog('📡 HA event stream verbonden', false);
-        haEventSource.onmessage = scheduleSync;
-        haEventSource.addEventListener('push', scheduleSync);
-        haEventSource.addEventListener('storage', scheduleSync);
+        haEventSource.onmessage = scheduleEvent;
+        haEventSource.addEventListener('push', scheduleEvent);
+        haEventSource.addEventListener('storage', scheduleEvent);
         haEventSource.onerror = () => {
             addLog('⚠️ HA event stream fout/timeout', true);
         };

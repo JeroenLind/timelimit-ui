@@ -232,6 +232,22 @@ function mergeDisabledRulesIntoDraft(draft) {
     });
 }
 
+function reloadDisabledRulesFromStorage() {
+    disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
+    deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
+    normalizeDisabledRules();
+    if (currentDataDraft) {
+        mergeDisabledRulesIntoDraft(currentDataDraft);
+        mergeDeletedRulesIntoDraft(currentDataDraft);
+    }
+    if (typeof refreshRuleViews === 'function') {
+        refreshRuleViews();
+    }
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
+}
+
 function mergeDeletedRulesIntoDraft(draft) {
     if (!draft || !Array.isArray(draft.rules)) return;
 
@@ -1212,6 +1228,7 @@ window.reconcileDeletedRules = reconcileDeletedRules;
 window.hasPendingChanges = hasPendingChanges;
 window.updatePendingChangesIndicator = updatePendingChangesIndicator;
 window.clearDisabledRulesDirty = clearDisabledRulesDirty;
+window.reloadDisabledRulesFromStorage = reloadDisabledRulesFromStorage;
 
 // Event Listeners voor de dag-knoppen
 document.addEventListener('click', function(e) {
