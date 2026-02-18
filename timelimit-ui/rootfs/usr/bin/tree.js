@@ -295,7 +295,7 @@ function renderRulesHTML(rules, categoryId) {
     
     return rules.map(r => {
         const isDisabled = !!r._disabled;
-        const isDeleted = !!r._deletedPending || deletedSet.has(`${String(categoryId)}::${String(r.id)}`);
+        const isDeleted = !isDisabled && (!!r._deletedPending || deletedSet.has(`${String(categoryId)}::${String(r.id)}`));
         let title = "Beperking";
         if (r.maxTime > 0) {
             title = `Limiet: ${formatDuration(r.maxTime)}`;

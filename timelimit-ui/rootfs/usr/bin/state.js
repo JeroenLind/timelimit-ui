@@ -251,6 +251,13 @@ function reloadDisabledRulesFromStorage() {
 function mergeDeletedRulesIntoDraft(draft) {
     if (!draft || !Array.isArray(draft.rules)) return;
 
+    const disabledSet = new Set(
+        Array.isArray(disabledRules)
+            ? disabledRules
+                .filter(item => item && item.categoryId && item.id)
+                .map(item => `${String(item.categoryId)}::${String(item.id)}`)
+            : []
+    );
     const deletedSet = new Set(
         Array.isArray(deletedRules)
             ? deletedRules
@@ -265,6 +272,12 @@ function mergeDeletedRulesIntoDraft(draft) {
         category.rules.forEach((rule) => {
             if (!rule) return;
             const key = `${catKey}::${String(rule.id)}`;
+            if (disabledSet.has(key)) {
+                if (rule._deletedPending) {
+                    delete rule._deletedPending;
+                }
+                return;
+            }
             if (deletedSet.has(key)) {
                 rule._deletedPending = true;
             } else if (rule._deletedPending) {
@@ -791,10 +804,7 @@ function disableRule(categoryId, ruleId) {
     if (isNewRule) {
         newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
     } else {
-        removeDeletedRule(catKey, ruleKey);
-        if (rule._deletedPending) {
-            delete rule._deletedPending;
-        }
+        addDeletedRule(catKey, ruleKey);
     }
 
     changedRules.delete(`${catKey}_${ruleKey}`);
