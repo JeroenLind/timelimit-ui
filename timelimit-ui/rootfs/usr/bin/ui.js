@@ -251,8 +251,44 @@ window.applyHaStorageHistory = applyHaStorageHistory;
 let haEventSource = null;
 let haEventLastSyncAt = 0;
 let haEventLastStorageAt = 0;
+let haEventLastReceivedAt = 0;
 let haEventReconnectTimer = null;
 let haEventReconnectDelay = 2000;
+let haEventFallbackTimer = null;
+let haStoragePollTimer = null;
+
+function startHaStoragePolling() {
+    if (haStoragePollTimer) return;
+    addLog('⚠️ HA event stream lijkt geblokkeerd; fallback polling gestart', true);
+    haStoragePollTimer = setInterval(() => {
+        if (typeof loadHaStorageAndApply === 'function') {
+            loadHaStorageAndApply();
+        }
+        if (typeof reloadDisabledRulesFromStorage === 'function') {
+            reloadDisabledRulesFromStorage();
+        }
+    }, 15000);
+}
+
+function stopHaStoragePolling() {
+    if (!haStoragePollTimer) return;
+    clearInterval(haStoragePollTimer);
+    haStoragePollTimer = null;
+    addLog('✅ HA event stream actief; fallback polling gestopt', false);
+}
+
+function scheduleHaEventFallbackCheck() {
+    if (haEventFallbackTimer) {
+        clearTimeout(haEventFallbackTimer);
+    }
+    haEventFallbackTimer = setTimeout(() => {
+        haEventFallbackTimer = null;
+        if (!haEventSource) return;
+        const now = Date.now();
+        if (haEventLastReceivedAt && now - haEventLastReceivedAt < 8000) return;
+        startHaStoragePolling();
+    }, 8000);
+}
 
 function initHaEventStream() {
     if (haEventSource || typeof EventSource === 'undefined') return;
@@ -282,6 +318,9 @@ function initHaEventStream() {
         } catch (e) {
             // Ignore console errors.
         }
+        haEventLastReceivedAt = Date.now();
+        stopHaStoragePolling();
+        scheduleHaEventFallbackCheck();
         const now = Date.now();
 
         if (type === 'storage') {
@@ -299,7 +338,10 @@ function initHaEventStream() {
 
     try {
         haEventSource = new EventSource('ha-events');
-        haEventSource.onopen = () => addLog('📡 HA event stream open', false);
+        haEventSource.onopen = () => {
+            addLog('📡 HA event stream open', false);
+            scheduleHaEventFallbackCheck();
+        };
         haEventSource.onmessage = scheduleEvent;
         haEventSource.addEventListener('hello', scheduleEvent);
         haEventSource.addEventListener('push', scheduleEvent);
@@ -317,6 +359,7 @@ function initHaEventStream() {
                 if (typeof loadHaStorageAndApply === 'function') {
                     loadHaStorageAndApply();
                 }
+                startHaStoragePolling();
                 if (haEventReconnectTimer) {
                     clearTimeout(haEventReconnectTimer);
                 }
