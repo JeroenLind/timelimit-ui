@@ -250,6 +250,8 @@ window.applyHaStorageHistory = applyHaStorageHistory;
 
 let haEventSource = null;
 let haEventLastSyncAt = 0;
+let haEventReconnectTimer = null;
+let haEventReconnectDelay = 2000;
 
 function initHaEventStream() {
     if (haEventSource || typeof EventSource === 'undefined') return;
@@ -296,6 +298,25 @@ function initHaEventStream() {
         haEventSource.onerror = () => {
             const state = haEventSource ? haEventSource.readyState : 'unknown';
             addLog(`⚠️ HA event stream fout/timeout (state=${state})`, true);
+            if (state === 2) {
+                try {
+                    haEventSource.close();
+                } catch (e) {
+                    // Ignore close errors.
+                }
+                haEventSource = null;
+                if (typeof loadHaStorageAndApply === 'function') {
+                    loadHaStorageAndApply();
+                }
+                if (haEventReconnectTimer) {
+                    clearTimeout(haEventReconnectTimer);
+                }
+                haEventReconnectTimer = setTimeout(() => {
+                    haEventReconnectTimer = null;
+                    haEventReconnectDelay = Math.min(15000, haEventReconnectDelay * 2);
+                    initHaEventStream();
+                }, haEventReconnectDelay);
+            }
         };
     } catch (e) {
         addLog(`❌ HA event stream niet gestart: ${e.message}`, true);
