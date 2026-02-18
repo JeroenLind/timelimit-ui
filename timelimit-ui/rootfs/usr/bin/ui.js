@@ -248,50 +248,20 @@ async function loadHaStorageStatus() {
 window.loadHaStorageStatus = loadHaStorageStatus;
 window.applyHaStorageHistory = applyHaStorageHistory;
 
-let haEventSource = null;
 let haEventLastSyncAt = 0;
 let haEventLastStorageAt = 0;
-let haEventLastReceivedAt = 0;
-let haEventReconnectTimer = null;
-let haEventReconnectDelay = 2000;
-let haEventFallbackTimer = null;
-let haStoragePollTimer = null;
 let haLongPollTimer = null;
 let haLongPollActive = false;
 let haLongPollLastId = 0;
 let haLongPollErrorCount = 0;
 
-function startHaStoragePolling() {
-    if (haStoragePollTimer) return;
-    addLog('⚠️ HA event stream lijkt geblokkeerd; fallback polling gestart', true);
-    haStoragePollTimer = setInterval(() => {
-        if (typeof loadHaStorageAndApply === 'function') {
-            loadHaStorageAndApply();
-        }
-        if (typeof reloadDisabledRulesFromStorage === 'function') {
-            reloadDisabledRulesFromStorage();
-        }
-    }, 15000);
-}
-
-function stopHaStoragePolling() {
-    if (!haStoragePollTimer) return;
-    clearInterval(haStoragePollTimer);
-    haStoragePollTimer = null;
-    addLog('✅ HA event stream actief; fallback polling gestopt', false);
-}
-
 function handleHaEvent(type, data) {
     addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
     try {
-        console.log(`[HA-SSE] event=${type}${data ? ` data=${data}` : ''}`);
+        console.log(`[HA-LP] event=${type}${data ? ` data=${data}` : ''}`);
     } catch (e) {
         // Ignore console errors.
     }
-    haEventLastReceivedAt = Date.now();
-    stopHaLongPoll();
-    stopHaStoragePolling();
-    scheduleHaEventFallbackCheck();
     const now = Date.now();
 
     if (type === 'storage') {
@@ -318,7 +288,7 @@ function handleHaEvent(type, data) {
 function startHaLongPoll() {
     if (haLongPollActive) return;
     haLongPollActive = true;
-    addLog('⚠️ SSE geblokkeerd; long-poll gestart', true);
+    addLog('📡 Long-poll gestart', false);
 
     const pollOnce = async () => {
         if (!haLongPollActive) return;
@@ -338,7 +308,7 @@ function startHaLongPoll() {
             haLongPollErrorCount += 1;
             addLog(`⚠️ Long-poll fout (${haLongPollErrorCount}): ${e.message || e}`, true);
             if (haLongPollErrorCount >= 3) {
-                startHaStoragePolling();
+                // Keep retrying long-poll; no fallback.
             }
         } finally {
             if (!haLongPollActive) return;
@@ -358,69 +328,11 @@ function stopHaLongPoll() {
     }
 }
 
-function scheduleHaEventFallbackCheck() {
-    if (haEventFallbackTimer) {
-        clearTimeout(haEventFallbackTimer);
-    }
-    haEventFallbackTimer = setTimeout(() => {
-        haEventFallbackTimer = null;
-        if (!haEventSource) return;
-        const now = Date.now();
-        if (haEventLastReceivedAt && now - haEventLastReceivedAt < 8000) return;
-        startHaLongPoll();
-    }, 8000);
+function initHaLongPoll() {
+    startHaLongPoll();
 }
 
-function initHaEventStream() {
-    if (haEventSource || typeof EventSource === 'undefined') return;
-
-    const scheduleEvent = (evt) => {
-        const type = evt && evt.type ? evt.type : 'message';
-        const data = evt && typeof evt.data !== 'undefined' ? String(evt.data) : '';
-        handleHaEvent(type, data);
-    };
-
-    try {
-        haEventSource = new EventSource('ha-events');
-        haEventSource.onopen = () => {
-            addLog('📡 HA event stream open', false);
-            scheduleHaEventFallbackCheck();
-        };
-        haEventSource.onmessage = scheduleEvent;
-        haEventSource.addEventListener('hello', scheduleEvent);
-        haEventSource.addEventListener('push', scheduleEvent);
-        haEventSource.addEventListener('storage', scheduleEvent);
-        haEventSource.onerror = () => {
-            const state = haEventSource ? haEventSource.readyState : 'unknown';
-            addLog(`⚠️ HA event stream fout/timeout (state=${state})`, true);
-            if (state === 2) {
-                try {
-                    haEventSource.close();
-                } catch (e) {
-                    // Ignore close errors.
-                }
-                haEventSource = null;
-                if (typeof loadHaStorageAndApply === 'function') {
-                    loadHaStorageAndApply();
-                }
-                startHaLongPoll();
-                if (haEventReconnectTimer) {
-                    clearTimeout(haEventReconnectTimer);
-                }
-                haEventReconnectTimer = setTimeout(() => {
-                    haEventReconnectTimer = null;
-                    haEventReconnectDelay = Math.min(15000, haEventReconnectDelay * 2);
-                    initHaEventStream();
-                }, haEventReconnectDelay);
-            }
-        };
-    } catch (e) {
-        addLog(`❌ HA event stream niet gestart: ${e.message}`, true);
-        haEventSource = null;
-    }
-}
-
-window.initHaEventStream = initHaEventStream;
+window.initHaLongPoll = initHaLongPoll;
 
 async function loadHaStorageAndApply() {
     const data = await loadHaStorageStatus();

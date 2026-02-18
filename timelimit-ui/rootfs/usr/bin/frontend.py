@@ -16,9 +16,6 @@ STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 
 # NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
 SELECTED_SERVER = None
-SSE_CLIENTS = []
-SSE_LOCK = threading.Lock()
-SSE_CLIENT_COUNTER = 0
 LONGPOLL_LOCK = threading.Lock()
 LONGPOLL_COND = threading.Condition(LONGPOLL_LOCK)
 LONGPOLL_LAST_EVENT = {"id": 0, "event": None, "data": None, "ts": 0}
@@ -26,35 +23,17 @@ LONGPOLL_LAST_EVENT = {"id": 0, "event": None, "data": None, "ts": 0}
 def log(message):
     sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
 
-def sse_log(message):
+def event_log(message):
     log(message)
 
-def broadcast_sse(event, data):
-    sse_log(f"[SSE] Broadcast event={event} data={data}")
-    payload = f"event: {event}\ndata: {data}\n\n".encode('utf-8')
+def broadcast_event(event, data):
+    event_log(f"[EVENT] Broadcast event={event} data={data}")
     with LONGPOLL_COND:
         LONGPOLL_LAST_EVENT["id"] += 1
         LONGPOLL_LAST_EVENT["event"] = event
         LONGPOLL_LAST_EVENT["data"] = data
         LONGPOLL_LAST_EVENT["ts"] = int(time.time() * 1000)
         LONGPOLL_COND.notify_all()
-    with SSE_LOCK:
-        clients = list(SSE_CLIENTS)
-    sse_log(f"[SSE] Clients count={len(clients)}")
-    for client in clients:
-        try:
-            with client["lock"]:
-                client["wfile"].write(payload)
-                client["wfile"].flush()
-            sse_log(f"[SSE] Sent event={event} to client={client.get('id', '?')}")
-        except Exception as e:
-            sse_log(f"[SSE] Broadcast failed: {str(e)}")
-            try:
-                with SSE_LOCK:
-                    if client in SSE_CLIENTS:
-                        SSE_CLIENTS.remove(client)
-            except Exception:
-                pass
 
 def get_config():
     """Haalt de actuele configuratie op uit Home Assistant."""
@@ -124,13 +103,13 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     json.dump(payload, f)
                 os.replace(STORAGE_TMP_PATH, STORAGE_PATH)
 
-                sse_log("[SSE] Trigger broadcast from /ha-storage")
-                broadcast_sse("storage", "updated")
+                event_log("[EVENT] Trigger broadcast from /ha-storage")
+                broadcast_event("storage", "updated")
 
                 self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
                 return
             except Exception as e:
-                sse_log(f"❌ [ERROR] Fout in /ha-storage: {str(e)}")
+                event_log(f"❌ [ERROR] Fout in /ha-storage: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
@@ -431,8 +410,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 log("[DEBUG] Response preview: (binary data)")
             
             if self.path.endswith('/sync/push-actions') and 200 <= status < 300:
-                sse_log("[SSE] Trigger broadcast from /sync/push-actions")
-                broadcast_sse("push", "done")
+                event_log("[EVENT] Trigger broadcast from /sync/push-actions")
+                broadcast_event("push", "done")
             self._send_raw(status, body, "application/json")
         except Exception as e:
             log(f"❌ [PROXY ERROR]: {str(e)}")
@@ -442,56 +421,6 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
-        if self.path.endswith('/ha-events'):
-            global SSE_CLIENT_COUNTER
-            with SSE_LOCK:
-                SSE_CLIENT_COUNTER += 1
-                client_id = SSE_CLIENT_COUNTER
-                current_count = len(SSE_CLIENTS) + 1
-            user_agent = self.headers.get('User-Agent', '-')
-            forwarded_for = self.headers.get('X-Forwarded-For', '-')
-            ingress_path = self.headers.get('X-Ingress-Path', '-')
-            client_addr = f"{self.client_address[0]}:{self.client_address[1]}" if self.client_address else '-'
-            sse_log(
-                f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count}, addr={client_addr}, fwd={forwarded_for}, ingress={ingress_path}, ua={user_agent})"
-            )
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache, no-transform")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self.send_header("Content-Encoding", "identity")
-            self.end_headers()
-            self.wfile.flush()
-            self.close_connection = False
-
-            client = {"wfile": self.wfile, "lock": threading.Lock(), "id": client_id}
-            with SSE_LOCK:
-                SSE_CLIENTS.append(client)
-
-            try:
-                self.wfile.write(b": connected\n\n")
-                self.wfile.write(b"retry: 5000\n\n")
-                hello_payload = f"event: hello\ndata: clientId={client_id}\n\n".encode('utf-8')
-                self.wfile.write(hello_payload)
-                self.wfile.flush()
-                sse_log(f"[SSE] Sent event=hello to client={client_id}")
-                while True:
-                    time.sleep(15)
-                    with client["lock"]:
-                        self.wfile.write(b": ping\n\n")
-                        self.wfile.flush()
-            except Exception:
-                pass
-            finally:
-                with SSE_LOCK:
-                    remaining = len(SSE_CLIENTS) - 1 if client in SSE_CLIENTS else len(SSE_CLIENTS)
-                sse_log(f"[SSE] Client disconnected from /ha-events (client={client_id}, clients={max(remaining, 0)})")
-                with SSE_LOCK:
-                    if client in SSE_CLIENTS:
-                        SSE_CLIENTS.remove(client)
-            return
         if '/ha-events-longpoll' in self.path:
             try:
                 parsed = urllib.parse.urlparse(self.path)
@@ -549,7 +478,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     data = {"status": "empty"}
                 self._send_raw(200, json.dumps(data).encode(), "application/json")
             except Exception as e:
-                sse_log(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}")
+                event_log(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}")
                 self._send_raw(500, str(e).encode(), "text/plain")
             return
         if self.path in ['/', '', '/index.html']:
