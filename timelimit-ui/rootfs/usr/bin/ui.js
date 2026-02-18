@@ -30,7 +30,9 @@ const HA_STORAGE_KEYS = [
     'timelimit_debugMode',
     'timelimit_useEncryptedApps',
     'timelimit_nextSyncSequenceNumber',
-    'timelimit_serverApiLevel'
+    'timelimit_serverApiLevel',
+    'timelimit_disabledRules',
+    'timelimit_disabledRulesDirty'
 ];
 
 let haShadowTimer = null;
@@ -114,11 +116,20 @@ function renderHaStorageDetails(storage) {
     const apiLevel = data.timelimit_serverApiLevel || '-';
     const parentPublicPresent = data.timelimit_parentPublicKey ? 'ja' : 'nee';
     const parentPrivatePresent = data.timelimit_parentPrivateKey ? 'ja' : 'nee';
+    const disabledRulesRaw = data.timelimit_disabledRules || '[]';
+    const disabledRulesDirty = data.timelimit_disabledRulesDirty === '1' ? 'ja' : 'nee';
 
     statusEl.textContent = `Laatst bijgewerkt: ${formatTimestamp(storage.updatedAt || storage.serverTimestamp)}`;
 
     const parentHashPresent = data.timelimit_parentPasswordHash ? 'ja' : 'nee';
     const historyRaw = data.timelimit_account_history || '[]';
+    let disabledRulesCount = 0;
+    try {
+        const parsed = JSON.parse(disabledRulesRaw);
+        if (Array.isArray(parsed)) disabledRulesCount = parsed.length;
+    } catch (e) {
+        disabledRulesCount = 0;
+    }
 
     detailsEl.innerHTML = `
         <div style="margin-bottom:6px;">Token: <span style="color:#fff; font-family: monospace;">${formatTokenShort(token) || '-'}</span></div>
@@ -129,6 +140,8 @@ function renderHaStorageDetails(storage) {
         <div style="margin-bottom:6px;">Encrypted apps: <span style="color:#fff;">${encryptedAppsMode}</span></div>
         <div style="margin-bottom:6px;">Parent public key: <span style="color:#fff;">${parentPublicPresent}</span></div>
         <div style="margin-bottom:6px;">Parent private key: <span style="color:#fff;">${parentPrivatePresent}</span></div>
+        <div style="margin-bottom:6px;">Uitgeschakelde regels: <span style="color:#fff;">${disabledRulesCount}</span></div>
+        <div style="margin-bottom:6px;">Uitgeschakelde regels dirty: <span style="color:#fff;">${disabledRulesDirty}</span></div>
         <div style="margin-bottom:6px;">Sequence: <span style="color:#fff; font-family: monospace;">${sequence}</span></div>
         <div>Server API Level: <span style="color:#fff; font-family: monospace;">${apiLevel}</span></div>
     `;
