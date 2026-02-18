@@ -296,6 +296,7 @@ function initHaEventStream() {
         haEventSource = new EventSource('ha-events');
         haEventSource.onopen = () => addLog('📡 HA event stream open', false);
         haEventSource.onmessage = scheduleEvent;
+        haEventSource.addEventListener('hello', scheduleEvent);
         haEventSource.addEventListener('push', scheduleEvent);
         haEventSource.addEventListener('storage', scheduleEvent);
         haEventSource.onerror = () => {

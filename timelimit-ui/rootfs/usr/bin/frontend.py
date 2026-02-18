@@ -438,7 +438,13 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 SSE_CLIENT_COUNTER += 1
                 client_id = SSE_CLIENT_COUNTER
                 current_count = len(SSE_CLIENTS) + 1
-            sse_log(f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count})")
+            user_agent = self.headers.get('User-Agent', '-')
+            forwarded_for = self.headers.get('X-Forwarded-For', '-')
+            ingress_path = self.headers.get('X-Ingress-Path', '-')
+            client_addr = f"{self.client_address[0]}:{self.client_address[1]}" if self.client_address else '-'
+            sse_log(
+                f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count}, addr={client_addr}, fwd={forwarded_for}, ingress={ingress_path}, ua={user_agent})"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
@@ -454,6 +460,8 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 self.wfile.write(b": connected\n\n")
+                hello_payload = f"event: hello\ndata: clientId={client_id}\n\n".encode('utf-8')
+                self.wfile.write(hello_payload)
                 self.wfile.flush()
                 while True:
                     time.sleep(15)
