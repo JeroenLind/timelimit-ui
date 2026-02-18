@@ -542,7 +542,7 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                 
                 <div class="tree-content" style="display: none;"> 
                     <div class="tree-node">
-                        <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                        <div class="tree-item folder-node" data-category-id="${node.categoryId}" data-section="rules" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
                             <span class="tree-icon">▶</span>
                             <span class="tree-title folder-title">Rules</span>
                             <button class="rule-add-btn" type="button" onclick="event.stopPropagation(); addRuleToCategory('${node.categoryId}');">+</button>
@@ -553,7 +553,7 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
                     </div>
 
                     <div class="tree-node">
-                        <div class="tree-item folder-node" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
+                        <div class="tree-item folder-node" data-category-id="${node.categoryId}" data-section="apps" style="margin-left: ${subIndent}px" onclick="toggleNode(this)">
                             <span class="tree-icon">▶</span>
                             <span class="tree-title folder-title">Apps</span>
                             <button class="rule-add-btn" type="button" onclick="event.stopPropagation(); showAddAppModal('${node.categoryId}');">+</button>
