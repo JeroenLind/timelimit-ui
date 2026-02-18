@@ -1194,6 +1194,10 @@ async function executePushSync() {
         if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
             addLog("❌ Geen geldig token beschikbaar!", true);
             console.error("[PUSH-SYNC] Geen geldig token");
+            alert("Push sync kan niet starten: geen geldig token. Log opnieuw in.");
+            if (typeof showLoginModal === 'function') {
+                showLoginModal();
+            }
             return;
         }
         
@@ -1201,6 +1205,10 @@ async function executePushSync() {
         if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
             addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
             console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
+            alert("Push sync kan niet starten: wachtwoord hashes ontbreken. Werk deze bij.");
+            if (typeof showPasswordResetModal === 'function') {
+                showPasswordResetModal();
+            }
             return;
         }
     
@@ -1569,6 +1577,11 @@ async function executePushSync() {
             updatePendingChangesIndicator();
         }
     }
+}
+
+if (typeof window !== 'undefined') {
+    window.executePushSync = executePushSync;
+    window.runSync = runSync;
 }
 
 /**
