@@ -19,20 +19,23 @@ SSE_CLIENTS = []
 SSE_LOCK = threading.Lock()
 SSE_CLIENT_COUNTER = 0
 
+def sse_log(message):
+    sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
+
 def broadcast_sse(event, data):
-    sys.stderr.write(f"[SSE] Broadcast event={event} data={data}\n")
+    sse_log(f"[SSE] Broadcast event={event} data={data}")
     payload = f"event: {event}\ndata: {data}\n\n".encode('utf-8')
     with SSE_LOCK:
         clients = list(SSE_CLIENTS)
-    sys.stderr.write(f"[SSE] Clients count={len(clients)}\n")
+    sse_log(f"[SSE] Clients count={len(clients)}")
     for client in clients:
         try:
             with client["lock"]:
                 client["wfile"].write(payload)
                 client["wfile"].flush()
-            sys.stderr.write(f"[SSE] Sent event={event} to client={client.get('id', '?')}\n")
+            sse_log(f"[SSE] Sent event={event} to client={client.get('id', '?')}")
         except Exception as e:
-            sys.stderr.write(f"[SSE] Broadcast failed: {str(e)}\n")
+            sse_log(f"[SSE] Broadcast failed: {str(e)}")
             try:
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
@@ -108,13 +111,13 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     json.dump(payload, f)
                 os.replace(STORAGE_TMP_PATH, STORAGE_PATH)
 
-                sys.stderr.write("[SSE] Trigger broadcast from /ha-storage\n")
+                sse_log("[SSE] Trigger broadcast from /ha-storage")
                 broadcast_sse("storage", "updated")
 
                 self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
                 return
             except Exception as e:
-                sys.stderr.write(f"❌ [ERROR] Fout in /ha-storage: {str(e)}\n")
+                sse_log(f"❌ [ERROR] Fout in /ha-storage: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
@@ -415,7 +418,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 sys.stderr.write(f"[DEBUG] Response preview: (binary data)\n")
             
             if self.path.endswith('/sync/push-actions') and 200 <= status < 300:
-                sys.stderr.write("[SSE] Trigger broadcast from /sync/push-actions\n")
+                sse_log("[SSE] Trigger broadcast from /sync/push-actions")
                 broadcast_sse("push", "done")
             self._send_raw(status, body, "application/json")
         except Exception as e:
@@ -432,7 +435,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 SSE_CLIENT_COUNTER += 1
                 client_id = SSE_CLIENT_COUNTER
                 current_count = len(SSE_CLIENTS) + 1
-            sys.stderr.write(f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count})\n")
+            sse_log(f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count})")
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
@@ -459,7 +462,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             finally:
                 with SSE_LOCK:
                     remaining = len(SSE_CLIENTS) - 1 if client in SSE_CLIENTS else len(SSE_CLIENTS)
-                sys.stderr.write(f"[SSE] Client disconnected from /ha-events (client={client_id}, clients={max(remaining, 0)})\n")
+                sse_log(f"[SSE] Client disconnected from /ha-events (client={client_id}, clients={max(remaining, 0)})")
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
                         SSE_CLIENTS.remove(client)
@@ -473,7 +476,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     data = {"status": "empty"}
                 self._send_raw(200, json.dumps(data).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}\n")
+                sse_log(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}")
                 self._send_raw(500, str(e).encode(), "text/plain")
             return
         if self.path in ['/', '', '/index.html']:
