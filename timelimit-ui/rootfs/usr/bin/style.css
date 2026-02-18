@@ -143,6 +143,12 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     line-height: 1.2;
 }
 
+.rule-deleted .rule-title,
+.rule-deleted .rule-subtitle {
+    text-decoration: line-through;
+    color: #c77b7b;
+}
+
 .rule-subtitle {
     font-size: 10px;
     color: #666;
@@ -350,6 +356,25 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 
 .delete-modal-btn:hover {
     background: #d32f2f;
+}
+
+.restore-modal-btn {
+    background: #2d5a2d;
+    border-color: #4a8a4a;
+}
+
+.restore-modal-btn:hover {
+    background: #267026;
+}
+
+.rule-modal-readonly .save-modal-btn {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.rule-modal-readonly .day-btn {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* Zorg dat de regels eruitzien als klikbare knoppen */

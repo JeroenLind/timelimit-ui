@@ -162,6 +162,7 @@ function initializeDraft(data) {
     deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
     normalizeDisabledRules();
     mergeDisabledRulesIntoDraft(currentDataDraft);
+    mergeDeletedRulesIntoDraft(currentDataDraft);
     
     // Sla parent password hash op voor HMAC-SHA512 signing
     if (data.parentPasswordHash) {
@@ -206,6 +207,23 @@ function mergeDisabledRulesIntoDraft(draft) {
             existing._disabled = true;
         } else {
             category.rules.push({ ...rule, _disabled: true });
+        }
+    });
+}
+
+function mergeDeletedRulesIntoDraft(draft) {
+    if (!draft || !Array.isArray(draft.rules)) return;
+    if (!Array.isArray(deletedRules) || deletedRules.length === 0) return;
+
+    deletedRules.forEach((item) => {
+        if (!item || !item.categoryId || !item.ruleId) return;
+        const catKey = String(item.categoryId);
+        const ruleKey = String(item.ruleId);
+        const category = draft.rules.find(r => String(r.categoryId) === catKey);
+        if (!category || !Array.isArray(category.rules)) return;
+        const existing = category.rules.find(r => String(r.id) === ruleKey);
+        if (existing) {
+            existing._deletedPending = true;
         }
     });
 }
@@ -805,12 +823,15 @@ function deleteRule(categoryId, ruleId) {
     const rule = category.rules[ruleIndex];
     const isNewRule = !ruleExistsInSnapshot(catKey, ruleKey) || !!rule._isNew;
 
-    category.rules.splice(ruleIndex, 1);
+    if (!isNewRule && rule._deletedPending) return;
+
     removeDisabledRule(catKey, ruleKey);
 
     if (isNewRule) {
+        category.rules.splice(ruleIndex, 1);
         newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
     } else {
+        rule._deletedPending = true;
         addDeletedRule(catKey, ruleKey);
     }
 
@@ -822,6 +843,69 @@ function deleteRule(categoryId, ruleId) {
     if (typeof updatePendingChangesIndicator === 'function') {
         updatePendingChangesIndicator();
     }
+}
+
+function isRuleDeletePending(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    if (Array.isArray(deletedRules)) {
+        if (deletedRules.some(r => String(r.categoryId) === catKey && String(r.ruleId) === ruleKey)) {
+            return true;
+        }
+    }
+    if (currentDataDraft && Array.isArray(currentDataDraft.rules)) {
+        const category = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+        const rule = category && Array.isArray(category.rules)
+            ? category.rules.find(r => String(r.id) === ruleKey)
+            : null;
+        if (rule && rule._deletedPending) return true;
+    }
+    return false;
+}
+
+function restoreDeletedRule(categoryId, ruleId) {
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+
+    removeDeletedRule(catKey, ruleKey);
+
+    if (currentDataDraft && Array.isArray(currentDataDraft.rules)) {
+        let category = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+        if (!category) {
+            category = { categoryId: catKey, rules: [] };
+            currentDataDraft.rules.push(category);
+        }
+        if (!Array.isArray(category.rules)) category.rules = [];
+
+        let rule = category.rules.find(r => String(r.id) === ruleKey);
+        if (rule) {
+            rule._deletedPending = false;
+        } else if (originalDataSnapshot && Array.isArray(originalDataSnapshot.rules)) {
+            const originalCategory = originalDataSnapshot.rules.find(r => String(r.categoryId) === catKey);
+            const originalRule = originalCategory && Array.isArray(originalCategory.rules)
+                ? originalCategory.rules.find(r => String(r.id) === ruleKey)
+                : null;
+            if (originalRule) {
+                category.rules.push({ ...originalRule });
+            }
+        }
+    }
+
+    if (typeof refreshRuleViews === 'function') {
+        refreshRuleViews();
+    }
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
+}
+
+function restoreDeletedRuleFromModal() {
+    const catId = document.getElementById('edit-cat-id')?.value;
+    const ruleId = document.getElementById('edit-rule-id')?.value;
+    if (!catId || !ruleId) return;
+
+    restoreDeletedRule(catId, ruleId);
+    closeModal();
 }
 
 function deleteRuleFromModal() {
@@ -867,6 +951,35 @@ function resetAllChanges() {
 /**
  * Opent de modal en vertaalt MS en Minuten naar leesbare UI velden
  */
+function setRuleModalReadonly(isReadonly) {
+    const modal = document.getElementById('rule-modal');
+    const modalContent = modal ? modal.querySelector('.modal-content') : null;
+    if (modalContent) {
+        modalContent.classList.toggle('rule-modal-readonly', !!isReadonly);
+    }
+
+    const inputIds = [
+        'input-hours',
+        'input-minutes',
+        'input-start-time',
+        'input-end-time',
+        'field-perDay',
+        'field-dayMask'
+    ];
+
+    inputIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !!isReadonly;
+    });
+
+    document.querySelectorAll('#rule-modal .day-btn').forEach((btn) => {
+        btn.disabled = !!isReadonly;
+    });
+
+    const saveBtn = document.getElementById('save-rule-btn');
+    if (saveBtn) saveBtn.disabled = !!isReadonly;
+}
+
 function openRuleModal(catId, ruleId) {
     console.log("Trigger: Modal openen voor Cat:", catId, "Rule:", ruleId);
     
@@ -891,11 +1004,20 @@ function openRuleModal(catId, ruleId) {
         pendingNewRuleSaved = false;
     }
 
+    const isNewRule = !ruleExistsInSnapshot(catId, ruleId) || !!rule._isNew || !!rule._pendingNew;
+    const isDeleted = !!rule._deletedPending || isRuleDeletePending(catId, ruleId);
+
     const deleteBtn = document.getElementById('delete-rule-btn');
     if (deleteBtn) {
-        const isNewRule = !ruleExistsInSnapshot(catId, ruleId) || !!rule._isNew || !!rule._pendingNew;
-        deleteBtn.style.display = isNewRule ? 'none' : 'block';
+        deleteBtn.style.display = (isNewRule || isDeleted) ? 'none' : 'block';
     }
+
+    const restoreBtn = document.getElementById('restore-rule-btn');
+    if (restoreBtn) {
+        restoreBtn.style.display = isDeleted ? 'block' : 'none';
+    }
+
+    setRuleModalReadonly(isDeleted);
 
     // 1. Basis ID's opslaan
     document.getElementById('edit-cat-id').value = catId;
@@ -1047,6 +1169,8 @@ window.enableRule = enableRule;
 window.toggleRuleEnabled = toggleRuleEnabled;
 window.deleteRule = deleteRule;
 window.deleteRuleFromModal = deleteRuleFromModal;
+window.restoreDeletedRule = restoreDeletedRule;
+window.restoreDeletedRuleFromModal = restoreDeletedRuleFromModal;
 window.isRuleDisabled = isRuleDisabled;
 window.getDisabledRules = getDisabledRules;
 window.getDeletedRules = getDeletedRules;

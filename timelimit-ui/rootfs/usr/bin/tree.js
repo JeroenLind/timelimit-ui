@@ -285,9 +285,17 @@ function renderRulesHTML(rules, categoryId) {
     if (!rules || rules.length === 0) {
         return '<div class="tree-leaf rule-leaf rule-empty">Geen regels. Klik op + om toe te voegen.</div>';
     }
+
+    const deletedList = typeof getDeletedRules === 'function' ? getDeletedRules() : [];
+    const deletedSet = new Set(
+        deletedList
+            .filter(item => item && item.categoryId && item.ruleId)
+            .map(item => `${String(item.categoryId)}::${String(item.ruleId)}`)
+    );
     
     return rules.map(r => {
         const isDisabled = !!r._disabled;
+        const isDeleted = !!r._deletedPending || deletedSet.has(`${String(categoryId)}::${String(r.id)}`);
         let title = "Beperking";
         if (r.maxTime > 0) {
             title = `Limiet: ${formatDuration(r.maxTime)}`;
@@ -299,22 +307,31 @@ function renderRulesHTML(rules, categoryId) {
         const isChanged = isRuleChanged(categoryId, r.id);
         const isNew = !!r._isNew;
         const changedClass = isChanged || isNew ? 'rule-changed' : '';
-        const changedBadge = isDisabled
-            ? '<span class="change-badge">⏸️ Uitgeschakeld</span>'
-            : isNew
-                ? '<span class="change-badge">🆕 Nieuw</span>'
-                : (isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '');
+        const deletedClass = isDeleted ? 'rule-deleted' : '';
+        const changedBadge = isDeleted
+            ? '<span class="change-badge">🗑️ Verwijderd</span>'
+            : isDisabled
+                ? '<span class="change-badge">⏸️ Uitgeschakeld</span>'
+                : isNew
+                    ? '<span class="change-badge">🆕 Nieuw</span>'
+                    : (isChanged ? '<span class="change-badge">✏️ Gewijzigd</span>' : '');
 
-        const toggleHtml = `
-            <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:10px; color:${isDisabled ? '#f48fb1' : '#8ab4f8'};" onclick="event.stopPropagation();">
-                <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.persistOpenCategoryState) window.persistOpenCategoryState(); if (window.persistOpenSectionState) window.persistOpenSectionState(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
-                <span>${isDisabled ? 'Uit' : 'Aan'}</span>
-            </label>
-        `;
+        const rowStyle = isDeleted
+            ? 'opacity:0.7; border-left: 3px solid #b71c1c; background:#231216;'
+            : (isDisabled ? 'opacity:0.65; border-left: 3px solid #e53935; background:#2a1212;' : '');
+
+        const toggleHtml = isDeleted
+            ? `<span style="margin-left:auto; font-size:10px; color:#d08a8a;">Verwijderd</span>`
+            : `
+                <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:10px; color:${isDisabled ? '#f48fb1' : '#8ab4f8'};" onclick="event.stopPropagation();">
+                    <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="event.stopPropagation(); if (window.persistOpenCategoryState) window.persistOpenCategoryState(); if (window.persistOpenSectionState) window.persistOpenSectionState(); if (window.toggleRuleEnabled) window.toggleRuleEnabled('${categoryId}', '${r.id}', this.checked);" style="cursor:pointer;">
+                    <span>${isDisabled ? 'Uit' : 'Aan'}</span>
+                </label>
+            `;
 
         // BELANGRIJK: De class 'clickable-rule' en de 'onclick' MOETEN hier staan
         return `
-            <div class="tree-leaf rule-leaf clickable-rule ${changedClass}" onclick="if (window.isRuleDisabled && window.isRuleDisabled('${categoryId}', '${r.id}')) return; openRuleModal('${categoryId}', '${r.id}')" style="${isDisabled ? 'opacity:0.65; border-left: 3px solid #e53935; background:#2a1212;' : ''}">
+            <div class="tree-leaf rule-leaf clickable-rule ${changedClass} ${deletedClass}" onclick="if (window.isRuleDisabled && window.isRuleDisabled('${categoryId}', '${r.id}')) return; openRuleModal('${categoryId}', '${r.id}')" style="${rowStyle}">
                 <span class="leaf-icon">⚖️</span>
                 <div class="rule-content">
                     <div class="rule-title">${title} ${changedBadge}</div>

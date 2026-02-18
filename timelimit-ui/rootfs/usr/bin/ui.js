@@ -1844,16 +1844,42 @@ window.saveLastEmail = saveLastEmail;
 function showChangesSummary() {
     const changes = getChangedRules();
     const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
+    const deletedRules = typeof getDeletedRules === 'function' ? getDeletedRules() : [];
+    const newCategoryApps = typeof getNewCategoryApps === 'function' ? getNewCategoryApps() : [];
+    const removedCategoryApps = typeof getRemovedCategoryApps === 'function' ? getRemovedCategoryApps() : [];
     
     console.log("[DEBUG] showChangesSummary() aangeroepen. Aantal wijzigingen:", changes.length);
     
-    if (changes.length === 0 && createdRules.length === 0) {
+    if (
+        changes.length === 0
+        && createdRules.length === 0
+        && deletedRules.length === 0
+        && newCategoryApps.length === 0
+        && removedCategoryApps.length === 0
+    ) {
         alert('❌ Geen wijzigingen aangebracht.');
         console.log("[DEBUG] Geen wijzigingen gevonden!");
         return;
     }
 
-    const totalChanges = changes.length + createdRules.length;
+    const totalChanges = changes.length
+        + createdRules.length
+        + deletedRules.length
+        + newCategoryApps.length
+        + removedCategoryApps.length;
+
+    const getCategoryTitle = (catId) => {
+        let catTitle = catId;
+        try {
+            if (typeof currentDataDraft !== 'undefined' && currentDataDraft && currentDataDraft.categoryBase) {
+                const cat = currentDataDraft.categoryBase.find(c => c.categoryId == catId);
+                if (cat && cat.title) catTitle = cat.title;
+            }
+        } catch (e) {
+            console.warn('[DEBUG] kon categorie-naam niet ophalen', e);
+        }
+        return catTitle;
+    };
     let html = `<div class="changes-summary">
         <h3>📋 Wijzigingen (${totalChanges})</h3>
         <ul>`;
@@ -1865,15 +1891,7 @@ function showChangesSummary() {
         const current = change.current;
 
         // Zoek de categorie-naam (title) op uit de huidige data snapshot
-        let catTitle = catId;
-        try {
-            if (typeof currentDataDraft !== 'undefined' && currentDataDraft && currentDataDraft.categoryBase) {
-                const cat = currentDataDraft.categoryBase.find(c => c.categoryId == catId);
-                if (cat && cat.title) catTitle = cat.title;
-            }
-        } catch (e) {
-            console.warn('[DEBUG] kon categorie-naam niet ophalen', e);
-        }
+        let catTitle = getCategoryTitle(catId);
 
         // Bepaal wat er gewijzigd is - controleer elk veld
         let details = [];
@@ -1905,15 +1923,7 @@ function showChangesSummary() {
     createdRules.forEach((rule) => {
         const catId = rule.categoryId;
         const ruleId = rule.id;
-        let catTitle = catId;
-        try {
-            if (typeof currentDataDraft !== 'undefined' && currentDataDraft && currentDataDraft.categoryBase) {
-                const cat = currentDataDraft.categoryBase.find(c => c.categoryId == catId);
-                if (cat && cat.title) catTitle = cat.title;
-            }
-        } catch (e) {
-            console.warn('[DEBUG] kon categorie-naam niet ophalen', e);
-        }
+        let catTitle = getCategoryTitle(catId);
 
         const details = [];
         if (rule.maxTime !== undefined) {
@@ -1934,6 +1944,51 @@ function showChangesSummary() {
             <div class="change-detail">${details.length > 0 ? details.join(' | ') : 'Nieuwe regel'}</div>
         </li>`;
     });
+
+    deletedRules.forEach((item) => {
+        if (!item) return;
+        const catId = item.categoryId;
+        const ruleId = item.ruleId;
+        const catTitle = getCategoryTitle(catId);
+        html += `<li>
+            <strong>Verwijderde regel ${ruleId}</strong> (Categorie: ${catTitle})
+            <div class="change-detail">Wordt verwijderd bij volgende sync</div>
+        </li>`;
+    });
+
+    if (newCategoryApps.length > 0) {
+        const byCategory = new Map();
+        newCategoryApps.forEach((item) => {
+            if (!item) return;
+            const key = String(item.categoryId);
+            if (!byCategory.has(key)) byCategory.set(key, []);
+            byCategory.get(key).push(String(item.packageName));
+        });
+        byCategory.forEach((packages, catId) => {
+            const catTitle = getCategoryTitle(catId);
+            html += `<li>
+                <strong>Apps toegevoegd</strong> (Categorie: ${catTitle})
+                <div class="change-detail">${packages.join(', ')}</div>
+            </li>`;
+        });
+    }
+
+    if (removedCategoryApps.length > 0) {
+        const byCategory = new Map();
+        removedCategoryApps.forEach((item) => {
+            if (!item) return;
+            const key = String(item.categoryId);
+            if (!byCategory.has(key)) byCategory.set(key, []);
+            byCategory.get(key).push(String(item.packageName));
+        });
+        byCategory.forEach((packages, catId) => {
+            const catTitle = getCategoryTitle(catId);
+            html += `<li>
+                <strong>Apps verwijderd</strong> (Categorie: ${catTitle})
+                <div class="change-detail">${packages.join(', ')}</div>
+            </li>`;
+        });
+    }
 
     html += `</ul>
         <button class="btn reset-changes-btn" style="width: 100%; margin-top: 10px;" onclick="resetAllChanges(); location.reload();">↶ Wijzigingen ongedaan maken</button>
