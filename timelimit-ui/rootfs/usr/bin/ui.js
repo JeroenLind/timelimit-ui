@@ -60,6 +60,7 @@ async function pushHaStorageSnapshot(reason) {
             body: JSON.stringify(payload)
         });
         if (res && res.ok && typeof loadHaStorageStatus === 'function') {
+            addLog(`✅ HA storage sync verstuurd (${reason || 'unknown'})`, false);
             loadHaStorageStatus();
         }
     } catch (e) {
@@ -71,6 +72,7 @@ function scheduleHaStorageShadowSync(reason) {
     if (haShadowTimer) {
         clearTimeout(haShadowTimer);
     }
+    addLog(`⏳ HA storage sync gepland (${reason || 'unknown'})`, false);
     haShadowTimer = setTimeout(() => {
         haShadowTimer = null;
         pushHaStorageSnapshot(reason);

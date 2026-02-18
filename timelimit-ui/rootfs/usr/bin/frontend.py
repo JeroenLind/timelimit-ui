@@ -104,6 +104,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     json.dump(payload, f)
                 os.replace(STORAGE_TMP_PATH, STORAGE_PATH)
 
+                sys.stderr.write("[SSE] Trigger broadcast from /ha-storage\n")
+                broadcast_sse("storage", "updated")
+
                 self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
                 return
             except Exception as e:
@@ -407,6 +410,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except:
                 sys.stderr.write(f"[DEBUG] Response preview: (binary data)\n")
             
+            if self.path.endswith('/sync/push-actions') and 200 <= status < 300:
+                sys.stderr.write("[SSE] Trigger broadcast from /sync/push-actions\n")
+                broadcast_sse("push", "done")
             self._send_raw(status, body, "application/json")
         except Exception as e:
             sys.stderr.write(f"❌ [PROXY ERROR]: {str(e)}\n")
