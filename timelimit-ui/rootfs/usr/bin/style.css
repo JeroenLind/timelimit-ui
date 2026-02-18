@@ -3,6 +3,69 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; c
 
 header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px solid #232a35; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 
+.bottom-bar {
+    padding: 10px 20px;
+    background: #151921;
+    border-top: 1px solid #232a35;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.bottom-bar-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bottom-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #151921;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.bottom-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.bottom-select {
+    background: transparent;
+    color: #03a9f4;
+    border: none;
+    font-size: 11px;
+    font-family: monospace;
+    cursor: pointer;
+    outline: none;
+}
+
+.bottom-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #aaa;
+}
+
+.bottom-checkbox {
+    margin: 0;
+    width: 14px;
+    height: 14px;
+}
+
+.bottom-mono {
+    font-family: monospace;
+}
+
 .main-container { display: grid; grid-template-columns: 1fr 450px; flex: 1; min-height: 0; }
 
 .dashboard-view { padding: 20px; overflow-y: auto; }
@@ -518,6 +581,15 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
 
     .main-container {
         grid-template-columns: 1fr;
+    }
+
+    .bottom-bar {
+        padding: 10px;
+        justify-content: flex-start;
+    }
+
+    .bottom-bar-controls {
+        flex-wrap: wrap;
     }
 
     .dashboard-view {
