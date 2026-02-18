@@ -31,7 +31,7 @@ def broadcast_sse(event, data):
                 client["wfile"].write(payload)
                 client["wfile"].flush()
             sys.stderr.write(f"[SSE] Sent event={event} to client={client.get('id', '?')}\n")
-        except Exception:
+        except Exception as e:
             sys.stderr.write(f"[SSE] Broadcast failed: {str(e)}\n")
             try:
                 with SSE_LOCK:
