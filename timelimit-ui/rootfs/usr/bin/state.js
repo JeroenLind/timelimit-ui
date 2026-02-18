@@ -791,6 +791,50 @@ function toggleRuleEnabled(categoryId, ruleId, enabled) {
     }
 }
 
+function deleteRule(categoryId, ruleId) {
+    if (!currentDataDraft || !Array.isArray(currentDataDraft.rules)) return;
+
+    const catKey = String(categoryId);
+    const ruleKey = String(ruleId);
+    const category = currentDataDraft.rules.find(r => String(r.categoryId) === catKey);
+    if (!category || !Array.isArray(category.rules)) return;
+
+    const ruleIndex = category.rules.findIndex(r => String(r.id) === ruleKey);
+    if (ruleIndex === -1) return;
+
+    const rule = category.rules[ruleIndex];
+    const isNewRule = !ruleExistsInSnapshot(catKey, ruleKey) || !!rule._isNew;
+
+    category.rules.splice(ruleIndex, 1);
+    removeDisabledRule(catKey, ruleKey);
+
+    if (isNewRule) {
+        newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
+    } else {
+        addDeletedRule(catKey, ruleKey);
+    }
+
+    changedRules.delete(`${catKey}_${ruleKey}`);
+
+    if (typeof refreshRuleViews === 'function') {
+        refreshRuleViews();
+    }
+    if (typeof updatePendingChangesIndicator === 'function') {
+        updatePendingChangesIndicator();
+    }
+}
+
+function deleteRuleFromModal() {
+    const catId = document.getElementById('edit-cat-id')?.value;
+    const ruleId = document.getElementById('edit-rule-id')?.value;
+    if (!catId || !ruleId) return;
+
+    if (!confirm('Weet je zeker dat je deze regel wilt verwijderen?')) return;
+
+    deleteRule(catId, ruleId);
+    closeModal();
+}
+
 function reconcileDeletedRules(data) {
     if (!Array.isArray(deletedRules) || deletedRules.length === 0) return;
     if (!data || !Array.isArray(data.rules)) return;
@@ -845,6 +889,12 @@ function openRuleModal(catId, ruleId) {
     } else {
         pendingNewRule = null;
         pendingNewRuleSaved = false;
+    }
+
+    const deleteBtn = document.getElementById('delete-rule-btn');
+    if (deleteBtn) {
+        const isNewRule = !ruleExistsInSnapshot(catId, ruleId) || !!rule._isNew || !!rule._pendingNew;
+        deleteBtn.style.display = isNewRule ? 'none' : 'block';
     }
 
     // 1. Basis ID's opslaan
@@ -995,6 +1045,8 @@ window.reconcileRemovedApps = reconcileRemovedApps;
 window.disableRule = disableRule;
 window.enableRule = enableRule;
 window.toggleRuleEnabled = toggleRuleEnabled;
+window.deleteRule = deleteRule;
+window.deleteRuleFromModal = deleteRuleFromModal;
 window.isRuleDisabled = isRuleDisabled;
 window.getDisabledRules = getDisabledRules;
 window.getDeletedRules = getDeletedRules;

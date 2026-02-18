@@ -344,6 +344,14 @@ input { background: #1c222d; border: 1px solid #333; color: white; padding: 10px
     background: #0288d1;
 }
 
+.delete-modal-btn {
+    background: #f44336;
+}
+
+.delete-modal-btn:hover {
+    background: #d32f2f;
+}
+
 /* Zorg dat de regels eruitzien als klikbare knoppen */
 .clickable-rule {
     cursor: pointer !important;

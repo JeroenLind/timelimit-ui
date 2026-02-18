@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>TimeLimit UI v85 - Session Manager</title>
-    <link rel="stylesheet" href="style.css?v=89">
+    <link rel="stylesheet" href="style.css?v=90">
 </head>
 <body>
     <header>
@@ -312,10 +312,11 @@
             </div>
         
             <button class="save-modal-btn" onclick="saveModalChanges()">Tijdelijk Opslaan</button>
+            <button id="delete-rule-btn" class="save-modal-btn delete-modal-btn" onclick="deleteRuleFromModal()">Regel Verwijderen</button>
         </div>
     </div>
 
-    <script src="state.js?v=93"></script>
+    <script src="state.js?v=95"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl.min.js" crossorigin="anonymous"></script>
     <script src="ui.js?v=105"></script>
     <script src="wizard.js?v=87"></script>
