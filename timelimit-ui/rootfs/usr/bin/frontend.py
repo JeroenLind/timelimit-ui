@@ -417,7 +417,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
         if self.path.endswith('/ha-events'):
-            sys.stderr.write("[SSE] Client connected to /ha-events\n")
+            with SSE_LOCK:
+                current_count = len(SSE_CLIENTS) + 1
+            sys.stderr.write(f"[SSE] Client connected to /ha-events (clients={current_count})\n")
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
@@ -439,7 +441,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
             finally:
-                sys.stderr.write("[SSE] Client disconnected from /ha-events\n")
+                with SSE_LOCK:
+                    remaining = len(SSE_CLIENTS) - 1 if client in SSE_CLIENTS else len(SSE_CLIENTS)
+                sys.stderr.write(f"[SSE] Client disconnected from /ha-events (clients={max(remaining, 0)})\n")
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
                         SSE_CLIENTS.remove(client)
