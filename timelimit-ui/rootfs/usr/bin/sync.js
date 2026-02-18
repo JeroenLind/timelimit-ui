@@ -1172,22 +1172,24 @@ async function executePushSync() {
     const timestamp = new Date().toLocaleTimeString();
     const separator = `\n\n${"=".repeat(20)} PUSH SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
     
+    setPendingBadgeSyncState(true);
     addLog("🚀 PUSH SYNC starten...", false);
     console.log("=== PUSH SYNC GESTART ===");
     
-    // Check TOKEN
-    if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
-        addLog("❌ Geen geldig token beschikbaar!", true);
-        console.error("[PUSH-SYNC] Geen geldig token");
-        return;
-    }
-    
-    // Check parentPasswordHash
-    if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
-        addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
-        console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
-        return;
-    }
+    try {
+        // Check TOKEN
+        if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
+            addLog("❌ Geen geldig token beschikbaar!", true);
+            console.error("[PUSH-SYNC] Geen geldig token");
+            return;
+        }
+        
+        // Check parentPasswordHash
+        if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
+            addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
+            console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
+            return;
+        }
     
     console.log("[PUSH-SYNC] Token check: OK");
     console.log("[PUSH-SYNC] parentPasswordHash check: OK");
@@ -1547,6 +1549,12 @@ async function executePushSync() {
                 runSync();
             }
         }, 1000);
+    }
+    } finally {
+        setPendingBadgeSyncState(false);
+        if (typeof updatePendingChangesIndicator === 'function') {
+            updatePendingChangesIndicator();
+        }
     }
 }
 
