@@ -256,6 +256,10 @@ let haEventReconnectTimer = null;
 let haEventReconnectDelay = 2000;
 let haEventFallbackTimer = null;
 let haStoragePollTimer = null;
+let haLongPollTimer = null;
+let haLongPollActive = false;
+let haLongPollLastId = 0;
+let haLongPollErrorCount = 0;
 
 function startHaStoragePolling() {
     if (haStoragePollTimer) return;
@@ -277,6 +281,83 @@ function stopHaStoragePolling() {
     addLog('✅ HA event stream actief; fallback polling gestopt', false);
 }
 
+function handleHaEvent(type, data) {
+    addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
+    try {
+        console.log(`[HA-SSE] event=${type}${data ? ` data=${data}` : ''}`);
+    } catch (e) {
+        // Ignore console errors.
+    }
+    haEventLastReceivedAt = Date.now();
+    stopHaLongPoll();
+    stopHaStoragePolling();
+    scheduleHaEventFallbackCheck();
+    const now = Date.now();
+
+    if (type === 'storage') {
+        if (now - haEventLastStorageAt < 300) return;
+        haEventLastStorageAt = now;
+        addLog('🔄 HA event: apply HA storage', false);
+        if (typeof loadHaStorageAndApply === 'function') {
+            loadHaStorageAndApply();
+        }
+        if (typeof reloadDisabledRulesFromStorage === 'function') {
+            reloadDisabledRulesFromStorage();
+        }
+        return;
+    }
+
+    if (now - haEventLastSyncAt < 2000) return;
+    haEventLastSyncAt = now;
+    if (typeof runSync === 'function') {
+        addLog('🔄 HA event: trigger pull sync', false);
+        runSync();
+    }
+}
+
+function startHaLongPoll() {
+    if (haLongPollActive) return;
+    haLongPollActive = true;
+    addLog('⚠️ SSE geblokkeerd; long-poll gestart', true);
+
+    const pollOnce = async () => {
+        if (!haLongPollActive) return;
+        try {
+            const url = `ha-events-longpoll?since=${haLongPollLastId}&timeout=25`;
+            const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+            if (!res.ok) throw new Error(`status ${res.status}`);
+            const payload = await res.json();
+            haLongPollErrorCount = 0;
+            if (payload && payload.id) {
+                haLongPollLastId = payload.id;
+            }
+            if (payload && payload.status === 'event' && payload.event) {
+                handleHaEvent(payload.event, payload.data || '');
+            }
+        } catch (e) {
+            haLongPollErrorCount += 1;
+            addLog(`⚠️ Long-poll fout (${haLongPollErrorCount}): ${e.message || e}`, true);
+            if (haLongPollErrorCount >= 3) {
+                startHaStoragePolling();
+            }
+        } finally {
+            if (!haLongPollActive) return;
+            haLongPollTimer = setTimeout(pollOnce, 250);
+        }
+    };
+
+    pollOnce();
+}
+
+function stopHaLongPoll() {
+    if (!haLongPollActive) return;
+    haLongPollActive = false;
+    if (haLongPollTimer) {
+        clearTimeout(haLongPollTimer);
+        haLongPollTimer = null;
+    }
+}
+
 function scheduleHaEventFallbackCheck() {
     if (haEventFallbackTimer) {
         clearTimeout(haEventFallbackTimer);
@@ -286,54 +367,17 @@ function scheduleHaEventFallbackCheck() {
         if (!haEventSource) return;
         const now = Date.now();
         if (haEventLastReceivedAt && now - haEventLastReceivedAt < 8000) return;
-        startHaStoragePolling();
+        startHaLongPoll();
     }, 8000);
 }
 
 function initHaEventStream() {
     if (haEventSource || typeof EventSource === 'undefined') return;
 
-    const triggerStorageApply = () => {
-        if (typeof loadHaStorageAndApply === 'function') {
-            loadHaStorageAndApply();
-        }
-        if (typeof reloadDisabledRulesFromStorage === 'function') {
-            reloadDisabledRulesFromStorage();
-        }
-    };
-
-    const triggerPullSync = () => {
-        if (typeof runSync === 'function') {
-            addLog('🔄 HA event: trigger pull sync', false);
-            runSync();
-        }
-    };
-
     const scheduleEvent = (evt) => {
         const type = evt && evt.type ? evt.type : 'message';
         const data = evt && typeof evt.data !== 'undefined' ? String(evt.data) : '';
-        addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
-        try {
-            console.log(`[HA-SSE] event=${type}${data ? ` data=${data}` : ''}`);
-        } catch (e) {
-            // Ignore console errors.
-        }
-        haEventLastReceivedAt = Date.now();
-        stopHaStoragePolling();
-        scheduleHaEventFallbackCheck();
-        const now = Date.now();
-
-        if (type === 'storage') {
-            if (now - haEventLastStorageAt < 300) return;
-            haEventLastStorageAt = now;
-            addLog('🔄 HA event: apply HA storage', false);
-            triggerStorageApply();
-            return;
-        }
-
-        if (now - haEventLastSyncAt < 2000) return;
-        haEventLastSyncAt = now;
-        triggerPullSync();
+        handleHaEvent(type, data);
     };
 
     try {
@@ -359,7 +403,7 @@ function initHaEventStream() {
                 if (typeof loadHaStorageAndApply === 'function') {
                     loadHaStorageAndApply();
                 }
-                startHaStoragePolling();
+                startHaLongPoll();
                 if (haEventReconnectTimer) {
                     clearTimeout(haEventReconnectTimer);
                 }

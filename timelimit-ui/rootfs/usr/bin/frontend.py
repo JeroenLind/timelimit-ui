@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import threading
+import urllib.parse
 from socketserver import ThreadingMixIn
 from api_client import TimeLimitAPI
 
@@ -18,6 +19,9 @@ SELECTED_SERVER = None
 SSE_CLIENTS = []
 SSE_LOCK = threading.Lock()
 SSE_CLIENT_COUNTER = 0
+LONGPOLL_LOCK = threading.Lock()
+LONGPOLL_COND = threading.Condition(LONGPOLL_LOCK)
+LONGPOLL_LAST_EVENT = {"id": 0, "event": None, "data": None, "ts": 0}
 
 def log(message):
     sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
@@ -28,6 +32,12 @@ def sse_log(message):
 def broadcast_sse(event, data):
     sse_log(f"[SSE] Broadcast event={event} data={data}")
     payload = f"event: {event}\ndata: {data}\n\n".encode('utf-8')
+    with LONGPOLL_COND:
+        LONGPOLL_LAST_EVENT["id"] += 1
+        LONGPOLL_LAST_EVENT["event"] = event
+        LONGPOLL_LAST_EVENT["data"] = data
+        LONGPOLL_LAST_EVENT["ts"] = int(time.time() * 1000)
+        LONGPOLL_COND.notify_all()
     with SSE_LOCK:
         clients = list(SSE_CLIENTS)
     sse_log(f"[SSE] Clients count={len(clients)}")
@@ -481,6 +491,54 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
                         SSE_CLIENTS.remove(client)
+            return
+        if '/ha-events-longpoll' in self.path:
+            try:
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                since_raw = params.get('since', ['0'])[0]
+                timeout_raw = params.get('timeout', ['25'])[0]
+                try:
+                    since_id = int(since_raw)
+                except Exception:
+                    since_id = 0
+                try:
+                    timeout_s = int(timeout_raw)
+                except Exception:
+                    timeout_s = 25
+                if timeout_s < 1:
+                    timeout_s = 1
+                if timeout_s > 30:
+                    timeout_s = 30
+
+                with LONGPOLL_COND:
+                    last_id = LONGPOLL_LAST_EVENT["id"]
+                    if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
+                        payload = {
+                            "status": "event",
+                            "id": last_id,
+                            "event": LONGPOLL_LAST_EVENT["event"],
+                            "data": LONGPOLL_LAST_EVENT["data"],
+                            "ts": LONGPOLL_LAST_EVENT["ts"]
+                        }
+                    else:
+                        LONGPOLL_COND.wait(timeout=timeout_s)
+                        last_id = LONGPOLL_LAST_EVENT["id"]
+                        if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
+                            payload = {
+                                "status": "event",
+                                "id": last_id,
+                                "event": LONGPOLL_LAST_EVENT["event"],
+                                "data": LONGPOLL_LAST_EVENT["data"],
+                                "ts": LONGPOLL_LAST_EVENT["ts"]
+                            }
+                        else:
+                            payload = {"status": "timeout", "id": last_id}
+
+                self._send_raw(200, json.dumps(payload).encode(), "application/json")
+            except Exception as e:
+                log(f"❌ [ERROR] Fout in /ha-events-longpoll: {str(e)}")
+                self._send_raw(500, str(e).encode(), "text/plain")
             return
         if self.path.endswith('/ha-storage'):
             try:
