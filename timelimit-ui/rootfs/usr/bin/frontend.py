@@ -19,8 +19,11 @@ SSE_CLIENTS = []
 SSE_LOCK = threading.Lock()
 SSE_CLIENT_COUNTER = 0
 
-def sse_log(message):
+def log(message):
     sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
+
+def sse_log(message):
+    log(message)
 
 def broadcast_sse(event, data):
     sse_log(f"[SSE] Broadcast event={event} data={data}")
@@ -50,7 +53,7 @@ def get_config():
             with open(CONFIG_PATH, 'r') as f: 
                 return json.load(f)
         except Exception as e:
-            sys.stderr.write(f"Config Error: {str(e)}\n")
+            log(f"Config Error: {str(e)}")
     return {"server_url": "http://192.168.68.30:8080", "auth_token": ""}
 
 class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
@@ -60,41 +63,41 @@ class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, format, *args):
-        sys.stderr.write(f"WebUI [{time.strftime('%H:%M:%S')}]: {format%args}\n")
+        log(f"WebUI: {format%args}")
 
     def do_POST(self):
         """Handelt alle API verzoeken van het dashboard af met uitgebreide logging."""
         global SELECTED_SERVER
         
         # DEBUG: Log welk pad wordt aangeroepen
-        sys.stderr.write(f"\n[DEBUG] Binnenkomend POST verzoek op pad: {self.path}\n")
-        sys.stderr.write(f"[DEBUG] Request headers: {dict(self.headers)}\n")
+        log(f"\n[DEBUG] Binnenkomend POST verzoek op pad: {self.path}")
+        log(f"[DEBUG] Request headers: {dict(self.headers)}")
         
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
-        sys.stderr.write(f"[DEBUG] Content-Length: {content_length} bytes\n")
+        log(f"[DEBUG] Content-Length: {content_length} bytes")
         
         # Initialiseer SELECTED_SERVER
         if SELECTED_SERVER is None:
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
-            sys.stderr.write(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}\n")
+            log(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}")
 
         # --- CHECK 1: De Server Wissel Route (Aangepast voor Ingress compatibiliteit) ---
         if self.path.endswith('/set-server'):
-            sys.stderr.write("[DEBUG] Route /set-server herkend!\n")
+            log("[DEBUG] Route /set-server herkend!")
             try:
                 data = json.loads(post_data)
                 new_url = data.get('url')
-                sys.stderr.write(f"[DEBUG] Poging tot wisselen naar: {new_url}\n")
+                log(f"[DEBUG] Poging tot wisselen naar: {new_url}")
                 
                 SELECTED_SERVER = new_url
-                sys.stderr.write(f"✅ [SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}\n")
+                log(f"✅ [SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}")
                 
                 # Stuur expliciet antwoord terug naar de browser
                 self._send_raw(200, json.dumps({"status": "ok", "server": SELECTED_SERVER}).encode(), "application/json")
                 return 
             except Exception as e:
-                sys.stderr.write(f"❌ [ERROR] Fout in /set-server: {str(e)}\n")
+                log(f"❌ [ERROR] Fout in /set-server: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
@@ -123,7 +126,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
         # --- CHECK 2: Proxy Logica ---
         # We bepalen eerst of we naar de geselecteerde server gaan
-        sys.stderr.write(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}\n")
+        log(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}")
         api = TimeLimitAPI(SELECTED_SERVER)
         
         routes = {
@@ -144,25 +147,25 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         
         # Speciale afhandeling voor interne hashing
         if self.path.endswith('/generate-hashes'):
-            sys.stderr.write("[DEBUG] Interne hash generatie gestart\n")
+            log("[DEBUG] Interne hash generatie gestart")
             from crypto_utils import generate_family_hashes
             try:
                 data = json.loads(post_data)
-                sys.stderr.write(f"[DEBUG] generate-hashes payload keys: {list(data.keys())}\n")
+                log(f"[DEBUG] generate-hashes payload keys: {list(data.keys())}")
                 start_ts = time.time()
                 res = generate_family_hashes(data['password'])
                 duration_ms = int((time.time() - start_ts) * 1000)
-                sys.stderr.write(f"[DEBUG] generate-hashes duur: {duration_ms} ms\n")
-                sys.stderr.write("[DEBUG] generate-hashes succesvol afgerond\n")
+                log(f"[DEBUG] generate-hashes duur: {duration_ms} ms")
+                log("[DEBUG] generate-hashes succesvol afgerond")
                 self._send_raw(200, json.dumps(res).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"[ERROR] generate-hashes fout: {str(e)}\n")
+                log(f"[ERROR] generate-hashes fout: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         
         # Nieuwe endpoint: regenereer secondHash met bestaande salt
         if self.path.endswith('/regenerate-hash'):
-            sys.stderr.write("[DEBUG] secondHash regeneratie gestart\n")
+            log("[DEBUG] secondHash regeneratie gestart")
             from crypto_utils import regenerate_second_hash
             try:
                 data = json.loads(post_data)
@@ -170,17 +173,17 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 second_salt = data['secondSalt']
                 
                 second_hash = regenerate_second_hash(password, second_salt)
-                sys.stderr.write(f"[DEBUG] secondHash succesvol geregenereerd (first 30 chars): {second_hash[:30]}...\n")
+                log(f"[DEBUG] secondHash succesvol geregenereerd (first 30 chars): {second_hash[:30]}...")
                 
                 self._send_raw(200, json.dumps({"secondHash": second_hash}).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"[ERROR] Hash regeneratie fout: {str(e)}\n")
+                log(f"[ERROR] Hash regeneratie fout: {str(e)}")
                 self._send_raw(400, json.dumps({"error": str(e)}).encode(), "application/json")
             return
         
         # Speciale afhandeling voor HMAC-SHA512 berekening (fallback voor non-secure contexts)
         if self.path.endswith('/calculate-hmac'):
-            sys.stderr.write("[DEBUG] Server-side HMAC-SHA512 berekening gestart\n")
+            log("[DEBUG] Server-side HMAC-SHA512 berekening gestart")
             from crypto_utils import calculate_hmac_sha512
             try:
                 data = json.loads(post_data)
@@ -188,34 +191,34 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 message = data['message']
                 
                 result = calculate_hmac_sha512(key_base64, message)
-                sys.stderr.write(f"[DEBUG] HMAC berekend: {result[:30]}...\n")
+                log(f"[DEBUG] HMAC berekend: {result[:30]}...")
                 
                 self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"[ERROR] HMAC fout: {str(e)}\n")
+                log(f"[ERROR] HMAC fout: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
 
         # Legacy SHA512 hex digest (voor serverLevel < 6)
         if self.path.endswith('/calculate-sha512'):
-            sys.stderr.write("[DEBUG] Server-side SHA512 berekening gestart\n")
+            log("[DEBUG] Server-side SHA512 berekening gestart")
             from crypto_utils import calculate_sha512_hex
             try:
                 data = json.loads(post_data)
                 message = data['message']
 
                 result = calculate_sha512_hex(message)
-                sys.stderr.write(f"[DEBUG] SHA512 berekend: {result[:30]}...\n")
+                log(f"[DEBUG] SHA512 berekend: {result[:30]}...")
 
                 self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"[ERROR] SHA512 fout: {str(e)}\n")
+                log(f"[ERROR] SHA512 fout: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         
         # NIEUWE afhandeling voor HMAC-SHA256 met binary format (CORRECT server formaat)
         if self.path.endswith('/calculate-hmac-sha256'):
-            sys.stderr.write("[DEBUG] Server-side HMAC-SHA256 (binary format) berekening gestart\n")
+            log("[DEBUG] Server-side HMAC-SHA256 (binary format) berekening gestart")
             from crypto_utils import calculate_hmac_sha256_binary
             try:
                 data = json.loads(post_data)
@@ -225,17 +228,17 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 encoded_action = data['encodedAction']
                 
                 result = calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encoded_action)
-                sys.stderr.write(f"[DEBUG] HMAC-SHA256 berekend: {result[:50]}...\n")
+                log(f"[DEBUG] HMAC-SHA256 berekend: {result[:50]}...")
                 
                 self._send_raw(200, json.dumps({"integrity": result}).encode(), "application/json")
             except Exception as e:
-                sys.stderr.write(f"[ERROR] HMAC-SHA256 fout: {str(e)}\n")
+                log(f"[ERROR] HMAC-SHA256 fout: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
         
         # DEBUG endpoint: uitgebreide integrity diagnostiek
         if self.path.endswith('/debug-integrity'):
-            sys.stderr.write("[DEBUG] === INTEGRITY DIAGNOSTIEK START ===\n")
+            log("[DEBUG] === INTEGRITY DIAGNOSTIEK START ===")
             from crypto_utils import calculate_hmac_sha256_binary, regenerate_second_hash
             import base64
             try:
@@ -247,41 +250,41 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 encoded_action = data.get('encodedAction')
                 provided_integrity = data.get('providedIntegrity')
                 
-                sys.stderr.write(f"[DEBUG-INT] Password: {'*' * len(password) if password else 'MISSING'}\n")
-                sys.stderr.write(f"[DEBUG-INT] SecondSalt: {second_salt}\n")
-                sys.stderr.write(f"[DEBUG-INT] SequenceNumber: {sequence_number}\n")
-                sys.stderr.write(f"[DEBUG-INT] DeviceId: '{device_id}' (length: {len(device_id)})\n")
-                sys.stderr.write(f"[DEBUG-INT] EncodedAction length: {len(encoded_action)}\n")
-                sys.stderr.write(f"[DEBUG-INT] ProvidedIntegrity: {provided_integrity}\n")
+                log(f"[DEBUG-INT] Password: {'*' * len(password) if password else 'MISSING'}")
+                log(f"[DEBUG-INT] SecondSalt: {second_salt}")
+                log(f"[DEBUG-INT] SequenceNumber: {sequence_number}")
+                log(f"[DEBUG-INT] DeviceId: '{device_id}' (length: {len(device_id)})")
+                log(f"[DEBUG-INT] EncodedAction length: {len(encoded_action)}")
+                log(f"[DEBUG-INT] ProvidedIntegrity: {provided_integrity}")
                 
                 # Stap 1: Regenereer secondHash
                 second_hash = regenerate_second_hash(password, second_salt)
-                sys.stderr.write(f"[DEBUG-INT] Regenerated secondHash: {second_hash}\n")
-                sys.stderr.write(f"[DEBUG-INT] SecondHash as bytes: {second_hash.encode('utf-8')}\n")
+                log(f"[DEBUG-INT] Regenerated secondHash: {second_hash}")
+                log(f"[DEBUG-INT] SecondHash as bytes: {second_hash.encode('utf-8')}")
                 
                 # Stap 2: Bereken HMAC
                 calculated_integrity = calculate_hmac_sha256_binary(
                     second_hash, sequence_number, device_id, encoded_action
                 )
-                sys.stderr.write(f"[DEBUG-INT] Calculated integrity: {calculated_integrity}\n")
+                log(f"[DEBUG-INT] Calculated integrity: {calculated_integrity}")
                 
                 # Stap 3: Vergelijk
                 match = (calculated_integrity == provided_integrity)
-                sys.stderr.write(f"[DEBUG-INT] MATCH: {match}\n")
+                log(f"[DEBUG-INT] MATCH: {match}")
                 
                 if not match:
-                    sys.stderr.write(f"[DEBUG-INT] ❌ MISMATCH DETAILS:\n")
-                    sys.stderr.write(f"[DEBUG-INT]   Expected: {calculated_integrity}\n")
-                    sys.stderr.write(f"[DEBUG-INT]   Got:      {provided_integrity}\n")
+                    log("[DEBUG-INT] ❌ MISMATCH DETAILS:")
+                    log(f"[DEBUG-INT]   Expected: {calculated_integrity}")
+                    log(f"[DEBUG-INT]   Got:      {provided_integrity}")
                     
                     # Decodeer beide base64 strings en vergelijk bytes
                     if provided_integrity.startswith('password:'):
                         expected_bytes = base64.b64decode(calculated_integrity.split(':')[1])
                         provided_bytes = base64.b64decode(provided_integrity.split(':')[1])
-                        sys.stderr.write(f"[DEBUG-INT]   Expected bytes (hex): {expected_bytes.hex()}\n")
-                        sys.stderr.write(f"[DEBUG-INT]   Provided bytes (hex): {provided_bytes.hex()}\n")
+                        log(f"[DEBUG-INT]   Expected bytes (hex): {expected_bytes.hex()}")
+                        log(f"[DEBUG-INT]   Provided bytes (hex): {provided_bytes.hex()}")
                 
-                sys.stderr.write("[DEBUG] === INTEGRITY DIAGNOSTIEK END ===\n")
+                log("[DEBUG] === INTEGRITY DIAGNOSTIEK END ===")
                 
                 response = {
                     "calculatedIntegrity": calculated_integrity,
@@ -299,19 +302,19 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
-                sys.stderr.write(f"[ERROR] Debug integrity fout: {str(e)}\n")
-                sys.stderr.write(f"{error_trace}\n")
+                log(f"[ERROR] Debug integrity fout: {str(e)}")
+                log(f"{error_trace}")
                 self._send_raw(400, json.dumps({"error": str(e), "trace": error_trace}).encode(), "application/json")
             return
         
         # Endpoint om deviceId op te halen die hoort bij een token
         if self.path.endswith('/get-token-device'):
-            sys.stderr.write("[DEBUG] === TOKEN DEVICE LOOKUP START ===\n")
+            log("[DEBUG] === TOKEN DEVICE LOOKUP START ===")
             try:
                 data = json.loads(post_data)
                 device_auth_token = data.get('deviceAuthToken')
                 
-                sys.stderr.write(f"[DEBUG] Looking up device for token: {device_auth_token[:10]}...\n")
+                log(f"[DEBUG] Looking up device for token: {device_auth_token[:10]}...")
                 
                 # Vraag aan server via pull-status (dit geeft ons de deviceId terug)
                 pull_request = {
@@ -336,17 +339,17 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     
                     if 'devices' in response_data and 'data' in response_data['devices']:
                         devices = response_data['devices']['data']
-                        sys.stderr.write(f"[DEBUG] Found {len(devices)} devices in response\n")
+                        log(f"[DEBUG] Found {len(devices)} devices in response")
                         
                         for device in devices:
-                            sys.stderr.write(f"[DEBUG] Device: {device.get('name')} - ID: {device.get('deviceId')}\n")
+                            log(f"[DEBUG] Device: {device.get('name')} - ID: {device.get('deviceId')}")
                         
                         # Probeer DashboardControl to vinden
                         dashboard_device = next((d for d in devices if 'Dashboard' in d.get('name', '')), None)
                         
                         if dashboard_device:
                             device_id = dashboard_device['deviceId']
-                            sys.stderr.write(f"[DEBUG] Found dashboard device: {device_id}\n")
+                            log(f"[DEBUG] Found dashboard device: {device_id}")
                             
                             result = {
                                 "deviceId": device_id,
@@ -366,18 +369,18 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                         result = {"error": "No devices in response"}
                         self._send_raw(500, json.dumps(result).encode(), "application/json")
                 else:
-                    sys.stderr.write(f"[ERROR] Pull status failed: {status}\n")
+                    log(f"[ERROR] Pull status failed: {status}")
                     result = {"error": f"Pull status failed with {status}"}
                     self._send_raw(status, json.dumps(result).encode(), "application/json")
                     
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
-                sys.stderr.write(f"[ERROR] Token device lookup failed: {str(e)}\n")
-                sys.stderr.write(f"{error_trace}\n")
+                log(f"[ERROR] Token device lookup failed: {str(e)}")
+                log(f"{error_trace}")
                 self._send_raw(500, json.dumps({"error": str(e), "trace": error_trace}).encode(), "application/json")
             
-            sys.stderr.write("[DEBUG] === TOKEN DEVICE LOOKUP END ===\n")
+            log("[DEBUG] === TOKEN DEVICE LOOKUP END ===")
             return
 
         # Bepaal het doelpad op de externe API
@@ -391,40 +394,40 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 matched_route = ui_route
                 break
 
-        sys.stderr.write(f"[DEBUG] === ROUTE MATCHING ===\n")
-        sys.stderr.write(f"[DEBUG] Incoming path: {self.path}\n")
-        sys.stderr.write(f"[DEBUG] Matched UI route: {matched_route}\n")
-        sys.stderr.write(f"[DEBUG] Target API path: {target_path}\n")
-        sys.stderr.write(f"[DEBUG] Final URL: {SELECTED_SERVER}{target_path}\n")
-        sys.stderr.write(f"[DEBUG] POST data size: {content_length} bytes\n")
+        log(f"[DEBUG] === ROUTE MATCHING ===")
+        log(f"[DEBUG] Incoming path: {self.path}")
+        log(f"[DEBUG] Matched UI route: {matched_route}")
+        log(f"[DEBUG] Target API path: {target_path}")
+        log(f"[DEBUG] Final URL: {SELECTED_SERVER}{target_path}")
+        log(f"[DEBUG] POST data size: {content_length} bytes")
         
         # Log de eerste 500 bytes van de payload voor debugging (niet het hele wachtwoord!)
         try:
             preview_data = post_data[:500].decode('utf-8', errors='replace')
-            sys.stderr.write(f"[DEBUG] Payload preview (first 500 bytes): {preview_data}\n")
+            log(f"[DEBUG] Payload preview (first 500 bytes): {preview_data}")
         except:
-            sys.stderr.write(f"[DEBUG] Payload preview: (binary data)\n")
+            log("[DEBUG] Payload preview: (binary data)")
         
         try:
             status, body = api.post(target_path, post_data)
-            sys.stderr.write(f"[DEBUG] API Response status: {status}\n")
-            sys.stderr.write(f"[DEBUG] API Response body size: {len(body)} bytes\n")
+            log(f"[DEBUG] API Response status: {status}")
+            log(f"[DEBUG] API Response body size: {len(body)} bytes")
             
             # Log de response preview
             try:
                 body_preview = body[:500].decode('utf-8', errors='replace')
-                sys.stderr.write(f"[DEBUG] Response preview (first 500 bytes): {body_preview}\n")
+                log(f"[DEBUG] Response preview (first 500 bytes): {body_preview}")
             except:
-                sys.stderr.write(f"[DEBUG] Response preview: (binary data)\n")
+                log("[DEBUG] Response preview: (binary data)")
             
             if self.path.endswith('/sync/push-actions') and 200 <= status < 300:
                 sse_log("[SSE] Trigger broadcast from /sync/push-actions")
                 broadcast_sse("push", "done")
             self._send_raw(status, body, "application/json")
         except Exception as e:
-            sys.stderr.write(f"❌ [PROXY ERROR]: {str(e)}\n")
+            log(f"❌ [PROXY ERROR]: {str(e)}")
             import traceback
-            sys.stderr.write(f"Traceback:\n{traceback.format_exc()}\n")
+            log(f"Traceback:\n{traceback.format_exc()}")
             self._send_raw(500, b"Proxy connection failed", "text/plain")
 
     def do_GET(self):
@@ -501,9 +504,9 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         except Exception as e:
-            sys.stderr.write(f"Response Error: {str(e)}\n")
+            log(f"Response Error: {str(e)}")
 
 if __name__ == "__main__":
     with ThreadedHTTPServer(("", 8099), TimeLimitHandler) as httpd:
-        sys.stderr.write("=== TimeLimit v60: Multi-threaded Backend met Server-Switch ===\n")
+        log("=== TimeLimit v60: Multi-threaded Backend met Server-Switch ===")
         httpd.serve_forever()
