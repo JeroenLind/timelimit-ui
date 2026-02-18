@@ -294,7 +294,8 @@ function initHaEventStream() {
         haEventSource.addEventListener('push', scheduleEvent);
         haEventSource.addEventListener('storage', scheduleEvent);
         haEventSource.onerror = () => {
-            addLog('⚠️ HA event stream fout/timeout', true);
+            const state = haEventSource ? haEventSource.readyState : 'unknown';
+            addLog(`⚠️ HA event stream fout/timeout (state=${state})`, true);
         };
     } catch (e) {
         addLog(`❌ HA event stream niet gestart: ${e.message}`, true);

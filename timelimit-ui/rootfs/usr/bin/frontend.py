@@ -17,6 +17,7 @@ STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 SELECTED_SERVER = None
 SSE_CLIENTS = []
 SSE_LOCK = threading.Lock()
+SSE_CLIENT_COUNTER = 0
 
 def broadcast_sse(event, data):
     sys.stderr.write(f"[SSE] Broadcast event={event} data={data}\n")
@@ -29,6 +30,7 @@ def broadcast_sse(event, data):
             with client["lock"]:
                 client["wfile"].write(payload)
                 client["wfile"].flush()
+            sys.stderr.write(f"[SSE] Sent event={event} to client={client.get('id', '?')}\n")
         except Exception:
             sys.stderr.write(f"[SSE] Broadcast failed: {str(e)}\n")
             try:
@@ -53,6 +55,7 @@ class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     def log_message(self, format, *args):
         sys.stderr.write(f"WebUI [{time.strftime('%H:%M:%S')}]: {format%args}\n")
 
@@ -424,17 +427,22 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
         if self.path.endswith('/ha-events'):
+            global SSE_CLIENT_COUNTER
             with SSE_LOCK:
+                SSE_CLIENT_COUNTER += 1
+                client_id = SSE_CLIENT_COUNTER
                 current_count = len(SSE_CLIENTS) + 1
-            sys.stderr.write(f"[SSE] Client connected to /ha-events (clients={current_count})\n")
+            sys.stderr.write(f"[SSE] Client connected to /ha-events (client={client_id}, clients={current_count})\n")
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
+            self.wfile.flush()
+            self.close_connection = False
 
-            client = {"wfile": self.wfile, "lock": threading.Lock()}
+            client = {"wfile": self.wfile, "lock": threading.Lock(), "id": client_id}
             with SSE_LOCK:
                 SSE_CLIENTS.append(client)
 
@@ -451,7 +459,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             finally:
                 with SSE_LOCK:
                     remaining = len(SSE_CLIENTS) - 1 if client in SSE_CLIENTS else len(SSE_CLIENTS)
-                sys.stderr.write(f"[SSE] Client disconnected from /ha-events (clients={max(remaining, 0)})\n")
+                sys.stderr.write(f"[SSE] Client disconnected from /ha-events (client={client_id}, clients={max(remaining, 0)})\n")
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
                         SSE_CLIENTS.remove(client)
