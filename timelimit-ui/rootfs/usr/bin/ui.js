@@ -250,6 +250,7 @@ window.applyHaStorageHistory = applyHaStorageHistory;
 
 let haEventSource = null;
 let haEventLastSyncAt = 0;
+let haEventLastStorageAt = 0;
 let haEventReconnectTimer = null;
 let haEventReconnectDelay = 2000;
 
@@ -277,15 +278,17 @@ function initHaEventStream() {
         const data = evt && typeof evt.data !== 'undefined' ? String(evt.data) : '';
         addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
         const now = Date.now();
-        if (now - haEventLastSyncAt < 2000) return;
-        haEventLastSyncAt = now;
 
         if (type === 'storage') {
+            if (now - haEventLastStorageAt < 300) return;
+            haEventLastStorageAt = now;
             addLog('🔄 HA event: apply HA storage', false);
             triggerStorageApply();
             return;
         }
 
+        if (now - haEventLastSyncAt < 2000) return;
+        haEventLastSyncAt = now;
         triggerPullSync();
     };
 
