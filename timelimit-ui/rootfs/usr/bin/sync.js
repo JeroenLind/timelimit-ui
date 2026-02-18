@@ -346,6 +346,19 @@ async function runSync() {
     }
 }
 
+function triggerManualSync() {
+    if (typeof executePushSync === 'function') {
+        return executePushSync();
+    }
+    if (typeof runSync === 'function') {
+        return runSync();
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.triggerManualSync = triggerManualSync;
+}
+
 
 // De achtergrond-loop
 function startSyncLoop() {
