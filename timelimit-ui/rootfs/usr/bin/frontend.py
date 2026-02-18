@@ -19,9 +19,11 @@ SSE_CLIENTS = []
 SSE_LOCK = threading.Lock()
 
 def broadcast_sse(event, data):
+    sys.stderr.write(f"[SSE] Broadcast event={event} data={data}\n")
     payload = f"event: {event}\ndata: {data}\n\n".encode('utf-8')
     with SSE_LOCK:
         clients = list(SSE_CLIENTS)
+    sys.stderr.write(f"[SSE] Clients count={len(clients)}\n")
     for client in clients:
         try:
             with client["lock"]:
@@ -415,6 +417,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
         if self.path.endswith('/ha-events'):
+            sys.stderr.write("[SSE] Client connected to /ha-events\n")
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
@@ -436,6 +439,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
             finally:
+                sys.stderr.write("[SSE] Client disconnected from /ha-events\n")
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
                         SSE_CLIENTS.remove(client)

@@ -252,24 +252,32 @@ let haEventLastSyncAt = 0;
 function initHaEventStream() {
     if (haEventSource || typeof EventSource === 'undefined') return;
 
-    const scheduleSync = () => {
+    const scheduleSync = (evt) => {
+        if (evt && evt.type) {
+            addLog(`🔔 HA event: ${evt.type}`, false);
+        } else {
+            addLog('🔔 HA event: message', false);
+        }
         const now = Date.now();
         if (now - haEventLastSyncAt < 2000) return;
         haEventLastSyncAt = now;
         if (typeof runSync === 'function') {
+            addLog('🔄 HA event: trigger pull sync', false);
             runSync();
         }
     };
 
     try {
         haEventSource = new EventSource('ha-events');
+        addLog('📡 HA event stream verbonden', false);
         haEventSource.onmessage = scheduleSync;
         haEventSource.addEventListener('push', scheduleSync);
         haEventSource.addEventListener('storage', scheduleSync);
         haEventSource.onerror = () => {
-            // EventSource will retry automatically.
+            addLog('⚠️ HA event stream fout/timeout', true);
         };
     } catch (e) {
+        addLog(`❌ HA event stream niet gestart: ${e.message}`, true);
         haEventSource = null;
     }
 }
