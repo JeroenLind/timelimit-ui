@@ -754,7 +754,10 @@ function disableRule(categoryId, ruleId) {
     if (isNewRule) {
         newRules = newRules.filter(r => String(r.id) !== ruleKey || String(r.categoryId) !== catKey);
     } else {
-        addDeletedRule(catKey, ruleKey);
+        removeDeletedRule(catKey, ruleKey);
+        if (rule._deletedPending) {
+            delete rule._deletedPending;
+        }
     }
 
     changedRules.delete(`${catKey}_${ruleKey}`);
