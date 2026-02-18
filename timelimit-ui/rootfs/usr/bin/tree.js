@@ -242,6 +242,15 @@ function initAppIndexSearch() {
 }
 
 function updateAppIndexDisplay(data) {
+    if (!data || !data.categoryBase || !data.categoryApp) {
+        appIndexItems = [];
+        const list = document.getElementById('app-index-list');
+        if (list) {
+            list.innerHTML = '<div class="app-index-item">Geen app data beschikbaar.</div>';
+        }
+        return;
+    }
+
     appIndexItems = buildAppIndex(data);
 
     const list = document.getElementById('app-index-list');
@@ -595,6 +604,14 @@ function renderTreeHTML(nodes, level = 0, fullData = {}) {
  */
 function updateCategoryDisplay(data) {
     const container = document.getElementById('category-tree-container');
+
+    if (!data || !data.categoryBase || !data.categoryApp || !data.rules) {
+        if (container) {
+            container.innerHTML = '<div style="color:#666;">Categorie data nog niet beschikbaar.</div>';
+        }
+        updateAppIndexDisplay(null);
+        return;
+    }
 
     if (container) {
         // Bewaar geopende categorieën (categoryId strings) zodat we ze kunnen herstellen
