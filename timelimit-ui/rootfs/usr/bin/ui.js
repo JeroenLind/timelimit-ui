@@ -1520,7 +1520,12 @@ function renderUsers(data) {
     const openSectionKeys = typeof getOpenSectionState === 'function' ? getOpenSectionState() : [];
     const persistedSectionKeys = typeof getPersistedOpenSectionKeys === 'function' ? getPersistedOpenSectionKeys() : [];
     const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
-    const users = data.users.data;
+    const users = data.users.data.slice().sort((a, b) => {
+        const aParent = a && a.type === 'parent';
+        const bParent = b && b.type === 'parent';
+        if (aParent === bParent) return 0;
+        return aParent ? 1 : -1;
+    });
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
 
     users.forEach(u => {
