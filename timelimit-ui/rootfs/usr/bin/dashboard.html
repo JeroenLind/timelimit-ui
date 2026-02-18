@@ -76,7 +76,7 @@
 
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
                 <div id="status-badge" class="status-badge status-offline" style="margin-bottom:0;">Sync Status...</div>
-                <div id="pending-badge" class="status-badge status-pending status-clickable" style="margin-bottom:0; display:none;" title="Klik om te synchroniseren" onclick="if (typeof runSync === 'function') runSync();">Niet gesynchroniseerd</div>
+                <div id="pending-badge" class="status-badge status-pending status-clickable" style="margin-bottom:0; display:none;" title="Klik om te synchroniseren" onclick="if (typeof executePushSync === 'function') executePushSync(); else if (typeof runSync === 'function') runSync();">Niet gesynchroniseerd</div>
             </div>
 
             <div id="ha-storage-panel" data-debug-only="true" style="margin-top: 20px; padding: 15px; background: #151921; border-radius: 8px; border: 1px solid #2b2f38;">
