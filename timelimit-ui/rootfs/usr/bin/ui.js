@@ -272,7 +272,8 @@ function initHaEventStream() {
 
     const scheduleEvent = (evt) => {
         const type = evt && evt.type ? evt.type : 'message';
-        addLog(`🔔 HA event: ${type}`, false);
+        const data = evt && typeof evt.data !== 'undefined' ? String(evt.data) : '';
+        addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
         const now = Date.now();
         if (now - haEventLastSyncAt < 2000) return;
         haEventLastSyncAt = now;
@@ -288,7 +289,7 @@ function initHaEventStream() {
 
     try {
         haEventSource = new EventSource('ha-events');
-        addLog('📡 HA event stream verbonden', false);
+        haEventSource.onopen = () => addLog('📡 HA event stream open', false);
         haEventSource.onmessage = scheduleEvent;
         haEventSource.addEventListener('push', scheduleEvent);
         haEventSource.addEventListener('storage', scheduleEvent);

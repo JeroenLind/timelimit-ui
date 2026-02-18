@@ -30,6 +30,7 @@ def broadcast_sse(event, data):
                 client["wfile"].write(payload)
                 client["wfile"].flush()
         except Exception:
+            sys.stderr.write(f"[SSE] Broadcast failed: {str(e)}\n")
             try:
                 with SSE_LOCK:
                     if client in SSE_CLIENTS:
@@ -430,6 +431,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
 
             client = {"wfile": self.wfile, "lock": threading.Lock()}
