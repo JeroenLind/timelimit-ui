@@ -246,6 +246,36 @@ async function loadHaStorageStatus() {
 window.loadHaStorageStatus = loadHaStorageStatus;
 window.applyHaStorageHistory = applyHaStorageHistory;
 
+let haEventSource = null;
+let haEventLastSyncAt = 0;
+
+function initHaEventStream() {
+    if (haEventSource || typeof EventSource === 'undefined') return;
+
+    const scheduleSync = () => {
+        const now = Date.now();
+        if (now - haEventLastSyncAt < 2000) return;
+        haEventLastSyncAt = now;
+        if (typeof runSync === 'function') {
+            runSync();
+        }
+    };
+
+    try {
+        haEventSource = new EventSource('ha-events');
+        haEventSource.onmessage = scheduleSync;
+        haEventSource.addEventListener('push', scheduleSync);
+        haEventSource.addEventListener('storage', scheduleSync);
+        haEventSource.onerror = () => {
+            // EventSource will retry automatically.
+        };
+    } catch (e) {
+        haEventSource = null;
+    }
+}
+
+window.initHaEventStream = initHaEventStream;
+
 async function loadHaStorageAndApply() {
     const data = await loadHaStorageStatus();
     if (data && data.data) {

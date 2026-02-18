@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+import threading
 from socketserver import ThreadingMixIn
 from api_client import TimeLimitAPI
 
@@ -14,6 +15,25 @@ STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 
 # NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
 SELECTED_SERVER = None
+SSE_CLIENTS = []
+SSE_LOCK = threading.Lock()
+
+def broadcast_sse(event, data):
+    payload = f"event: {event}\ndata: {data}\n\n".encode('utf-8')
+    with SSE_LOCK:
+        clients = list(SSE_CLIENTS)
+    for client in clients:
+        try:
+            with client["lock"]:
+                client["wfile"].write(payload)
+                client["wfile"].flush()
+        except Exception:
+            try:
+                with SSE_LOCK:
+                    if client in SSE_CLIENTS:
+                        SSE_CLIENTS.remove(client)
+            except Exception:
+                pass
 
 def get_config():
     """Haalt de actuele configuratie op uit Home Assistant."""
@@ -394,6 +414,32 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
+        if self.path.endswith('/ha-events'):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+
+            client = {"wfile": self.wfile, "lock": threading.Lock()}
+            with SSE_LOCK:
+                SSE_CLIENTS.append(client)
+
+            try:
+                self.wfile.write(b": connected\n\n")
+                self.wfile.flush()
+                while True:
+                    time.sleep(15)
+                    with client["lock"]:
+                        self.wfile.write(b": ping\n\n")
+                        self.wfile.flush()
+            except Exception:
+                pass
+            finally:
+                with SSE_LOCK:
+                    if client in SSE_CLIENTS:
+                        SSE_CLIENTS.remove(client)
+            return
         if self.path.endswith('/ha-storage'):
             try:
                 if os.path.exists(STORAGE_PATH):
