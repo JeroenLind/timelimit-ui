@@ -1542,21 +1542,21 @@ function renderUsers(data) {
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
 
     users.forEach(u => {
-        const icon = u.type === 'parent' ? '🛡️' : '👤';
+        if (u.type === 'parent') return; // Extra guard: never render parent users
+        const icon = '👤';
         const userName = escapeHtml(u.name || 'Onbekend');
         const userType = escapeHtml(u.type || 'onbekend');
         const userId = u.id || u.userId || '';
-        const isParent = u.type === 'parent';
         const scopedCategories = (data.categoryBase || []).filter(cat => String(cat.childId) === String(userId));
         const scopedRules = mergeRulesWithDisabled(data.rules || [], disabledList);
         const scopedCategoryIds = new Set(scopedCategories.map(cat => String(cat.categoryId)));
-        const hasDisabledRules = !isParent && scopedCategoryIds.size > 0
+        const hasDisabledRules = scopedCategoryIds.size > 0
             ? disabledList.some(rule => scopedCategoryIds.has(String(rule.categoryId)))
             : false;
         const disabledBadge = hasDisabledRules
             ? `<button type="button" onclick="event.stopPropagation(); expandDisabledRulesForUser('${userId}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-radius:4px; background:#3a2400; color:#f7c35b; border:1px solid #6b4300; cursor:pointer;">Regel uit</button>`
             : "";
-        const childTree = (!isParent && userId && typeof buildCategoryTree === 'function')
+        const childTree = (userId && typeof buildCategoryTree === 'function')
             ? buildCategoryTree({
                 ...data,
                 categoryBase: scopedCategories,
@@ -1564,9 +1564,7 @@ function renderUsers(data) {
             })
             : [];
         let treeHtml = "<div style='color:#666;'>Geen categorieen gevonden.</div>";
-        if (isParent) {
-            treeHtml = "<div style='color:#666;'>Geen categorieen voor parent.</div>";
-        } else if (!userId) {
+        if (!userId) {
             treeHtml = "<div style='color:#666;'>Geen childId gevonden voor deze gebruiker.</div>";
         } else if (childTree && childTree.length > 0 && typeof renderTreeHTML === 'function') {
             treeHtml = renderTreeHTML(childTree, 0, data);
@@ -1575,9 +1573,7 @@ function renderUsers(data) {
         const appIndexId = userId ? `app-index-${userId}` : '';
         const appSearchId = userId ? `app-index-search-${userId}` : '';
         const appListId = userId ? `app-index-list-${userId}` : '';
-        const appIndexHtml = isParent
-            ? "<div style='color:#666;'>App overzicht alleen voor child gebruikers.</div>"
-            : userId
+        const appIndexHtml = userId
                 ? `
                     <input type="text" id="${appSearchId}" placeholder="Zoek app of package..." class="app-index-search">
                     <div id="${appListId}" class="app-index-list">Wachtend op app data...</div>
