@@ -1,3 +1,60 @@
+#### Componenten overzicht
+
+```mermaid
+classDiagram
+  class wizard_js {
+    +startCreateFlow()
+    +runStep1()
+    +runStep2()
+    +runStep3()
+    +mailLoginToken
+    +mailAuthToken
+  }
+  class ui_js {
+    +scheduleHaStorageShadowSync()
+    +pushHaStorageSnapshot()
+    +log()
+  }
+  class sync_js {
+    +runSync()
+    +executePushSync()
+    +prepareSync()
+  }
+  class state_js {
+    +currentDataDraft
+    +changedRules
+    +addDisabledRule()
+    +addDeletedRule()
+  }
+  class tree_js {
+    +buildCategoryTree()
+    +formatDuration()
+    +formatClockTime()
+  }
+  class web_server_py {
+    +do_POST()
+    +event_log()
+    +broadcast_event()
+    +get_config()
+  }
+  class api_client_py {
+    +post()
+    +_log()
+  }
+  class crypto_utils_py {
+    +generate_family_hashes()
+    +regenerate_second_hash()
+    +calculate_hmac_sha512()
+  }
+  wizard_js --> ui_js : triggers HA sync
+  wizard_js --> web_server_py : API calls
+  ui_js --> web_server_py : API calls
+  sync_js --> state_js : uses state
+  sync_js --> web_server_py : sync actions
+  ui_js --> tree_js : uses for rendering
+  web_server_py --> api_client_py : proxies requests
+  web_server_py --> crypto_utils_py : uses crypto
+```
 # TimeLimit UI & Server Design Document
 
 ## Overview
