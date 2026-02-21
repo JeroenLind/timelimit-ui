@@ -16,11 +16,14 @@ STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 
 # NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
 SELECTED_SERVER = None
+LOGGING_MODE = "standard"
 LONGPOLL_LOCK = threading.Lock()
 LONGPOLL_COND = threading.Condition(LONGPOLL_LOCK)
 LONGPOLL_LAST_EVENT = {"id": 0, "event": None, "data": None, "ts": 0}
 
 def log(message):
+    if message.startswith("[DEBUG") and LOGGING_MODE != "verbose":
+        return
     sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
 
 def event_log(message):
@@ -43,7 +46,16 @@ def get_config():
                 return json.load(f)
         except Exception as e:
             log(f"Config Error: {str(e)}")
-    return {"server_url": "http://192.168.68.30:8080"}
+    return {"server_url": "http://192.168.68.30:8080", "logging_mode": "standard"}
+
+def load_logging_mode():
+    global LOGGING_MODE
+    config = get_config()
+    mode = config.get("logging_mode", "standard")
+    LOGGING_MODE = "verbose" if mode == "verbose" else "standard"
+
+def is_verbose_logging():
+    return LOGGING_MODE == "verbose"
 
 class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -57,6 +69,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         """Handelt alle API verzoeken van het dashboard af met uitgebreide logging."""
         global SELECTED_SERVER
+        load_logging_mode()
         
         # DEBUG: Log welk pad wordt aangeroepen
         log(f"[DEBUG] Binnenkomend POST verzoek op pad: {self.path}")
@@ -116,7 +129,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         # --- CHECK 2: Proxy Logica ---
         # We bepalen eerst of we naar de geselecteerde server gaan
         log(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}")
-        api = TimeLimitAPI(SELECTED_SERVER)
+        api = TimeLimitAPI(SELECTED_SERVER, verbose=is_verbose_logging())
         
         routes = {
             '/wizard-step1': '/auth/send-mail-login-code-v2',
@@ -421,6 +434,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
+        load_logging_mode()
         if '/ha-events-longpoll' in self.path:
             try:
                 parsed = urllib.parse.urlparse(self.path)

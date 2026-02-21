@@ -1,6 +1,6 @@
 name: "Timelimit UI"
 description: "Een add-on voor tijdslimiet beheer"
-version: "1.2.181"
+version: "1.2.182"
 slug: "timelimit-ui"
 arch:
   - aarch64
@@ -14,5 +14,7 @@ panel_title: "Timelimit"
 panel_admin: false
 options:
   server_url: "http://192.168.68.30:8080"
+  logging_mode: "standard"
 schema:
   server_url: str
+  logging_mode: list(standard|verbose)
