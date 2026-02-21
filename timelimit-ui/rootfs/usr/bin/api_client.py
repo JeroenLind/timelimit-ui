@@ -14,7 +14,7 @@ class TimeLimitAPI:
 
     def post(self, path, data):
         target_url = f"{self.server_url}{path}"
-        self._log("API-CALL", f"Target: {target_url}")
+        self._log("DEBUG", f"Target: {target_url}")
         
         try:
             req = urllib.request.Request(
@@ -31,9 +31,9 @@ class TimeLimitAPI:
 
         except urllib.error.HTTPError as e:
             err_body = e.read()
-            self._log("HTTP-ERROR", f"Code {e.code}")
+            self._log("ERROR", f"Code {e.code}")
             return e.code, err_body
             
         except Exception as e:
-            self._log("CRITICAL", str(e))
+            self._log("ERROR", str(e))
             return 500, str(e).encode()

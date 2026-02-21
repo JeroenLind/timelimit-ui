@@ -52,14 +52,14 @@ class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, format, *args):
-        log(f"WebUI: {format%args}")
+        log(f"[HTTP] {format%args}")
 
     def do_POST(self):
         """Handelt alle API verzoeken van het dashboard af met uitgebreide logging."""
         global SELECTED_SERVER
         
         # DEBUG: Log welk pad wordt aangeroepen
-        log(f"\n[DEBUG] Binnenkomend POST verzoek op pad: {self.path}")
+        log(f"[DEBUG] Binnenkomend POST verzoek op pad: {self.path}")
         log(f"[DEBUG] Request headers: {dict(self.headers)}")
         
         content_length = int(self.headers.get('Content-Length', 0))
@@ -80,13 +80,13 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 log(f"[DEBUG] Poging tot wisselen naar: {new_url}")
                 
                 SELECTED_SERVER = new_url
-                log(f"✅ [SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}")
+                log(f"[SUCCESS] SERVER GEWISSELD NAAR: {SELECTED_SERVER}")
                 
                 # Stuur expliciet antwoord terug naar de browser
                 self._send_raw(200, json.dumps({"status": "ok", "server": SELECTED_SERVER}).encode(), "application/json")
                 return 
             except Exception as e:
-                log(f"❌ [ERROR] Fout in /set-server: {str(e)}")
+                log(f"[ERROR] Fout in /set-server: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
@@ -109,7 +109,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
                 return
             except Exception as e:
-                event_log(f"❌ [ERROR] Fout in /ha-storage: {str(e)}")
+                event_log(f"[ERROR] Fout in /ha-storage: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
@@ -262,7 +262,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 log(f"[DEBUG-INT] MATCH: {match}")
                 
                 if not match:
-                    log("[DEBUG-INT] ❌ MISMATCH DETAILS:")
+                    log("[DEBUG-INT] MISMATCH DETAILS:")
                     log(f"[DEBUG-INT]   Expected: {calculated_integrity}")
                     log(f"[DEBUG-INT]   Got:      {provided_integrity}")
                     
@@ -414,7 +414,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 broadcast_event("push", "done")
             self._send_raw(status, body, "application/json")
         except Exception as e:
-            log(f"❌ [PROXY ERROR]: {str(e)}")
+            log(f"[ERROR] PROXY: {str(e)}")
             import traceback
             log(f"Traceback:\n{traceback.format_exc()}")
             self._send_raw(500, b"Proxy connection failed", "text/plain")
@@ -466,7 +466,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
 
                 self._send_raw(200, json.dumps(payload).encode(), "application/json")
             except Exception as e:
-                log(f"❌ [ERROR] Fout in /ha-events-longpoll: {str(e)}")
+                log(f"[ERROR] Fout in /ha-events-longpoll: {str(e)}")
                 self._send_raw(500, str(e).encode(), "text/plain")
             return
         if self.path.endswith('/ha-storage'):
@@ -478,7 +478,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     data = {"status": "empty"}
                 self._send_raw(200, json.dumps(data).encode(), "application/json")
             except Exception as e:
-                event_log(f"❌ [ERROR] Fout in GET /ha-storage: {str(e)}")
+                event_log(f"[ERROR] Fout in GET /ha-storage: {str(e)}")
                 self._send_raw(500, str(e).encode(), "text/plain")
             return
         if self.path in ['/', '', '/index.html']:
