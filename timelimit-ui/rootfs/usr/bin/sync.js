@@ -4,12 +4,14 @@
 
 // Flow: pull/push sync, change tracking summary, and integrity signing.
 
+// Timer for periodic sync operations
 let syncTimer = null;
 let secondsCounter = 0;
 const SYNC_INTERVAL = 30; // seconds
 const SERVER_API_LEVEL_KEY = "timelimit_serverApiLevel";
 let serverApiLevel = null;
 
+// Normalize the server API level value from storage
 function normalizeServerApiLevel(value) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
@@ -18,10 +20,12 @@ function normalizeServerApiLevel(value) {
     return parsed;
 }
 
+// Load the server API level from localStorage
 function loadServerApiLevel() {
     return normalizeServerApiLevel(localStorage.getItem(SERVER_API_LEVEL_KEY));
 }
 
+// Set and persist the server API level, trigger shadow sync if available
 function setServerApiLevel(value) {
     serverApiLevel = normalizeServerApiLevel(value);
     if (serverApiLevel === null) {
@@ -40,6 +44,7 @@ const SEQUENCE_STORAGE_KEY = "timelimit_nextSyncSequenceNumber";
 const SYNC_ENCRYPTED_APPS_CACHE_KEY = "timelimit_encryptedAppsCache";
 const ENCRYPTED_APPS_KEYS_KEY_FOR_LOG = "timelimit_appListKeys";
 
+// Load cached encrypted app keys for logging from localStorage
 function loadEncryptedAppsKeysForLog() {
     try {
         const raw = localStorage.getItem(ENCRYPTED_APPS_KEYS_KEY_FOR_LOG);
@@ -52,6 +57,7 @@ function loadEncryptedAppsKeysForLog() {
     }
 }
 
+// Load the encrypted apps cache from localStorage
 function loadEncryptedAppsCache() {
     try {
         const raw = localStorage.getItem(SYNC_ENCRYPTED_APPS_CACHE_KEY);
@@ -64,6 +70,7 @@ function loadEncryptedAppsCache() {
     }
 }
 
+// Set and persist the encrypted apps cache, trigger shadow sync if available
 function setEncryptedAppsCache(value) {
     if (!value || typeof value !== "object") {
         localStorage.removeItem(SYNC_ENCRYPTED_APPS_CACHE_KEY);
@@ -75,6 +82,7 @@ function setEncryptedAppsCache(value) {
     }
 }
 
+// Normalize the sequence number value from storage
 function normalizeSequenceNumber(value) {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
@@ -83,10 +91,12 @@ function normalizeSequenceNumber(value) {
     return parsed;
 }
 
+// Peek at the next sequence number without incrementing
 function peekNextSequenceNumber() {
     return normalizeSequenceNumber(localStorage.getItem(SEQUENCE_STORAGE_KEY));
 }
 
+// Get and increment the next sequence number for signed actions
 function getNextSequenceNumber() {
     // Sequence numbers must be monotonic for signed actions.
     const current = peekNextSequenceNumber();
@@ -103,6 +113,7 @@ function getNextSequenceNumber() {
     return current;
 }
 
+// Reset the sequence number in localStorage
 function resetSequenceNumber() {
     localStorage.removeItem(SEQUENCE_STORAGE_KEY);
     if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
@@ -113,6 +124,7 @@ function resetSequenceNumber() {
     }
 }
 
+// Set the sequence number to a specific value
 function setSequenceNumber(value) {
     const normalized = normalizeSequenceNumber(value);
     localStorage.setItem(SEQUENCE_STORAGE_KEY, String(normalized));
@@ -124,6 +136,7 @@ function setSequenceNumber(value) {
     }
 }
 
+// Update the pending badge UI to indicate sync state
 function setPendingBadgeSyncState(isSyncing) {
     const pendingBadge = document.getElementById('pending-badge');
     if (!pendingBadge) return;
@@ -147,6 +160,7 @@ function setPendingBadgeSyncState(isSyncing) {
     }
 }
 
+// Perform a pull sync from the server and update local state
 async function runSync() {
     const badge = document.getElementById('status-badge');
     const jsonView = document.getElementById('json-view');
@@ -381,6 +395,7 @@ async function runSync() {
     }
 }
 
+// Trigger a manual sync, preferring push sync if available
 function triggerManualSync() {
     if (typeof executePushSync === 'function') {
         return executePushSync();
@@ -396,6 +411,7 @@ if (typeof window !== 'undefined') {
 
 
 // Background loop
+// Start the background sync loop for automatic periodic sync
 function startSyncLoop() {
     setInterval(() => {
         const isEnabled = document.getElementById('auto-sync-tgl').checked;
@@ -438,6 +454,7 @@ startSyncLoop();
  * - maxTime → time (milliseconden)
  * - dayMask → days (bitmask)
  */
+// Build an action object for updating a time limit rule
 function buildUpdateRuleAction(change) {
     const current = change.current;
     
@@ -476,6 +493,7 @@ function buildUpdateRuleAction(change) {
     return action;
 }
 
+// Build an action object for creating a new time limit rule
 function buildCreateRuleAction(rule) {
     const current = rule || {};
     return {
@@ -495,6 +513,7 @@ function buildCreateRuleAction(rule) {
     };
 }
 
+// Build an action object for deleting a time limit rule
 function buildDeleteRuleAction(ruleId) {
     return {
         type: "DELETE_TIMELIMIT_RULE",
@@ -502,6 +521,7 @@ function buildDeleteRuleAction(ruleId) {
     };
 }
 
+// Build an action object for adding apps to a category
 function buildAddCategoryAppsAction(categoryId, packageNames) {
     return {
         type: "ADD_CATEGORY_APPS",
@@ -510,6 +530,7 @@ function buildAddCategoryAppsAction(categoryId, packageNames) {
     };
 }
 
+// Build an action object for removing apps from a category
 function buildRemoveCategoryAppsAction(categoryId, packageNames) {
     return {
         type: "REMOVE_CATEGORY_APPS",
@@ -526,6 +547,7 @@ function buildRemoveCategoryAppsAction(categoryId, packageNames) {
  * 
  * @returns {string} Integrity string of "device" fallback
  */
+// Calculate the integrity hash for a parent action, using server-side HMAC or legacy SHA512
 async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
     console.log(`[INTEGRITY] ==================== INTEGRITY BEREKENING START ===================`);
     console.log(`[INTEGRITY] INPUT PARAMETERS:`);
@@ -638,6 +660,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
 /**
  * Bundle all changes into actions for delivery (max 50 per batch)
  */
+// Prepare batches of actions for sync, including sequence numbers and encoding
 function prepareSync(options = {}) {
     // Flow: gather pending changes and pack them into server action batches.
     const changes = getChangedRules();
@@ -742,6 +765,7 @@ function prepareSync(options = {}) {
  * TEST version: prepare actions and compute real integrity hashes
  * Log to console/UI without sending
  */
+// Test sync actions: prepare, compute integrity, and log without sending
 async function testSyncActions() {
     // Flow: prepare actions, compute integrity, and log without sending.
     addLog("🧪 TEST SYNC: Acties worden voorbereid met HMAC-SHA512 signing...", false);
@@ -896,6 +920,7 @@ BATCHES: ${syncData.batches.length}
  * DEBUG FUNCTION: Verify integrity calculation with the server
  * Calls /debug-integrity to check whether our HMAC matches
  */
+// Debug function: verify integrity calculation with the server
 async function debugIntegrityCheck() {
     addLog("🔍 DEBUG: Integrity verificatie starten...", false);
     
@@ -1036,6 +1061,7 @@ async function debugIntegrityCheck() {
  * TEST FUNCTION: Create a new category + rule on the server
  * This tests whether push sync works without relying on existing data
  */
+// Test function: create a new category and rule on the server
 async function testCreateCategoryAndRule() {
     addLog("🧪 TEST: Category + Rule aanmaken...", false);
     
@@ -1205,6 +1231,7 @@ async function testCreateCategoryAndRule() {
 /**
  * Generate a random ID (same format as the server)
  */
+// Generate a random alphanumeric ID of specified length
 function generateRandomId(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
@@ -1218,6 +1245,7 @@ function generateRandomId(length) {
  * TEST version: Send changes via /sync/push-actions
  * With verbose logging of server responses
  */
+// Execute a push sync: send changes to the server with integrity signing
 async function executePushSync() {
     const jsonView = document.getElementById("json-view");
     const timestamp = new Date().toLocaleTimeString();
@@ -1635,6 +1663,7 @@ if (typeof window !== 'undefined') {
 /**
  * Debug function: Test AddUser integrity
  */
+// Debug function: test AddUser integrity calculation
 async function debugAddUserIntegrity() {
     const inspector = document.getElementById('json-view');
     
@@ -1760,6 +1789,7 @@ async function debugAddUserIntegrity() {
  * ADD CHILD - Modal functions
  */
 
+// Show the modal dialog for adding a child
 function showAddChildModal() {
     const modal = document.getElementById('add-child-modal');
     if (modal) {
@@ -1777,6 +1807,7 @@ function showAddChildModal() {
     }
 }
 
+// Hide the modal dialog for adding a child
 function hideAddChildModal() {
     const modal = document.getElementById('add-child-modal');
     if (modal) {
@@ -1787,6 +1818,7 @@ function hideAddChildModal() {
 /**
  * Add a child to the family via the server
  */
+// Submit a request to add a child user via the server
 async function submitAddChild() {
     const nameInput = document.getElementById('add-child-name-input');
     const statusDiv = document.getElementById('add-child-status');

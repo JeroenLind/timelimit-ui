@@ -28,6 +28,7 @@ let pendingNewRuleSaved = false;
 // Parent password hash - needed for HMAC-SHA512 signing
 let parentPasswordHash = null;
 
+// Load a list of rules from localStorage by key
 function loadRulesListFromStorage(key) {
     try {
         const raw = localStorage.getItem(key);
@@ -39,6 +40,7 @@ function loadRulesListFromStorage(key) {
     }
 }
 
+// Save a list of rules to localStorage by key
 function saveRulesListToStorage(key, value) {
     if (!Array.isArray(value) || value.length === 0) {
         localStorage.removeItem(key);
@@ -50,6 +52,7 @@ function saveRulesListToStorage(key, value) {
     }
 }
 
+// Set the dirty flag for disabled rules
 function setDisabledRulesDirty(value) {
     disabledRulesDirty = !!value;
     if (disabledRulesDirty) {
@@ -62,6 +65,7 @@ function setDisabledRulesDirty(value) {
     }
 }
 
+// Clear the dirty flag for disabled rules
 function clearDisabledRulesDirty() {
     setDisabledRulesDirty(false);
 }
@@ -70,20 +74,24 @@ disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
 deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
 normalizeDisabledRules();
 
+// Get the list of disabled rules
 function getDisabledRules() {
     return Array.isArray(disabledRules) ? disabledRules.map(r => ({ ...r })) : [];
 }
 
+// Get the list of deleted rules
 function getDeletedRules() {
     return Array.isArray(deletedRules) ? deletedRules.map(r => ({ ...r })) : [];
 }
 
+// Check if a rule is disabled by category and rule ID
 function isRuleDisabled(categoryId, ruleId) {
     const catKey = String(categoryId);
     const ruleKey = String(ruleId);
     return disabledRules.some(r => String(r.categoryId) === catKey && String(r.id) === ruleKey);
 }
 
+// Check if a rule exists in the original snapshot
 function ruleExistsInSnapshot(categoryId, ruleId) {
     if (!originalDataSnapshot || !Array.isArray(originalDataSnapshot.rules)) return false;
     const category = originalDataSnapshot.rules.find(r => String(r.categoryId) === String(categoryId));
@@ -91,6 +99,7 @@ function ruleExistsInSnapshot(categoryId, ruleId) {
     return category.rules.some(r => String(r.id) === String(ruleId));
 }
 
+// Add a rule to the deleted rules list
 function addDeletedRule(categoryId, ruleId) {
     const catKey = String(categoryId);
     const ruleKey = String(ruleId);
@@ -100,6 +109,7 @@ function addDeletedRule(categoryId, ruleId) {
     }
 }
 
+// Remove a rule from the deleted rules list
 function removeDeletedRule(categoryId, ruleId) {
     const catKey = String(categoryId);
     const ruleKey = String(ruleId);
@@ -107,6 +117,7 @@ function removeDeletedRule(categoryId, ruleId) {
     saveRulesListToStorage(DELETED_RULES_STORAGE_KEY, deletedRules);
 }
 
+// Add a rule to the disabled rules list
 function addDisabledRule(rule, categoryIdOverride) {
     if (!rule) return;
     const catKey = String(categoryIdOverride !== undefined ? categoryIdOverride : rule.categoryId);

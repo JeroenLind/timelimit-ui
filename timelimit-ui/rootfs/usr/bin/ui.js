@@ -4,6 +4,7 @@
 
 // Flow: HA storage shadow sync, long-poll event handling, and UI panels/toggles.
 
+// Add a log entry to the UI log area
 function addLog(m, isError = false) { 
     const log = document.getElementById('log-area');
     if (!log) return;
@@ -39,6 +40,7 @@ const HA_STORAGE_KEYS = [
 
 let haShadowTimer = null;
 
+// Build a snapshot of HA storage keys for syncing
 function buildHaStorageSnapshot() {
     const data = {};
     HA_STORAGE_KEYS.forEach((key) => {
@@ -52,6 +54,7 @@ function buildHaStorageSnapshot() {
     };
 }
 
+// Push the HA storage snapshot to the backend for syncing
 async function pushHaStorageSnapshot(reason) {
     try {
         const payload = buildHaStorageSnapshot();
@@ -70,6 +73,7 @@ async function pushHaStorageSnapshot(reason) {
     }
 }
 
+// Schedule a delayed HA storage sync operation
 function scheduleHaStorageShadowSync(reason) {
     if (haShadowTimer) {
         clearTimeout(haShadowTimer);
@@ -83,17 +87,20 @@ function scheduleHaStorageShadowSync(reason) {
 
 window.scheduleHaStorageShadowSync = scheduleHaStorageShadowSync;
 
+// Format a token string for short display
 function formatTokenShort(token) {
     if (!token) return '';
     if (token.length <= 10) return token;
     return `${token.substring(0, 6)}...${token.substring(token.length - 4)}`;
 }
 
+// Format a timestamp value for display
 function formatTimestamp(ts) {
     if (!ts || !Number.isFinite(Number(ts))) return '-';
     return new Date(Number(ts)).toLocaleString();
 }
 
+// Render HA storage details in the UI
 function renderHaStorageDetails(storage) {
     const statusEl = document.getElementById('ha-storage-status');
     const detailsEl = document.getElementById('ha-storage-details');

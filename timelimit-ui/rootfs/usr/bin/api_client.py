@@ -8,16 +8,19 @@ import time
 
 class TimeLimitAPI:
     def __init__(self, server_url, verbose=True):
+        """Initialize the API client with server URL and verbosity."""
         self.server_url = server_url.strip().rstrip('/')
         self.ssl_context = ssl._create_unverified_context()
         self.verbose = bool(verbose)
 
     def _log(self, category, message):
+        """Log a message with category, respecting verbosity."""
         if category == "DEBUG" and not self.verbose:
             return
         sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] [{category}] {message}\n")
 
     def post(self, path, data):
+        """Send a POST request to the server and return status and response body."""
         target_url = f"{self.server_url}{path}"
         self._log("DEBUG", f"Target: {target_url}")
         

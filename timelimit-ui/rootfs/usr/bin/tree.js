@@ -8,6 +8,7 @@
 /**
  * Helper: Convert milliseconds to a duration string (e.g. 3h 30m)
  */
+// Convert milliseconds to a duration string (e.g. 3h 30m)
 function formatDuration(ms) {
     if (ms === undefined || ms === null || ms < 0) return null;
     const totalMinutes = Math.floor(ms / 60000);
@@ -21,6 +22,7 @@ function formatDuration(ms) {
 /**
  * Helper: Convert minutes since midnight to a time string (e.g. 510 -> 08:30)
  */
+// Convert minutes since midnight to a time string (e.g. 08:30)
 function formatClockTime(minutesSinceMidnight) {
     if (minutesSinceMidnight === undefined || minutesSinceMidnight === null) return "00:00";
     
@@ -38,6 +40,7 @@ function formatClockTime(minutesSinceMidnight) {
  * Helper: Translate a bitmask (e.g. 127) into readable days
  * @param {number} mask - The dayMask value from the API
  */
+// Translate a bitmask into readable days
 function formatDays(mask) {
     if (mask === 127 || mask === 0) return "Dagelijks";
     if (mask === 31) return "Werkdagen"; // 1+2+4+8+16
@@ -61,6 +64,7 @@ function formatDays(mask) {
  * Helper: Convert technical package names into a readable name
  * Example: "com.android.chrome" -> "Chrome"
  */
+// Convert technical package names into a readable app name
 function getReadableAppName(packageName) {
     if (!packageName) return "Onbekende App";
     
@@ -72,6 +76,7 @@ function getReadableAppName(packageName) {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+// Compare two categories for sorting
 function compareCategoryOrder(a, b) {
     const aSort = Number.isFinite(a.sort) ? a.sort : 0;
     const bSort = Number.isFinite(b.sort) ? b.sort : 0;
@@ -83,6 +88,7 @@ function compareCategoryOrder(a, b) {
     return 0;
 }
 
+// Get today's usage for a category from usage records
 function getTodayUsage(categoryId, usedTimes) {
     const todayEpoch = Math.floor(Date.now() / 86400000);
     const categoryUsage = usedTimes.find(u => u.categoryId === categoryId);
@@ -101,6 +107,7 @@ function getTodayUsage(categoryId, usedTimes) {
  * Transform flat API data into a nested tree
  * @param {Object} data - Full JSON response from the API
  */
+// Transform flat API data into a nested category tree
 function buildCategoryTree(data) {
     const categories = data.categoryBase || [];
     const appsMap = data.categoryApp || [];

@@ -7,6 +7,7 @@
 
 let wizardSession = {};
 
+// Start the flow for creating a new family account
 function startCreateFlow() {
     console.log("Start: Flow voor NIEUWE familie.");
     const title = document.getElementById('step-1-title');
@@ -19,6 +20,7 @@ function startCreateFlow() {
     showStep(1);
 }
 
+// Start the flow for logging into an existing family account
 function startLoginFlow() {
     console.log("Start: Inloggen op BESTAANDE familie.");
     const title = document.getElementById('step-1-title');
@@ -31,6 +33,7 @@ function startLoginFlow() {
     showStep(1);
 }
 
+// Show the specified step in the wizard UI
 function showStep(n) {
     // Verberg alle stappen
     document.querySelectorAll('.wizard-step').forEach(s => s.style.display = 'none');
@@ -44,6 +47,7 @@ function showStep(n) {
     }
 }
 
+// Run step 1: request email code for login or creation
 async function runStep1() {
     const mailInput = document.getElementById('mail').value;
     if (!mailInput) return addLog("Voer een e-mailadres in.", true);
@@ -72,6 +76,7 @@ async function runStep1() {
     }
 }
 
+// Run step 2: validate email code
 async function runStep2() {
     const codeInput = document.getElementById('code').value;
     addLog("Stap 2: Code valideren...");
@@ -100,6 +105,7 @@ async function runStep2() {
     }
 }
 
+// Run step 3: generate password hashes and finalize family
 async function runStep3() {
     const password = document.getElementById('pass').value;
     addLog("Stap 3: Hashes genereren en familie finaliseren...");

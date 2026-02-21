@@ -6,6 +6,7 @@ import hashlib
 import base64
 
 def generate_family_hashes(password):
+    """Generate BCrypt hashes for family password, matching Android app logic."""
     """Generate BCrypt hashes matching the Android app logic (cost factor 12)."""
     password_bytes = password.encode('utf-8')
 
@@ -24,6 +25,7 @@ def generate_family_hashes(password):
     }
 
 def regenerate_second_hash(password, second_salt):
+    """Regenerate secondHash using an existing salt from the server."""
     """
     Regenerate secondHash using an existing salt.
     This is needed because the server returns only the salt, not the hash.
@@ -44,6 +46,7 @@ def regenerate_second_hash(password, second_salt):
     return hash_result.decode('utf-8')
 
 def calculate_hmac_sha512(key_base64, message):
+    """Calculate HMAC-SHA512 for sync action signing."""
     """
     Calculate HMAC-SHA512 for sync action signing.
     
@@ -68,6 +71,7 @@ def calculate_hmac_sha512(key_base64, message):
         raise ValueError(f"HMAC calculation failed: {str(e)}")
 
 def calculate_sha512_hex(message):
+    """Calculate SHA512 hex digest for legacy integrity signing."""
     """
     Calculate SHA512 hex digest for legacy integrity signing.
 
