@@ -1,3 +1,60 @@
+# TimeLimit UI & Server Design Document
+
+## Overview
+## Collaboration Between TimeLimit UI and Backend Server
+
+```mermaid
+classDiagram
+  class TimeLimit_ParentApp{}
+  class TimeLimit_UI{}
+  class TimeLimit_Server{}
+  class TimeLimit_App1{}
+  class TimeLimit_App2{}
+
+  TimeLimit_UI --> TimeLimit_Server: UpdateRules
+  TimeLimit_ParentApp --> TimeLimit_Server: UpdateRules
+  TimeLimit_Server --> TimeLimit_App1: UpdateRules
+  TimeLimit_App1 --> TimeLimit_App1: EnforceRules
+  TimeLimit_Server --> TimeLimit_App2: UpdateRules
+  TimeLimit_App2 --> TimeLimit_App2: EnforceRules 
+```
+
+The TimeLimit UI is designed as the user-facing dashboard for managing device usage rules, categories, and user accounts. Its primary purpose is to provide a clear, intuitive interface for parents and administrators to configure time limits, monitor device activity, and manage family accounts. The UI handles all user interactions, state management, and local storage, ensuring a responsive experience and real-time feedback.
+
+The backend server, on the other hand, is responsible for enforcing the rules, synchronizing device states, and maintaining persistent data. It acts as the authoritative source for all device and user information, processing API requests from the UI and other clients. The server validates actions, applies integrity checks, and ensures that all changes are securely stored and propagated to connected devices.
+
+Collaboration between the UI and the backend server is achieved through a well-defined API. The UI sends requests for authentication, rule changes, and data synchronization to the server, which responds with updated state, validation results, and event notifications. The UI relies on the server for critical operations such as login, rule enforcement, and device management, while the server depends on the UI for user input and configuration.
+
+This separation of concerns allows for robust, scalable, and secure operation. The UI focuses on usability and workflow management, while the backend server ensures data integrity, security, and enforcement. Together, they form a complete solution for managing device time limits and family accounts, with clear boundaries and reliable communication.
+# TimeLimit UI Design Document
+
+## Overview
+This document describes the architecture and design of the TimeLimit UI and Server project. It covers the main files, their responsibilities, how functions and classes interact, and includes sequence diagrams for key scenarios.
+
+
+## Project Structure
+
+```
+  timelimit-ui/
+    config.yaml
+    rootfs/
+      usr/bin/
+        api_client.py
+        check_server.py
+        crypto_utils.py
+        frontend.py
+        state.js
+        sync.js
+        tree.js
+        ui.js
+        wizard.js
+      ...
+  ...
+```
+
+
+## Main Components & Responsibilities
+
 #### Componenten overzicht
 
 ```mermaid
@@ -55,47 +112,6 @@ classDiagram
   web_server_py --> api_client_py : proxies requests
   web_server_py --> crypto_utils_py : uses crypto
 ```
-# TimeLimit UI & Server Design Document
-
-## Overview
-## Collaboration Between TimeLimit UI and Backend Server
-
-The TimeLimit UI is designed as the user-facing dashboard for managing device usage rules, categories, and user accounts. Its primary purpose is to provide a clear, intuitive interface for parents and administrators to configure time limits, monitor device activity, and manage family accounts. The UI handles all user interactions, state management, and local storage, ensuring a responsive experience and real-time feedback.
-
-The backend server, on the other hand, is responsible for enforcing the rules, synchronizing device states, and maintaining persistent data. It acts as the authoritative source for all device and user information, processing API requests from the UI and other clients. The server validates actions, applies integrity checks, and ensures that all changes are securely stored and propagated to connected devices.
-
-Collaboration between the UI and the backend server is achieved through a well-defined API. The UI sends requests for authentication, rule changes, and data synchronization to the server, which responds with updated state, validation results, and event notifications. The UI relies on the server for critical operations such as login, rule enforcement, and device management, while the server depends on the UI for user input and configuration.
-
-This separation of concerns allows for robust, scalable, and secure operation. The UI focuses on usability and workflow management, while the backend server ensures data integrity, security, and enforcement. Together, they form a complete solution for managing device time limits and family accounts, with clear boundaries and reliable communication.
-# TimeLimit UI Design Document
-
-## Overview
-This document describes the architecture and design of the TimeLimit UI and Server project. It covers the main files, their responsibilities, how functions and classes interact, and includes sequence diagrams for key scenarios.
-
-
-## Project Structure
-
-```
-  timelimit-ui/
-    config.yaml
-    rootfs/
-      usr/bin/
-        api_client.py
-        check_server.py
-        crypto_utils.py
-        frontend.py
-        state.js
-        sync.js
-        tree.js
-        ui.js
-        wizard.js
-      ...
-  ...
-```
-
-
-## Main Components & Responsibilities
-
 
 ### Backend (Python)
 
@@ -144,6 +160,8 @@ sequenceDiagram
   participant usr as "User"
   participant wiz as "wizard.js"
   participant ui as "ui.js"
+  participant sync as "sync.js"
+  participant state as "state.js"
   participant be as "Backend (web_server.py)"
   participant srv as "Server (TimeLimit)"
   participant ha as "Home Assistant"
@@ -160,15 +178,18 @@ sequenceDiagram
   be->>srv: POST /api/verify-code
   srv-->>be: mailAuthToken
   be-->>wiz: mailAuthToken
-  wiz->>wiz: Store token in localStorage
+  wiz->>state: Store token in localStorage
   wiz->>ui: Trigger HA storage sync
-  ui->>ha: pushHaStorageSnapshot (sync UI state)
+  ui->>sync: pushHaStorageSnapshot (sync UI state)
+  sync->>ha: pushHaStorageSnapshot (sync UI state)
   wiz->>usr: Prompt for password
   usr->>wiz: Enter password
   wiz->>be: POST /generate-hashes (password)
   be->>srv: POST /api/generate-hashes
   srv-->>be: hash, secondHash
   be-->>wiz: hash, secondHash
+  wiz->>state: Store hashes in localStorage
+  state->>ui: scheduleHaStorageShadowSync('parent-hash-store')
   wiz->>be: POST /wizard-step3 (finalize)
   be->>srv: POST /api/finalize-family
   srv-->>be: success
@@ -180,18 +201,24 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant usr as "User"
-  participant ui as "UI (state.js/sync.js/ui.js)"
+  participant ui as "ui.js"
+  participant sync as "sync.js"
+  participant state as "state.js"
+  participant tree as "tree.js"
   participant be as "Backend (web_server.py)"
   participant srv as "Server (TimeLimit)"
   usr->>ui: Add rule in dashboard
-  ui->>ui: Update draft state
-  ui->>ui: Prepare sync action
-  ui->>be: POST /sync/push-actions
+  ui->>state: Update draft state
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
+  ui->>sync: Prepare sync action
+  sync->>be: POST /sync/push-actions
   be->>srv: POST /api/push-actions
   srv-->>be: success
-  be-->>ui: success
-  ui->>ui: Update state
-  ui->>usr: Show confirmation
+  be-->>sync: success
+  sync->>state: Update state
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
 ```
 
 ### 3. Regel verwijderen (Delete Rule)
@@ -199,18 +226,24 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant usr as "User"
-  participant ui as "UI (state.js/sync.js/ui.js)"
+  participant ui as "ui.js"
+  participant sync as "sync.js"
+  participant state as "state.js"
+  participant tree as "tree.js"
   participant be as "Backend (web_server.py)"
   participant srv as "Server (TimeLimit)"
   usr->>ui: Delete rule in dashboard
-  ui->>ui: Mark rule as deleted
-  ui->>ui: Prepare sync action
-  ui->>be: POST /sync/push-actions
+  ui->>state: Mark rule as deleted
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
+  ui->>sync: Prepare sync action
+  sync->>be: POST /sync/push-actions
   be->>srv: POST /api/push-actions
   srv-->>be: success
-  be-->>ui: success
-  ui->>ui: Update state
-  ui->>usr: Show confirmation
+  be-->>sync: success
+  sync->>state: Update state
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
 ```
 
 ### 4. Regel tijdelijk uitzetten (Disable Rule)
@@ -218,23 +251,73 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant usr as "User"
-  participant ui as "UI (state.js/sync.js/ui.js)"
+  participant ui as "ui.js"
+  participant sync as "sync.js"
+  participant state as "state.js"
+  participant tree as "tree.js"
   participant be as "Backend (web_server.py)"
   participant srv as "Server (TimeLimit)"
   usr->>ui: Disable rule in dashboard
-  ui->>ui: Add rule to disabled list
-  ui->>ui: Prepare sync action
-  ui->>be: POST /sync/push-actions
+  ui->>state: Add rule to disabled list
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
+  ui->>sync: Prepare sync action
+  sync->>be: POST /sync/push-actions
   be->>srv: POST /api/push-actions
   srv-->>be: success
-  be-->>ui: success
-  ui->>ui: Update state
-  ui->>usr: Show confirmation
+  be-->>sync: success
+  sync->>state: Update state
+  state->>tree: Update category display (render)
+  tree->>usr: Show updated rule/category view
+```
+
+### 5. Regel tijdelijk uitzetten met 2 webviews (Sync via long-poll)
+
+```mermaid
+sequenceDiagram
+
+  participant usr1 as "User (Webview 1)"
+  box  "Webview 1"  
+    participant ui1 as "ui.js (Webview 1)"
+    participant state1 as "state.js (Webview 1)"
+    participant tree1 as "tree.js (Webview 1)"
+    participant sync1 as "sync.js (Webview 1)"
+  end
+  participant be as "Backend (web_server.py)"
+  participant srv as "Server (TimeLimit)"
+  box "Webview 2"
+    participant ui2 as "ui.js (Webview 2)"
+    participant state2 as "state.js (Webview 2)"
+    participant tree2 as "tree.js (Webview 2)"
+    participant sync2 as "sync.js (Webview 2)"
+    participant lp2 as "Long-poll (Webview 2)"
+    participant usr2 as "User (Webview 2)"
+  end
+  note over ui1, sync1: Webview1
+  Note over ui2, usr2: WebView2
+  usr1->>ui1: Disable rule in dashboard
+  ui1->>state1: Add rule to disabled list
+  state1->>tree1: Update category display (render)
+  tree1->>usr1: Show updated rule/category view
+  ui1->>sync1: Prepare sync action
+  sync1->>be: POST /sync/push-actions
+  be->>srv: POST /api/push-actions
+  srv-->>be: success
+  be-->>sync1: success
+  sync1->>state1: Update state
+  state1->>tree1: Update category display (render)
+  tree1->>usr1: Show updated rule/category view
+  lp2->>be: Long-poll for events
+  be-->>lp2: Event: rule disabled
+  lp2->>ui2: Notify rule disabled
+  ui2->>state2: Update rule status
+  state2->>tree2: Update category display (render)
+  tree2->>usr2: Show updated rule/category view
 ```
 
 
 ## Design Notes
-
+This project is created by CoPilot. No manual coding was involved
 
 ## Extensibility
 
