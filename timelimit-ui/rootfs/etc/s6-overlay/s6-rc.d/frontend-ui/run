@@ -1,5 +1,0 @@
-#!/usr/bin/with-contenv bashio
-cd /usr/bin
-bashio::log.info "Starting Web Server..."
-# De -u vlag zorgt dat logs DIRECT verschijnen
-exec python3 -u web_server.py
