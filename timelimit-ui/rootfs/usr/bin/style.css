@@ -1,3 +1,4 @@
+/* Flow: layout scaffolding, component styling, and responsive tweaks. */
 /* Basis Layout */
 body { font-family: -apple-system, system-ui, sans-serif; background: #0b0e14; color: #e1e1e1; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 

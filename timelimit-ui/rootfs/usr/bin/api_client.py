@@ -1,3 +1,5 @@
+"""HTTP client for TimeLimit API calls used by the web server proxy layer."""
+
 import urllib.request
 import ssl
 import json

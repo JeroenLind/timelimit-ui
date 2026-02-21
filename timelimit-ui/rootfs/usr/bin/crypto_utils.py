@@ -1,17 +1,19 @@
+"""Crypto helpers for hashing and integrity calculations used by the UI backend."""
+
 import bcrypt
 import hmac
 import hashlib
 import base64
 
 def generate_family_hashes(password):
-    """Genereert BCrypt hashes conform de Android app logica (Cost factor 12)."""
+    """Generate BCrypt hashes matching the Android app logic (cost factor 12)."""
     password_bytes = password.encode('utf-8')
 
-    # Twee unieke salts voor maximale veiligheid
+    # Two unique salts for maximum safety
     salt1 = bcrypt.gensalt(rounds=12)
     salt2 = bcrypt.gensalt(rounds=12)
 
-    # De hashes die de server verwacht
+    # Hashes expected by the server
     hash1 = bcrypt.hashpw(password_bytes, salt1)
     hash2 = bcrypt.hashpw(password_bytes, salt2)
 
@@ -23,27 +25,27 @@ def generate_family_hashes(password):
 
 def regenerate_second_hash(password, second_salt):
     """
-    Regenereert de secondHash met een bestaande salt.
-    Dit is nodig omdat de server alleen de salt terugstuurt, niet de hash zelf.
+    Regenerate secondHash using an existing salt.
+    This is needed because the server returns only the salt, not the hash.
     
     Args:
-        password: Het plaintext wachtwoord
-        second_salt: De bcrypt salt string (bijv. "$2a$10$...")
+        password: Plaintext password
+        second_salt: Bcrypt salt string (e.g. "$2a$10$...")
     
     Returns:
-        De bcrypt hash string
+        Bcrypt hash string
     """
     password_bytes = password.encode('utf-8')
     salt_bytes = second_salt.encode('utf-8')
     
-    # Gebruik de bestaande salt om dezelfde hash te regenereren
+    # Use the existing salt to regenerate the same hash
     hash_result = bcrypt.hashpw(password_bytes, salt_bytes)
     
     return hash_result.decode('utf-8')
 
 def calculate_hmac_sha512(key_base64, message):
     """
-    Berekent HMAC-SHA512 voor sync action signing.
+    Calculate HMAC-SHA512 for sync action signing.
     
     Args:
         key_base64: Base64-encoded key (secondSalt)
@@ -53,10 +55,10 @@ def calculate_hmac_sha512(key_base64, message):
         Base64-encoded HMAC-SHA512 hash
     """
     try:
-        # Decode de base64 key
+        # Decode the base64 key
         key_bytes = base64.b64decode(key_base64)
         
-        # Bereken HMAC-SHA512
+        # Compute HMAC-SHA512
         message_bytes = message.encode('utf-8')
         hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha512)
         
@@ -67,13 +69,13 @@ def calculate_hmac_sha512(key_base64, message):
 
 def calculate_sha512_hex(message):
     """
-    Berekent SHA512 hex digest voor legacy integrity signing.
+    Calculate SHA512 hex digest for legacy integrity signing.
 
     Args:
         message: String message (sequenceNumber + deviceId + secondHash + encodedAction)
 
     Returns:
-        Hex string van de SHA512 digest.
+        Hex string of the SHA512 digest.
     """
     try:
         message_bytes = message.encode('utf-8')
@@ -83,7 +85,7 @@ def calculate_sha512_hex(message):
 
 def calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encoded_action):
     """
-    Berekent HMAC-SHA256 voor sync action signing in CORRECT server formaat.
+    Calculate HMAC-SHA256 for sync action signing in the correct server format.
     
     Server verwacht: "password:" + base64(HMAC-SHA256(key=secondHash, message=binary_format))
     
@@ -95,22 +97,22 @@ def calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encode
       - encodedAction_bytes
     
     Args:
-        second_hash: BCrypt hash string (bijvoorbeeld $2a$12$...)
+        second_hash: BCrypt hash string (e.g. $2a$12$...)
         sequence_number: Integer sequence number
         device_id: String device ID
-        encoded_action: JSON string van de action
+        encoded_action: JSON string of the action
     
     Returns:
-        String in formaat "password:<base64_hmac>"
+        String in the format "password:<base64_hmac>"
     """
     try:
         import struct
         
-        # secondHash (bcrypt string) wordt als UTF-8 bytes gebruikt als key
+        # Use secondHash (bcrypt string) as UTF-8 bytes for the key
         key_bytes = second_hash.encode('utf-8')
         
-        # Bouw binary message:
-        # 1. sequenceNumber als 8-byte big-endian (long/int64)
+        # Build binary message:
+        # 1. sequenceNumber as 8-byte big-endian (long/int64)
         seq_bytes = struct.pack('>Q', sequence_number)  # >Q = big-endian unsigned long long
         
         # 2. deviceId length + bytes
@@ -121,13 +123,13 @@ def calculate_hmac_sha256_binary(second_hash, sequence_number, device_id, encode
         encoded_action_bytes = encoded_action.encode('utf-8')
         encoded_action_len = struct.pack('>I', len(encoded_action_bytes))
         
-        # Combineer alle delen
+        # Combine all parts
         message = seq_bytes + device_id_len + device_id_bytes + encoded_action_len + encoded_action_bytes
         
-        # Bereken HMAC-SHA256 (niet SHA512!)
+        # Compute HMAC-SHA256 (not SHA512!)
         hmac_obj = hmac.new(key_bytes, message, hashlib.sha256)
         
-        # Return met "password:" prefix
+        # Return with "password:" prefix
         hash_base64 = base64.b64encode(hmac_obj.digest()).decode('utf-8')
         return f"password:{hash_base64}"
         

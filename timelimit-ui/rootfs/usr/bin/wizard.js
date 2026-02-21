@@ -3,6 +3,8 @@
  * Bevat de stappen voor e-mail, verificatie en wachtwoord hashing.
  */
 
+// Flow: mail login, code verification, and token + hash persistence.
+
 let wizardSession = {};
 
 function startCreateFlow() {

@@ -2,11 +2,13 @@
  * ui.js - Gedeelde interface functies
  */
 
+// Flow: HA storage shadow sync, long-poll event handling, and UI panels/toggles.
+
 function addLog(m, isError = false) { 
     const log = document.getElementById('log-area');
     if (!log) return;
 
-    // Voorkom een oneindig lange lijst: verwijder oudste logs boven de 50 regels
+    // Prevent an endless list: remove oldest logs beyond 50 lines
     if (log.children.length > 50) {
         log.removeChild(log.firstChild);
     }
@@ -248,6 +250,7 @@ async function loadHaStorageStatus() {
 window.loadHaStorageStatus = loadHaStorageStatus;
 window.applyHaStorageHistory = applyHaStorageHistory;
 
+// Flow: long-poll uses a monotonic event id to trigger storage apply or sync.
 let haEventLastSyncAt = 0;
 let haEventLastStorageAt = 0;
 let haLongPollTimer = null;
@@ -256,6 +259,7 @@ let haLongPollLastId = 0;
 let haLongPollErrorCount = 0;
 
 function handleHaEvent(type, data) {
+    // Normalize event handling and throttle duplicate storage/sync triggers.
     addLog(`🔔 HA event: ${type}${data ? ` (${data})` : ''}`, false);
     try {
         console.log(`[HA-LP] event=${type}${data ? ` data=${data}` : ''}`);
@@ -291,6 +295,7 @@ function startHaLongPoll() {
     addLog('📡 Long-poll gestart', false);
 
     const pollOnce = async () => {
+        // Keep one long-poll request open; restart quickly after each response.
         if (!haLongPollActive) return;
         try {
             const url = `ha-events-longpoll?since=${haLongPollLastId}&timeout=25`;
@@ -1996,10 +2001,10 @@ function showChangesSummary() {
         const original = change.original;
         const current = change.current;
 
-        // Zoek de categorie-naam (title) op uit de huidige data snapshot
+        // Look up the category name (title) from the current data snapshot
         let catTitle = getCategoryTitle(catId);
 
-        // Bepaal wat er gewijzigd is - controleer elk veld
+        // Determine what changed - check each field
         let details = [];
         
         if (original.maxTime !== current.maxTime) {
@@ -2102,7 +2107,7 @@ function showChangesSummary() {
 
     const container = document.getElementById('category-tree-container');
     if (container) {
-        // Verwijder eerdere samenvatting als deze al bestaat
+        // Remove the previous summary if it already exists
         const existing = container.parentElement.querySelector('.changes-summary');
         if (existing) existing.remove();
         
@@ -2208,7 +2213,7 @@ async function submitPasswordReset() {
             console.log("[PASSWORD-RESET] secondHash geregenereerd (first 30 chars):", secondHash.substring(0, 30) + "...");
             
         } else {
-            // SCENARIO 2: Geen salt beschikbaar, genereer nieuwe hashes (alleen bij create)
+            // SCENARIO 2: No salt available, generate new hashes (create only)
             if (statusDiv) statusDiv.textContent = "⏳ Nieuwe hashes genereren...";
             
             const hRes = await fetch('generate-hashes', {
@@ -2237,13 +2242,13 @@ async function submitPasswordReset() {
             console.log("[PASSWORD-RESET] Nieuwe hashes gegenereerd");
         }
         
-        // Converteer salt naar base64 voor HMAC (legacy - secundaire verificatie)
+        // Convert salt to base64 for HMAC (legacy - secondary verification)
         const base64Salt = bcryptSaltToBase64(secondSalt);
         
-        // Sla op in state.js - GEBRUIK DE BCRYPT HASH ALS KEY!
+        // Store in state.js - USE THE BCRYPT HASH AS THE KEY!
         if (typeof storeparentPasswordHashForSync === 'function') {
             storeparentPasswordHashForSync({
-                hash: secondHash, // Gebruik secondHash als primary hash
+                hash: secondHash, // Use secondHash as the primary hash
                 secondHash: secondHash,
                 secondSalt: base64Salt || secondSalt
             });

@@ -1,10 +1,12 @@
 /**
- * tree.js - Interactieve boomstructuur met Apps en Rules
- * Verwerkt de hiërarchische weergave van categorieën, limieten en applicaties.
+ * tree.js - Interactive tree view for apps and rules
+ * Renders the hierarchical view of categories, limits, and applications.
  */
 
+// Flow: build category trees, render rules/apps, and maintain open state.
+
 /**
- * Helper: Zet milliseconden om naar een duur (bijv. 3u 30m)
+ * Helper: Convert milliseconds to a duration string (e.g. 3h 30m)
  */
 function formatDuration(ms) {
     if (ms === undefined || ms === null || ms < 0) return null;
@@ -17,7 +19,7 @@ function formatDuration(ms) {
 }
 
 /**
- * Helper: Zet minuten vanaf middernacht om naar een kloktijd (bijv. 510 -> 08:30)
+ * Helper: Convert minutes since midnight to a time string (e.g. 510 -> 08:30)
  */
 function formatClockTime(minutesSinceMidnight) {
     if (minutesSinceMidnight === undefined || minutesSinceMidnight === null) return "00:00";
@@ -25,7 +27,7 @@ function formatClockTime(minutesSinceMidnight) {
     const hours = Math.floor(minutesSinceMidnight / 60);
     const minutes = minutesSinceMidnight % 60;
     
-    // Zorg voor een voorloop-nul (bijv. 08:05 in plaats van 8:5)
+    // Pad with leading zeros (e.g. 08:05 instead of 8:5)
     const h = String(hours).padStart(2, '0');
     const m = String(minutes).padStart(2, '0');
     
@@ -33,8 +35,8 @@ function formatClockTime(minutesSinceMidnight) {
 }
 
 /**
- * Helper: Vertaalt een bitmasker (bijv. 127) naar leesbare dagen
- * @param {number} mask - Het dayMask getal uit de API
+ * Helper: Translate a bitmask (e.g. 127) into readable days
+ * @param {number} mask - The dayMask value from the API
  */
 function formatDays(mask) {
     if (mask === 127 || mask === 0) return "Dagelijks";
@@ -44,9 +46,9 @@ function formatDays(mask) {
     const names = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
     let selectedDays = [];
 
-    // Loop door de 7 dagen en check of de bit "aan" staat
+    // Loop through 7 days and check if the bit is set
     for (let i = 0; i < 7; i++) {
-        // Gebruik de bitwise AND operator om te kijken of de dag in het masker zit
+        // Use bitwise AND to check if the day is in the mask
         if (mask & (1 << i)) {
             selectedDays.push(names[i]);
         }
@@ -56,17 +58,17 @@ function formatDays(mask) {
 }
 
 /**
- * Helper: Zet technische package namen om naar een scanbare naam
- * Voorbeeld: "com.android.chrome" -> "Chrome"
+ * Helper: Convert technical package names into a readable name
+ * Example: "com.android.chrome" -> "Chrome"
  */
 function getReadableAppName(packageName) {
     if (!packageName) return "Onbekende App";
     
-    // Split op de punt en pak het laatste segment
+    // Split on dot and take the last segment
     let parts = packageName.split('.');
     let name = parts[parts.length - 1];
 
-    // Zorg dat de naam altijd netjes met een hoofdletter begint
+    // Ensure the name starts with a capital letter
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
@@ -87,7 +89,7 @@ function getTodayUsage(categoryId, usedTimes) {
     
     if (!categoryUsage) return 0;
 
-    // Zoek naar het record van vandaag dat de hele dag beslaat (0-1439)
+    // Find today's record covering the full day (0-1439)
     const todayRecord = categoryUsage.times.find(t => 
         t.day === todayEpoch && t.start === 0 && t.end === 1439
     );
@@ -96,8 +98,8 @@ function getTodayUsage(categoryId, usedTimes) {
 }
 
 /**
- * Transformeert de platte API data naar een geneste boomstructuur
- * @param {Object} data - De volledige JSON response van de API
+ * Transform flat API data into a nested tree
+ * @param {Object} data - Full JSON response from the API
  */
 function buildCategoryTree(data) {
     const categories = data.categoryBase || [];
@@ -107,13 +109,13 @@ function buildCategoryTree(data) {
     const categoryMap = {};
     const tree = [];
 
-    // STAP 1: Maak een object-map voor snelle opzoeking en koppel Apps/Rules direct aan de categorie
+    // STEP 1: Build a lookup map and attach apps/rules to categories
     categories.forEach(cat => {
-        // Zoek de bijbehorende apps en regels voor deze specifieke categoryId
+        // Find matching apps and rules for this categoryId
         const catApps = appsMap.find(a => a.categoryId === cat.categoryId)?.apps || [];
         const catRules = rulesMap.find(r => r.categoryId === cat.categoryId)?.rules || [];
         
-        // Sla de categorie op in de map met extra arrays voor kinderen, apps en regels
+        // Store category in the map with child/app/rule arrays
         categoryMap[cat.categoryId] = { 
             ...cat, 
             linkedApps: catApps,
@@ -122,19 +124,19 @@ function buildCategoryTree(data) {
         };
     });
 
-    // STAP 2: Bouw de hiërarchie door kinderen aan hun ouders te koppelen
+    // STEP 2: Build the hierarchy by linking children to parents
     categories.forEach(cat => {
         const current = categoryMap[cat.categoryId];
-        // Als er een parentCategoryId is, voeg de huidige categorie toe aan de 'children' van de parent
+        // If parentCategoryId exists, add this category to the parent's children
         if (cat.parentCategoryId && categoryMap[cat.parentCategoryId]) {
             categoryMap[cat.parentCategoryId].children.push(current);
         } else {
-            // Geen parent? Dan is dit een hoofdcategorie (root node)
+            // No parent? This is a root category
             tree.push(current);
         }
     });
 
-    // Sorteer op de server-volgorde (sort), met titel als stabiele fallback
+    // Sort by server order (sort) with title as a stable fallback
     Object.values(categoryMap).forEach(cat => {
         if (cat.children && cat.children.length > 0) {
             cat.children.sort(compareCategoryOrder);
@@ -621,7 +623,7 @@ function updateCategoryDisplay(data) {
         // Geef 'data' (de hele JSON) mee als derde argument
         container.innerHTML = renderTreeHTML(tree, 0, data);
 
-        // Herstel geopende categorieën
+        // Restore open categories
         restoreOpenCategoryIds(openCategoryIds);
     }
 
@@ -661,7 +663,7 @@ function restoreOpenCategoryIds(ids) {
             if (!idSpan) return;
             const cid = idSpan.textContent.trim();
             if (ids.indexOf(cid) !== -1) {
-                // Open deze node
+                // Open this node
                 item.classList.add('is-open');
                 const icon = item.querySelector('.tree-icon');
                 if (icon) icon.innerText = '▼';

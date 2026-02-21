@@ -1,10 +1,12 @@
 /**
- * sync.js - Afhandeling van handmatige en automatische sync
+ * sync.js - Handling manual and automatic sync
  */
+
+// Flow: pull/push sync, change tracking summary, and integrity signing.
 
 let syncTimer = null;
 let secondsCounter = 0;
-const SYNC_INTERVAL = 30; // seconden
+const SYNC_INTERVAL = 30; // seconds
 const SERVER_API_LEVEL_KEY = "timelimit_serverApiLevel";
 let serverApiLevel = null;
 
@@ -86,6 +88,7 @@ function peekNextSequenceNumber() {
 }
 
 function getNextSequenceNumber() {
+    // Sequence numbers must be monotonic for signed actions.
     const current = peekNextSequenceNumber();
     localStorage.setItem(SEQUENCE_STORAGE_KEY, String(current + 1));
     if (typeof window !== "undefined" && typeof window.scheduleHaStorageShadowSync === "function") {
@@ -155,6 +158,7 @@ async function runSync() {
 
     setPendingBadgeSyncState(true);
 
+    // Pull minimal status to fetch the full dataset from the server.
     const syncPayload = {
         deviceAuthToken: TOKEN,
         status: { apps: {}, categories: {}, devices: "0", users: "0", clientLevel: 8, devicesDetail: {} }
@@ -175,18 +179,19 @@ async function runSync() {
             body: JSON.stringify(syncPayload)
         });
 
-        // --- DE CRUCIALE CHECK ---
+        // --- CRITICAL CHECK ---
         const contentType = res.headers.get("content-type");
         let responseData;
 
         if (res.ok && contentType && contentType.includes("application/json")) {
-            // Alleen parsen als de status 200 (OK) is EN het JSON is
+            // Only parse when status is 200 (OK) and the response is JSON
             responseData = await res.json();
 
             setServerApiLevel(typeof responseData.apiLevel === "number" ? responseData.apiLevel : null);
             console.log(`[SYNC] Server apiLevel: ${serverApiLevel}`);
 
             if (responseData.devices && Array.isArray(responseData.devices.data)) {
+                // Cache device metadata for UI panels.
                 if (typeof window.setDeviceListCache === 'function') {
                     window.setDeviceListCache(responseData.devices.data);
                 }
@@ -332,8 +337,8 @@ async function runSync() {
                                 ensureAccountHistoryForCurrent();
                         }
             
-            // ✅ BELANGRIJK: Reset change tracking NADAT pull sync compleet is
-            // Dit zorgt ervoor dat wijzigingen niet verloren gaan als er een automatische pull volgt
+            // IMPORTANT: Reset change tracking AFTER pull sync completes
+            // This avoids losing local changes if an automatic pull runs next
             if (typeof resetChangeTracking === 'function') {
                 resetChangeTracking();
                 console.log("✅ Change tracking gereset na succesvolle pull sync");
@@ -341,7 +346,7 @@ async function runSync() {
             }
             
         } else {
-            // De server stuurde een fout (401) of HTML. Lees als tekst om crash te voorkomen.
+            // The server returned an error (401) or HTML. Read as text to avoid crashes.
             const errorText = await res.text();
             responseData = { error: "Ongeldige respons", status: res.status };
             
@@ -355,7 +360,7 @@ async function runSync() {
             badge.className = "status-badge status-offline";
         }
 
-        // Inspector bijwerken met wat we ook maar ontvangen hebben
+        // Update the inspector with whatever we received
         const timestamp = new Date().toLocaleTimeString();
         const separator = `\n\n${"=".repeat(20)} SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
         const logText = `>>> PAYLOAD: ${JSON.stringify(syncPayload)}\n<<< STATUS: ${res.status}\n<<< DATA: ${JSON.stringify(responseData, null, 2)}`;
@@ -390,7 +395,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-// De achtergrond-loop
+// Background loop
 function startSyncLoop() {
     setInterval(() => {
         const isEnabled = document.getElementById('auto-sync-tgl').checked;
@@ -404,7 +409,7 @@ function startSyncLoop() {
             }
             secondsCounter++;
             
-            // Toon voortgang op de badge (optioneel, voor visuele feedback)
+            // Show progress on the badge (optional, visual feedback)
             if (badge.innerText.includes("Online")) {
                 badge.innerText = `Online (${SYNC_INTERVAL - secondsCounter}s)`;
             }
@@ -413,23 +418,23 @@ function startSyncLoop() {
                 runSync();
             }
         } else {
-            secondsCounter = 0; // Reset teller als schakelaar uit staat
+            secondsCounter = 0; // Reset counter when disabled
         }
-    }, 1000); // Check elke seconde
+    }, 1000); // Check every second
 }
 
-// Start de loop zodra het script geladen is
+// Start the loop once the script is loaded
 startSyncLoop();
 
 /**
- * SYNC HELPERS - Voor rule wijzigingen versturen naar server
+ * SYNC HELPERS - Send rule changes to the server
  */
 
 /**
- * Zet een change object om naar SerializedUpdateTimelimitRuleAction format
+ * Convert a change object to SerializedUpdateTimelimitRuleAction format
  * change = { ruleId, categoryId, original: {...}, current: {...} }
  * 
- * VELDMAPPING:
+ * FIELD MAPPING:
  * - maxTime → time (milliseconden)
  * - dayMask → days (bitmask)
  */
@@ -445,7 +450,7 @@ function buildUpdateRuleAction(change) {
         extraTime: Boolean(current.extraTime || false)
     };
     
-    // Voeg optionele velden toe als ze aanwezig zijn
+    // Add optional fields when present
     if (current.start !== undefined && current.start !== null) {
         action.start = Number(current.start);
     }
@@ -514,7 +519,7 @@ function buildRemoveCategoryAppsAction(categoryId, packageNames) {
 }
 
 /**
- * Berekent integrity voor parent actions, compatibel met Android app.
+ * Compute integrity for parent actions, compatible with the Android app.
  * 
  * - apiLevel >= 6: HMAC-SHA256 (binary format) met "password:" prefix
  * - apiLevel < 6: legacy SHA512 hex digest
@@ -541,7 +546,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         return "device";
     }
     
-    const secondHash = parentPasswordHash.secondHash; // Dit is de bcrypt hash string
+    const secondHash = parentPasswordHash.secondHash; // This is the bcrypt hash string
     
     console.log(`[INTEGRITY] ✅ secondHash gevonden:`);
     console.log(`[INTEGRITY] - Type: ${typeof secondHash}`);
@@ -586,7 +591,7 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
         }
     }
 
-    // Gebruik server-side omdat we binary format moeten gebruiken
+    // Use server-side because we must use the binary format
     console.log("[INTEGRITY] 🔄 Server-side HMAC-SHA256 (binary format) berekening aanroepen...");
     
     try {
@@ -631,9 +636,10 @@ async function calculateIntegrity(sequenceNumber, deviceId, encodedAction) {
 }
 
 /**
- * Bundelt alle changes in acties voor verzending (max 50 per batch)
+ * Bundle all changes into actions for delivery (max 50 per batch)
  */
 function prepareSync(options = {}) {
+    // Flow: gather pending changes and pack them into server action batches.
     const changes = getChangedRules();
     const createdRules = typeof getNewRules === 'function' ? getNewRules() : [];
     const deletedRules = typeof getDeletedRules === 'function' ? getDeletedRules() : [];
@@ -696,6 +702,7 @@ function prepareSync(options = {}) {
         });
     }
 
+    // Flow: assign sequence numbers, encode actions, and split into <=50 actions per batch.
     actionItems.forEach(item => {
         const encodedAction = JSON.stringify(item.action);
         const sequenceNumber = consumeSequenceNumbers ? getNextSequenceNumber() : previewSequenceNumber;
@@ -716,7 +723,7 @@ function prepareSync(options = {}) {
         }
     });
     
-    // Voeg resterende acties toe
+    // Add remaining actions
     if (currentBatch.length > 0) {
         batches.push(currentBatch);
     }
@@ -732,10 +739,11 @@ function prepareSync(options = {}) {
 }
 
 /**
- * TEST versie: Bereid acties voor EN bereken echte integrity hashes
- * Log naar console/UI zonder daadwerkelijk te versturen
+ * TEST version: prepare actions and compute real integrity hashes
+ * Log to console/UI without sending
  */
 async function testSyncActions() {
+    // Flow: prepare actions, compute integrity, and log without sending.
     addLog("🧪 TEST SYNC: Acties worden voorbereid met HMAC-SHA512 signing...", false);
 
     const syncData = prepareSync({ consumeSequenceNumbers: false });
@@ -744,12 +752,12 @@ async function testSyncActions() {
         return;
     }
 
-    // Log naar inspector
+    // Log to inspector
     const jsonView = document.getElementById("json-view");
     const timestamp = new Date().toLocaleTimeString();
     const separator = `\n\n${"=".repeat(20)} TEST SYNC @ ${timestamp} ${"=".repeat(20)}\n`;
 
-    // ✅ DIAGNOSTISCHE INFO: parentPasswordHash status
+    // ✅ DIAGNOSTIC INFO: parentPasswordHash status
     console.log("=== INTEGRITY SETUP DEBUG (TEST MODE) ===");
     console.log("parentPasswordHash beschikbaar?", !!parentPasswordHash);
     if (parentPasswordHash) {
@@ -799,16 +807,16 @@ BATCHES: ${syncData.batches.length}
         console.log("[TEST] secondHash aanwezig, integrity signing zal worden uitgevoerd");
     }
 
-    // Haal deviceId op uit draft (of gebruik standaard)
+    // Read deviceId from draft (or use a default)
     const deviceId = currentDataDraft?.deviceId || "device1";
     console.log("[TEST] DeviceId:", deviceId);
     
-    // Bepaal parent userId (net als in echte push sync)
+    // Determine parent userId (same as real push sync)
     let parentUserId = null;
     if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
         const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
         if (parentUser) {
-            // Probeer zowel 'id' als 'userId' velden
+            // Try both 'id' and 'userId' fields
             parentUserId = parentUser.id || parentUser.userId;
             console.log("[TEST] Parent user object:", parentUser);
             console.log("[TEST] Parent.id:", parentUser.id);
@@ -826,7 +834,7 @@ BATCHES: ${syncData.batches.length}
     
     const firstBatch = syncData.batches[0];
 
-    // Bereken integrity voor elke actie
+    // Compute integrity for each action
     const mockPayload = {
         deviceAuthToken: TOKEN ? TOKEN.substring(0, 20) + "..." : "MISSING_TOKEN",
         actions: []
@@ -843,8 +851,8 @@ BATCHES: ${syncData.batches.length}
                 sequenceNumber: item.sequenceNumber,
                 encodedAction: item.encodedAction,
                 integrity: integrity,
-                type: "parent",           // UPDATE_TIMELIMIT_RULE is parent action
-                userId: parentUserId      // Parent die de actie uitvoert
+                type: "parent",           // UPDATE_TIMELIMIT_RULE is a parent action
+                userId: parentUserId      // Parent executing the action
             });
         }
 
@@ -871,11 +879,11 @@ BATCHES: ${syncData.batches.length}
 
     logContent += "\n⚠️  DEZE DATA WORDT NIET DAADWERKELIJK VERZONDEN (TEST MODUS)\n";
 
-    // Log naar console
+    // Log to console
     console.log("🧪 TEST SYNC DATA:", syncData);
     console.log("📤 PAYLOAD MET SIGNING:", mockPayload);
 
-    // Log naar inspector
+    // Log to inspector
     if (jsonView.textContent.length > 100000) {
         jsonView.textContent = jsonView.textContent.slice(-50000);
     }
@@ -885,8 +893,8 @@ BATCHES: ${syncData.batches.length}
     addLog("✅ TEST SYNC voltooid - HMAC-SHA512 integrity berekend - Check inspector-panel en browser console", false);
 }
 /**
- * DEBUG FUNCTIE: Verifieer integrity berekening met server
- * Roept /debug-integrity endpoint aan om te zien of onze HMAC klopt
+ * DEBUG FUNCTION: Verify integrity calculation with the server
+ * Calls /debug-integrity to check whether our HMAC matches
  */
 async function debugIntegrityCheck() {
     addLog("🔍 DEBUG: Integrity verificatie starten...", false);
@@ -895,14 +903,14 @@ async function debugIntegrityCheck() {
     const timestamp = new Date().toLocaleTimeString();
     let logContent = `\n\n${"=".repeat(30)} INTEGRITY DEBUG @ ${timestamp} ${"=".repeat(30)}\n`;
     
-    // Haal wachtwoord op (tijdelijk - alleen voor debug)
+    // Prompt for password (temporary - debug only)
     const password = prompt("Voer je parent wachtwoord in voor verificatie (alleen lokaal gebruikt):");
     if (!password) {
         addLog("Verificatie geannuleerd", true);
         return;
     }
     
-    // Controleer of we de benodigde data hebben
+    // Verify required data is available
     if (!currentDataDraft?.users?.data) {
         addLog("❌ Geen user data beschikbaar - voer eerst een pull sync uit", true);
         return;
@@ -913,7 +921,7 @@ async function debugIntegrityCheck() {
         return;
     }
     
-    // Haal parent user op
+    // Resolve parent user
     const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
     if (!parentUser) {
         addLog("❌ Geen parent user gevonden", true);
@@ -928,7 +936,7 @@ async function debugIntegrityCheck() {
         return;
     }
     
-    // Haal deviceId op (DashboardControl device)
+    // Resolve deviceId (DashboardControl device)
     const dashboardDevice = currentDataDraft.devices.data.find(d => 
         d.name === "DashboardControl" || d.model?.includes("Dashboard")
     );
@@ -946,7 +954,7 @@ async function debugIntegrityCheck() {
     logContent += `- DeviceId: ${deviceId}\n`;
     logContent += `- Device naam: ${dashboardDevice.name}\n`;
     
-    // Maak een test actie
+    // Create a test action
     const testAction = {
         type: "UPDATE_TIMELIMIT_RULE",
         ruleId: "iox6Sg",
@@ -965,14 +973,14 @@ async function debugIntegrityCheck() {
     logContent += `- SequenceNumber: ${sequenceNumber}\n`;
     logContent += `- EncodedAction: ${encodedAction}\n\n`;
     
-    // Bereken onze eigen integrity
+    // Calculate our own integrity
     addLog("Berekenen lokale integrity...", false);
     const ourIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
     
     logContent += `ONZE BEREKENING:\n`;
     logContent += `- Integrity: ${ourIntegrity}\n\n`;
     
-    // Vraag server om zijn berekening
+    // Ask the server for its calculation
     addLog("Vragen aan server om correcte integrity...", false);
     
     try {
@@ -1025,8 +1033,8 @@ async function debugIntegrityCheck() {
 }
 
 /**
- * TEST FUNCTIE: Maak een nieuwe category + rule aan op de server
- * Dit test of push sync überhaupt werkt zonder te vertrouwen op bestaande data
+ * TEST FUNCTION: Create a new category + rule on the server
+ * This tests whether push sync works without relying on existing data
  */
 async function testCreateCategoryAndRule() {
     addLog("🧪 TEST: Category + Rule aanmaken...", false);
@@ -1035,13 +1043,13 @@ async function testCreateCategoryAndRule() {
     const timestamp = new Date().toLocaleTimeString();
     let logContent = `\n\n${"=".repeat(30)} CREATE TEST @ ${timestamp} ${"=".repeat(30)}\n`;
     
-    // Check of we data hebben
+    // Check if we have data
     if (!currentDataDraft || !currentDataDraft.users || !currentDataDraft.users.data) {
         addLog("❌ Geen user data - voer eerst een pull sync uit", true);
         return;
     }
     
-    // Vind parent en child users
+    // Find parent and child users
     const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
     const childUser = currentDataDraft.users.data.find(u => u.type === 'child');
     
@@ -1062,14 +1070,14 @@ async function testCreateCategoryAndRule() {
     logContent += `Child userId: ${childUserId}\n`;
     logContent += `Child naam: ${childUser.name}\n\n`;
     
-    // Genereer IDs voor category en rule
+    // Generate IDs for category and rule
     const categoryId = generateRandomId(6);
     const ruleId = generateRandomId(6);
     
     logContent += `Nieuwe categoryId: ${categoryId}\n`;
     logContent += `Nieuwe ruleId: ${ruleId}\n\n`;
     
-    // Haal deviceId op
+    // Resolve deviceId
     let deviceId = "unknown";
     let deviceIdSource = "fallback";
     
@@ -1087,11 +1095,11 @@ async function testCreateCategoryAndRule() {
     logContent += `DeviceId: ${deviceId}\n`;
     logContent += `DeviceId source: ${deviceIdSource}\n\n`;
     
-    // Maak acties
+    // Build actions
     const actions = [];
     const categorySequenceNumber = getNextSequenceNumber();
     
-    // Actie 1: CREATE_CATEGORY
+    // Action 1: CREATE_CATEGORY
     const createCategoryAction = {
         type: "CREATE_CATEGORY",
         categoryId: categoryId,
@@ -1110,15 +1118,15 @@ async function testCreateCategoryAndRule() {
         userId: parentUserId
     });
     
-    // Actie 2: CREATE_TIMELIMIT_RULE
+    // Action 2: CREATE_TIMELIMIT_RULE
     const ruleSequenceNumber = getNextSequenceNumber();
     const createRuleAction = {
         type: "CREATE_TIMELIMIT_RULE",
         rule: {
             ruleId: ruleId,
             categoryId: categoryId,
-            time: 3600000, // 1 uur
-            days: 127, // Alle dagen (1111111 in binair)
+            time: 3600000, // 1 hour
+            days: 127, // Every day (1111111 in binary)
             extraTime: false,
             start: 0, // 00:00
             end: 1439, // 23:59
@@ -1143,7 +1151,7 @@ async function testCreateCategoryAndRule() {
     logContent += `1. CREATE_CATEGORY: ${JSON.stringify(createCategoryAction)}\n`;
     logContent += `2. CREATE_TIMELIMIT_RULE: ${JSON.stringify(createRuleAction)}\n\n`;
     
-    // Verstuur naar server
+    // Send to server
     const payload = {
         deviceAuthToken: TOKEN,
         actions: actions
@@ -1178,7 +1186,7 @@ async function testCreateCategoryAndRule() {
             resultLog += `Category en rule zijn succesvol aangemaakt!\n`;
             addLog("✅ Category + Rule succesvol aangemaakt!", false);
             
-            // Doe automatisch een pull sync
+            // Automatically run a pull sync
             setTimeout(() => {
                 addLog("Pulling fresh data...", false);
                 runSync();
@@ -1195,7 +1203,7 @@ async function testCreateCategoryAndRule() {
 }
 
 /**
- * Genereert een random ID (zoals de server doet)
+ * Generate a random ID (same format as the server)
  */
 function generateRandomId(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -1207,8 +1215,8 @@ function generateRandomId(length) {
 }
 
 /**
- * TEST versie: Verstuurt wijzigingen naar de server via /sync/push-actions
- * Met uitgebreide logging van alle server responses
+ * TEST version: Send changes via /sync/push-actions
+ * With verbose logging of server responses
  */
 async function executePushSync() {
     const jsonView = document.getElementById("json-view");
@@ -1267,7 +1275,7 @@ async function executePushSync() {
     }
     console.log("[PUSH-SYNC] =====================================================");
     
-    // Bereid acties voor
+    // Prepare actions
     const syncData = prepareSync();
     
     if (syncData.totalActions === 0) {
@@ -1285,7 +1293,7 @@ async function executePushSync() {
     console.log(`[PUSH-SYNC] ${syncData.totalActions} wijzigingen gevonden in ${syncData.batches.length} batch(es)`);
     addLog(`📦 ${syncData.totalActions} wijzigingen gevonden...`, false);
     
-    // Haal deviceId op (bij voorkeur het dashboard device)
+    // Resolve deviceId (prefer the dashboard device)
     let deviceId = currentDataDraft?.deviceId || null;
     let deviceIdSource = currentDataDraft?.deviceId ? 'from draft' : 'unknown';
     
@@ -1320,7 +1328,7 @@ async function executePushSync() {
     logContent += `Totaal wijzigingen: ${syncData.totalActions}\n`;
     logContent += `Aantal batches: ${syncData.batches.length}\n\n`;
     
-    // Process elke batch
+    // Process each batch
     let successfulBatches = 0;
     let failedBatches = 0;
     
@@ -1331,14 +1339,14 @@ async function executePushSync() {
         console.log(`\n[PUSH-SYNC] ===== BATCH ${batchNum}/${syncData.batches.length} =====`);
         logContent += `\n--- BATCH ${batchNum}/${syncData.batches.length} (${batch.length} acties) ---\n`;
         
-        // Bepaal parent userId
+        // Determine parent userId
         console.log(`[PUSH-SYNC] Batch ${batchNum}: Parent userId detectie...`);
         let parentUserId = null;
         if (currentDataDraft && currentDataDraft.users && currentDataDraft.users.data) {
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Users beschikbaar, zoeken naar parent...`);
             const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
             if (parentUser) {
-                // Probeer zowel 'id' als 'userId' velden
+                // Try both 'id' and 'userId' fields
                 parentUserId = parentUser.id || parentUser.userId;
                 console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent gevonden:`, parentUser);
                 console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Parent id field: ${parentUser.id}`);
@@ -1364,7 +1372,7 @@ async function executePushSync() {
         console.log(`[PUSH-SYNC] Batch ${batchNum}: ✅ Ga verder met parentUserId: ${parentUserId}`);
         logContent += `Parent userId: ${parentUserId}\n`;
         
-        // Bouw de actions array met integrity signing
+        // Build the actions array with integrity signing
         const actions = [];
         
         try {
@@ -1395,7 +1403,7 @@ async function executePushSync() {
             continue;
         }
         
-        // Bouw de payload - CORRECT FORMAAT ZONDER version/clientLevel
+        // Build the payload - correct format without version/clientLevel
         const payload = {
             deviceAuthToken: TOKEN,
             actions: actions
@@ -1407,7 +1415,7 @@ async function executePushSync() {
         console.log(`  - actions count: ${actions.length}`);
         console.log(`  - First action structure:`, actions[0]);
         
-        // Valideer de payload voordat we versturen
+        // Validate the payload before sending
         const payloadString = JSON.stringify(payload);
         console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload size: ${payloadString.length} bytes`);
         console.log(`[PUSH-SYNC] Batch ${batchNum}: Payload preview (first 300 chars):`, payloadString.substring(0, 300));
@@ -1420,7 +1428,7 @@ async function executePushSync() {
         
         addLog(`📡 Batch ${batchNum}: Verzenden naar server (${payloadString.length} bytes)...`, false);
         
-        // Verstuur naar server
+        // Send to server
         try {
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Fetching sync/push-actions...`);
             console.log(`[PUSH-SYNC] Batch ${batchNum}: Checking URL resolution...`);
@@ -1490,7 +1498,7 @@ async function executePushSync() {
                 console.error(`[PUSH-SYNC] Batch ${batchNum}: ❌ FOUT ${responseStatus}`);
                 logContent += `❌ BATCH ${batchNum} GEFAALD (Status ${responseStatus})\n`;
                 
-                // Probeer te detecteren of het HTML is
+                // Try to detect HTML responses
                 const isHtml = responseContentType.includes('text/html') || responseText.trim().startsWith('<');
                 
                 if (isHtml) {
@@ -1516,14 +1524,14 @@ async function executePushSync() {
                     logContent += `  - Verifieer dat alle vereiste velden aanwezig zijn\n`;
                     logContent += `  - Test met een enkele simpele actie\n\n`;
                     
-                    // Log de exacte actie structuur voor debugging
+                    // Log the exact action structure for debugging
                     if (actions.length > 0) {
                         logContent += `EERSTE ACTIE DETAILS:\n`;
                         logContent += `  sequenceNumber: ${actions[0].sequenceNumber} (type: ${typeof actions[0].sequenceNumber})\n`;
                         logContent += `  encodedAction: ${actions[0].encodedAction.substring(0, 100)}... (type: ${typeof actions[0].encodedAction})\n`;
                         logContent += `  integrity: ${actions[0].integrity.substring(0, 50)}... (type: ${typeof actions[0].integrity})\n`;
                         
-                        // Valideer dat encodedAction daadwerkelijk valid JSON is
+                        // Validate that encodedAction is valid JSON
                         try {
                             const parsed = JSON.parse(actions[0].encodedAction);
                             logContent += `  encodedAction parsed OK: type=${parsed.type}, ruleId=${parsed.ruleId}\n`;
@@ -1551,7 +1559,7 @@ async function executePushSync() {
         }
     }
     
-    // Samenvatting
+    // Summary
     console.log(`\n[PUSH-SYNC] ===== SAMENVATTING =====`);
     console.log(`  Succesvol: ${successfulBatches}/${syncData.batches.length}`);
     console.log(`  Gefaald: ${failedBatches}/${syncData.batches.length}`);
@@ -1562,7 +1570,7 @@ async function executePushSync() {
     logContent += `  Gefaald: ${failedBatches}/${syncData.batches.length} batches\n`;
     logContent += `  Totaal acties: ${syncData.totalActions}\n`;
     
-    // Track of er een full sync nodig is
+    // Track whether a full sync is needed
     let needsFullSync = false;
     
     if (successfulBatches === syncData.batches.length) {
@@ -1574,9 +1582,9 @@ async function executePushSync() {
             clearDisabledRulesDirty();
         }
         
-        // ⚠️ BELANGRIJK: We resetten NIET hier!
-        // We wachten tot pull sync compleet is
-        // Dan wordt resetChangeTracking() aangeroepen in runSync()
+        // IMPORTANT: Do NOT reset here.
+        // Wait until pull sync completes.
+        // Then resetChangeTracking() is called in runSync().
         
     } else if (successfulBatches > 0) {
         console.log(`[PUSH-SYNC] ⚠️ GEDEELTELIJK SUCCESVOL`);
@@ -1588,7 +1596,7 @@ async function executePushSync() {
         addLog(`❌ Sync gefaald - controleer inspector en console`, true);
     }
     
-    // Log naar inspector
+    // Log to inspector
     if (jsonView.textContent.length > 100000) {
         jsonView.textContent = jsonView.textContent.slice(-50000);
     }
@@ -1597,13 +1605,13 @@ async function executePushSync() {
     
     console.log(`[PUSH-SYNC] ===== EINDE =====\n`);
     
-    // Als alle batches succesvol waren EN we geen failures hadden, trigger een pull sync
-    // Dit zorgt ervoor dat als de server om een full sync vroeg, we die automatisch doen
+    // If all batches succeeded and there were no failures, trigger a pull sync.
+    // This ensures we run a full sync when the server requested it.
     if (successfulBatches === syncData.batches.length && failedBatches === 0) {
         console.log(`[PUSH-SYNC] 🔄 Automatische pull sync starten om server state te synchroniseren...`);
         addLog(`🔄 Pull sync starten om server state op te halen...`, false);
         
-        // Kleine delay zodat logs zichtbaar zijn
+        // Small delay so logs remain visible
         setTimeout(() => {
             if (typeof runSync === 'function') {
                 console.log(`[PUSH-SYNC] Triggering runSync() for automatic full sync...`);
@@ -1625,7 +1633,7 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Debug functie: Test AddUser integrity
+ * Debug function: Test AddUser integrity
  */
 async function debugAddUserIntegrity() {
     const inspector = document.getElementById('json-view');
@@ -1650,7 +1658,7 @@ async function debugAddUserIntegrity() {
     
     addLog("🔍 Debug: AddUser integrity check...", false);
     
-    // Haal parent user op
+    // Resolve parent user
     const parentUser = currentDataDraft.users.data.find(u => u.type === 'parent');
     if (!parentUser) {
         addLog("❌ Parent user niet gevonden", true);
@@ -1659,7 +1667,7 @@ async function debugAddUserIntegrity() {
     const parentUserId = parentUser.id || parentUser.userId;
     const secondPasswordSalt = parentUser.secondPasswordSalt;
     
-    // Haal deviceId op
+    // Resolve deviceId
     const dashboardDevice = currentDataDraft.devices.data.find(d => 
         d.name === "DashboardControl" || d.model?.includes("Dashboard")
     );
@@ -1677,7 +1685,7 @@ async function debugAddUserIntegrity() {
     logContent += `- DeviceId: ${deviceId}\n`;
     logContent += `- Device naam: ${dashboardDevice.name}\n`;
     
-    // Maak een test ADD_USER actie (zoals we net verstuurden)
+    // Create a test ADD_USER action (like the one we just sent)
     const testUserId = "vCzYlU";
     const testAction = {
         type: "ADD_USER",
@@ -1693,18 +1701,18 @@ async function debugAddUserIntegrity() {
     logContent += `- SequenceNumber: ${sequenceNumber}\n`;
     logContent += `- EncodedAction: ${encodedAction}\n\n`;
     
-    // Bereken onze eigen integrity
+    // Calculate our own integrity
     addLog("Berekenen lokale integrity...", false);
     const ourIntegrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
     
     logContent += `ONZE BEREKENING:\n`;
     logContent += `- Integrity: ${ourIntegrity}\n\n`;
     
-    // Vraag server NIET om server-side berekening (dummy salt werkt niet met bcrypt)
-    // In plaats daarvan: controleer of we dezelfde integrity berekenen
+    // Do NOT ask the server for a server-side calculation (dummy salt fails with bcrypt)
+    // Instead: verify that we calculate the same integrity
     logContent += `\nANALYSE:\n`;
     
-    // Check of we een geldige secondHash hebben
+    // Check for a valid secondHash
     if (!parentPasswordHash || !parentPasswordHash.secondHash) {
         logContent += `❌ Geen secondHash in localStorage!\n`;
         logContent += `Stap 1: Klik '🔐 Wachtwoord Hashes Bijwerken'\n`;
@@ -1716,7 +1724,7 @@ async function debugAddUserIntegrity() {
         logContent += `   Hash: ${parentPasswordHash.secondHash.substring(0, 30)}...\n`;
         logContent += `\n✅ Integrity looks correct: ${ourIntegrity}\n`;
         
-        // Check of salt geldig is
+        // Check if the salt is valid
         if (!secondPasswordSalt || secondPasswordSalt === "$2a$12$1234567890123456789012") {
             logContent += `\n⚠️ WAARSCHUWING: secondPasswordSalt is DUMMY!\n`;
             logContent += `Dummy salt: ${secondPasswordSalt}\n`;
@@ -1736,7 +1744,7 @@ async function debugAddUserIntegrity() {
         }
     }
     
-    // Log naar inspector
+    // Log to inspector
     if (inspector) {
         if (inspector.textContent.length > 100000) {
             inspector.textContent = inspector.textContent.slice(-50000);
@@ -1749,7 +1757,7 @@ async function debugAddUserIntegrity() {
 }
 
 /**
- * KIND TOEVOEGEN - Modal functies
+ * ADD CHILD - Modal functions
  */
 
 function showAddChildModal() {
@@ -1777,7 +1785,7 @@ function hideAddChildModal() {
 }
 
 /**
- * Voegt een kind toe aan de familie via de server
+ * Add a child to the family via the server
  */
 async function submitAddChild() {
     const nameInput = document.getElementById('add-child-name-input');
@@ -1806,10 +1814,10 @@ async function submitAddChild() {
     if (statusDiv) statusDiv.textContent = "⏳ Kind toevoegen...";
     
     try {
-        // Genereer random userId (6 karakters, alfanumeriek)
+        // Generate random userId (6 characters, alphanumeric)
         const userId = generateRandomId(6);
         
-        // Haal deviceId op
+        // Resolve deviceId
         const dashboardDevice = currentDataDraft?.devices?.data?.find(d => 
             d.name === "DashboardControl" || d.model?.includes("Dashboard")
         );
@@ -1820,7 +1828,7 @@ async function submitAddChild() {
         
         const deviceId = dashboardDevice.deviceId;
         
-        // Haal parent userId op
+        // Resolve parent userId
         const parentUser = currentDataDraft?.users?.data?.find(u => u.type === 'parent');
         if (!parentUser) {
             throw new Error("Parent user niet gevonden");
@@ -1834,20 +1842,20 @@ async function submitAddChild() {
         logContent += `Parent userId: ${parentUserId}\n`;
         logContent += `DeviceId: ${deviceId}\n\n`;
         
-        // Maak ADD_USER action
+        // Build ADD_USER action
         const addUserAction = {
             type: "ADD_USER",
             userId: userId,
             name: childName,
             userType: "child",
             timeZone: "Europe/Amsterdam"
-            // password: null (niet nodig voor child, wordt automatisch weggelaten)
+            // password: null (not needed for child, omitted automatically)
         };
         
         const encodedAction = JSON.stringify(addUserAction);
         const sequenceNumber = getNextSequenceNumber();
         
-        // Bereken integrity
+        // Compute integrity
         const integrity = await calculateIntegrity(sequenceNumber, deviceId, encodedAction);
         
         const action = {
@@ -1870,7 +1878,7 @@ async function submitAddChild() {
         
         console.log("[ADD-CHILD] Versturen naar server:", payload);
         
-        // Verstuur naar server
+        // Send to server
         const response = await fetch('sync/push-actions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1892,7 +1900,7 @@ async function submitAddChild() {
             
             addLog(`✅ Kind "${childName}" succesvol toegevoegd!`, false);
             
-            // Log naar inspector
+            // Log to inspector
             if (inspector) {
                 if (inspector.textContent.length > 100000) {
                     inspector.textContent = inspector.textContent.slice(-50000);
@@ -1901,10 +1909,10 @@ async function submitAddChild() {
                 inspector.scrollTop = inspector.scrollHeight;
             }
             
-            // Sluit modal na 2 seconden en doe pull sync
+            // Close modal after 2 seconds and run a pull sync
             setTimeout(() => {
                 hideAddChildModal();
-                runSync(); // Haal nieuwe user data op
+                runSync(); // Fetch new user data
             }, 2000);
             
         } else {
@@ -1917,7 +1925,7 @@ async function submitAddChild() {
             
             addLog("❌ Kind toevoegen gefaald - controleer inspector", true);
             
-            // Log naar inspector
+            // Log to inspector
             if (inspector) {
                 if (inspector.textContent.length > 100000) {
                     inspector.textContent = inspector.textContent.slice(-50000);

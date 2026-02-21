@@ -1,18 +1,19 @@
-// Dit is ons "werkgeheugen"
+// Flow: maintain a draft snapshot, track changes, and manage disabled/deleted rules.
+// This is our in-memory working set
 let currentDataDraft = null;
 
-// Originele (niet-gewijzigde) data - opgeslagen wanneer we de sync doen
+// Original (unchanged) data stored when we sync
 let originalDataSnapshot = null;
 
-// Tracked welke regels zijn gewijzigd
+// Track which rules were modified
 let changedRules = new Map(); // { "categoryId_ruleId": {...originalValues} }
 
-// Tracked welke regels nieuw zijn
+// Track newly created rules
 let newRules = [];
 let newCategoryApps = [];
 let removedCategoryApps = [];
 
-// Lokaal uitgeschakelde regels (blijven in dashboard, maar worden op server verwijderd)
+// Locally disabled rules (stay in the dashboard but are removed on the server)
 const DISABLED_RULES_STORAGE_KEY = 'timelimit_disabledRules';
 const DELETED_RULES_STORAGE_KEY = 'timelimit_deletedRules';
 const DISABLED_RULES_DIRTY_KEY = 'timelimit_disabledRulesDirty';
@@ -20,11 +21,11 @@ let disabledRules = [];
 let deletedRules = [];
 let disabledRulesDirty = localStorage.getItem(DISABLED_RULES_DIRTY_KEY) === '1';
 
-// Track nieuw toegevoegde rule terwijl modal open is
+// Track newly added rule while the modal is open
 let pendingNewRule = null;
 let pendingNewRuleSaved = false;
 
-// Parent password hash - nodig voor HMAC-SHA512 signing
+// Parent password hash - needed for HMAC-SHA512 signing
 let parentPasswordHash = null;
 
 function loadRulesListFromStorage(key) {
@@ -184,7 +185,7 @@ function initializeDraft(data) {
     mergeDisabledRulesIntoDraft(currentDataDraft);
     mergeDeletedRulesIntoDraft(currentDataDraft);
     
-    // Sla parent password hash op voor HMAC-SHA512 signing
+    // Store parent password hash for HMAC-SHA512 signing
     if (data.parentPasswordHash) {
         parentPasswordHash = data.parentPasswordHash;
         console.log("Parent password hash opgeslagen voor sync signing.");
@@ -207,6 +208,7 @@ function refreshRuleViews() {
 }
 
 function mergeDisabledRulesIntoDraft(draft) {
+    // Flow: keep locally disabled rules visible in the draft view.
     if (!draft) return;
     if (!Array.isArray(draft.rules)) {
         draft.rules = [];
@@ -233,6 +235,7 @@ function mergeDisabledRulesIntoDraft(draft) {
 }
 
 function reloadDisabledRulesFromStorage() {
+    // Flow: reload disabled/deleted sets and refresh UI views.
     disabledRules = loadRulesListFromStorage(DISABLED_RULES_STORAGE_KEY);
     deletedRules = loadRulesListFromStorage(DELETED_RULES_STORAGE_KEY);
     normalizeDisabledRules();
@@ -249,6 +252,7 @@ function reloadDisabledRulesFromStorage() {
 }
 
 function mergeDeletedRulesIntoDraft(draft) {
+    // Flow: mark deleted rules as pending in the draft unless disabled.
     if (!draft || !Array.isArray(draft.rules)) return;
 
     const disabledSet = new Set(
@@ -288,6 +292,7 @@ function mergeDeletedRulesIntoDraft(draft) {
 }
 
 function mergePendingNewRules(data) {
+    // Flow: stage new rules locally until server confirms them.
     if (!data || !Array.isArray(data.rules)) return;
     if (!Array.isArray(newRules) || newRules.length === 0) return;
 
@@ -306,6 +311,7 @@ function mergePendingNewRules(data) {
 }
 
 function reconcileNewRules(data) {
+    // Flow: remove locally staged rules once they exist on the server.
     if (!Array.isArray(newRules) || newRules.length === 0) return;
     if (!data || !Array.isArray(data.rules)) return;
 
@@ -339,7 +345,7 @@ function reconcileNewRules(data) {
  * We decoderen het bcrypt-base64 naar raw bytes, dan naar standaard base64
  */
 function bcryptSaltToBase64(bcryptSalt) {
-    // Extract de salt: na $2a$12$ (8 chars) volgen 22 chars salt
+    // Extract the salt: after $2a$12$ (8 chars) follow 22 salt chars
     const saltMatch = bcryptSalt.match(/\$2[aby]\$\d{2}\$(.{22})/);
     if (!saltMatch) {
         console.warn("[CRYPTO] Ongeldige bcrypt salt format:", bcryptSalt);
@@ -349,10 +355,10 @@ function bcryptSaltToBase64(bcryptSalt) {
     const saltChars = saltMatch[1]; // 22 karakter bcrypt-base64
     console.log("[CRYPTO] Bcrypt salt gevonden (22 chars):", saltChars);
     
-    // Bcrypt alphabet (aanvullend base64)
+    // Bcrypt alphabet (extended base64)
     const bcryptAlpha = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     
-    // Decode bcrypt-base64 naar bytes
+    // Decode bcrypt-base64 into bytes
     let bits = 0;
     let bitCount = 0;
     const bytes = [];
@@ -375,7 +381,7 @@ function bcryptSaltToBase64(bcryptSalt) {
     
     console.log("[CRYPTO] Gedecodeerde bytes:", bytes.length, "bytes");
     
-    // Zet bytes om naar standaard base64
+    // Convert bytes to standard base64
     const binaryString = String.fromCharCode(...bytes);
     const base64 = btoa(binaryString);
     
@@ -398,10 +404,10 @@ function storeparentPasswordHashForSync(hashObject) {
         return;
     }
     
-    // Converteer bcrypt salt naar base64 voor HMAC
+    // Convert bcrypt salt to base64 for HMAC
     let base64Salt = hashObject.secondSalt;
     
-    // Check of dit een bcrypt salt is (starts with $2a$, $2b$, $2y$)
+    // Check whether this is a bcrypt salt (starts with $2a$, $2b$, $2y$)
     if (base64Salt.match(/^\$2[aby]\$/)) {
         console.log("[STATE] Bcrypt salt gedetecteerd, converteren naar base64...");
         const converted = bcryptSaltToBase64(base64Salt);
@@ -419,7 +425,7 @@ function storeparentPasswordHashForSync(hashObject) {
         secondSalt: base64Salt
     };
     
-    // CRUCIAAL: Sla op in localStorage zodat het na refresh/update beschikbaar blijft
+    // CRITICAL: Store in localStorage so it persists after refresh/update
     try {
         const toStore = {
             hash: parentPasswordHash.hash,
@@ -710,8 +716,8 @@ function updateRuleInDraft(categoryId, ruleId, newValues) {
     if (category) {
         const rule = category.rules.find(r => r.id == ruleId);
         if (rule) {
-            // Sla de ORIGINELE waarden op als dit de eerste keer is dat deze regel wordt gewijzigd
-            // Zorg voor consistente string-keys
+            // Store ORIGINAL values on the first change for this rule
+            // Keep string keys consistent
             const key = `${String(categoryId)}_${String(ruleId)}`;
             if (!changedRules.has(key)) {
                 const originalRule = originalDataSnapshot.rules
@@ -741,7 +747,7 @@ function getChangedRules() {
     
     changedRules.forEach((originalRule, key) => {
         const [catIdStr, ruleIdStr] = key.split('_');
-        // BELANGRIJK: categoryId is een STRING, GEEN getal!
+        // IMPORTANT: categoryId is a STRING, not a number!
         const categoryId = catIdStr;
         
         console.log(`[DEBUG] Zoeken naar rule: catId=${categoryId}, ruleId=${ruleIdStr}`);
@@ -753,7 +759,7 @@ function getChangedRules() {
             return;
         }
         
-        // Probeer zowel als string als als getal
+        // Try as both string and number
         let currentRule = category.rules?.find(r => String(r.id) === ruleIdStr || r.id == ruleIdStr);
         
         if (!currentRule) {

@@ -1,3 +1,5 @@
+"""Web server for the UI: serves static assets, proxies API calls, and handles long-poll events."""
+
 import http.server
 import socketserver
 import json
@@ -14,7 +16,7 @@ HTML_PATH = "/usr/bin/dashboard.html"
 STORAGE_PATH = "/data/timelimit_ui_storage.json"
 STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
 
-# NIEUW: Globale variabele om de server-keuze in het geheugen op te slaan
+# Flow: keep selected server in memory, and use long-poll for cross-device signals.
 SELECTED_SERVER = None
 LOGGING_MODE = "standard"
 LONGPOLL_LOCK = threading.Lock()
@@ -30,6 +32,7 @@ def event_log(message):
     log(message)
 
 def broadcast_event(event, data):
+    # Notify all long-poll waiters about a new event.
     event_log(f"[EVENT] Broadcast event={event} data={data}")
     with LONGPOLL_COND:
         LONGPOLL_LAST_EVENT["id"] += 1
@@ -84,7 +87,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
             log(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}")
 
-        # --- CHECK 1: De Server Wissel Route (Aangepast voor Ingress compatibiliteit) ---
+        # Route: set-server is UI-controlled and updates in-memory server selection.
         if self.path.endswith('/set-server'):
             log("[DEBUG] Route /set-server herkend!")
             try:
@@ -103,7 +106,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
-        # --- CHECK 1b: HA storage shadow copy ---
+        # Route: HA storage shadow copy for cross-device state.
         if self.path.endswith('/ha-storage'):
             try:
                 payload = json.loads(post_data) if post_data else {}
@@ -126,7 +129,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
 
-        # --- CHECK 2: Proxy Logica ---
+        # Route: proxy to TimeLimit API endpoints.
         # We bepalen eerst of we naar de geselecteerde server gaan
         log(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}")
         api = TimeLimitAPI(SELECTED_SERVER, verbose=is_verbose_logging())
@@ -435,6 +438,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # ... (do_GET blijft hetzelfde als in jouw code) ...
         load_logging_mode()
+        # Route: long-poll events for cross-device updates.
         if '/ha-events-longpoll' in self.path:
             try:
                 parsed = urllib.parse.urlparse(self.path)
