@@ -19,7 +19,7 @@ This document describes how the dashboard currently derives password hashes and 
 
 ### Generation / regeneration
 
-Source: rootfs/usr/bin/frontend.py and rootfs/usr/bin/crypto_utils.py
+Source: rootfs/usr/bin/web_server.py and rootfs/usr/bin/crypto_utils.py
 
 - When the user enters the password, the UI calls:
   - /regenerate-hash if a server secondPasswordSalt is available.
@@ -131,7 +131,7 @@ Source: rootfs/usr/bin/sync.js
   - generate_family_hashes
   - regenerate_second_hash
   - calculate_hmac_sha256_binary
-- rootfs/usr/bin/frontend.py
+- rootfs/usr/bin/web_server.py
   - /generate-hashes
   - /regenerate-hash
   - /calculate-hmac-sha256

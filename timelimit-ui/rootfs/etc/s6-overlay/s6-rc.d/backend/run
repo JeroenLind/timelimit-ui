@@ -1,5 +1,0 @@
-#!/usr/bin/with-contenv bashio
-bashio::log.info "Starting Timelimit backend communication check..."
-
-# Voer het python script uit
-python3 /usr/bin/check_server.py
