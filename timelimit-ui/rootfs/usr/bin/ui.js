@@ -1,3 +1,12 @@
+// Dynamisch UI-versie tonen in header
+window.addEventListener('DOMContentLoaded', () => {
+    fetch('/ui-version')
+        .then(res => res.json())
+        .then(data => {
+            const el = document.getElementById('ui-version');
+            if (el && data.version) el.textContent = `TimeLimit UI v${data.version}`;
+        });
+});
 /**
  * ui.js - Gedeelde interface functies
  */
