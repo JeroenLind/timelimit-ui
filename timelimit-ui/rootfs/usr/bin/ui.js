@@ -1532,11 +1532,12 @@ function renderUsers(data) {
     const openSectionKeys = typeof getOpenSectionState === 'function' ? getOpenSectionState() : [];
     const persistedSectionKeys = typeof getPersistedOpenSectionKeys === 'function' ? getPersistedOpenSectionKeys() : [];
     const disabledList = typeof getDisabledRules === 'function' ? getDisabledRules() : [];
-    const users = data.users.data.slice().sort((a, b) => {
-        const aParent = a && a.type === 'parent';
-        const bParent = b && b.type === 'parent';
-        if (aParent === bParent) return 0;
-        return aParent ? 1 : -1;
+    // Filter out parent users; only show child users in the treeview
+    const users = data.users.data.filter(u => u.type !== 'parent').sort((a, b) => {
+        // Optionally sort by name or id if needed
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        return aName.localeCompare(bName);
     });
     let html = "<div style='display:flex; flex-direction:column; gap:10px;'>";
 
