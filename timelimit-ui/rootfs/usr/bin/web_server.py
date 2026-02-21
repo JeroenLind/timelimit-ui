@@ -65,18 +65,19 @@ class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            # Serve UI version from config
-            if self.path.endswith('/ui-version'):
-                try:
-                    config = get_config()
-                    version = config.get('version', 'unknown')
-                    self._send_raw(200, json.dumps({'version': version}).encode(), 'application/json')
-                except Exception as e:
-                    self._send_raw(500, str(e).encode(), 'text/plain')
-                return
-            # ...existing code...
     protocol_version = "HTTP/1.1"
+
+    def do_GET(self):
+        # Serve UI version from config
+        if self.path.endswith('/ui-version'):
+            try:
+                config = get_config()
+                version = config.get('version', 'unknown')
+                self._send_raw(200, json.dumps({'version': version}).encode(), 'application/json')
+            except Exception as e:
+                self._send_raw(500, str(e).encode(), 'text/plain')
+            return
+        # ...existing code...
     def log_message(self, format, *args):
         log(f"[HTTP] {format%args}")
 
