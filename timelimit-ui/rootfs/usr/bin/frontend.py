@@ -43,7 +43,7 @@ def get_config():
                 return json.load(f)
         except Exception as e:
             log(f"Config Error: {str(e)}")
-    return {"server_url": "http://192.168.68.30:8080", "auth_token": ""}
+    return {"server_url": "http://192.168.68.30:8080"}
 
 class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -488,7 +488,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_error(404, "Dashboard HTML niet gevonden")
                     return
                 with open(HTML_PATH, 'r', encoding='utf-8') as f:
-                    html = f.read().replace("###TOKEN###", config.get('auth_token', ''))
+                    html = f.read()
                     self._send_raw(200, html.encode('utf-8'), "text/html")
             except Exception as e:
                 self.send_error(500, f"Server Error: {str(e)}")

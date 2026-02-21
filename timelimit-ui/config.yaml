@@ -1,6 +1,6 @@
 name: "Timelimit UI"
 description: "Een add-on voor tijdslimiet beheer"
-version: "1.2.177"
+version: "1.2.178"
 slug: "timelimit-ui"
 arch:
   - aarch64
@@ -11,11 +11,8 @@ ingress: true
 ingress_port: 8099
 panel_icon: "mdi:clock-check"
 panel_title: "Timelimit"
+panel_admin: false
 options:
   server_url: "http://192.168.68.30:8080"
-  auth_token: "DAPBULbE3Uw4BLjRknOFzl50pV2QRZoY"
 schema:
   server_url: str
-  auth_token: str
-ports:
-  8099/tcp: 8099
