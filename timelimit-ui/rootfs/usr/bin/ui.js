@@ -87,6 +87,16 @@ function scheduleHaStorageShadowSync(reason) {
     if (haShadowTimer) {
         clearTimeout(haShadowTimer);
     }
+    
+    // Check if we should suppress sync when offline
+    // Only suppress if we're in debug mode and server is unreachable
+    const shouldSuppress = isDebugMode() && window.checkServerConnectivity && !window.isServerOnline();
+    
+    if (shouldSuppress) {
+        // Don't schedule sync when offline in debug mode
+        return;
+    }
+    
     addLog(`⏳ HA storage sync gepland (${reason || 'unknown'})`, false);
     haShadowTimer = setTimeout(() => {
         haShadowTimer = null;

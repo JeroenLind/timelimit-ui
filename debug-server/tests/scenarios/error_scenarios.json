@@ -1,0 +1,147 @@
+{
+  "name": "Error Scenarios",
+  "description": "Test error scenarios including 401, 403, 404, 409, 429 responses",
+  "scenarios": [
+    {
+      "name": "Invalid Device Auth Token",
+      "description": "Test 401 response for invalid device auth token",
+      "endpoint": "POST /sync/pull-status",
+      "request": {
+        "deviceAuthToken": "invalid_token_12345"
+      },
+      "expected_status": 401,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid device auth token"
+      }
+    },
+    {
+      "name": "Missing Device Auth Token",
+      "description": "Test 401 response for missing device auth token",
+      "endpoint": "POST /sync/pull-status",
+      "request": {
+        "deviceAuthToken": ""
+      },
+      "expected_status": 401,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid device auth token"
+      }
+    },
+    {
+      "name": "Invalid Mail Login Token",
+      "description": "Test error response for invalid mail login token",
+      "endpoint": "POST /auth/sign-in-by-mail-code",
+      "request": {
+        "mailLoginToken": "invalid_token",
+        "receivedCode": "123456"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid or expired mail login token"
+      }
+    },
+    {
+      "name": "Invalid Verification Code",
+      "description": "Test error response for invalid verification code",
+      "endpoint": "POST /auth/sign-in-by-mail-code",
+      "request": {
+        "mailLoginToken": "valid_token",
+        "receivedCode": "000000"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid verification code"
+      }
+    },
+    {
+      "name": "Expired Mail Login Token",
+      "description": "Test error response for expired mail login token",
+      "endpoint": "POST /auth/sign-in-by-mail-code",
+      "request": {
+        "mailLoginToken": "expired_token",
+        "receivedCode": "123456"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid or expired mail login token"
+      }
+    },
+    {
+      "name": "Invalid Mail Auth Token",
+      "description": "Test error response for invalid mail auth token",
+      "endpoint": "POST /parent/get-status-by-mail-address",
+      "request": {
+        "mailAuthToken": "invalid_token"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid mail auth token"
+      }
+    },
+    {
+      "name": "Family Not Found",
+      "description": "Test error response when family not found",
+      "endpoint": "POST /parent/sign-in-into-family",
+      "request": {
+        "mailAuthToken": "valid_token_no_family",
+        "parentPasswordSecondHash": "hash"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Family not found for this mail"
+      }
+    },
+    {
+      "name": "Invalid Password",
+      "description": "Test error response for invalid password",
+      "endpoint": "POST /parent/sign-in-into-family",
+      "request": {
+        "mailAuthToken": "valid_token_with_family",
+        "parentPasswordSecondHash": "wrong_hash"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Invalid password"
+      }
+    },
+    {
+      "name": "Invalid Request Body",
+      "description": "Test 400 response for invalid request body",
+      "endpoint": "POST /auth/send-mail-login-code-v2",
+      "request": {
+        "mail": "invalid-email"
+      },
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Validation error"
+      }
+    },
+    {
+      "name": "Missing Required Field",
+      "description": "Test 400 response for missing required field",
+      "endpoint": "POST /auth/send-mail-login-code-v2",
+      "request": {},
+      "expected_status": 400,
+      "expected_response": {
+        "status": "error",
+        "error": "Validation error"
+      }
+    }
+  ],
+  "validation": {
+    "assertions": [
+      "Invalid tokens return 401 Unauthorized",
+      "Invalid credentials return 400 Bad Request",
+      "Error responses include status and error message",
+      "Sensitive data is not exposed in error messages"
+    ]
+  }
+}

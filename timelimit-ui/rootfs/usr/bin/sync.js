@@ -11,6 +11,52 @@ const SYNC_INTERVAL = 30; // seconds
 const SERVER_API_LEVEL_KEY = "timelimit_serverApiLevel";
 let serverApiLevel = null;
 
+// Server connectivity tracking
+let serverOnline = false;
+let serverOnlineCacheTime = 0;
+const SERVER_ONLINE_CACHE_DURATION = 5000; // 5 seconds cache
+const SERVER_CONNECTIVITY_TIMEOUT = 3000; // 3 seconds timeout
+
+// Check server connectivity by pinging /ha-storage endpoint
+async function checkServerConnectivity() {
+    const now = Date.now();
+    
+    // Return cached result if still valid
+    if (now - serverOnlineCacheTime < SERVER_ONLINE_CACHE_DURATION) {
+        return serverOnline;
+    }
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), SERVER_CONNECTIVITY_TIMEOUT);
+        
+        const response = await fetch('/ha-storage', {
+            method: 'GET',
+            cache: 'no-store',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        serverOnline = response.ok;
+        serverOnlineCacheTime = now;
+        
+        console.log(`[CONNECTIVITY] Server online: ${serverOnline}`);
+        return serverOnline;
+    } catch (e) {
+        clearTimeout(timeoutId);
+        serverOnline = false;
+        serverOnlineCacheTime = now;
+        console.log(`[CONNECTIVITY] Server offline: ${e.message}`);
+        return false;
+    }
+}
+
+// Check if server is currently online (uses cached result)
+function isServerOnline() {
+    return serverOnline;
+}
+
 // Normalize the server API level value from storage
 function normalizeServerApiLevel(value) {
     const parsed = Number.parseInt(value, 10);
@@ -167,6 +213,16 @@ async function runSync() {
 
     if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
         addLog("Sync overgeslagen: Geen geldig token.", true);
+        return;
+    }
+
+    // Check server connectivity before attempting sync
+    const isOnline = await checkServerConnectivity();
+    if (!isOnline) {
+        addLog("Sync overgeslagen: Geen server verbinding.", true);
+        badge.innerText = "Offline";
+        badge.className = "status-badge status-offline";
+        setPendingBadgeSyncState(false);
         return;
     }
 
@@ -413,7 +469,7 @@ if (typeof window !== 'undefined') {
 // Background loop
 // Start the background sync loop for automatic periodic sync
 function startSyncLoop() {
-    setInterval(() => {
+    setInterval(async () => {
         const isEnabled = document.getElementById('auto-sync-tgl').checked;
         const badge = document.getElementById('status-badge');
 
@@ -423,6 +479,16 @@ function startSyncLoop() {
                 badge.className = "status-badge status-offline";
                 return;
             }
+            
+            // Check server connectivity before syncing
+            const isOnline = await checkServerConnectivity();
+            if (!isOnline) {
+                badge.innerText = "Offline";
+                badge.className = "status-badge status-offline";
+                secondsCounter = 0; // Reset counter when offline
+                return;
+            }
+            
             secondsCounter++;
             
             // Show progress on the badge (optional, visual feedback)
@@ -1256,29 +1322,40 @@ async function executePushSync() {
     console.log("=== PUSH SYNC GESTART ===");
     
     try {
-        // Check TOKEN
-        if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
-            addLog("❌ Geen geldig token beschikbaar!", true);
-            console.error("[PUSH-SYNC] Geen geldig token");
-            alert("Push sync kan niet starten: geen geldig token. Log opnieuw in.");
-            if (typeof showLoginModal === 'function') {
-                showLoginModal();
+            // Check TOKEN
+            if (!TOKEN || TOKEN === "" || TOKEN.includes("#")) {
+                addLog("❌ Geen geldig token beschikbaar!", true);
+                console.error("[PUSH-SYNC] Geen geldig token");
+                alert("Push sync kan niet starten: geen geldig token. Log opnieuw in.");
+                if (typeof showLoginModal === 'function') {
+                    showLoginModal();
+                }
+                return;
             }
-            return;
-        }
+            
+            // Check server connectivity before attempting push sync
+            const isOnline = await checkServerConnectivity();
+            if (!isOnline) {
+                addLog("❌ Push sync overgeslagen: Geen server verbinding.", true);
+                console.error("[PUSH-SYNC] Geen server verbinding");
+                alert("Push sync kan niet starten: geen server verbinding. Controleer je netwerkverbinding.");
+                setPendingBadgeSyncState(false);
+                return;
+            }
+            
+            // Check parentPasswordHash
+            if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
+                addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
+                console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
+                alert("Push sync kan niet starten: wachtwoord hashes ontbreken. Werk deze bij.");
+                if (typeof showPasswordResetModal === 'function') {
+                    showPasswordResetModal();
+                }
+                return;
+            }
         
-        // Check parentPasswordHash
-        if (!parentPasswordHash || !parentPasswordHash.secondSalt) {
-            addLog("❌ Geen wachtwoord hashes beschikbaar voor signing! Klik eerst op 'Wachtwoord Hashes Bijwerken'.", true);
-            console.error("[PUSH-SYNC] Geen parentPasswordHash voor integrity signing");
-            alert("Push sync kan niet starten: wachtwoord hashes ontbreken. Werk deze bij.");
-            if (typeof showPasswordResetModal === 'function') {
-                showPasswordResetModal();
-            }
-            return;
-        }
-    
-    console.log("[PUSH-SYNC] Token check: OK");
+        console.log("[PUSH-SYNC] Token check: OK");
+        console.log("[PUSH-SYNC] Server connectivity check: OK");
     console.log("[PUSH-SYNC] parentPasswordHash check: OK");
     console.log("[PUSH-SYNC] ============ VERIFICATIE PARENT DATA ============");
     console.log("[PUSH-SYNC] parentPasswordHash object:", parentPasswordHash);
@@ -1658,6 +1735,8 @@ async function executePushSync() {
 if (typeof window !== 'undefined') {
     window.executePushSync = executePushSync;
     window.runSync = runSync;
+    window.checkServerConnectivity = checkServerConnectivity;
+    window.isServerOnline = isServerOnline;
 }
 
 /**

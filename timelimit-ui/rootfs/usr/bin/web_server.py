@@ -8,13 +8,21 @@ import sys
 import time
 import threading
 import urllib.parse
+import logging
 from socketserver import ThreadingMixIn
 from api_client import TimeLimitAPI
 
-CONFIG_PATH = "/data/options.json"
-HTML_PATH = "/usr/bin/dashboard.html" 
-STORAGE_PATH = "/data/timelimit_ui_storage.json"
-STORAGE_TMP_PATH = "/data/timelimit_ui_storage.json.tmp"
+# Resolve paths relative to this script's directory for consistent file access
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, '..', 'data')
+STATIC_DIR = SCRIPT_DIR
+
+CONFIG_PATH = os.path.join(DATA_DIR, 'options.json')
+HTML_PATH = os.path.join(STATIC_DIR, 'dashboard.html')
+STORAGE_PATH = os.path.join(DATA_DIR, 'timelimit_ui_storage.json')
+STORAGE_TMP_PATH = os.path.join(DATA_DIR, 'timelimit_ui_storage.json.tmp')
+LOG_DIR = os.path.join(DATA_DIR, 'logs')
+LOG_FILE = os.path.join(LOG_DIR, 'timelimit-ui.log')
 
 # Flow: keep selected server in memory, and use long-poll for cross-device signals.
 SELECTED_SERVER = None
@@ -23,10 +31,38 @@ LONGPOLL_LOCK = threading.Lock()
 LONGPOLL_COND = threading.Condition(LONGPOLL_LOCK)
 LONGPOLL_LAST_EVENT = {"id": 0, "event": None, "data": None, "ts": 0}
 
+# Setup enhanced logging
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger('timelimit-ui')
+
 def log(message):
+    """Enhanced logging function with file output and level filtering."""
+    # Filter debug messages based on logging mode
     if message.startswith("[DEBUG") and LOGGING_MODE != "verbose":
         return
+
+    # Write to stderr for immediate visibility
     sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
+
+    # Also log to file with structured format
+    if message.startswith("[ERROR"):
+        logger.error(message)
+    elif message.startswith("[SUCCESS"):
+        logger.info(message)
+    elif message.startswith("[DEBUG"):
+        logger.debug(message)
+    else:
+        logger.info(message)
 
 def event_log(message):
     log(message)
@@ -45,11 +81,12 @@ def get_config():
     """Haalt de actuele configuratie op uit Home Assistant."""
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH, 'r') as f: 
+            with open(CONFIG_PATH, 'r') as f:
                 return json.load(f)
         except Exception as e:
             log(f"Config Error: {str(e)}")
-    return {"server_url": "http://192.168.68.30:8080", "logging_mode": "standard"}
+    # Default to local development configuration
+    return {"server_url": "http://localhost:8080", "logging_mode": "verbose"}
 
 def load_logging_mode():
     global LOGGING_MODE
@@ -66,6 +103,13 @@ class ThreadedHTTPServer(ThreadingMixIn, socketserver.TCPServer):
 
 class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+     
+    # Static files directory (relative to script location)
+    STATIC_DIR = STATIC_DIR
+
+    def __init__(self, *args, **kwargs):
+        # Change to static directory for file serving (Python 3.7+)
+        super().__init__(*args, directory=self.STATIC_DIR, **kwargs)
 
     def do_GET(self):
         # Serve UI version from config
@@ -77,7 +121,87 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_raw(500, str(e).encode(), 'text/plain')
             return
-        # ...existing code...
+        
+        load_logging_mode()
+        # Route: long-poll events for cross-device updates.
+        if '/ha-events-longpoll' in self.path:
+            try:
+                # Strip query string for static file serving
+                path_without_query = self.path.split('?')[0]
+                parsed = urllib.parse.urlparse(path_without_query)
+                params = urllib.parse.parse_qs(parsed.query)
+                since_raw = params.get('since', ['0'])[0]
+                timeout_raw = params.get('timeout', ['25'])[0]
+                try:
+                    since_id = int(since_raw)
+                except Exception:
+                    since_id = 0
+                try:
+                    timeout_s = int(timeout_raw)
+                except Exception:
+                    timeout_s = 25
+                if timeout_s < 1:
+                    timeout_s = 1
+                if timeout_s > 30:
+                    timeout_s = 30
+                
+                with LONGPOLL_COND:
+                    last_id = LONGPOLL_LAST_EVENT["id"]
+                    if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
+                        payload = {
+                            "status": "event",
+                            "id": last_id,
+                            "event": LONGPOLL_LAST_EVENT["event"],
+                            "data": LONGPOLL_LAST_EVENT["data"],
+                            "ts": LONGPOLL_LAST_EVENT["ts"]
+                        }
+                    else:
+                        LONGPOLL_COND.wait(timeout=timeout_s)
+                        last_id = LONGPOLL_LAST_EVENT["id"]
+                        if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
+                            payload = {
+                                "status": "event",
+                                "id": last_id,
+                                "event": LONGPOLL_LAST_EVENT["event"],
+                                "data": LONGPOLL_LAST_EVENT["data"],
+                                "ts": LONGPOLL_LAST_EVENT["ts"]
+                            }
+                        else:
+                            payload = {"status": "timeout", "id": last_id}
+                
+                self._send_raw(200, json.dumps(payload).encode(), "application/json")
+            except Exception as e:
+                log(f"[ERROR] Fout in /ha-events-longpoll: {str(e)}")
+                self._send_raw(500, str(e).encode(), "text/plain")
+            return
+        if self.path.endswith('/ha-storage'):
+            try:
+                if os.path.exists(STORAGE_PATH):
+                    with open(STORAGE_PATH, 'r') as f:
+                        data = json.load(f)
+                else:
+                    data = {"status": "empty"}
+                self._send_raw(200, json.dumps(data).encode(), "application/json")
+            except Exception as e:
+                event_log(f"[ERROR] Fout in GET /ha-storage: {str(e)}")
+                self._send_raw(500, str(e).encode(), "text/plain")
+            return
+        if self.path in ['/', '', '/index.html']:
+            try:
+                config = get_config()
+                if not os.path.exists(HTML_PATH):
+                    self.send_error(404, "Dashboard HTML niet gevonden")
+                    return
+                with open(HTML_PATH, 'r', encoding='utf-8') as f:
+                    html = f.read()
+                    self._send_raw(200, html.encode('utf-8'), "text/html")
+            except Exception as e:
+                self.send_error(500, f"Server Error: {str(e)}")
+        else:
+            # Strip query string for static file serving
+            path_without_query = self.path.split('?')[0]
+            super().do_GET()
+
     def log_message(self, format, *args):
         log(f"[HTTP] {format%args}")
 
@@ -98,7 +222,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
         if SELECTED_SERVER is None:
             SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
             log(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}")
-
+        
         # Route: set-server is UI-controlled and updates in-memory server selection.
         if self.path.endswith('/set-server'):
             log("[DEBUG] Route /set-server herkend!")
@@ -117,30 +241,30 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 log(f"[ERROR] Fout in /set-server: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
-
+        
         # Route: HA storage shadow copy for cross-device state.
         if self.path.endswith('/ha-storage'):
             try:
                 payload = json.loads(post_data) if post_data else {}
                 if not isinstance(payload, dict):
                     raise ValueError("Invalid payload")
-
+                
                 payload["serverTimestamp"] = int(time.time() * 1000)
-
+                
                 with open(STORAGE_TMP_PATH, 'w') as f:
                     json.dump(payload, f)
                 os.replace(STORAGE_TMP_PATH, STORAGE_PATH)
-
+                
                 event_log("[EVENT] Trigger broadcast from /ha-storage")
                 broadcast_event("storage", "updated")
-
+                
                 self._send_raw(200, json.dumps({"status": "ok"}).encode(), "application/json")
                 return
             except Exception as e:
                 event_log(f"[ERROR] Fout in /ha-storage: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
                 return
-
+        
         # Route: proxy to TimeLimit API endpoints.
         # We bepalen eerst of we naar de geselecteerde server gaan
         log(f"[DEBUG] Verzoek wordt doorgezet naar proxy: {SELECTED_SERVER}")
@@ -215,7 +339,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 log(f"[ERROR] HMAC fout: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
             return
-
+        
         # Legacy SHA512 hex digest (voor serverLevel < 6)
         if self.path.endswith('/calculate-sha512'):
             log("[DEBUG] Server-side SHA512 berekening gestart")
@@ -223,10 +347,10 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(post_data)
                 message = data['message']
-
+                
                 result = calculate_sha512_hex(message)
                 log(f"[DEBUG] SHA512 berekend: {result[:30]}...")
-
+                
                 self._send_raw(200, json.dumps({"hash": result}).encode(), "application/json")
             except Exception as e:
                 log(f"[ERROR] SHA512 fout: {str(e)}")
@@ -300,7 +424,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                         provided_bytes = base64.b64decode(provided_integrity.split(':')[1])
                         log(f"[DEBUG-INT]   Expected bytes (hex): {expected_bytes.hex()}")
                         log(f"[DEBUG-INT]   Provided bytes (hex): {provided_bytes.hex()}")
-                
+                 
                 log("[DEBUG] === INTEGRITY DIAGNOSTIEK END ===")
                 
                 response = {
@@ -360,28 +484,28 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                         
                         for device in devices:
                             log(f"[DEBUG] Device: {device.get('name')} - ID: {device.get('deviceId')}")
-                        
-                        # Probeer DashboardControl to vinden
-                        dashboard_device = next((d for d in devices if 'Dashboard' in d.get('name', '')), None)
-                        
-                        if dashboard_device:
-                            device_id = dashboard_device['deviceId']
-                            log(f"[DEBUG] Found dashboard device: {device_id}")
                             
-                            result = {
-                                "deviceId": device_id,
-                                "deviceName": dashboard_device.get('name'),
-                                "allDevices": devices,
-                                "note": "Dit is de deviceId die bij je token zou moeten horen"
-                            }
+                            # Probeer DashboardControl to vinden
+                            dashboard_device = next((d for d in devices if 'Dashboard' in d.get('name', '')), None)
                             
-                            self._send_raw(200, json.dumps(result, indent=2).encode(), "application/json")
-                        else:
-                            result = {
-                                "error": "DashboardControl device not found",
-                                "allDevices": devices
-                            }
-                            self._send_raw(404, json.dumps(result, indent=2).encode(), "application/json")
+                            if dashboard_device:
+                                device_id = dashboard_device['deviceId']
+                                log(f"[DEBUG] Found dashboard device: {device_id}")
+                                
+                                result = {
+                                    "deviceId": device_id,
+                                    "deviceName": dashboard_device.get('name'),
+                                    "allDevices": devices,
+                                    "note": "Dit is de deviceId die bij je token zou moeten horen"
+                                }
+                                
+                                self._send_raw(200, json.dumps(result, indent=2).encode(), "application/json")
+                            else:
+                                result = {
+                                    "error": "DashboardControl device not found",
+                                    "allDevices": devices
+                                }
+                                self._send_raw(404, json.dumps(result, indent=2).encode(), "application/json")
                     else:
                         result = {"error": "No devices in response"}
                         self._send_raw(500, json.dumps(result).encode(), "application/json")
@@ -389,7 +513,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                     log(f"[ERROR] Pull status failed: {status}")
                     result = {"error": f"Pull status failed with {status}"}
                     self._send_raw(status, json.dumps(result).encode(), "application/json")
-                    
+                
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
@@ -399,7 +523,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             
             log("[DEBUG] === TOKEN DEVICE LOOKUP END ===")
             return
-
+        
         # Bepaal het doelpad op de externe API
         # We gebruiken ook hier endswith voor de routering om robuust te blijven tegenover proxy-prefixen
         target_path = '/sync/pull-status'  # Standaard
@@ -410,7 +534,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
                 target_path = api_route
                 matched_route = ui_route
                 break
-
+        
         log(f"[DEBUG] === ROUTE MATCHING ===")
         log(f"[DEBUG] Incoming path: {self.path}")
         log(f"[DEBUG] Matched UI route: {matched_route}")
@@ -446,85 +570,7 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             import traceback
             log(f"Traceback:\n{traceback.format_exc()}")
             self._send_raw(500, b"Proxy connection failed", "text/plain")
-
-    def do_GET(self):
-        # ... (do_GET blijft hetzelfde als in jouw code) ...
-        load_logging_mode()
-        # Route: long-poll events for cross-device updates.
-        if '/ha-events-longpoll' in self.path:
-            try:
-                parsed = urllib.parse.urlparse(self.path)
-                params = urllib.parse.parse_qs(parsed.query)
-                since_raw = params.get('since', ['0'])[0]
-                timeout_raw = params.get('timeout', ['25'])[0]
-                try:
-                    since_id = int(since_raw)
-                except Exception:
-                    since_id = 0
-                try:
-                    timeout_s = int(timeout_raw)
-                except Exception:
-                    timeout_s = 25
-                if timeout_s < 1:
-                    timeout_s = 1
-                if timeout_s > 30:
-                    timeout_s = 30
-
-                with LONGPOLL_COND:
-                    last_id = LONGPOLL_LAST_EVENT["id"]
-                    if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
-                        payload = {
-                            "status": "event",
-                            "id": last_id,
-                            "event": LONGPOLL_LAST_EVENT["event"],
-                            "data": LONGPOLL_LAST_EVENT["data"],
-                            "ts": LONGPOLL_LAST_EVENT["ts"]
-                        }
-                    else:
-                        LONGPOLL_COND.wait(timeout=timeout_s)
-                        last_id = LONGPOLL_LAST_EVENT["id"]
-                        if last_id > since_id and LONGPOLL_LAST_EVENT["event"]:
-                            payload = {
-                                "status": "event",
-                                "id": last_id,
-                                "event": LONGPOLL_LAST_EVENT["event"],
-                                "data": LONGPOLL_LAST_EVENT["data"],
-                                "ts": LONGPOLL_LAST_EVENT["ts"]
-                            }
-                        else:
-                            payload = {"status": "timeout", "id": last_id}
-
-                self._send_raw(200, json.dumps(payload).encode(), "application/json")
-            except Exception as e:
-                log(f"[ERROR] Fout in /ha-events-longpoll: {str(e)}")
-                self._send_raw(500, str(e).encode(), "text/plain")
-            return
-        if self.path.endswith('/ha-storage'):
-            try:
-                if os.path.exists(STORAGE_PATH):
-                    with open(STORAGE_PATH, 'r') as f:
-                        data = json.load(f)
-                else:
-                    data = {"status": "empty"}
-                self._send_raw(200, json.dumps(data).encode(), "application/json")
-            except Exception as e:
-                event_log(f"[ERROR] Fout in GET /ha-storage: {str(e)}")
-                self._send_raw(500, str(e).encode(), "text/plain")
-            return
-        if self.path in ['/', '', '/index.html']:
-            try:
-                config = get_config()
-                if not os.path.exists(HTML_PATH):
-                    self.send_error(404, "Dashboard HTML niet gevonden")
-                    return
-                with open(HTML_PATH, 'r', encoding='utf-8') as f:
-                    html = f.read()
-                    self._send_raw(200, html.encode('utf-8'), "text/html")
-            except Exception as e:
-                self.send_error(500, f"Server Error: {str(e)}")
-        else:
-            super().do_GET()
-
+    
     def _send_raw(self, status, body, content_type):
         try:
             self.send_response(status)

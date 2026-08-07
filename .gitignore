@@ -1,0 +1,36 @@
+# Log files
+*.log
+
+# Text files (generated documentation, build artifacts)
+*.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# pytest cache
+.pytest_cache/
+
+# Python egg-info (generated package metadata)
+*.egg-info/
+*.egg
+
+# Build artifacts
+dist/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db

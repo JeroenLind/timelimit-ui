@@ -1,0 +1,19 @@
+name: "Timelimit UI"
+description: "WebUI app voor beheer van TimeLimit regels en synchronisatie"
+version: "1.0.0"
+slug: "timelimit-ui"
+arch:
+  - amd64
+init: false
+image: "ghcr.io/jeroenlind/timelimit-ui-amd64"
+ingress: true
+ingress_port: 8099
+panel_icon: "mdi:clock-check"
+panel_title: "Timelimit"
+panel_admin: false
+options:
+  server_url: "http://localhost:8080"  # Change to your TimeLimit server
+  logging_mode: "verbose"  # Enable verbose logging for debugging
+schema:
+  server_url: str
+  logging_mode: list(standard|verbose)

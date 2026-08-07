@@ -1,0 +1,115 @@
+{
+  "name": "Authentication Flow",
+  "description": "Test the complete authentication flow: email → code → mailAuthToken → family creation → deviceAuthToken",
+  "steps": [
+    {
+      "step": 1,
+      "name": "Send Mail Login Code",
+      "endpoint": "POST /auth/send-mail-login-code-v2",
+      "request": {
+        "mail": "test@example.com",
+        "locale": "en"
+      },
+      "expected_response": {
+        "status": "ok",
+        "mailLoginToken": "string",
+        "mailServerBlacklisted": false,
+        "mailAddressNotWhitelisted": false
+      }
+    },
+    {
+      "step": 2,
+      "name": "Sign In By Mail Code",
+      "endpoint": "POST /auth/sign-in-by-mail-code",
+      "request": {
+        "mailLoginToken": "string",
+        "receivedCode": "123456"
+      },
+      "expected_response": {
+        "status": "ok",
+        "mailAuthToken": "string"
+      }
+    },
+    {
+      "step": 3,
+      "name": "Get Status By Mail Address",
+      "endpoint": "POST /parent/get-status-by-mail-address",
+      "request": {
+        "mailAuthToken": "string"
+      },
+      "expected_response": {
+        "status": "ok",
+        "mail": "test@example.com",
+        "status": "new",
+        "canCreateFamily": true
+      }
+    },
+    {
+      "step": 4,
+      "name": "Create Family",
+      "endpoint": "POST /parent/create-family",
+      "request": {
+        "mailAuthToken": "string",
+        "parentPassword": {
+          "hash": "string",
+          "secondHash": "string",
+          "secondSalt": "string"
+        }
+      },
+      "expected_response": {
+        "status": "ok",
+        "deviceAuthToken": "string",
+        "ownDeviceId": "string",
+        "data": {
+          "devices": {},
+          "users": {},
+          "apps": [],
+          "categories": []
+        }
+      }
+    },
+    {
+      "step": 5,
+      "name": "Pull Status",
+      "endpoint": "POST /sync/pull-status",
+      "request": {
+        "deviceAuthToken": "string",
+        "status": {
+          "clientLevel": 7,
+          "devices": "",
+          "users": "",
+          "apps": {},
+          "devicesDetail": {},
+          "categories": {},
+          "kri": 0,
+          "kr": 0,
+          "dh": "",
+          "u2f": ""
+        }
+      },
+      "expected_response": {
+        "status": "ok",
+        "data": {
+          "devices": {
+            "v": "",
+            "data": {}
+          },
+          "users": {
+            "v": "",
+            "data": {}
+          },
+          "apps": [],
+          "categories": []
+        }
+      }
+    }
+  ],
+  "validation": {
+    "assertions": [
+      "mailLoginToken is returned and is a non-empty string",
+      "mailAuthToken is returned after valid code verification",
+      "deviceAuthToken is returned after family creation",
+      "ServerDataStatus is returned with complete family data"
+    ]
+  }
+}

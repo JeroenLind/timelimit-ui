@@ -175,6 +175,7 @@
                 <select id="server-select" onchange="switchServer(this.value)" class="bottom-select">
                     <option value="http://192.168.68.30:8080">🏠 Lokaal</option>
                     <option value="https://api.timelimit.io">🌍 Officieel</option>
+                    <option value="http://localhost:8080" title="Debug server voor ontwikkeling en testen - simuleert de TimeLimit backend">🐛 Debug Server</option>
                 </select>
             </div>
             <div class="bottom-pill">
@@ -332,8 +333,7 @@
     
     <script>
         // De switchServer en window.onload functies die je al had staan hieronder...
-        const DEFAULT_TOKEN = "wCl56ssLezn0aDvgfPoL9hKpEWBq7F8J";
-        let TOKEN = localStorage.getItem('timelimit_token') || DEFAULT_TOKEN;
+        let TOKEN = localStorage.getItem('timelimit_token') || '';
 
         function updateTokenDisplay() {
             const display = document.querySelector('#active-token-display span');
@@ -471,7 +471,14 @@
             if (typeof initHaLongPoll === 'function') {
                 initHaLongPoll();
             }
-            if (TOKEN) runSync();
+            if (TOKEN && TOKEN !== '') {
+                runSync();
+            } else {
+                document.getElementById('status-badge').innerText = "Niet aangemeld";
+                document.getElementById('status-badge').className = "status-badge status-offline";
+                document.getElementById('user-list').innerHTML = "<p style='color: #888;'>Niet aangemeld. Gebruik 'Inloggen op Familie' om in te loggen.</p>";
+                document.getElementById('category-tree-container').innerHTML = "Wachtend op login...";
+            }
             if (typeof scheduleHaStorageShadowSync === 'function') {
                 scheduleHaStorageShadowSync('page-load');
             }

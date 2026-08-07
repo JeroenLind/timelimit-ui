@@ -1,0 +1,123 @@
+{
+  "name": "Crypto Flow",
+  "description": "Test crypto flow: DH handshake, key request/response, AES-GCM encryption",
+  "steps": [
+    {
+      "step": 1,
+      "name": "Generate Password Hash",
+      "description": "Generate bcrypt hash for password",
+      "operation": "hash_password",
+      "input": {
+        "password": "test_password_123"
+      },
+      "expected_output": {
+        "hash": "string",
+        "format": "$2b$12$..."
+      }
+    },
+    {
+      "step": 2,
+      "name": "Verify Password",
+      "description": "Verify password against hash",
+      "operation": "verify_password",
+      "input": {
+        "plain_password": "test_password_123",
+        "hashed_password": "string"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "step": 3,
+      "name": "Generate JWT Token",
+      "description": "Generate JWT token for user",
+      "operation": "generate_token",
+      "input": {
+        "user_id": "user_123",
+        "device_id": "device_456"
+      },
+      "expected_output": {
+        "token": "string",
+        "type": "bearer"
+      }
+    },
+    {
+      "step": 4,
+      "name": "Validate JWT Token",
+      "description": "Validate JWT token",
+      "operation": "validate_token",
+      "input": {
+        "token": "string"
+      },
+      "expected_output": {
+        "valid": true,
+        "payload": {
+          "sub": "user_123",
+          "device_id": "device_456"
+        }
+      }
+    },
+    {
+      "step": 5,
+      "name": "Calculate HMAC-SHA256",
+      "description": "Calculate HMAC for action integrity",
+      "operation": "calculate_hmac_sha256",
+      "input": {
+        "second_hash": "string",
+        "sequence_number": 1,
+        "device_id": "device_456",
+        "encoded_action": "{\"categoryId\":\"cat_123\"}"
+      },
+      "expected_output": {
+        "integrity": "password:base64encoded"
+      }
+    },
+    {
+      "step": 6,
+      "name": "Generate Curve25519 Keypair",
+      "description": "Generate Curve25519 key pair",
+      "operation": "generate_keypair",
+      "input": {},
+      "expected_output": {
+        "public_key": "string",
+        "private_key": "string"
+      }
+    },
+    {
+      "step": 7,
+      "name": "AES-GCM Encrypt",
+      "description": "Encrypt data using AES-GCM",
+      "operation": "encrypt_data",
+      "input": {
+        "plaintext": "base64_encoded_data",
+        "key": "base64_encoded_key"
+      },
+      "expected_output": {
+        "ciphertext": "base64_encoded_ciphertext"
+      }
+    },
+    {
+      "step": 8,
+      "name": "AES-GCM Decrypt",
+      "description": "Decrypt data using AES-GCM",
+      "operation": "decrypt_data",
+      "input": {
+        "ciphertext": "base64_encoded_ciphertext",
+        "key": "base64_encoded_key"
+      },
+      "expected_output": {
+        "plaintext": "base64_encoded_data"
+      }
+    }
+  ],
+  "validation": {
+    "assertions": [
+      "Password hash follows bcrypt format ($2b$12$...)",
+      "JWT token contains correct claims",
+      "HMAC integrity format is 'password:' + base64(hmac)",
+      "Curve25519 keys are 32 bytes each",
+      "AES-GCM encryption/decryption round-trip succeeds"
+    ]
+  }
+}
