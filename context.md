@@ -823,3 +823,20 @@ if (shouldSuppress) {
 
 #### Result:
 Sync operations are now gracefully skipped when the server is unreachable, with appropriate logging and UI feedback.
+
+---
+
+## Git Commit Reference
+
+**Commit Hash**: `9d4689d024fe8064b2b846b6620141ae2cfd8e9d`
+
+**Date**: 2026-08-07
+
+**Status**: Committed with all changes including debug server, test environment, and UI improvements. Log files (*.log, *.txt) excluded via .gitignore.
+
+**Summary**: This commit includes:
+- Complete debug-server implementation with FastAPI backend
+- Test environment for local development
+- UI improvements for server connectivity checking
+- Comprehensive project documentation
+- .gitignore configuration for excluding log files and build artifacts
