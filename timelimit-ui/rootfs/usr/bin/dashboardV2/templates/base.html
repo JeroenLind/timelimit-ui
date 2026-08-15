@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TimeLimit Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboardV2.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% block header %}
+    <header class="dashboard-header">
+        <div class="container">
+            <h1>⏱️ TimeLimit Dashboard</h1>
+            {% if session.get('server_url') %}
+            <div class="server-info">
+                <span class="server-label">Server:</span>
+                <span class="server-url">{{ session.get('server_url') }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+    {% endblock %}
+    
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    {% block footer %}
+    <footer class="dashboard-footer">
+        <div class="container">
+            <p class="version">Dashboard v2</p>
+        </div>
+    </footer>
+    {% endblock %}
+    
+    <script src="{{ url_for('static', filename='js/dashboardV2.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

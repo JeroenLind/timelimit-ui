@@ -18,11 +18,11 @@ class TestHealthCheck:
         """Test the health check endpoint.
 
         This test:
-        - Makes GET request to /api/v1/health
+        - Makes GET request to /health
         - Verifies 200 status code
         - Verifies response JSON is {"status": "healthy"}
         """
-        response = client.get("/api/v1/health")
+        response = client.get("/health")
 
         assert response.status_code == 200, \
             f"Health check should return 200, got {response.status_code}"
@@ -35,11 +35,11 @@ class TestHealthCheck:
         """Test the readiness check endpoint.
 
         This test:
-        - Makes GET request to /api/v1/ready
+        - Makes GET request to /ready
         - Verifies 200 status code
         - Verifies response JSON is {"status": "ready"}
         """
-        response = client.get("/api/v1/ready")
+        response = client.get("/ready")
 
         assert response.status_code == 200, \
             f"Ready check should return 200, got {response.status_code}"
@@ -56,7 +56,7 @@ class TestUserRegistration:
         """Test user registration with valid data.
 
         This test:
-        - Makes POST request to /api/v1/register with valid user data
+        - Makes POST request to /register with valid user data
         - Verifies 200 status code
         - Verifies response contains user email
         """
@@ -68,7 +68,7 @@ class TestUserRegistration:
             "password": "securepassword123"
         }
 
-        response = client.post("/api/v1/register", json=user_data)
+        response = client.post("/register", json=user_data)
 
         assert response.status_code == 200, \
             f"Registration should return 200, got {response.status_code}"
@@ -95,12 +95,12 @@ class TestUserRegistration:
         }
 
         # First registration should succeed
-        response1 = client.post("/api/v1/register", json=user_data)
+        response1 = client.post("/register", json=user_data)
         assert response1.status_code == 200, \
             f"First registration should succeed, got {response1.status_code}"
 
         # Second registration with same email should fail
-        response2 = client.post("/api/v1/register", json=user_data)
+        response2 = client.post("/register", json=user_data)
         assert response2.status_code == 400, \
             f"Duplicate registration should return 400, got {response2.status_code}"
 
@@ -119,7 +119,7 @@ class TestUserRegistration:
             "password": "short"  # Too short, min_length is 8
         }
 
-        response = client.post("/api/v1/register", json=user_data)
+        response = client.post("/register", json=user_data)
 
         assert response.status_code == 422, \
             f"Registration with short password should return 422, got {response.status_code}"
@@ -133,7 +133,7 @@ class TestUserLogin:
 
         This test:
         - Registers a user
-        - Makes POST request to /api/v1/login with correct credentials
+        - Makes POST request to /login with correct credentials
         - Verifies 200 status code
         - Verifies response contains access_token
         """
@@ -145,7 +145,7 @@ class TestUserLogin:
             "email": "loginuser@example.com",
             "password": "correctpassword123"
         }
-        client.post("/api/v1/register", json=user_data)
+        client.post("/register", json=user_data)
 
         # Login with correct credentials
         login_data = {
@@ -153,7 +153,7 @@ class TestUserLogin:
             "password": "correctpassword123"
         }
 
-        response = client.post("/api/v1/login", data=login_data)
+        response = client.post("/login", data=login_data)
 
         assert response.status_code == 200, \
             f"Login should return 200, got {response.status_code}"
@@ -168,7 +168,7 @@ class TestUserLogin:
         """Test login with wrong credentials.
 
         This test:
-        - Makes POST request to /api/v1/login with wrong credentials
+        - Makes POST request to /login with wrong credentials
         - Verifies 401 status code
         """
         # Clear any existing users
@@ -179,7 +179,7 @@ class TestUserLogin:
             "email": "wrongpass@example.com",
             "password": "correctpassword123"
         }
-        client.post("/api/v1/register", json=user_data)
+        client.post("/register", json=user_data)
 
         # Login with wrong password
         login_data = {
@@ -187,7 +187,7 @@ class TestUserLogin:
             "password": "wrongpassword123"
         }
 
-        response = client.post("/api/v1/login", data=login_data)
+        response = client.post("/login", data=login_data)
 
         assert response.status_code == 401, \
             f"Login with wrong password should return 401, got {response.status_code}"
@@ -205,7 +205,7 @@ class TestUserLogin:
             "password": "anypassword123"
         }
 
-        response = client.post("/api/v1/login", data=login_data)
+        response = client.post("/login", data=login_data)
 
         assert response.status_code == 401, \
             f"Login with non-existent user should return 401, got {response.status_code}"
@@ -219,7 +219,7 @@ class TestUserRetrieval:
 
         This test:
         - Registers a user
-        - Makes GET request to /api/v1/users/{user_id}
+        - Makes GET request to /users/{user_id}
         - Verifies 200 status code
         - Verifies response contains user email
         """
@@ -231,12 +231,12 @@ class TestUserRetrieval:
             "email": "getbyid@example.com",
             "password": "password12345678"
         }
-        register_response = client.post("/api/v1/register", json=user_data)
+        register_response = client.post("/register", json=user_data)
         created_user = register_response.json()
         user_id = created_user["id"]
 
         # Get user by ID
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/users/{user_id}")
 
         assert response.status_code == 200, \
             f"Get user by ID should return 200, got {response.status_code}"
@@ -250,13 +250,13 @@ class TestUserRetrieval:
         """Test retrieving a non-existent user by ID.
 
         This test:
-        - Makes GET request to /api/v1/users/99999
+        - Makes GET request to /users/99999
         - Verifies 404 status code
         """
         # Clear any existing users
         clear_users_db()
 
-        response = client.get("/api/v1/users/99999")
+        response = client.get("/users/99999")
 
         assert response.status_code == 404, \
             f"Get non-existent user should return 404, got {response.status_code}"
@@ -269,7 +269,7 @@ class TestUserRetrieval:
 
         This test:
         - Registers a user
-        - Makes GET request to /api/v1/users/email/{email}
+        - Makes GET request to /users/email/{email}
         - Verifies 200 status code
         - Verifies response contains user email
         """
@@ -281,10 +281,10 @@ class TestUserRetrieval:
             "email": "getbyemail@example.com",
             "password": "password12345678"
         }
-        client.post("/api/v1/register", json=user_data)
+        client.post("/register", json=user_data)
 
         # Get user by email
-        response = client.get("/api/v1/users/email/getbyemail@example.com")
+        response = client.get("/users/email/getbyemail@example.com")
 
         assert response.status_code == 200, \
             f"Get user by email should return 200, got {response.status_code}"
@@ -299,7 +299,7 @@ class TestUserRetrieval:
         # Clear any existing users
         clear_users_db()
 
-        response = client.get("/api/v1/users/email/nonexistent@example.com")
+        response = client.get("/users/email/nonexistent@example.com")
 
         assert response.status_code == 404, \
             f"Get user by non-existent email should return 404, got {response.status_code}"

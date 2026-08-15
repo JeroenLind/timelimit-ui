@@ -11,7 +11,7 @@ class TestConfig:
     """Test configuration settings."""
     
     # Server settings
-    BASE_URL: str = os.getenv("TEST_BASE_URL", "http://localhost:8080")
+    BASE_URL: str = os.getenv("TEST_BASE_URL", "http://192.168.68.30:8080")
     TIMEOUT: int = int(os.getenv("TEST_TIMEOUT", "30"))
     VERIFY_SSL: bool = os.getenv("TEST_VERIFY_SSL", "true").lower() == "true"
     

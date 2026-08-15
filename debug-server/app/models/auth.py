@@ -11,9 +11,12 @@ from pydantic import BaseModel, Field, field_validator
 # ============================================================================
 
 class TimeResponse(BaseModel):
-    """Response model for server time endpoint."""
+    """Response model for server time endpoint.
 
-    time: int = Field(..., description="Server time in milliseconds")
+    Returns time in milliseconds as 'ms' field to match the actual TimeLimit API.
+    """
+
+    ms: int = Field(..., description="Server time in milliseconds")
 
 
 # ============================================================================

@@ -12,7 +12,7 @@ panel_icon: "mdi:clock-check"
 panel_title: "Timelimit"
 panel_admin: false
 options:
-  server_url: "http://localhost:8080"  # Change to your TimeLimit server
+  server_url: "http://192.168.68.30:8080"  # Change to your TimeLimit server
   logging_mode: "verbose"  # Enable verbose logging for debugging
 schema:
   server_url: str

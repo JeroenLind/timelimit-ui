@@ -5,11 +5,18 @@ This module provides event handlers for Socket.IO events including:
 - should sync: Sync notification events
 - connected devices: Device status events
 - sign out: Sign out events
+
+All server-transmitted messages are logged with comprehensive metadata
+including timestamps, message content, and associated metadata.
 """
 
 import logging
 from typing import Any, Dict
 
+from app.middleware.server_message_logger import (
+    get_server_message_logger,
+    MessageType,
+)
 from app.websocket.manager import socket_handler
 
 logger = logging.getLogger(__name__)
@@ -27,10 +34,20 @@ async def on_connect(sid: str, environ: Dict[str, Any] = None) -> Dict[str, Any]
     """
     logger.info("Socket.IO connection established", extra={"sid": sid[:8] + "..."})
     
-    return {
+    response = {
         "status": "connected",
         "message": "Connected to TimeLimit server",
     }
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="connect",
+        data=response,
+        sid=sid
+    )
+    
+    return response
 
 
 async def on_disconnect(sid: str) -> None:
@@ -41,6 +58,13 @@ async def on_disconnect(sid: str) -> None:
     """
     logger.info("Socket.IO connection closed", extra={"sid": sid[:8] + "..."})
     await socket_handler.manager.disconnect(sid)
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_system_event(
+        event="disconnect",
+        details={"sid": sid[:8] + "..."}
+    )
 
 
 async def on_devicelogin(
@@ -64,7 +88,18 @@ async def on_devicelogin(
         }
     )
     
-    return await socket_handler.handle_devicelogin(sid, data)
+    response = await socket_handler.handle_devicelogin(sid, data)
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="devicelogin",
+        data=response,
+        sid=sid,
+        connection_id=sid
+    )
+    
+    return response
 
 
 async def on_should_sync(
@@ -88,7 +123,18 @@ async def on_should_sync(
         }
     )
     
-    return await socket_handler.handle_should_sync(sid, data)
+    response = await socket_handler.handle_should_sync(sid, data)
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="should sync",
+        data=response,
+        sid=sid,
+        connection_id=sid
+    )
+    
+    return response
 
 
 async def on_connected_devices(
@@ -112,7 +158,18 @@ async def on_connected_devices(
         }
     )
     
-    return await socket_handler.handle_connected_devices(sid, data)
+    response = await socket_handler.handle_connected_devices(sid, data)
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="connected devices",
+        data=response,
+        sid=sid,
+        connection_id=sid
+    )
+    
+    return response
 
 
 async def on_sign_out(
@@ -136,7 +193,18 @@ async def on_sign_out(
         }
     )
     
-    return await socket_handler.handle_sign_out(sid, data)
+    response = await socket_handler.handle_sign_out(sid, data)
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="sign out",
+        data=response,
+        sid=sid,
+        connection_id=sid
+    )
+    
+    return response
 
 
 async def on_ping(
@@ -154,10 +222,20 @@ async def on_ping(
     """
     await socket_handler.manager.update_activity(sid)
     
-    return {
+    response = {
         "status": "ok",
         "timestamp": data.get("timestamp"),
     }
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="ping",
+        data=response,
+        sid=sid
+    )
+    
+    return response
 
 
 async def on_pong(
@@ -175,10 +253,20 @@ async def on_pong(
     """
     await socket_handler.manager.update_activity(sid)
     
-    return {
+    response = {
         "status": "ok",
         "timestamp": data.get("timestamp"),
     }
+    
+    # Log the server-transmitted message
+    server_logger = get_server_message_logger()
+    server_logger.log_websocket_event(
+        event="pong",
+        data=response,
+        sid=sid
+    )
+    
+    return response
 
 
 # Event handler registry

@@ -20,8 +20,8 @@ def test_project_name():
 
 
 def test_api_v1_str():
-    """Check that API_V1_STR is set to '/api/v1'."""
-    assert settings.API_V1_STR == "/api/v1"
+    """Check that API_V1_STR is set to empty string (root prefix)."""
+    assert settings.API_V1_STR == ""
 
 
 def test_log_level():

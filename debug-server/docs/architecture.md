@@ -47,7 +47,7 @@ The server follows a layered architecture with six distinct layers. Each layer e
 | Layer | Responsibility | Key Components |
 |-------|---------------|----------------|
 | **Client** | Sends HTTP/gzip requests with JWT tokens and HMAC-signed actions; connects via Socket.IO for real-time events | Android App, TimeLimit UI |
-| **Middleware** | Cross-cutting concerns: request/response logging, JWT authentication, encryption handshake monitoring, security headers, gzip compression | LoggingMiddleware, AuthMiddleware, EncryptionMiddleware, SecurityHeadersMiddleware, GzipMiddleware |
+| **Middleware** | Cross-cutting concerns: request/response logging, JWT authentication, encryption handshake monitoring, security headers, gzip compression, server message logging | LoggingMiddleware, APIMessageLoggingMiddleware, AuthMiddleware, EncryptionMiddleware, SecurityHeadersMiddleware, GzipMiddleware, ServerMessageLogger, MessageSentLogger |
 | **Controllers** | Route HTTP requests to appropriate services; validate request bodies with Pydantic models; format responses | AuthController, SyncController, ParentController, ChildController, PurchaseController, TimeController |
 | **Services** | Business logic: authentication flows, sync protocol, crypto operations, mock data generation | AuthService, SyncService, CryptoService, MockDataService |
 | **Models** | Data structures: Pydantic models for requests/responses, in-memory state store | ServerDataStatus, ClientDataStatus, ServerUserData, ServerDeviceData, ActionUploadItem, ParentPassword |
@@ -123,10 +123,13 @@ classDiagram
 #### Middleware Layer
 
 - **LoggingMiddleware** (`app/middleware/logging.py`): Logs incoming requests (method, path, headers sanitized, body size, client IP) and outgoing responses (status code, response size, duration). Generates a UUID request ID for correlation. Sanitizes sensitive data (passwords, tokens, secondHash).
+- **APIMessageLoggingMiddleware** (`app/middleware/api_message_logger.py`): Logs incoming API requests immediately upon receipt with timestamp and sanitized body content. Also logs server responses with comprehensive metadata including status code, duration, path, and method. Uses `_sanitize_body()` to redact sensitive keys.
 - **AuthMiddleware** (`app/middleware/auth.py`): Intercepts requests to protected endpoints (`/sync/*`, `/parent/*`, `/child/*`, `/purchase/*`). Extracts JWT from `Authorization: Bearer <token>` header, validates signature and expiration, attaches user/device info to request state. Returns 401 if token is missing or invalid.
 - **EncryptionMiddleware** (`app/middleware/encryption.py`): Monitors encryption handshake for WebSocket connections. Logs DH key exchange, key request/response protocol steps, AES-GCM operations, and Curve25519 signing/verification. Tracks encryption state per session.
 - **SecurityHeadersMiddleware** (`app/middleware/security_headers.py`): Injects security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'`, `Strict-Transport-Security` (if HTTPS enabled), `X-XSS-Protection: 1; mode=block`.
 - **GzipMiddleware** (`app/middleware/gzip.py`): Decompresses incoming gzip request bodies, compresses outgoing gzip response bodies. Handles `Content-Encoding: gzip` header and `Content-Length` auto-negotiation (411 retry simulation).
+- **ServerMessageLogger** (`app/middleware/server_message_logger.py`): Core logger for all server-transmitted messages. Provides `MessageType` enum (API_RESPONSE, WEBSOCKET_EVENT, WEBSOCKET_BROADCAST, SYNC_ACTION, AUTH_EVENT, SYSTEM_EVENT), `SENSITIVE_KEYS` set for data sanitization, async logging mode with background thread, in-memory log buffer, configurable log level, and flush/stop methods.
+- **MessageSentLogger** (`app/middleware/message_sent_logger.py`): Unified facade wrapping `ServerMessageLogger` with convenience methods: `log_api_reply()`, `log_websocket_reply()`, `log_broadcast()`, `log_sync_action()`, `log_sync_reply()`, `log_auth_reply()`, `log_system_event()`.
 
 #### Controller Layer
 
@@ -503,6 +506,9 @@ debug-server/
 │   ├── middleware/
 │   │   ├── __init__.py
 │   │   ├── logging.py           # Structured request/response logging
+│   │   ├── api_message_logger.py # API message logging with sanitization
+│   │   ├── server_message_logger.py # ServerMessageLogger, MessageType, SENSITIVE_KEYS
+│   │   ├── message_sent_logger.py # MessageSentLogger unified facade
 │   │   ├── auth.py              # JWT authentication middleware
 │   │   ├── encryption.py        # Encryption handshake monitoring
 │   │   ├── security_headers.py  # Security header injection
@@ -539,6 +545,11 @@ debug-server/
 │   ├── test_child_endpoints.py  # Child endpoint integration tests
 │   ├── test_purchase_endpoints.py # Purchase endpoint integration tests
 │   ├── test_load.py             # Load testing
+│   ├── test_message_sent_logger.py # MessageSentLogger facade tests
+│   ├── test_server_message_logger_enhanced.py # Enhanced ServerMessageLogger tests
+│   ├── test_sync_service_logging.py # SyncService logging integration tests
+│   ├── test_auth_service_logging.py # AuthService logging integration tests
+│   ├── test_api_message_logger_sanitization.py # Middleware sanitization tests
 │   ├── client.py                # Python test client
 │   ├── config.py                # Test configuration
 │   ├── scenarios/               # Test scenario definitions
@@ -586,7 +597,7 @@ debug-server/
 | `app/core/` | Core infrastructure: security, state management, exceptions, configuration |
 | `app/models/` | Pydantic data models for requests, responses, and domain entities |
 | `app/services/` | Business logic services: auth, sync, crypto, mock data |
-| `app/middleware/` | Cross-cutting middleware: logging, auth, encryption, security headers, gzip |
+| `app/middleware/` | Cross-cutting middleware: logging, API message logging, auth, encryption, security headers, gzip, server message logging |
 | `app/websocket/` | Socket.IO connection management and event handlers |
 | `app/utils/` | Utility functions: structured logging, gzip helpers, general helpers |
 | `tests/` | Test suite: unit tests, integration tests, load tests, test client |
@@ -832,7 +843,7 @@ The server is configured via environment variables loaded from a `.env` file. Th
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `PROJECT_NAME` | str | "Debug Server" | Project name |
-| `API_V1_STR` | str | "/api/v1" | API version prefix |
+| `API_V1_STR` | str | "/" | API version prefix (root path) |
 | `SECRET_KEY` | str | (required) | Secret key for JWT token signing |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | int | 60 | JWT token expiration time in minutes |
 | `JWT_ALGORITHM` | str | "HS256" | JWT signing algorithm |
@@ -850,6 +861,11 @@ The server is configured via environment variables loaded from a `.env` file. Th
 | `LOG_MAX_BYTES` | int | 10485760 | Log file max size (10MB) |
 | `LOG_BACKUP_COUNT` | int | 5 | Number of backup log files |
 | `LOG_FORMAT` | str | "json" | Log format (json or console) |
+| `MESSAGE_LOGGING_ENABLED` | bool | true | Enable/disable outgoing message logging |
+| `MESSAGE_LOGGING_ASYNC` | bool | true | Use background thread for non-blocking file writes |
+| `MESSAGE_LOGGING_LEVEL` | str | "INFO" | Log level for server message logging (DEBUG, INFO, WARNING, ERROR) |
+| `MESSAGE_LOGGING_MAX_BUFFER_SIZE` | int | 1000 | Maximum entries in the in-memory log buffer |
+| `MESSAGE_LOGGING_SANITIZE` | bool | true | Sanitize sensitive data before logging |
 | `TEST_MODE` | bool | false | When true, returns dummy data without real auth |
 | `MOCK_FAMILY_COUNT` | int | 1 | Number of families to generate |
 | `MOCK_CHILD_COUNT` | int | 2 | Number of child users per family |

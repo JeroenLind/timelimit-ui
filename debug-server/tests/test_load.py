@@ -36,7 +36,7 @@ class TestResponseTime:
 
         for _ in range(100):
             start = time.perf_counter()
-            response = client.get("/api/v1/health")
+            response = client.get("/health")
             end = time.perf_counter()
 
             times.append(end - start)
@@ -56,7 +56,7 @@ class TestResponseTime:
 
         for _ in range(50):
             start = time.perf_counter()
-            response = client.post("/api/v1/time")
+            response = client.get("/time")
             end = time.perf_counter()
 
             times.append(end - start)
@@ -74,7 +74,7 @@ class TestResponseTime:
         for i in range(20):
             start = time.perf_counter()
             response = client.post(
-                "/api/v1/register",
+                "/register",
                 json={"email": f"perf_{i}@example.com", "password": "password12345678"}
             )
             end = time.perf_counter()
@@ -101,7 +101,7 @@ class TestConcurrentRequests:
         results = []
 
         def make_request():
-            response = client.get("/api/v1/health")
+            response = client.get("/health")
             return response.status_code
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -121,7 +121,7 @@ class TestConcurrentRequests:
 
         def register_user(i):
             response = client.post(
-                "/api/v1/register",
+                "/register",
                 json={"email": f"concurrent_{i}@example.com", "password": "password12345678"}
             )
             return response.status_code
@@ -150,7 +150,7 @@ class TestThroughput:
         start_time = time.perf_counter()
 
         for _ in range(num_requests):
-            response = client.get("/api/v1/health")
+            response = client.get("/health")
             assert response.status_code == 200, "Health check should succeed"
 
         end_time = time.perf_counter()
@@ -208,7 +208,7 @@ class TestStressTesting:
 
         for i in range(num_requests):
             try:
-                response = client.get("/api/v1/health")
+                response = client.get("/health")
                 if response.status_code != 200:
                     errors += 1
             except Exception:
@@ -231,14 +231,14 @@ class TestStressTesting:
             try:
                 # Register
                 reg_response = client.post(
-                    "/api/v1/register",
+                    "/register",
                     json={"email": f"stress_{i}@example.com", "password": "password12345678"}
                 )
                 assert reg_response.status_code == 200, f"Registration {i} failed"
 
                 # Login
                 login_response = client.post(
-                    "/api/v1/login",
+                    "/login",
                     data={"username": f"stress_{i}@example.com", "password": "password12345678"}
                 )
                 assert login_response.status_code == 200, f"Login {i} failed"
@@ -307,7 +307,7 @@ class TestSyncPerformance:
 
             start_time = time.perf_counter()
             response = client.post(
-                "/api/v1/sync/push-actions",
+                "/sync/push-actions",
                 json={"deviceAuthToken": token, "actions": actions}
             )
             end_time = time.perf_counter()
@@ -353,7 +353,7 @@ class TestSyncPerformance:
         for _ in range(num_requests):
             start_time = time.perf_counter()
             response = client.post(
-                "/api/v1/sync/pull-status",
+                "/sync/pull-status",
                 json={
                     "deviceAuthToken": token,
                     "status": {
@@ -458,18 +458,18 @@ class TestErrorRecovery:
         # Send some invalid requests
         for _ in range(10):
             response = client.post(
-                "/api/v1/register",
+                "/register",
                 json={"email": "invalid-email", "password": "short"}
             )
             assert response.status_code in [400, 422], "Invalid requests should fail"
 
         # Server should still be responsive
-        response = client.get("/api/v1/health")
+        response = client.get("/health")
         assert response.status_code == 200, "Server should be responsive after errors"
 
         # Valid requests should still work
         response = client.post(
-            "/api/v1/register",
+            "/register",
             json={"email": "recovery@example.com", "password": "password12345678"}
         )
         assert response.status_code == 200, "Valid requests should work after errors"

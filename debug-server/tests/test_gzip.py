@@ -36,7 +36,7 @@ class TestGzipMiddleware:
         large_data = {"data": "x" * 2000}
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             json=large_data
         )
 
@@ -52,7 +52,7 @@ class TestGzipMiddleware:
         gzipped_data = gzip.compress(json_data)
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=gzipped_data,
             headers={
                 "Content-Encoding": "gzip",
@@ -66,7 +66,7 @@ class TestGzipMiddleware:
 
     def test_content_length_negotiation(self, client):
         """Test Content-Length header handling."""
-        response = client.get("/api/v1/health")
+        response = client.get("/health")
 
         assert response.status_code == 200, "Health check should succeed"
         # Content-Length should be present
@@ -76,7 +76,7 @@ class TestGzipMiddleware:
     def test_minimum_size_threshold(self, client):
         """Test that small responses are not compressed."""
         # Small response
-        response = client.get("/api/v1/health")
+        response = client.get("/health")
 
         assert response.status_code == 200, "Health check should succeed"
         # Small responses may or may not be compressed, but should work
@@ -84,7 +84,7 @@ class TestGzipMiddleware:
     def test_accept_encoding_header(self, client):
         """Test Accept-Encoding header handling."""
         response = client.get(
-            "/api/v1/health",
+            "/health",
             headers={"Accept-Encoding": "gzip, deflate"}
         )
 
@@ -152,7 +152,7 @@ class TestGzipMiddlewareIntegration:
     def test_health_endpoint_with_gzip(self, client):
         """Test health endpoint with gzip encoding."""
         response = client.get(
-            "/api/v1/health",
+            "/health",
             headers={"Accept-Encoding": "gzip"}
         )
 
@@ -170,7 +170,7 @@ class TestGzipMiddlewareIntegration:
         gzipped_data = gzip.compress(json_data)
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=gzipped_data,
             headers={
                 "Content-Encoding": "gzip",
@@ -194,7 +194,7 @@ class TestGzipMiddlewareIntegration:
         gzipped_data = gzip.compress(json_data)
 
         response = client.post(
-            "/api/v1/login",
+            "/login",
             content=gzipped_data,
             headers={
                 "Content-Encoding": "gzip",
@@ -220,7 +220,7 @@ class TestGzipEdgeCases:
     def test_malformed_gzip_request(self, client):
         """Test handling of malformed gzip data."""
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=b"not valid gzip data",
             headers={
                 "Content-Encoding": "gzip",
@@ -237,7 +237,7 @@ class TestGzipEdgeCases:
         gzipped_data = gzip.compress(b"not json data")
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=gzipped_data,
             headers={
                 "Content-Encoding": "gzip",
@@ -255,7 +255,7 @@ class TestGzipEdgeCases:
         double_gzipped = gzip.compress(gzip.compress(data))
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=double_gzipped,
             headers={
                 "Content-Encoding": "gzip",
@@ -274,7 +274,7 @@ class TestGzipEdgeCases:
         gzipped_data = gzip.compress(binary_data)
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             content=gzipped_data,
             headers={
                 "Content-Encoding": "gzip",

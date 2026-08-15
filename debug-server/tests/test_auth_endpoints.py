@@ -29,30 +29,30 @@ class TestTimeEndpoint:
 
     def test_time_endpoint_returns_milliseconds(self, client):
         """Test that /time returns time in milliseconds."""
-        response = client.post("/api/v1/time")
+        response = client.get("/time")
 
         assert response.status_code == 200, \
             f"Time endpoint should return 200, got {response.status_code}"
 
         data = response.json()
-        assert "time" in data, "Response should contain time"
-        assert isinstance(data["time"], int), "Time should be an integer"
+        assert "ms" in data, "Response should contain time"
+        assert isinstance(data["ms"], int), "Time should be an integer"
 
         # Time should be in milliseconds (13 digits for current time)
-        assert len(str(data["time"])) >= 10, "Time should be in milliseconds"
+        assert len(str(data["ms"])) >= 10, "Time should be in milliseconds"
 
     def test_time_endpoint_consistency(self, client):
         """Test that time endpoint returns consistent format."""
-        response1 = client.post("/api/v1/time")
-        response2 = client.post("/api/v1/time")
+        response1 = client.get("/time")
+        response2 = client.get("/time")
 
         data1 = response1.json()
         data2 = response2.json()
 
         # Times should be different (not the same millisecond)
         # But both should be valid timestamps
-        assert isinstance(data1["time"], int)
-        assert isinstance(data2["time"], int)
+        assert isinstance(data1["ms"], int)
+        assert isinstance(data2["ms"], int)
 
 
 class TestSendMailLoginCode:
@@ -67,7 +67,7 @@ class TestSendMailLoginCode:
     def test_send_mail_login_code_success(self, client):
         """Test successful mail login code request."""
         response = client.post(
-            "/api/v1/auth/send-mail-login-code-v2",
+            "/auth/send-mail-login-code-v2",
             json={"mail": "test@example.com", "locale": "en"}
         )
 
@@ -80,7 +80,7 @@ class TestSendMailLoginCode:
     def test_send_mail_login_code_invalid_email(self, client):
         """Test mail login code with invalid email."""
         response = client.post(
-            "/api/v1/auth/send-mail-login-code-v2",
+            "/auth/send-mail-login-code-v2",
             json={"mail": "invalid-email", "locale": "en"}
         )
 
@@ -90,7 +90,7 @@ class TestSendMailLoginCode:
     def test_send_mail_login_code_missing_mail(self, client):
         """Test mail login code with missing mail field."""
         response = client.post(
-            "/api/v1/auth/send-mail-login-code-v2",
+            "/auth/send-mail-login-code-v2",
             json={"locale": "en"}
         )
 
@@ -110,7 +110,7 @@ class TestSignInByMailCode:
     def test_sign_in_by_mail_code_invalid_token(self, client):
         """Test sign in with invalid mail login token."""
         response = client.post(
-            "/api/v1/auth/sign-in-by-mail-code",
+            "/auth/sign-in-by-mail-code",
             json={"mailLoginToken": "invalid_token", "receivedCode": "123456"}
         )
 
@@ -130,7 +130,7 @@ class TestGetStatusByMailAddress:
     def test_get_status_by_mail_invalid_token(self, client):
         """Test get status with invalid mail auth token."""
         response = client.post(
-            "/api/v1/parent/get-status-by-mail-address",
+            "/parent/get-status-by-mail-address",
             json={"mailAuthToken": "invalid_token"}
         )
 
@@ -140,7 +140,7 @@ class TestGetStatusByMailAddress:
     def test_get_status_by_mail_missing_token(self, client):
         """Test get status with missing mail auth token."""
         response = client.post(
-            "/api/v1/parent/get-status-by-mail-address",
+            "/parent/get-status-by-mail-address",
             json={}
         )
 
@@ -160,7 +160,7 @@ class TestCreateFamily:
     def test_create_family_invalid_token(self, client):
         """Test create family with invalid token."""
         response = client.post(
-            "/api/v1/parent/create-family",
+            "/parent/create-family",
             json={
                 "mailAuthToken": "invalid_token",
                 "parentPassword": {
@@ -179,7 +179,7 @@ class TestCreateFamily:
     def test_create_family_missing_fields(self, client):
         """Test create family with missing required fields."""
         response = client.post(
-            "/api/v1/parent/create-family",
+            "/parent/create-family",
             json={"mailAuthToken": "token"}
         )
 
@@ -199,7 +199,7 @@ class TestSignInIntoFamily:
     def test_sign_in_into_family_invalid_token(self, client):
         """Test sign in with invalid token."""
         response = client.post(
-            "/api/v1/parent/sign-in-into-family",
+            "/parent/sign-in-into-family",
             json={
                 "mailAuthToken": "invalid_token",
                 "parentPasswordSecondHash": "hash"
@@ -212,7 +212,7 @@ class TestSignInIntoFamily:
     def test_sign_in_into_family_missing_fields(self, client):
         """Test sign in with missing required fields."""
         response = client.post(
-            "/api/v1/parent/sign-in-into-family",
+            "/parent/sign-in-into-family",
             json={"mailAuthToken": "token"}
         )
 
@@ -232,7 +232,7 @@ class TestRecoverParentPassword:
     def test_recover_password_invalid_token(self, client):
         """Test password recovery with invalid token."""
         response = client.post(
-            "/api/v1/parent/recover-parent-password",
+            "/parent/recover-parent-password",
             json={
                 "mailAuthToken": "invalid_token",
                 "newPassword": {
@@ -249,7 +249,7 @@ class TestRecoverParentPassword:
     def test_recover_password_missing_fields(self, client):
         """Test password recovery with missing fields."""
         response = client.post(
-            "/api/v1/parent/recover-parent-password",
+            "/parent/recover-parent-password",
             json={"mailAuthToken": "token"}
         )
 
@@ -271,7 +271,7 @@ class TestLegacyAuthEndpoints:
         clear_users_db()
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             json={"email": "legacy@example.com", "password": "password12345678"}
         )
 
@@ -287,13 +287,13 @@ class TestLegacyAuthEndpoints:
 
         # Register user first
         client.post(
-            "/api/v1/register",
+            "/register",
             json={"email": "login_legacy@example.com", "password": "password12345678"}
         )
 
         # Login
         response = client.post(
-            "/api/v1/login",
+            "/login",
             data={"username": "login_legacy@example.com", "password": "password12345678"}
         )
 
@@ -318,7 +318,7 @@ class TestAuthEndpointSecurity:
         clear_users_db()
 
         response = client.post(
-            "/api/v1/register",
+            "/register",
             json={"email": "secure@example.com", "password": "password12345678"}
         )
 
@@ -329,7 +329,7 @@ class TestAuthEndpointSecurity:
     def test_token_not_leaked_in_error(self, client):
         """Test that tokens are not leaked in error responses."""
         response = client.post(
-            "/api/v1/auth/sign-in-by-mail-code",
+            "/auth/sign-in-by-mail-code",
             json={"mailLoginToken": "invalid", "receivedCode": "123456"}
         )
 
@@ -359,7 +359,7 @@ class TestAuthEndpointValidation:
 
         for email in invalid_emails:
             response = client.post(
-                "/api/v1/auth/send-mail-login-code-v2",
+                "/auth/send-mail-login-code-v2",
                 json={"mail": email, "locale": "en"}
             )
 
@@ -370,7 +370,7 @@ class TestAuthEndpointValidation:
         """Test JSON request validation."""
         # Send invalid JSON
         response = client.post(
-            "/api/v1/auth/send-mail-login-code-v2",
+            "/auth/send-mail-login-code-v2",
             content="not valid json",
             headers={"Content-Type": "application/json"}
         )

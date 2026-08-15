@@ -350,10 +350,10 @@ server {
 
 ```bash
 # Check server health
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
 # Check readiness
-curl http://localhost:8080/api/v1/ready
+curl http://localhost:8080/ready
 ```
 
 ### Log Monitoring

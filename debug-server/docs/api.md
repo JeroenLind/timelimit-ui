@@ -6,7 +6,7 @@ This document provides comprehensive documentation for the TimeLimit Debug Serve
 
 **Base URL**: `http://localhost:8080` (configurable via `SERVER_HOST` and `SERVER_PORT`)
 
-**API Version**: v1 (prefix: `/api/v1`)
+**API Version**: v1 (prefix: `/` - root path)
 
 **Protocol**: HTTP/1.1 with gzip compression support
 
@@ -65,7 +65,7 @@ sequenceDiagram
 
 ### Health Check Endpoints
 
-#### GET /api/v1/health
+#### GET /health
 
 Returns the health status of the server.
 
@@ -78,7 +78,7 @@ Returns the health status of the server.
 
 **Status Code**: `200 OK`
 
-#### GET /api/v1/ready
+#### GET /ready
 
 Returns the readiness status of the server.
 
@@ -95,7 +95,7 @@ Returns the readiness status of the server.
 
 ### Time Endpoint
 
-#### POST /api/v1/time
+#### GET /time
 
 Returns the current server time in milliseconds.
 
@@ -104,17 +104,19 @@ Returns the current server time in milliseconds.
 **Response**:
 ```json
 {
-  "time": 1699123456789
+  "ms": 1699123456789
 }
 ```
 
 **Status Code**: `200 OK`
 
+**Note**: This endpoint uses GET method as per the official TimeLimit API specification (see `context_android_app.md` line 127).
+
 ---
 
 ### Authentication Endpoints
 
-#### POST /api/v1/auth/send-mail-login-code-v2
+#### POST /auth/send-mail-login-code-v2
 
 Sends a verification code to the specified email address.
 
@@ -137,7 +139,7 @@ Sends a verification code to the specified email address.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/auth/sign-in-by-mail-code
+#### POST /auth/sign-in-by-mail-code
 
 Verifies the code and returns a mail authentication token.
 
@@ -161,7 +163,7 @@ Verifies the code and returns a mail authentication token.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/get-status-by-mail-address
+#### POST /parent/get-status-by-mail-address
 
 Gets the status of a family by mail address.
 
@@ -186,7 +188,7 @@ Gets the status of a family by mail address.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/create-family
+#### POST /parent/create-family
 
 Creates a new family with the parent password.
 
@@ -211,7 +213,7 @@ Creates a new family with the parent password.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/sign-in-into-family
+#### POST /parent/sign-in-into-family
 
 Signs in to an existing family.
 
@@ -235,7 +237,7 @@ Signs in to an existing family.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/recover-parent-password
+#### POST /parent/recover-parent-password
 
 Recovers the parent password.
 
@@ -264,7 +266,7 @@ Recovers the parent password.
 
 All sync endpoints require authentication via `deviceAuthToken`.
 
-#### POST /api/v1/sync/push-actions
+#### POST /sync/push-actions
 
 Pushes pending actions to the server (batch of 25).
 
@@ -303,7 +305,7 @@ Pushes pending actions to the server (batch of 25).
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/sync/pull-status
+#### POST /sync/pull-status
 
 Pulls the server status and returns data for the client.
 
@@ -395,7 +397,7 @@ Pulls the server status and returns data for the client.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/sync/report-removed
+#### POST /sync/report-removed
 
 Reports that a device has been removed.
 
@@ -417,7 +419,7 @@ Reports that a device has been removed.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/sync/is-device-removed
+#### POST /sync/is-device-removed
 
 Checks if a device has been removed.
 
@@ -445,7 +447,7 @@ Checks if a device has been removed.
 
 ### Parent Endpoints
 
-#### POST /api/v1/parent/create-add-device-token
+#### POST /parent/create-add-device-token
 
 Creates a token for adding a new device.
 
@@ -469,7 +471,7 @@ Creates a token for adding a new device.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/remove-device
+#### POST /parent/remove-device
 
 Removes a device from the family.
 
@@ -491,7 +493,7 @@ Removes a device from the family.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/link-mail-address
+#### POST /parent/link-mail-address
 
 Links a mail address to the parent account.
 
@@ -513,7 +515,7 @@ Links a mail address to the parent account.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/create-identity-token
+#### POST /parent/create-identity-token
 
 Creates an identity token for the parent.
 
@@ -536,7 +538,7 @@ Creates an identity token for the parent.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/parent/delete-account
+#### POST /parent/delete-account
 
 Deletes the parent account.
 
@@ -561,7 +563,7 @@ Deletes the parent account.
 
 ### Child Endpoints
 
-#### POST /api/v1/child/add-device
+#### POST /child/add-device
 
 Adds a new device to the family.
 
@@ -587,7 +589,7 @@ Adds a new device to the family.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/child/update-primary-device
+#### POST /child/update-primary-device
 
 Updates the primary device for the child.
 
@@ -609,7 +611,7 @@ Updates the primary device for the child.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/child/logout-at-primary-device
+#### POST /child/logout-at-primary-device
 
 Logs out at the primary device.
 
@@ -634,7 +636,7 @@ Logs out at the primary device.
 
 ### Purchase Endpoints
 
-#### POST /api/v1/purchase/can-do-purchase
+#### POST /purchase/can-do-purchase
 
 Checks if the family can make a purchase.
 
@@ -657,7 +659,7 @@ Checks if the family can make a purchase.
 
 **Status Code**: `200 OK`
 
-#### POST /api/v1/purchase/finish-purchase-by-google-play
+#### POST /purchase/finish-purchase-by-google-play
 
 Finishes a Google Play purchase.
 
@@ -685,7 +687,7 @@ Finishes a Google Play purchase.
 
 ### User Endpoints (Legacy)
 
-#### GET /api/v1/users/{user_id}
+#### GET /users/{user_id}
 
 Gets a user by ID.
 
@@ -700,7 +702,7 @@ Gets a user by ID.
 
 **Status Code**: `200 OK`
 
-#### GET /api/v1/users/email/{email}
+#### GET /users/email/{email}
 
 Gets a user by email.
 
@@ -819,13 +821,13 @@ When rate limit is exceeded, the server returns:
 
 ```bash
 # Health check
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
 # Get server time
-curl -X POST http://localhost:8080/api/v1/time
+curl http://localhost:8080/time
 
 # Send mail login code
-curl -X POST http://localhost:8080/api/v1/auth/send-mail-login-code-v2 \
+curl -X POST http://localhost:8080/auth/send-mail-login-code-v2 \
   -H "Content-Type: application/json" \
   -d '{"mailAddress": "test@example.com"}'
 ```
@@ -852,7 +854,7 @@ print(response)
 
 The API uses URL-based versioning:
 
-- Current version: `/api/v1/`
+- Current version: `/`
 - Future versions will be available at `/api/v2/`, etc.
 
 ---
@@ -861,5 +863,5 @@ The API uses URL-based versioning:
 
 When the server is running, the OpenAPI specification is available at:
 
-- **OpenAPI JSON**: `http://localhost:8000/api/v1/openapi.json`
-- **Swagger UI**: `http://localhost:8000/api/v1/docs`
+- **OpenAPI JSON**: `http://localhost:8080/openapi.json`
+- **Swagger UI**: `http://localhost:8080/docs`

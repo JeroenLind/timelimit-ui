@@ -117,9 +117,9 @@ class TestAuthModels:
 
     def test_time_response(self):
         """Test TimeResponse model."""
-        response = TimeResponse(time=1234567890)
+        response = TimeResponse(ms=1234567890)
 
-        assert response.time == 1234567890
+        assert response.ms == 1234567890
 
     def test_send_mail_login_code_response(self):
         """Test SendMailLoginCodeResponse model."""

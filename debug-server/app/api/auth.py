@@ -9,7 +9,6 @@ Legacy endpoints:
 - POST /login — Authenticate a user
 
 TimeLimit endpoints:
-- POST /time — Return server time in milliseconds
 - POST /auth/send-mail-login-code-v2 — Generate and store email login code
 - POST /auth/sign-in-by-mail-code — Validate code, return mailAuthToken
 - POST /parent/get-status-by-mail-address — Check family status
@@ -19,7 +18,6 @@ TimeLimit endpoints:
 """
 
 import secrets
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
@@ -43,7 +41,6 @@ from app.models.auth import (
     SignInByMailCodeResponse,
     SignInIntoFamilyRequest,
     SignInIntoFamilyResponse,
-    TimeResponse,
 )
 from app.models.user import Token, User, UserCreate
 from app.services.security import create_access_token
@@ -120,22 +117,6 @@ async def login(
 # ============================================================================
 # TimeLimit Authentication Endpoints
 # ============================================================================
-
-# ============================================================================
-# Time Endpoint
-# ============================================================================
-
-@router.post("/time", response_model=TimeResponse)
-async def get_server_time() -> TimeResponse:
-    """Return server time in milliseconds.
-
-    This endpoint is used by clients to synchronize their clocks.
-
-    Returns:
-        TimeResponse: Server time in milliseconds.
-    """
-    return TimeResponse(time=int(time.time() * 1000))
-
 
 # ============================================================================
 # Mail Login Code Endpoints

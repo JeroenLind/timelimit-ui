@@ -64,6 +64,24 @@ def log(message):
     else:
         logger.info(message)
 
+# Try to import check_server module, fall back to None if not available
+try:
+    from check_server import (
+        ServerChecker,
+        ServerCheckResult,
+        ERROR_CODE_TIMEOUT,
+        ERROR_CODE_UNREACHABLE
+    )
+    CHECK_SERVER_AVAILABLE = True
+    log("[DEBUG] check_server module imported successfully")
+except ImportError as e:
+    CHECK_SERVER_AVAILABLE = False
+    log(f"[WARNING] check_server module not available: {e}")
+    ServerChecker = None
+    ServerCheckResult = None
+    ERROR_CODE_TIMEOUT = "timeout"
+    ERROR_CODE_UNREACHABLE = "unreachable"
+
 def event_log(message):
     log(message)
 
@@ -188,19 +206,36 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.path in ['/', '', '/index.html']:
             try:
-                config = get_config()
-                if not os.path.exists(HTML_PATH):
-                    self.send_error(404, "Dashboard HTML niet gevonden")
+                # Serve the landing page with choice of dashboard or check-server
+                landing_path = os.path.join(STATIC_DIR, 'index.html')
+                if not os.path.exists(landing_path):
+                    self.send_error(404, "Landing page HTML niet gevonden")
                     return
-                with open(HTML_PATH, 'r', encoding='utf-8') as f:
+                with open(landing_path, 'r', encoding='utf-8') as f:
                     html = f.read()
                     self._send_raw(200, html.encode('utf-8'), "text/html")
             except Exception as e:
                 self.send_error(500, f"Server Error: {str(e)}")
-        else:
-            # Strip query string for static file serving
-            path_without_query = self.path.split('?')[0]
-            super().do_GET()
+            return
+
+        # Route: serve the check server page
+        if self.path == '/check-server':
+            try:
+                check_server_path = os.path.join(STATIC_DIR, 'check_server.html')
+                if not os.path.exists(check_server_path):
+                    self.send_error(404, "Check server page not found")
+                    return
+                with open(check_server_path, 'r', encoding='utf-8') as f:
+                    html = f.read()
+                    self._send_raw(200, html.encode('utf-8'), "text/html")
+            except Exception as e:
+                log(f"[ERROR] Fout bij het serveren van check_server.html: {str(e)}")
+                self.send_error(500, f"Server Error: {str(e)}")
+            return
+
+        # Strip query string for static file serving
+        path_without_query = self.path.split('?')[0]
+        super().do_GET()
 
     def log_message(self, format, *args):
         log(f"[HTTP] {format%args}")
@@ -263,6 +298,83 @@ class TimeLimitHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 event_log(f"[ERROR] Fout in /ha-storage: {str(e)}")
                 self._send_raw(400, str(e).encode(), "text/plain")
+                return
+        
+        # Route: dedicated handler for /api/time with robust error handling
+        if self.path.endswith('/api/time'):
+            log("[INFO] Check button pressed - /api/time endpoint called")
+            
+            # Check if check_server module is available
+            if not CHECK_SERVER_AVAILABLE:
+                log("[WARNING] check_server module not available, using fallback proxy method")
+                # Fall back to old proxy method
+                try:
+                    if SELECTED_SERVER is None:
+                        SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
+                        log(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}")
+                    
+                    api = TimeLimitAPI(SELECTED_SERVER, verbose=is_verbose_logging())
+                    status, body = api.post('/api/v1/time', json.dumps({}).encode())
+                    log(f"[DEBUG] Proxy response status: {status}")
+                    self._send_raw(status, body, "application/json")
+                    return
+                except Exception as e:
+                    log(f"[ERROR] Proxy fallback failed: {str(e)}")
+                    self._send_raw(500, json.dumps({"status": "error", "error": str(e)}).encode(), "application/json")
+                    return
+            
+            try:
+                # Initialize SELECTED_SERVER if not already done
+                if SELECTED_SERVER is None:
+                    SELECTED_SERVER = get_config().get('server_url', "http://192.168.68.30:8080")
+                    log(f"[DEBUG] SELECTED_SERVER geïnitialiseerd op: {SELECTED_SERVER}")
+                
+                # Use ServerChecker for robust server connectivity check
+                checker = ServerChecker(
+                    server_url=SELECTED_SERVER,
+                    timeout=10.0,
+                    max_retries=3,
+                    retry_delay=1.0,
+                    verbose=is_verbose_logging()
+                )
+                result = checker.check()
+                
+                log(f"[DEBUG] Server check result: success={result.success}, attempts={result.attempts}")
+                
+                if result.success:
+                    log(f"[SUCCESS] Server time check passed after {result.attempts} attempt(s)")
+                    response_data = {
+                        "status": "ok",
+                        "time": result.server_time
+                    }
+                    self._send_raw(200, json.dumps(response_data).encode(), "application/json")
+                else:
+                    log(f"[ERROR] Server check failed: {result.error_code} - {result.technical_detail}")
+                    response_data = {
+                        "status": "error",
+                        "error_code": result.error_code,
+                        "user_message": result.user_message,
+                        "technical_detail": result.technical_detail,
+                        "attempts": result.attempts
+                    }
+                    # Return appropriate HTTP status based on error type
+                    if result.error_code in [ERROR_CODE_TIMEOUT, ERROR_CODE_UNREACHABLE]:
+                        self._send_raw(502, json.dumps(response_data).encode(), "application/json")
+                    else:
+                        self._send_raw(500, json.dumps(response_data).encode(), "application/json")
+                return
+            except Exception as e:
+                log(f"[ERROR] Exception in /api/time handler: {str(e)}")
+                import traceback
+                log(f"[ERROR] Traceback: {traceback.format_exc()}")
+                response_data = {
+                    "status": "error",
+                    "error_code": "unknown",
+                    "user_message": "An unexpected error occurred while checking the server.",
+                    "technical_detail": str(e),
+                    "attempts": 1
+                }
+                self._send_raw(500, json.dumps(response_data).encode(), "application/json")
                 return
         
         # Route: proxy to TimeLimit API endpoints.

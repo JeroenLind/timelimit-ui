@@ -3,6 +3,9 @@
 This module provides connection management for WebSocket (Socket.IO)
 connections including connection tracking, event broadcasting, and
 session management.
+
+All server-transmitted messages are logged with comprehensive metadata
+including timestamps, message content, and associated metadata.
 """
 
 import logging
@@ -10,6 +13,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from app.core.config import settings
 from app.core.state import state_manager
+from app.middleware.server_message_logger import get_server_message_logger
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,16 @@ class ConnectionManager:
                 "device_id": device_id,
             }
         )
+        
+        # Log the server-transmitted connection event
+        server_logger = get_server_message_logger()
+        server_logger.log_system_event(
+            event="websocket_connect",
+            details={
+                "connection_id": connection_id[:8] + "...",
+                "device_id": device_id,
+            }
+        )
     
     async def disconnect(self, connection_id: str) -> None:
         """Unregister a WebSocket connection.
@@ -84,6 +98,13 @@ class ConnectionManager:
         logger.info(
             "WebSocket connection closed",
             extra={"connection_id": connection_id[:8] + "..."}
+        )
+        
+        # Log the server-transmitted disconnection event
+        server_logger = get_server_message_logger()
+        server_logger.log_system_event(
+            event="websocket_disconnect",
+            details={"connection_id": connection_id[:8] + "..."}
         )
     
     async def update_activity(self, connection_id: str) -> None:
@@ -190,10 +211,20 @@ class SocketIOHandler:
         # Update connection with device info
         await self.manager.update_activity(connection_id)
         
-        return {
+        response = {
             "status": "ok",
             "message": "Device logged in successfully",
         }
+        
+        # Log the server-transmitted message
+        server_logger = get_server_message_logger()
+        server_logger.log_websocket_event(
+            event="devicelogin",
+            data=response,
+            connection_id=connection_id
+        )
+        
+        return response
     
     async def handle_should_sync(
         self,
@@ -221,10 +252,20 @@ class SocketIOHandler:
             }
         )
         
-        return {
+        response = {
             "status": "ok",
             "message": "Sync notification processed",
         }
+        
+        # Log the server-transmitted message
+        server_logger = get_server_message_logger()
+        server_logger.log_websocket_event(
+            event="should sync",
+            data=response,
+            connection_id=connection_id
+        )
+        
+        return response
     
     async def handle_connected_devices(
         self,
@@ -255,11 +296,21 @@ class SocketIOHandler:
         # Get all devices in the family
         devices = await self.manager.state.get_devices_by_family(family_id) if family_id else []
         
-        return {
+        response = {
             "status": "ok",
             "devices": [d.get("deviceId") for d in devices],
             "count": len(devices),
         }
+        
+        # Log the server-transmitted message
+        server_logger = get_server_message_logger()
+        server_logger.log_websocket_event(
+            event="connected devices",
+            data=response,
+            connection_id=connection_id
+        )
+        
+        return response
     
     async def handle_sign_out(
         self,
@@ -290,10 +341,20 @@ class SocketIOHandler:
         # Disconnect the connection
         await self.manager.disconnect(connection_id)
         
-        return {
+        response = {
             "status": "ok",
             "message": "Signed out successfully",
         }
+        
+        # Log the server-transmitted message
+        server_logger = get_server_message_logger()
+        server_logger.log_websocket_event(
+            event="sign out",
+            data=response,
+            connection_id=connection_id
+        )
+        
+        return response
     
     async def broadcast_to_family(
         self,
@@ -335,6 +396,15 @@ class SocketIOHandler:
                 "family_id": family_id,
                 "notified_count": notified_count,
             }
+        )
+        
+        # Log the server broadcast message
+        server_logger = get_server_message_logger()
+        server_logger.log_websocket_broadcast(
+            event=event,
+            data=data,
+            family_id=family_id,
+            notified_count=notified_count
         )
         
         return notified_count

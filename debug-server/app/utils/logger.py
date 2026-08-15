@@ -18,17 +18,14 @@ from structlog.processors import (
     JSONRenderer,
     TimeStamper,
     add_log_level,
-    merge_contextvars,
 )
 from structlog.stdlib import (
     add_log_level as stdlib_add_log_level,
+    merge_contextvars,
     PositionalArgumentsFormatter,
     filter_by_level,
-    bound_logger,
     get_logger,
-    logger_factory,
-    make_filtering_bound_logger,
-    PositionalArgumentsFormatter,
+    BoundLogger,
 )
 
 from app.core.config import settings
@@ -167,8 +164,8 @@ def setup_structlog(
     structlog.configure(
         processors=processors,
         context_class=dict,
-        logger_factory=logger_factory,
-        wrapper_class=make_filtering_bound_logger(level),
+        logger_factory=structlog.PrintLoggerFactory(),
+        wrapper_class=structlog.make_filtering_bound_logger(level),
         cache_logger_on_first_use=True,
     )
 

@@ -30,7 +30,7 @@ grep "ERROR" logs/debug-server.log | grep "$(date -d 'yesterday' +%Y-%m-%d)" | w
 Verify server health:
 
 ```bash
-curl -s http://localhost:8080/api/v1/health | jq .
+curl -s http://localhost:8080/health | jq .
 ```
 
 Expected response:
@@ -202,7 +202,7 @@ echo "RATE_LIMIT_ENABLED=false" >> .env
 **Diagnosis**:
 ```bash
 # Check if client is sending gzip
-curl -H "Content-Encoding: gzip" --data-binary @compressed.json http://localhost:8080/api/v1/sync/push-actions
+curl -H "Content-Encoding: gzip" --data-binary @compressed.json http://localhost:8080/sync/push-actions
 ```
 
 **Solution**:
@@ -327,7 +327,7 @@ nssm restart TimeLimitServer        # Windows
 
 ```bash
 # Check version
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
 # Run tests
 pytest tests/ -v
@@ -417,7 +417,7 @@ Update `app/api/__init__.py`:
 ```python
 from app.api.new_resource import router as new_resource_router
 
-api_router.include_router(new_resource_router, prefix="/api/v1")
+```
 ```
 
 #### 5. Update Models Export
@@ -620,7 +620,7 @@ grep -i "error\|warning\|failed" logs/debug-server.log
 
 ```bash
 # Monitor with cron
-*/5 * * * * curl -f http://localhost:8080/api/v1/health || systemctl restart timelimit-server
+*/5 * * * * curl -f http://localhost:8080/health || systemctl restart timelimit-server
 ```
 
 ### Log Monitoring
@@ -694,7 +694,7 @@ systemctl start timelimit-server
 #### 4. Verify Recovery
 
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 ```
 
 ---

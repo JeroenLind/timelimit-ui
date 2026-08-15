@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 from app.core.security import hash_password
 from app.core.state import state_manager
+from app.middleware.message_sent_logger import get_message_sent_logger
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,17 @@ class AuthService:
             state: State manager instance. Uses global state_manager if not provided.
         """
         self.state = state or state_manager
+        self._msg_logger = None
+    
+    def _get_msg_logger(self):
+        """Get the message sent logger instance.
+        
+        Returns:
+            MessageSentLogger instance.
+        """
+        if self._msg_logger is None:
+            self._msg_logger = get_message_sent_logger()
+        return self._msg_logger
     
     def _generate_code(self, length: int = 6) -> str:
         """Generate a random verification code.
@@ -89,6 +101,16 @@ class AuthService:
             extra={"mail": mail, "token": mail_login_token[:8] + "..."}
         )
         
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="mail_login_code_sent",
+            user_id=None,
+            device_id=None,
+            family_id=None,
+            success=True
+        )
+        
         return {
             "mailLoginToken": mail_login_token,
             "mailServerBlacklisted": False,
@@ -114,6 +136,15 @@ class AuthService:
         # Get the stored token
         token_data = await self.state.get_mail_login_token(mail_login_token)
         if not token_data:
+            # Log auth failure
+            msg_logger = self._get_msg_logger()
+            msg_logger.log_auth_reply(
+                event_type="login_failed",
+                user_id=None,
+                device_id=None,
+                family_id=None,
+                success=False
+            )
             raise ValueError("Invalid or expired mail login token")
         
         # Verify the code
@@ -122,6 +153,15 @@ class AuthService:
             logger.warning(
                 "Invalid verification code",
                 extra={"token": mail_login_token[:8] + "..."}
+            )
+            # Log auth failure
+            msg_logger = self._get_msg_logger()
+            msg_logger.log_auth_reply(
+                event_type="login_failed",
+                user_id=None,
+                device_id=None,
+                family_id=None,
+                success=False
             )
             raise ValueError("Invalid verification code")
         
@@ -144,6 +184,16 @@ class AuthService:
         logger.info(
             "Signed in by mail code",
             extra={"mail": mail, "token": mail_auth_token[:8] + "..."}
+        )
+        
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="sign_in_by_mail_code_success",
+            user_id=None,
+            device_id=None,
+            family_id=None,
+            success=True
         )
         
         return {
@@ -175,13 +225,25 @@ class AuthService:
         if family:
             status = "existing"
             can_create_family = False
+            family_id = family.get("family_id")
         else:
             status = "new"
             can_create_family = True
+            family_id = None
         
         logger.info(
             "Got status by mail address",
             extra={"mail": mail, "status": status}
+        )
+        
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="get_status_by_mail_address",
+            user_id=None,
+            device_id=None,
+            family_id=family_id,
+            success=True
         )
         
         return {
@@ -296,6 +358,16 @@ class AuthService:
             extra={"family_id": family_id, "mail": mail, "device_id": device_id}
         )
         
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="create_family_success",
+            user_id=parent_id,
+            device_id=device_id,
+            family_id=family_id,
+            success=True
+        )
+        
         return {
             "deviceAuthToken": device_auth_token,
             "ownDeviceId": device_id,
@@ -345,6 +417,15 @@ class AuthService:
         # Verify second password hash
         stored_second_hash = parent_user.get("password", "")
         if stored_second_hash != parent_password_second_hash:
+            # Log auth failure
+            msg_logger = self._get_msg_logger()
+            msg_logger.log_auth_reply(
+                event_type="sign_in_into_family_failed",
+                user_id=parent_id,
+                device_id=None,
+                family_id=family_id,
+                success=False
+            )
             raise ValueError("Invalid password")
         
         # Generate device ID
@@ -383,6 +464,16 @@ class AuthService:
         logger.info(
             "Signed in to family",
             extra={"family_id": family_id, "mail": mail, "device_id": device_id}
+        )
+        
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="sign_in_into_family_success",
+            user_id=parent_id,
+            device_id=device_id,
+            family_id=family_id,
+            success=True
         )
         
         return {
@@ -432,6 +523,16 @@ class AuthService:
         logger.info(
             "Parent password recovered",
             extra={"mail": mail, "family_id": family_id}
+        )
+        
+        # Log the auth event
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_auth_reply(
+            event_type="recover_parent_password",
+            user_id=parent_id,
+            device_id=None,
+            family_id=family_id,
+            success=True
         )
         
         return {"status": "ok"}

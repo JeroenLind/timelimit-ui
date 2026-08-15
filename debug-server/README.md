@@ -200,8 +200,8 @@ See [docs/deployment.md](docs/deployment.md) for detailed deployment instruction
 
 Once the server is running, API documentation is available:
 
-- **Swagger UI**: `http://localhost:8080/api/v1/docs`
-- **OpenAPI JSON**: `http://localhost:8080/api/v1/openapi.json`
+- **Swagger UI**: `http://localhost:8080/docs`
+- **OpenAPI JSON**: `http://localhost:8080/openapi.json`
 
 ### Available Endpoints
 
@@ -209,59 +209,59 @@ Once the server is running, API documentation is available:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/health` | GET | Health check endpoint |
-| `/api/v1/ready` | GET | Readiness check endpoint |
+| `/health` | GET | Health check endpoint |
+| `/ready` | GET | Readiness check endpoint |
 
 #### Time
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/time` | POST | Get server time in milliseconds |
+| `/time` | POST | Get server time in milliseconds |
 
 #### Authentication
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/auth/send-mail-login-code-v2` | POST | Send verification code to email |
-| `/api/v1/auth/sign-in-by-mail-code` | POST | Sign in with verification code |
-| `/api/v1/parent/get-status-by-mail-address` | POST | Get family status by email |
-| `/api/v1/parent/create-family` | POST | Create a new family |
-| `/api/v1/parent/sign-in-into-family` | POST | Sign in to existing family |
-| `/api/v1/parent/recover-parent-password` | POST | Recover parent password |
+| `/auth/send-mail-login-code-v2` | POST | Send verification code to email |
+| `/auth/sign-in-by-mail-code` | POST | Sign in with verification code |
+| `/parent/get-status-by-mail-address` | POST | Get family status by email |
+| `/parent/create-family` | POST | Create a new family |
+| `/parent/sign-in-into-family` | POST | Sign in to existing family |
+| `/parent/recover-parent-password` | POST | Recover parent password |
 
 #### Sync
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/sync/push-actions` | POST | Push sync actions to server |
-| `/api/v1/sync/pull-status` | POST | Pull server status |
-| `/api/v1/sync/report-removed` | POST | Report device as removed |
-| `/api/v1/sync/is-device-removed` | POST | Check if device is removed |
+| `/sync/push-actions` | POST | Push sync actions to server |
+| `/sync/pull-status` | POST | Pull server status |
+| `/sync/report-removed` | POST | Report device as removed |
+| `/sync/is-device-removed` | POST | Check if device is removed |
 
 #### Parent
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/parent/create-add-device-token` | POST | Create add-device token |
-| `/api/v1/parent/remove-device` | POST | Remove a device |
-| `/api/v1/parent/link-mail-address` | POST | Link email to parent account |
-| `/api/v1/parent/create-identity-token` | POST | Create identity token |
-| `/api/v1/parent/delete-account` | POST | Delete parent account |
+| `/parent/create-add-device-token` | POST | Create add-device token |
+| `/parent/remove-device` | POST | Remove a device |
+| `/parent/link-mail-address` | POST | Link email to parent account |
+| `/parent/create-identity-token` | POST | Create identity token |
+| `/parent/delete-account` | POST | Delete parent account |
 
 #### Child
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/child/add-device` | POST | Add a new device |
-| `/api/v1/child/update-primary-device` | POST | Update primary device |
-| `/api/v1/child/logout-at-primary-device` | POST | Logout at primary device |
+| `/child/add-device` | POST | Add a new device |
+| `/child/update-primary-device` | POST | Update primary device |
+| `/child/logout-at-primary-device` | POST | Logout at primary device |
 
 #### Purchase
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/purchase/can-do-purchase` | POST | Check purchase eligibility |
-| `/api/v1/purchase/finish-purchase-by-google-play` | POST | Complete Google Play purchase |
+| `/purchase/can-do-purchase` | POST | Check purchase eligibility |
+| `/purchase/finish-purchase-by-google-play` | POST | Complete Google Play purchase |
 
 See [docs/api.md](docs/api.md) for complete API documentation.
 
@@ -552,7 +552,7 @@ taskkill /IM python.exe /F
 pkill -f "python -m app"
 
 # Check if server is running
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 ```
 
 ### Common Commands

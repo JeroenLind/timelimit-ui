@@ -474,7 +474,9 @@ const PARENT_PRIVATE_KEY_STORAGE = 'timelimit_parentPrivateKey';
 const KEY_REQUESTS_CACHE_KEY = 'timelimit_keyRequestsCache';
 
 function isDebugMode() {
-    return localStorage.getItem(DEBUG_MODE_KEY) === '1';
+    // Default to true (debug mode ON) if not explicitly set to '0'
+    const value = localStorage.getItem(DEBUG_MODE_KEY);
+    return value === null || value === '1';
 }
 
 function applyDebugMode(enabled) {
@@ -482,7 +484,9 @@ function applyDebugMode(enabled) {
 
     const debugOnlyElements = document.querySelectorAll('[data-debug-only="true"]');
     debugOnlyElements.forEach((el) => {
-        el.style.display = enabled ? '' : 'none';
+        // Use !important to ensure visibility overrides CSS rules
+        // CSS rule: body:not(.debug-mode) .inspector-panel { display: none; }
+        el.style.setProperty('display', enabled ? 'block' : 'none', 'important');
     });
 
     const toggle = document.getElementById('debug-toggle');
@@ -1127,7 +1131,13 @@ function saveEncryptedAppsKey() {
     let keyBytes;
     try {
         keyBytes = base64ToBytes(keyBase64);
-    } catch (e) {
+        if (statusDiv) {
+            statusDiv.textContent = "❌ Fout: " + e.message;
+            statusDiv.style.color = '#ff4444';
+        }
+        addLog("Fout bij wachtwoord bijwerken: " + e.message, true);
+    }
+}
         if (typeof addLog === 'function') addLog('❌ Ongeldige base64 key.', true);
         return;
     }
@@ -2298,3 +2308,96 @@ async function submitPasswordReset() {
         addLog("Fout bij wachtwoord bijwerken: " + e.message, true);
     }
 }
+
+/**
+ * Check server time via the /api/time endpoint
+ * This function verifies server accessibility by fetching the current server time
+ * without requiring authentication.
+ *
+ * Updated to handle structured error responses from the backend with:
+ * - User-friendly error messages based on error codes
+ * - Technical details logged for debugging
+ */
+async function checkServerTime() {
+    const timeDisplay = document.getElementById('server-time-display');
+    const timestamp = new Date().toLocaleTimeString();
+    
+    if (timeDisplay) {
+        timeDisplay.textContent = '⏳ Checking...';
+        timeDisplay.style.color = '#ff9800';
+    }
+    
+    addLog("⏱️ Checking server time...", false);
+    
+    try {
+        const response = await fetch('/api/time', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}),
+            cache: 'no-store'
+        });
+        
+        const data = await response.json();
+        
+        // Handle structured error response from backend
+        if (!response.ok || data.status === 'error') {
+            const errorCode = data.error_code || 'unknown';
+            const userMessage = data.user_message || 'An unexpected error occurred';
+            const technicalDetail = data.technical_detail || 'No technical details available';
+            const attempts = data.attempts || 1;
+            
+            // Log technical details for debugging
+            addLog(`❌ Server check failed (${errorCode}): ${technicalDetail}`, true);
+            addLog(`   Attempts: ${attempts}, User message: ${userMessage}`, true);
+            
+            // Display user-friendly error message
+            if (timeDisplay) {
+                timeDisplay.textContent = '❌ Error';
+                timeDisplay.style.color = '#f44336';
+                timeDisplay.title = userMessage; // Show full message on hover
+            }
+            
+            // Update status badge to show offline state
+            const statusBadge = document.getElementById('status-badge');
+            if (statusBadge) {
+                statusBadge.textContent = 'Server Unreachable';
+                statusBadge.className = 'status-badge status-offline';
+            }
+            
+            return;
+        }
+        
+        // Handle successful response
+        if (data && typeof data.time === 'number') {
+            // Convert milliseconds to Date and format
+            const serverTime = new Date(data.time);
+            const timeString = serverTime.toLocaleTimeString();
+            
+            if (timeDisplay) {
+                timeDisplay.textContent = timeString;
+                timeDisplay.style.color = '#4caf50';
+            }
+            
+            // Update status badge to show online state
+            const statusBadge = document.getElementById('status-badge');
+            if (statusBadge) {
+                statusBadge.textContent = 'Online';
+                statusBadge.className = 'status-badge status-online';
+            }
+            
+            addLog(`✅ Server time: ${timeString}`, false);
+        } else {
+            throw new Error('Invalid response format');
+        }
+    } catch (e) {
+        if (timeDisplay) {
+            timeDisplay.textContent = '❌ Error';
+            timeDisplay.style.color = '#f44336';
+        }
+        addLog(`❌ Server time check failed: ${e.message}`, true);
+    }
+}
+
+window.checkServerTime = checkServerTime;

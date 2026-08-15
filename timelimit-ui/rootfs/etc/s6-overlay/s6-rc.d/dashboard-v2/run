@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv bashio
+cd /usr/bin/dashboardV2
+bashio::log.info "Starting TimeLimit Dashboard V2..."
+# Pass --ha-ingress to enable HA-specific persistence
+exec python3 -u app.py --ha-ingress

@@ -26,7 +26,7 @@ class TestClient:
     
     def __init__(
         self,
-        base_url: str = "http://localhost:8080",
+        base_url: str = "http://192.168.68.30:8080",
         timeout: int = 30,
         verify_ssl: bool = True
     ):
@@ -530,7 +530,7 @@ class TestClient:
 
 
 # Convenience function to create a test client
-def create_test_client(base_url: str = "http://localhost:8080") -> TestClient:
+def create_test_client(base_url: str = "http://192.168.68.30:8080") -> TestClient:
     """Create a test client instance.
     
     Args:

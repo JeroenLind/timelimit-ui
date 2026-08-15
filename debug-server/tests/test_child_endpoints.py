@@ -79,7 +79,7 @@ class TestAddDevice:
     def test_add_device_invalid_token(self, client):
         """Test add device with invalid register token - should return 401 for missing auth."""
         response = client.post(
-            "/api/v1/child/add-device",
+            "/child/add-device",
             json={
                 "registerToken": "invalid_token",
                 "deviceName": "Test Device",
@@ -98,7 +98,7 @@ class TestAddDevice:
         add_device_token = create_add_device_token()
 
         response = client.post(
-            "/api/v1/child/add-device",
+            "/child/add-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"registerToken": add_device_token}
         )
@@ -120,7 +120,7 @@ class TestUpdatePrimaryDevice:
     def test_update_primary_device_invalid_token(self, client):
         """Test update primary device with invalid token."""
         response = client.post(
-            "/api/v1/child/update-primary-device",
+            "/child/update-primary-device",
             json={
                 "deviceAuthToken": "invalid_token",
                 "primaryDeviceId": "device_123"
@@ -136,7 +136,7 @@ class TestUpdatePrimaryDevice:
         device_token = get_valid_device_token()
 
         response = client.post(
-            "/api/v1/child/update-primary-device",
+            "/child/update-primary-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -158,7 +158,7 @@ class TestLogoutAtPrimaryDevice:
     def test_logout_invalid_token(self, client):
         """Test logout with invalid token."""
         response = client.post(
-            "/api/v1/child/logout-at-primary-device",
+            "/child/logout-at-primary-device",
             json={"deviceAuthToken": "invalid_token"}
         )
 
@@ -171,7 +171,7 @@ class TestLogoutAtPrimaryDevice:
         device_token = get_valid_device_token()
 
         response = client.post(
-            "/api/v1/child/logout-at-primary-device",
+            "/child/logout-at-primary-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -195,8 +195,8 @@ class TestChildEndpointSecurity:
     def test_child_endpoints_require_auth(self, client):
         """Test that child endpoints require authentication."""
         endpoints = [
-            ("/api/v1/child/update-primary-device", {"primaryDeviceId": "d1"}),
-            ("/api/v1/child/logout-at-primary-device", {}),
+            ("/child/update-primary-device", {"primaryDeviceId": "d1"}),
+            ("/child/logout-at-primary-device", {}),
         ]
 
         for endpoint, data in endpoints:
@@ -222,7 +222,7 @@ class TestChildEndpointValidation:
 
         # Missing deviceName - should succeed with default
         response = client.post(
-            "/api/v1/child/add-device",
+            "/child/add-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={
                 "registerToken": add_device_token,
@@ -241,7 +241,7 @@ class TestChildEndpointValidation:
 
         # Missing primaryDeviceId
         response = client.post(
-            "/api/v1/child/update-primary-device",
+            "/child/update-primary-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )

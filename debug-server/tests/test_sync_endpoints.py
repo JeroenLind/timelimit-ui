@@ -28,7 +28,7 @@ class TestPushActions:
     def test_push_actions_invalid_token(self, client):
         """Test push actions with invalid device auth token."""
         response = client.post(
-            "/api/v1/sync/push-actions",
+            "/sync/push-actions",
             json={
                 "deviceAuthToken": "invalid_token",
                 "actions": []
@@ -41,7 +41,7 @@ class TestPushActions:
     def test_push_actions_missing_token(self, client):
         """Test push actions with missing device auth token."""
         response = client.post(
-            "/api/v1/sync/push-actions",
+            "/sync/push-actions",
             json={"actions": []}
         )
 
@@ -82,7 +82,7 @@ class TestPushActions:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/sync/push-actions",
+            "/sync/push-actions",
             json={"deviceAuthToken": token, "actions": []}
         )
 
@@ -105,7 +105,7 @@ class TestPullStatus:
     def test_pull_status_invalid_token(self, client):
         """Test pull status with invalid device auth token."""
         response = client.post(
-            "/api/v1/sync/pull-status",
+            "/sync/pull-status",
             json={
                 "deviceAuthToken": "invalid_token",
                 "status": {
@@ -129,7 +129,7 @@ class TestPullStatus:
     def test_pull_status_missing_token(self, client):
         """Test pull status with missing device auth token."""
         response = client.post(
-            "/api/v1/sync/pull-status",
+            "/sync/pull-status",
             json={"status": {}}
         )
 
@@ -170,7 +170,7 @@ class TestPullStatus:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/sync/pull-status",
+            "/sync/pull-status",
             json={
                 "deviceAuthToken": token,
                 "status": {
@@ -207,7 +207,7 @@ class TestReportRemoved:
     def test_report_removed_invalid_token(self, client):
         """Test report removed with invalid token."""
         response = client.post(
-            "/api/v1/sync/report-removed",
+            "/sync/report-removed",
             json={"deviceAuthToken": "invalid_token"}
         )
 
@@ -248,7 +248,7 @@ class TestReportRemoved:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/sync/report-removed",
+            "/sync/report-removed",
             json={"deviceAuthToken": token}
         )
 
@@ -271,7 +271,7 @@ class TestIsDeviceRemoved:
     def test_is_device_removed_invalid_token(self, client):
         """Test is device removed with invalid token."""
         response = client.post(
-            "/api/v1/sync/is-device-removed",
+            "/sync/is-device-removed",
             json={"deviceAuthToken": "invalid_token"}
         )
 
@@ -312,7 +312,7 @@ class TestIsDeviceRemoved:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/sync/is-device-removed",
+            "/sync/is-device-removed",
             json={"deviceAuthToken": token}
         )
 
@@ -375,7 +375,7 @@ class TestSyncProtocolIntegration:
         }]
 
         push_response = client.post(
-            "/api/v1/sync/push-actions",
+            "/sync/push-actions",
             json={"deviceAuthToken": token, "actions": actions}
         )
 
@@ -383,7 +383,7 @@ class TestSyncProtocolIntegration:
 
         # Pull status
         pull_response = client.post(
-            "/api/v1/sync/pull-status",
+            "/sync/pull-status",
             json={
                 "deviceAuthToken": token,
                 "status": {

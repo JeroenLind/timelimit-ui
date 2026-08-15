@@ -75,8 +75,9 @@ header { height: 60px; padding: 0 20px; background: #151921; border-bottom: 1px 
 
 .inspector-debug { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
-body:not(.debug-mode) .inspector-panel { display: none; }
+body:not(.debug-mode) .inspector-panel { display: none !important; }
 body:not(.debug-mode) .main-container { grid-template-columns: 1fr; }
+body.debug-mode .inspector-panel { display: block !important; }
 
 #json-view { flex: 1 1 auto; padding: 15px; font-family: monospace; font-size: 11px; color: #03a9f4; white-space: pre-wrap; overflow-y: auto; background: #050505; min-height: 0; }
 

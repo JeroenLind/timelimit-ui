@@ -26,7 +26,7 @@ class TestCanDoPurchase:
     def test_can_do_purchase_invalid_token(self, client):
         """Test can-do-purchase with invalid device auth token."""
         response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             json={
                 "deviceAuthToken": "invalid_token",
                 "productId": "premium_unlock"
@@ -39,7 +39,7 @@ class TestCanDoPurchase:
     def test_can_do_purchase_missing_fields(self, client):
         """Test can-do-purchase with missing required fields."""
         response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             json={"deviceAuthToken": "token"}
         )
 
@@ -75,7 +75,7 @@ class TestCanDoPurchase:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium_unlock"
@@ -102,7 +102,7 @@ class TestFinishPurchaseByGooglePlay:
     def test_finish_purchase_invalid_token(self, client):
         """Test finish purchase with invalid device auth token."""
         response = client.post(
-            "/api/v1/purchase/finish-purchase-by-google-play",
+            "/purchase/finish-purchase-by-google-play",
             json={
                 "deviceAuthToken": "invalid_token",
                 "productId": "premium_unlock",
@@ -143,7 +143,7 @@ class TestFinishPurchaseByGooglePlay:
     
             # Missing productId, purchaseToken, signature - should return 422
             response = client.post(
-                "/api/v1/purchase/finish-purchase-by-google-play",
+                "/purchase/finish-purchase-by-google-play",
                 headers={"Authorization": f"Bearer {token}"},
                 json={}
             )
@@ -179,7 +179,7 @@ class TestFinishPurchaseByGooglePlay:
         token = asyncio.run(get_token())
 
         response = client.post(
-            "/api/v1/purchase/finish-purchase-by-google-play",
+            "/purchase/finish-purchase-by-google-play",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium_unlock",
@@ -208,8 +208,8 @@ class TestPurchaseEndpointSecurity:
     def test_purchase_endpoints_require_auth(self, client):
         """Test that all purchase endpoints require authentication."""
         endpoints = [
-            ("/api/v1/purchase/can-do-purchase", {"productId": "premium"}),
-            ("/api/v1/purchase/finish-purchase-by-google-play", {
+            ("/purchase/can-do-purchase", {"productId": "premium"}),
+            ("/purchase/finish-purchase-by-google-play", {
                 "productId": "premium",
                 "purchaseToken": "token",
                 "signature": "sig"
@@ -260,7 +260,7 @@ class TestPurchaseEndpointValidation:
 
         # Missing productId
         response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             headers={"Authorization": f"Bearer {token}"},
             json={}
         )
@@ -297,7 +297,7 @@ class TestPurchaseEndpointValidation:
 
         # Missing purchaseToken
         response = client.post(
-            "/api/v1/purchase/finish-purchase-by-google-play",
+            "/purchase/finish-purchase-by-google-play",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium",
@@ -338,7 +338,7 @@ class TestPurchaseEndpointValidation:
 
         # Missing signature
         response = client.post(
-            "/api/v1/purchase/finish-purchase-by-google-play",
+            "/purchase/finish-purchase-by-google-play",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium",
@@ -389,7 +389,7 @@ class TestPurchaseIntegration:
 
         # Step 1: Check if can purchase
         check_response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium_unlock"
@@ -400,7 +400,7 @@ class TestPurchaseIntegration:
 
         # Step 2: Finish purchase
         finish_response = client.post(
-            "/api/v1/purchase/finish-purchase-by-google-play",
+            "/purchase/finish-purchase-by-google-play",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium_unlock",
@@ -413,7 +413,7 @@ class TestPurchaseIntegration:
 
         # Step 3: Verify purchase (check again)
         verify_response = client.post(
-            "/api/v1/purchase/can-do-purchase",
+            "/purchase/can-do-purchase",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "productId": "premium_unlock"

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # Project settings
     PROJECT_NAME: str = "Debug Server"
-    API_V1_STR: str = "/api/v1"
+    API_V1_STR: str = ""
 
     # Server settings
     SERVER_HOST: str = "0.0.0.0"
@@ -49,6 +49,16 @@ class Settings(BaseSettings):
     LOG_MAX_BYTES: int = 10485760
     LOG_BACKUP_COUNT: int = 5
     LOG_FORMAT: str = "json"
+    
+    # Log retention settings
+    MAX_LOG_FILES: int = 10  # Maximum number of log files to retain on startup
+
+    # Message logging settings (for outgoing message logging)
+    MESSAGE_LOGGING_ENABLED: bool = True
+    MESSAGE_LOGGING_ASYNC: bool = True
+    MESSAGE_LOGGING_LEVEL: str = "INFO"
+    MESSAGE_LOGGING_MAX_BUFFER_SIZE: int = 1000
+    MESSAGE_LOGGING_SANITIZE: bool = True
 
 
 settings = Settings()

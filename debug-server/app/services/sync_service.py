@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.security import calculate_hmac_sha256
 from app.core.state import state_manager
+from app.middleware.message_sent_logger import get_message_sent_logger
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,17 @@ class SyncService:
             state: State manager instance. Uses global state_manager if not provided.
         """
         self.state = state or state_manager
+        self._msg_logger = None
+    
+    def _get_msg_logger(self):
+        """Get the message sent logger instance.
+        
+        Returns:
+            MessageSentLogger instance.
+        """
+        if self._msg_logger is None:
+            self._msg_logger = get_message_sent_logger()
+        return self._msg_logger
     
     async def push_actions(
         self,
@@ -108,6 +120,20 @@ class SyncService:
                 "total": len(actions),
                 "should_do_full_sync": should_do_full_sync,
             }
+        )
+        
+        # Log the sync action response
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="PushActionsResponse",
+            action_data={
+                "shouldDoFullSync": should_do_full_sync,
+                "processedCount": processed_count,
+                "totalCount": len(actions),
+            },
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
         )
         
         return {
@@ -224,6 +250,16 @@ class SyncService:
             }
         )
         
+        # Log the sync action response
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="PullStatusResponse",
+            action_data=server_data,
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
+        )
+        
         return server_data
     
     async def report_removed(
@@ -260,6 +296,16 @@ class SyncService:
         # Delete device auth token
         await self.state.delete_device_auth_token(device_auth_token)
         
+        # Log the sync action
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="ReportRemovedResponse",
+            action_data={"status": "ok"},
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
+        )
+        
         return {"status": "ok"}
     
     async def is_device_removed(
@@ -278,9 +324,19 @@ class SyncService:
         token_data = await self.state.get_device_auth_token(device_auth_token)
         if not token_data:
             # Token doesn't exist, device was removed
+            # Log this as a sync action
+            msg_logger = self._get_msg_logger()
+            msg_logger.log_sync_action(
+                action_type="IsDeviceRemovedResponse",
+                action_data={"isDeviceRemoved": True},
+                sequence_number=None,
+                user_id=None,
+                family_id=None
+            )
             return {"isDeviceRemoved": True}
         
         device_id = token_data.get("device_id")
+        family_id = token_data.get("family_id")
         
         # Check if device still exists
         device = await self.state.get_device(device_id)
@@ -292,6 +348,16 @@ class SyncService:
                 "device_id": device_id,
                 "is_removed": is_removed,
             }
+        )
+        
+        # Log the sync action
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="IsDeviceRemovedResponse",
+            action_data={"isDeviceRemoved": is_removed},
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
         )
         
         return {"isDeviceRemoved": is_removed}
@@ -315,7 +381,21 @@ class SyncService:
         if not token_data:
             raise ValueError("Invalid device auth token")
         
+        device_id = token_data.get("device_id")
+        family_id = token_data.get("family_id")
+        
         actions = await self.state.get_pending_actions(limit)
+        
+        # Log the sync action
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="GetPendingActionsResponse",
+            action_data=actions,
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
+        )
+        
         return actions
     
     async def clear_pending_actions(
@@ -332,8 +412,21 @@ class SyncService:
         if not token_data:
             raise ValueError("Invalid device auth token")
         
+        device_id = token_data.get("device_id")
+        family_id = token_data.get("family_id")
+        
         await self.state.clear_pending_actions()
         logger.info("Pending actions cleared")
+        
+        # Log the sync action
+        msg_logger = self._get_msg_logger()
+        msg_logger.log_sync_action(
+            action_type="ClearPendingActionsResponse",
+            action_data={"status": "ok"},
+            sequence_number=None,
+            user_id=None,
+            family_id=family_id
+        )
 
 
 # Global sync service instance

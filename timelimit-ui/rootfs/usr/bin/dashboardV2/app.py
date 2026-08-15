@@ -1,0 +1,1275 @@
+"""Flask application for dashboardV2.
+
+This module provides the main Flask application with all routes and logic
+for the new dashboard. It handles:
+- Session management
+- Server selection with persistence
+- API proxy endpoints
+- Static file serving
+
+The application is designed to run on both Windows laptop and Home Assistant
+as an ingress app.
+"""
+
+import atexit
+import json
+import os
+import secrets
+import time
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for, send_from_directory, g
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+from auth_client import AuthClient, APIResponse
+from config import Config
+from database import Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check
+from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
+from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
+from scheduler import start_scheduler, stop_scheduler
+from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
+
+# Path to the legacy dashboard.html file (in parent directory)
+LEGACY_DASHBOARD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'dashboard.html')
+
+# Setup structured logging
+setup_structlog(
+    log_level=Config().LOG_LEVEL,
+    log_file_path=Config().LOG_FILE_PATH,
+    log_max_bytes=Config().LOG_MAX_BYTES,
+    log_backup_count=Config().LOG_BACKUP_COUNT,
+    log_format=Config().LOG_FORMAT,
+    rotate_on_start=Config().LOG_ROTATE_ON_START,
+    werkzeug_log_file_path=Config().LOG_WERKZEUG_FILE_PATH,
+)
+
+# Get logger instance
+logger = get_logger(__name__)
+
+# Create Flask app
+app = Flask(__name__, template_folder='templates', static_folder='static')
+
+# Create config instance for accessing properties
+config = Config()
+
+# Configure app
+app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
+# Apply proxy fix for Home Assistant ingress
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# Initialize request logging middleware
+init_request_logging(app)
+
+# Initialize persistence store
+persistence_store = get_server_selection_store()
+
+
+# ============================================================================
+# Session Management
+# ============================================================================
+
+def get_current_server_url() -> str:
+    """Get the currently selected server URL.
+    
+    Checks persistent storage first, then session, then falls back to config default.
+    This ensures server selection persists across container restarts in HA.
+    
+    Returns:
+        Server URL string.
+    """
+    # Check persistent storage first (survives container restarts)
+    server_key = persistence_store.get_selected_server_key()
+    if server_key:
+        server_url = Config.get_server_url(server_key)
+        if server_url:
+            return server_url
+    
+    # Fall back to session
+    if 'server_url' in session:
+        return session['server_url']
+    
+    # Final fallback to config default
+    return config.DEBUG_SERVER_URL
+
+
+def set_current_server_url(url: str) -> None:
+    """Set the currently selected server URL in session.
+    
+    Args:
+        url: Server URL to set.
+    """
+    session['server_url'] = url
+
+
+def get_server_selection() -> Dict[str, str]:
+    """Get the server selection options.
+    
+    Returns:
+        Dictionary of server key -> URL mappings.
+    """
+    return Config.SERVER_OPTIONS
+
+def get_current_server_key() -> Optional[str]:
+    """Get the currently selected server key from persistent storage.
+    
+    Returns:
+        Server key or None if not set.
+    """
+    return persistence_store.get_selected_server_key()
+
+
+def set_current_server_key(key: str) -> None:
+    """Save the server key to persistent storage.
+    
+    Args:
+        key: Server key to save.
+    """
+    persistence_store.set_selected_server_key(key)
+    logger.info("Server key persisted", server_key=key, request_id=get_request_id())
+
+
+# ============================================================================
+# Routes
+# ============================================================================
+
+@app.route('/')
+def index():
+    """Landing page with toggle/dropdown for legacy vs new dashboard.
+    
+    Returns:
+        Rendered landing page template.
+    """
+    request_id = get_request_id()
+    is_authenticated = session.get('device_auth_token') is not None
+
+    # Get current log level (from persistence or runtime default)
+    persisted_level = get_current_log_level()
+    current_log_level = persisted_level if persisted_level else get_log_level()
+
+    logger.info(
+        "Landing page rendered",
+        is_authenticated=is_authenticated,
+        request_id=request_id,
+        log_level=current_log_level
+    )
+    
+    return render_template('landing.html', is_authenticated=is_authenticated, current_log_level=current_log_level)
+
+
+@app.route('/legacy-dashboard')
+def legacy_dashboard():
+    """Redirect to the legacy dashboard.
+    
+    Returns:
+        Redirect response to legacy dashboard.
+    """
+    request_id = get_request_id()
+    logger.info("Legacy dashboard redirect requested", request_id=request_id)
+    return redirect('/dashboard.html')
+
+
+@app.route('/dashboard.html')
+def serve_legacy_dashboard():
+    """Serve the legacy dashboard HTML file.
+    
+    Returns:
+        The legacy dashboard.html file.
+    """
+    request_id = get_request_id()
+    logger.info("Serving legacy dashboard", request_id=request_id)
+    legacy_dir = os.path.dirname(LEGACY_DASHBOARD_PATH)
+    return send_from_directory(legacy_dir, 'dashboard.html')
+
+
+@app.route('/dashboardV2')
+def dashboard_v2():
+    """New dashboard page.
+    
+    Returns:
+        Rendered dashboard page template.
+    """
+    request_id = get_request_id()
+    device_auth_token = session.get('device_auth_token')
+    is_authenticated = device_auth_token is not None
+    
+    logger.info(
+        "Dashboard V2 page rendered",
+        is_authenticated=is_authenticated,
+        request_id=request_id
+    )
+    
+    return render_template('dashboardV2.html', is_authenticated=is_authenticated)
+
+
+@app.route('/select-server', methods=['POST'])
+def select_server():
+    """Select a server from the dropdown options.
+    
+    Expects JSON body with 'server_key' field.
+    
+    Returns:
+        JSON response with status and selected server URL.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    server_key = data.get('server_key')
+    
+    if not server_key:
+        logger.error(
+            "Server selection failed: missing server_key",
+            request_id=request_id,
+            error="Missing server_key"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing server_key'}), 400
+    
+    server_url = Config.get_server_url(server_key)
+    if not server_url:
+        logger.error(
+            "Server selection failed: invalid server key",
+            server_key=server_key,
+            request_id=request_id,
+            error="Invalid server key"
+        )
+        return jsonify({'status': 'error', 'error': 'Invalid server key'}), 400
+    
+    # Store in session
+    set_current_server_url(server_url)
+    
+    # Persist to file (survives container restarts)
+    set_current_server_key(server_key)
+    persistence_store.set_selected_server_url(server_url)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Server selected successfully",
+        server_key=server_key,
+        server_url=server_url,
+        server_name=Config.get_server_name(server_key),
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'server_url': server_url,
+        'server_name': Config.get_server_name(server_key),
+        'server_key': server_key
+    })
+
+
+@app.route('/api/log-level', methods=['POST'])
+def set_log_level_route():
+    """Set the log level at runtime.
+
+    Expects JSON body with 'log_level' field.
+    Persists the setting so it survives application restarts.
+
+    Returns:
+        JSON response with status and the applied log level.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    log_level = data.get('log_level', '').upper()
+
+    if not log_level:
+        logger.error(
+            "Log level update failed: missing log_level",
+            request_id=request_id,
+            error="Missing log_level"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing log_level'}), 400
+
+    if not set_log_level(log_level):
+        logger.error(
+            "Log level update failed: invalid log level",
+            request_id=request_id,
+            log_level=log_level,
+            error="Invalid log level"
+        )
+        return jsonify({'status': 'error', 'error': f'Invalid log level: {log_level}'}), 400
+
+    # Persist the log level
+    set_current_log_level(log_level)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    logger.info(
+        "Log level updated",
+        log_level=log_level,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+
+    return jsonify({
+        'status': 'ok',
+        'log_level': log_level
+    })
+
+
+@app.route('/api/server-selection', methods=['GET'])
+def get_server_selection():
+    """Get the current server selection.
+    
+    Returns:
+        JSON response with current server_key and server_url.
+    """
+    request_id = get_request_id()
+    server_key = get_current_server_key()
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Server selection retrieved",
+        server_key=server_key,
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'server_key': server_key,
+        'server_url': server_url
+    })
+
+
+@app.route('/api/time', methods=['POST'])
+def api_time():
+    """Proxy to debug-server /api/v1/time endpoint.
+    
+    Returns:
+        JSON response with server time.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Time API request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.get_server_time()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Time API response successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'ok',
+            'time': response.data.get('ms')
+        })
+    else:
+        logger.error(
+            "Time API response failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message,
+            'technical_detail': response.technical_detail
+        }), 502 if response.error_code in ['timeout', 'unreachable'] else 500
+
+
+@app.route('/api/auth/send-mail-login-code', methods=['POST'])
+def api_send_mail_login_code():
+    """Proxy to debug-server /api/v1/auth/send-mail-login-code-v2 endpoint.
+    
+    Expects JSON body with 'mail' field.
+    
+    Returns:
+        JSON response with mailLoginToken.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail = data.get('mail')
+    
+    if not mail:
+        logger.error(
+            "Send mail login code failed: missing mail field",
+            request_id=request_id,
+            error="Missing mail field"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing mail field'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Send mail login code request",
+        server_url=server_url,
+        mail=mail,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.send_mail_login_code(mail=mail)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Send mail login code successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Send mail login code failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 400
+
+
+@app.route('/api/auth/sign-in-by-mail-code', methods=['POST'])
+def api_sign_in_by_mail_code():
+    """Proxy to debug-server /api/v1/auth/sign-in-by-mail-code endpoint.
+    
+    Expects JSON body with 'mailLoginToken' and 'receivedCode' fields.
+    
+    Returns:
+        JSON response with mailAuthToken.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_login_token = data.get('mailLoginToken')
+    received_code = data.get('receivedCode')
+    
+    if not mail_login_token or not received_code:
+        logger.error(
+            "Sign in by mail code failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Sign in by mail code request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.sign_in_by_mail_code(
+        mail_login_token=mail_login_token,
+        received_code=received_code
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        # Store mail auth token in session
+        session['mail_auth_token'] = response.data.get('mailAuthToken')
+        
+        logger.info(
+            "Sign in by mail code successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Sign in by mail code failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/auth/create-family', methods=['POST'])
+def api_create_family():
+    """Proxy to debug-server /api/v1/parent/create-family endpoint.
+    
+    Expects JSON body with 'mailAuthToken' and 'parentPassword' fields.
+    
+    Returns:
+        JSON response with deviceAuthToken and ownDeviceId.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_auth_token = data.get('mailAuthToken')
+    parent_password = data.get('parentPassword')
+    
+    if not mail_auth_token or not parent_password:
+        logger.error(
+            "Create family failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Create family request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.create_family(
+        mail_auth_token=mail_auth_token,
+        parent_password=parent_password
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        # Store device auth token in session
+        session['device_auth_token'] = response.data.get('deviceAuthToken')
+        session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        logger.info(
+            "Create family successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Create family failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/auth/sign-in-into-family', methods=['POST'])
+def api_sign_in_into_family():
+    """Proxy to debug-server /api/v1/parent/sign-in-into-family endpoint.
+    
+    Expects JSON body with 'mailAuthToken' and 'parentPasswordSecondHash' fields.
+    
+    Returns:
+        JSON response with deviceAuthToken and ownDeviceId.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_auth_token = data.get('mailAuthToken')
+    parent_password_second_hash = data.get('parentPasswordSecondHash')
+    
+    if not mail_auth_token or not parent_password_second_hash:
+        logger.error(
+            "Sign in into family failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Sign in into family request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.sign_in_into_family(
+        mail_auth_token=mail_auth_token,
+        parent_password_second_hash=parent_password_second_hash
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        # Store device auth token in session
+        session['device_auth_token'] = response.data.get('deviceAuthToken')
+        session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        logger.info(
+            "Sign in into family successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Sign in into family failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/parent/create-add-device-token', methods=['POST'])
+def api_create_add_device_token():
+    """Proxy to debug-server /api/v1/parent/create-add-device-token endpoint.
+    
+    Expects JSON body with 'deviceAuthToken' and 'parentPasswordSecondHash' fields.
+    
+    Returns:
+        JSON response with token and deviceId.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    device_auth_token = data.get('deviceAuthToken')
+    parent_password_second_hash = data.get('parentPasswordSecondHash')
+    
+    if not device_auth_token or not parent_password_second_hash:
+        logger.error(
+            "Create add device token failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Create add device token request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.create_add_device_token(
+        device_auth_token=device_auth_token,
+        parent_password_second_hash=parent_password_second_hash
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Create add device token successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Create add device token failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/child/add-device', methods=['POST'])
+def api_add_device():
+    """Proxy to debug-server /api/v1/child/add-device endpoint.
+    
+    Expects JSON body with 'registerToken' field.
+    
+    Returns:
+        JSON response with deviceAuthToken and ownDeviceId.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    register_token = data.get('registerToken')
+    
+    if not register_token:
+        logger.error(
+            "Add device failed: missing registerToken field",
+            request_id=request_id,
+            error="Missing registerToken field"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing registerToken field'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Add device request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.add_device(
+        register_token=register_token,
+        device_name=data.get('deviceName'),
+        device_model=data.get('deviceModel')
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        # Store child device auth token in session
+        session['child_device_auth_token'] = response.data.get('deviceAuthToken')
+        
+        logger.info(
+            "Add device successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Add device failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 400
+
+
+@app.route('/api/auth/get-status-by-mail-address', methods=['POST'])
+def api_get_status_by_mail_address():
+    """Proxy to debug-server /api/v1/parent/get-status-by-mail-address endpoint.
+    
+    Expects JSON body with 'mailAuthToken' field.
+    
+    Returns:
+        JSON response with family status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_auth_token = data.get('mailAuthToken')
+    
+    if not mail_auth_token:
+        logger.error(
+            "Get status by mail address failed: missing mailAuthToken field",
+            request_id=request_id,
+            error="Missing mailAuthToken field"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing mailAuthToken field'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Get status by mail address request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.get_status_by_mail_address(mail_auth_token=mail_auth_token)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Get status by mail address successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Get status by mail address failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/auth/recover-parent-password', methods=['POST'])
+def api_recover_parent_password():
+    """Proxy to debug-server /api/v1/parent/recover-parent-password endpoint.
+    
+    Expects JSON body with 'mailAuthToken' and 'newPassword' fields.
+    
+    Returns:
+        JSON response with status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_auth_token = data.get('mailAuthToken')
+    new_password = data.get('newPassword')
+    
+    if not mail_auth_token or not new_password:
+        logger.error(
+            "Recover parent password failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Recover parent password request",
+        server_url=server_url,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.recover_parent_password(
+        mail_auth_token=mail_auth_token,
+        new_password=new_password
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Recover parent password successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Recover parent password failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+# ============================================================================
+# Session Management Routes
+# ============================================================================
+
+@app.route('/api/session/clear', methods=['POST'])
+def clear_session():
+    """Clear the current session.
+    
+    Returns:
+        JSON response with status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Session clear request", request_id=request_id)
+    
+    session.clear()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Session cleared successfully",
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/session/status', methods=['GET'])
+def session_status():
+    """Get the current session status.
+    
+    Returns:
+        JSON response with session status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    server_url = get_current_server_url()
+    
+    status = {
+        'authenticated': 'device_auth_token' in session,
+        'server_url': server_url,
+        'has_mail_auth_token': 'mail_auth_token' in session,
+        'has_device_auth_token': 'device_auth_token' in session,
+        'has_child_device_auth_token': 'child_device_auth_token' in session
+    }
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Session status retrieved",
+        status=status,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify(status)
+
+
+# ============================================================================
+# Timechecker Dashboard Routes
+# ============================================================================
+
+@app.route('/api/timechecker/status', methods=['GET'])
+def timechecker_status():
+    """Get the current server check status.
+    
+    Returns:
+        JSON response with the latest server check result.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    server_url = get_current_server_url()
+    force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+    
+    logger.info(
+        "Timechecker status request",
+        server_url=server_url,
+        force_refresh=force_refresh,
+        request_id=request_id
+    )
+    
+    # Get the latest server check from database (skip cache when force_refresh is True)
+    latest_check = None if force_refresh else get_latest_server_check(get_database(), server_url)
+    
+    if latest_check:
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Timechecker status retrieved from database",
+            server_url=server_url,
+            success=bool(latest_check['success']),
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        
+        return jsonify({
+            'success': bool(latest_check['success']),
+            'server_time': latest_check.get('server_time'),
+            'error_code': latest_check.get('error_code'),
+            'error_message': latest_check.get('user_message'),
+            'timestamp': latest_check['timestamp'],
+            'attempts': latest_check.get('attempts', 1)
+        })
+    else:
+        # No check results yet, perform a new check
+        client = AuthClient(base_url=server_url)
+        response = client.check_server_connection()
+        
+        # Save the result
+        save_server_check(
+            db=get_database(),
+            success=response.success,
+            error_code=response.error_code,
+            user_message=response.error_message,
+            technical_detail=response.technical_detail,
+            server_time=response.data.get('ms') if response.success else None,
+            attempts=1,
+            server_url=server_url
+        )
+        
+        client.close()
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        if response.success:
+            logger.info(
+                "Timechecker status check successful",
+                server_url=server_url,
+                success=True,
+                duration_ms=duration_ms,
+                request_id=request_id
+            )
+        else:
+            logger.error(
+                "Timechecker status check failed",
+                server_url=server_url,
+                success=False,
+                error_code=response.error_code,
+                error_message=response.error_message,
+                duration_ms=duration_ms,
+                request_id=request_id
+            )
+        
+        return jsonify({
+            'success': response.success,
+            'server_time': response.data.get('ms') if response.success else None,
+            'error_code': response.error_code,
+            'error_message': response.error_message,
+            'timestamp': int(datetime.now().timestamp() * 1000),
+            'attempts': 1
+        })
+
+
+@app.route('/api/timechecker/history', methods=['GET'])
+def timechecker_history():
+    """Get historical server check results.
+    
+    Query Parameters:
+        limit: Maximum number of results to return (default: 10)
+    
+    Returns:
+        JSON response with historical check results.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    server_url = get_current_server_url()
+    limit = request.args.get('limit', 10, type=int)
+    
+    logger.info(
+        "Timechecker history request",
+        server_url=server_url,
+        limit=limit,
+        request_id=request_id
+    )
+    
+    # Get checks for the current server
+    checks = get_server_checks(get_database(), limit=limit)
+    
+    # Filter to only include checks for the current server
+    server_checks = [c for c in checks if c.get('server_url') == server_url]
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Timechecker history retrieved",
+        server_url=server_url,
+        total_checks=len(server_checks),
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'checks': server_checks,
+        'total': len(server_checks)
+    })
+
+
+# ============================================================================
+# Health Check
+# ============================================================================
+
+@app.route('/health')
+def health():
+    """Health check endpoint.
+    
+    Returns:
+        JSON response with health status.
+    """
+    request_id = get_request_id()
+    
+    logger.info("Health check requested", request_id=request_id)
+    
+    return jsonify({'status': 'healthy'})
+
+
+# ============================================================================
+# Error Handlers
+# ============================================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    request_id = get_request_id()
+    
+    logger.error(
+        "404 Not Found",
+        path=request.path,
+        method=request.method,
+        request_id=request_id
+    )
+    
+    return jsonify({'status': 'error', 'error': 'Not found'}), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    request_id = get_request_id()
+    
+    logger.error(
+        "500 Internal Server Error",
+        path=request.path,
+        method=request.method,
+        error=str(error),
+        request_id=request_id
+    )
+    
+    return jsonify({'status': 'error', 'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# Application Factory
+# ============================================================================
+
+def create_app(config_class: Optional[type] = None) -> Flask:
+    """Create and configure the Flask application.
+    
+    Args:
+        config_class: Optional configuration class to use.
+        
+    Returns:
+        Configured Flask application instance.
+    """
+    if config_class:
+        app.config.from_object(config_class)
+    
+    # Initialize database
+    db = get_database()
+    db.init_db()
+    
+    # Note: Server selection persistence is handled via:
+    # 1. The /api/server-selection endpoint for saving selections
+    # 2. The get_current_server_url() function which checks persistent storage first
+    # 3. Flask session for request-scoped server URL
+    
+    logger.info(
+        "Flask application created",
+        host=config.FLASK_HOST,
+        port=config.FLASK_PORT,
+        debug=config.FLASK_DEBUG,
+        secret_key_set=bool(config.SECRET_KEY),
+        database_path=config.DATABASE_PATH
+    )
+    
+    return app
+
+
+# ============================================================================
+# Scheduler Initialization
+# ============================================================================
+
+# Start the background scheduler for periodic server checks
+start_scheduler()
+
+# Register shutdown handler to stop the scheduler gracefully
+atexit.register(stop_scheduler)
+
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+if __name__ == '__main__':
+    # Initialize database
+    db = get_database()
+    db.init_db()
+    
+    # Create config instance
+    config = Config()
+    
+    # Log application startup
+    logger.info(
+        "Dashboard V2 application starting",
+        host=config.FLASK_HOST,
+        port=config.FLASK_PORT,
+        debug=config.FLASK_DEBUG,
+        database_path=config.DATABASE_PATH,
+        server_url=config.DEBUG_SERVER_URL,
+        secret_key_set=bool(config.SECRET_KEY),
+        ha_ingress=config.HA_INGRESS
+    )
+    
+    # Log server selection options
+    logger.info(
+        "Server selection options configured",
+        server_options=list(Config.SERVER_OPTIONS.keys())
+    )
+    
+    # Log route registration
+    logger.info(
+        "Routes registered",
+        routes=[
+            '/', '/legacy-dashboard', '/dashboard.html', '/dashboardV2',
+            '/select-server', '/api/server-selection', '/api/time',
+            '/api/auth/send-mail-login-code', '/api/auth/sign-in-by-mail-code',
+            '/api/auth/create-family', '/api/auth/sign-in-into-family',
+            '/api/parent/create-add-device-token', '/api/child/add-device',
+            '/api/auth/get-status-by-mail-address', '/api/auth/recover-parent-password',
+            '/api/session/clear', '/api/session/status',
+            '/api/timechecker/status', '/api/timechecker/history',
+            '/health'
+        ]
+    )
+    
+    # Run the Flask app
+    # Note: Server selection persistence is handled via the /api/server-selection endpoint
+    # and the get_current_server_url() function which checks persistent storage first
+    app.run(
+        host=config.FLASK_HOST,
+        port=config.FLASK_PORT,
+        debug=config.FLASK_DEBUG,
+        threaded=True
+    )

@@ -61,7 +61,7 @@ class TestCreateAddDeviceToken:
     def test_create_add_device_token_invalid_token(self, client):
         """Test create add-device token with invalid device auth token."""
         response = client.post(
-            "/api/v1/parent/create-add-device-token",
+            "/parent/create-add-device-token",
             json={
                 "deviceAuthToken": "invalid_token",
                 "parentId": "parent_123",
@@ -78,7 +78,7 @@ class TestCreateAddDeviceToken:
         device_token = create_device_token()
 
         response = client.post(
-            "/api/v1/parent/create-add-device-token",
+            "/parent/create-add-device-token",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -99,7 +99,7 @@ class TestRemoveDevice:
     def test_remove_device_invalid_token(self, client):
         """Test remove device with invalid token."""
         response = client.post(
-            "/api/v1/parent/remove-device",
+            "/parent/remove-device",
             json={
                 "deviceAuthToken": "invalid_token",
                 "deviceId": "device_123"
@@ -115,7 +115,7 @@ class TestRemoveDevice:
         device_token = create_device_token()
 
         response = client.post(
-            "/api/v1/parent/remove-device",
+            "/parent/remove-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -136,7 +136,7 @@ class TestLinkMailAddress:
     def test_link_mail_address_invalid_token(self, client):
         """Test link mail address with invalid token."""
         response = client.post(
-            "/api/v1/parent/link-mail-address",
+            "/parent/link-mail-address",
             json={
                 "deviceAuthToken": "invalid_token",
                 "mailAuthToken": "mail_token"
@@ -152,7 +152,7 @@ class TestLinkMailAddress:
         device_token = create_device_token()
 
         response = client.post(
-            "/api/v1/parent/link-mail-address",
+            "/parent/link-mail-address",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -173,7 +173,7 @@ class TestCreateIdentityToken:
     def test_create_identity_token_invalid_token(self, client):
         """Test create identity token with invalid token."""
         response = client.post(
-            "/api/v1/parent/create-identity-token",
+            "/parent/create-identity-token",
             json={"deviceAuthToken": "invalid_token"}
         )
 
@@ -186,7 +186,7 @@ class TestCreateIdentityToken:
         device_token = create_device_token()
 
         response = client.post(
-            "/api/v1/parent/create-identity-token",
+            "/parent/create-identity-token",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -210,7 +210,7 @@ class TestDeleteAccount:
     def test_delete_account_invalid_token(self, client):
         """Test delete account with invalid token."""
         response = client.post(
-            "/api/v1/parent/delete-account",
+            "/parent/delete-account",
             json={"deviceAuthToken": "invalid_token"}
         )
 
@@ -223,7 +223,7 @@ class TestDeleteAccount:
         device_token = create_device_token()
 
         response = client.post(
-            "/api/v1/parent/delete-account",
+            "/parent/delete-account",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )
@@ -247,11 +247,11 @@ class TestParentEndpointSecurity:
     def test_parent_endpoints_require_auth(self, client):
         """Test that all parent endpoints require authentication."""
         endpoints = [
-            ("/api/v1/parent/create-add-device-token", {"parentId": "p1", "parentPasswordSecondHash": "h"}),
-            ("/api/v1/parent/remove-device", {"deviceId": "d1"}),
-            ("/api/v1/parent/link-mail-address", {"mailAuthToken": "m"}),
-            ("/api/v1/parent/create-identity-token", {}),
-            ("/api/v1/parent/delete-account", {}),
+            ("/parent/create-add-device-token", {"parentId": "p1", "parentPasswordSecondHash": "h"}),
+            ("/parent/remove-device", {"deviceId": "d1"}),
+            ("/parent/link-mail-address", {"mailAuthToken": "m"}),
+            ("/parent/create-identity-token", {}),
+            ("/parent/delete-account", {}),
         ]
 
         for endpoint, data in endpoints:
@@ -276,7 +276,7 @@ class TestParentEndpointValidation:
 
         # Missing parentId - should succeed since parentId is optional
         response = client.post(
-            "/api/v1/parent/create-add-device-token",
+            "/parent/create-add-device-token",
             headers={"Authorization": f"Bearer {device_token}"},
             json={
                 "deviceAuthToken": device_token,
@@ -294,7 +294,7 @@ class TestParentEndpointValidation:
 
         # Missing deviceId
         response = client.post(
-            "/api/v1/parent/remove-device",
+            "/parent/remove-device",
             headers={"Authorization": f"Bearer {device_token}"},
             json={"deviceAuthToken": device_token}
         )

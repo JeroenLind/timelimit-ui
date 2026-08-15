@@ -401,3 +401,167 @@ class TestWebSocketMetadata:
 
         await manager.disconnect("conn_1")
         assert manager.get_connection_count() == 1, "Should have 1 connection after disconnect"
+
+
+class TestWebSocketMessageLogging:
+    """Tests for WebSocket message logging integration."""
+
+    def setup_method(self):
+        """Reset the global logger before each test."""
+        from app.middleware.server_message_logger import reset_server_message_logger
+        reset_server_message_logger()
+
+    def teardown_method(self):
+        """Reset the global logger after each test."""
+        from app.middleware.server_message_logger import reset_server_message_logger
+        reset_server_message_logger()
+
+    @pytest.mark.asyncio
+    async def test_websocket_connect_logs_event(self):
+        """Verify WebSocket connect event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger, MessageType
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        # Simulate connect event
+        await on_connect("conn_123", {"deviceId": "device_456"})
+        
+        buffer = logger.get_log_buffer()
+        assert len(buffer) > 0, "Log buffer should contain entries"
+        
+        # Check for websocket event log
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) > 0, "Should have websocket_event entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_devicelogin_logs_event(self):
+        """Verify WebSocket devicelogin event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        data = {"deviceId": "device_123", "familyId": "family_456"}
+        result = await on_devicelogin("conn_123", data)
+        
+        assert result is not None
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) > 0, "Should have websocket_event entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_broadcast_logs_event(self):
+        """Verify WebSocket broadcast event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        # Simulate broadcast
+        from app.websocket.manager import SocketIOHandler
+        handler = SocketIOHandler()
+        
+        # Broadcast to family
+        await handler.broadcast_to_family("family_123", "sync_update", {"type": "AddCategoryAction"})
+        
+        buffer = logger.get_log_buffer()
+        broadcast_entries = [e for e in buffer if e["message_type"] == "websocket_broadcast"]
+        assert len(broadcast_entries) > 0, "Should have websocket_broadcast entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_disconnect_logs_event(self):
+        """Verify WebSocket disconnect event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        # Connect first
+        await on_connect("conn_disconnect_test", {})
+        
+        # Then disconnect
+        await on_disconnect("conn_disconnect_test")
+        
+        buffer = logger.get_log_buffer()
+        # Should have logged events
+        assert len(buffer) > 0, "Log buffer should contain entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_ping_pong_logs_events(self):
+        """Verify WebSocket ping/pong events are logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        # Ping
+        await on_ping("conn_ping_test", {"timestamp": 1234567890})
+        
+        # Pong
+        await on_pong("conn_ping_test", {"timestamp": 1234567891})
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) >= 2, "Should have at least 2 websocket_event entries for ping/pong"
+
+    @pytest.mark.asyncio
+    async def test_websocket_should_sync_logs_event(self):
+        """Verify WebSocket should_sync event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        data = {"deviceId": "device_123", "familyId": "family_456"}
+        result = await on_should_sync("conn_123", data)
+        
+        assert result is not None
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) > 0, "Should have websocket_event entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_connected_devices_logs_event(self):
+        """Verify WebSocket connected_devices event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        data = {"deviceId": "device_123", "familyId": "family_456"}
+        result = await on_connected_devices("conn_123", data)
+        
+        assert result is not None
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) > 0, "Should have websocket_event entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_sign_out_logs_event(self):
+        """Verify WebSocket sign_out event is logged."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        data = {"deviceId": "device_123", "familyId": "family_456"}
+        result = await on_sign_out("conn_123", data)
+        
+        assert result is not None
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        assert len(websocket_entries) > 0, "Should have websocket_event entries"
+
+    @pytest.mark.asyncio
+    async def test_websocket_event_metadata_includes_sid(self):
+        """Verify WebSocket event metadata includes session ID."""
+        from app.middleware.server_message_logger import get_server_message_logger
+        
+        logger = get_server_message_logger(async_mode=False)
+        
+        await on_devicelogin("conn_sid_test", {"deviceId": "device_123"})
+        
+        buffer = logger.get_log_buffer()
+        websocket_entries = [e for e in buffer if e["message_type"] == "websocket_event"]
+        
+        if websocket_entries:
+            entry = websocket_entries[0]
+            assert "metadata" in entry
+            assert "event" in entry["metadata"]

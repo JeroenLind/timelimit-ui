@@ -24,7 +24,7 @@ def test_dependencies():
             print(f"❌ Python package '{package}' is NOT available")
             missing_packages.append(package)
     
-    return len(missing_packages) == 0
+    assert len(missing_packages) == 0, f"Missing packages: {missing_packages}"
 
 def test_script_structure():
     """Test if the script has the required structure."""
@@ -32,56 +32,41 @@ def test_script_structure():
     
     script_path = str(Path(__file__).parent / "start_test_environment.py")
     
-    if not os.path.exists(script_path):
-        print(f"❌ Script not found: {script_path}")
-        return False
+    assert os.path.exists(script_path), f"Script not found: {script_path}"
     
-    try:
-        with open(script_path, 'r') as f:
-            content = f.read()
-        
-        # Check for essential functions
-        required_functions = [
-            'def setup_environment',
-            'def start_web_server',
-            'def start_frontend_components',
-            'def check_server_health',
-            'def run_test_suite',
-            'def print_startup_info',
-            'def cleanup',
-            'def main'
-        ]
-        
-        missing_functions = []
-        for func in required_functions:
-            if func not in content:
-                missing_functions.append(func)
-        
-        if missing_functions:
-            print(f"❌ Missing functions: {', '.join(missing_functions)}")
-            return False
-        else:
-            print("✅ All required functions are present")
-        
-        # Check for essential imports
-        required_imports = ['import os', 'import sys', 'import subprocess', 'import time']
-        missing_imports = []
-        
-        for imp in required_imports:
-            if imp not in content:
-                missing_imports.append(imp)
-        
-        if missing_imports:
-            print(f"❌ Missing imports: {', '.join(missing_imports)}")
-            return False
-        else:
-            print("✅ All required imports are present")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error reading script: {e}")
-        return False
+    with open(script_path, 'r') as f:
+        content = f.read()
+    
+    # Check for essential functions
+    required_functions = [
+        'def setup_environment',
+        'def start_web_server',
+        'def start_frontend_components',
+        'def check_server_health',
+        'def run_test_suite',
+        'def print_startup_info',
+        'def cleanup',
+        'def main'
+    ]
+    
+    missing_functions = []
+    for func in required_functions:
+        if func not in content:
+            missing_functions.append(func)
+    
+    assert len(missing_functions) == 0, f"Missing functions: {missing_functions}"
+    print("✅ All required functions are present")
+    
+    # Check for essential imports
+    required_imports = ['import os', 'import sys', 'import subprocess', 'import time']
+    missing_imports = []
+    
+    for imp in required_imports:
+        if imp not in content:
+            missing_imports.append(imp)
+    
+    assert len(missing_imports) == 0, f"Missing imports: {missing_imports}"
+    print("✅ All required imports are present")
 
 def test_configuration_files():
     """Test if configuration files are properly set up."""
@@ -89,61 +74,39 @@ def test_configuration_files():
     
     # Test config.yaml
     config_path = str(Path(__file__).parent / "config.yaml")
-    if not os.path.exists(config_path):
-        print(f"❌ Config file not found: {config_path}")
-        return False
+    assert os.path.exists(config_path), f"Config file not found: {config_path}"
     
-    try:
-        with open(config_path, 'r') as f:
-            config_content = f.read()
-        
-        # Check for essential config sections
-        required_sections = ['name:', 'description:', 'version:', 'slug:', 'arch:', 'init:', 'image:', 'ingress:', 'ingress_port:', 'panel_icon:', 'panel_title:', 'panel_admin:', 'options:', 'schema:']
-        
-        missing_sections = []
-        for section in required_sections:
-            if section not in config_content:
-                missing_sections.append(section)
-        
-        if missing_sections:
-            print(f"❌ Missing config sections: {', '.join(missing_sections)}")
-            return False
-        else:
-            print("✅ Config file has all required sections")
-        
-    except Exception as e:
-        print(f"❌ Error reading config file: {e}")
-        return False
+    with open(config_path, 'r') as f:
+        config_content = f.read()
+    
+    # Check for essential config sections
+    required_sections = ['name:', 'description:', 'version:', 'slug:', 'arch:', 'init:', 'image:', 'ingress:', 'ingress_port:', 'panel_icon:', 'panel_title:', 'panel_admin:', 'options:', 'schema:']
+    
+    missing_sections = []
+    for section in required_sections:
+        if section not in config_content:
+            missing_sections.append(section)
+    
+    assert len(missing_sections) == 0, f"Missing config sections: {missing_sections}"
+    print("✅ Config file has all required sections")
     
     # Test options.json
     options_path = str(Path(__file__).parent / "data" / "options.json")
-    if not os.path.exists(options_path):
-        print(f"❌ Options file not found: {options_path}")
-        return False
+    assert os.path.exists(options_path), f"Options file not found: {options_path}"
     
-    try:
-        with open(options_path, 'r') as f:
-            options = json.load(f)
-        
-        # Check for required options
-        required_options = ['server_url', 'logging_mode']
-        
-        missing_options = []
-        for option in required_options:
-            if option not in options:
-                missing_options.append(option)
-        
-        if missing_options:
-            print(f"❌ Missing options: {', '.join(missing_options)}")
-            return False
-        else:
-            print("✅ Options file has all required options")
-        
-    except Exception as e:
-        print(f"❌ Error reading options file: {e}")
-        return False
+    with open(options_path, 'r') as f:
+        options = json.load(f)
     
-    return True
+    # Check for required options
+    required_options = ['server_url', 'logging_mode']
+    
+    missing_options = []
+    for option in required_options:
+        if option not in options:
+            missing_options.append(option)
+    
+    assert len(missing_options) == 0, f"Missing options: {missing_options}"
+    print("✅ Options file has all required options")
 
 def test_directory_structure():
     """Test if the directory structure is correct."""
@@ -151,37 +114,25 @@ def test_directory_structure():
     
     # Check if test directory exists
     test_dir = Path(__file__).parent
-    if not os.path.exists(test_dir):
-        print(f"❌ Test directory not found: {test_dir}")
-        return False
-    
+    assert os.path.exists(test_dir), f"Test directory not found: {test_dir}"
     print("✅ Test directory exists")
     
     # Check if data directory exists
     data_dir = Path(__file__).parent / "data"
-    if not os.path.exists(data_dir):
-        print(f"❌ Data directory not found: {data_dir}")
-        return False
-    
+    assert os.path.exists(data_dir), f"Data directory not found: {data_dir}"
     print("✅ Data directory exists")
     
-    # Check if logs directory exists
-    logs_dir = Path(__file__).parent / "logs"
-    if not os.path.exists(logs_dir):
-        print(f"❌ Logs directory not found: {logs_dir}")
-        return False
-    
-    print("✅ Logs directory exists")
+    # Check if logs directory exists in data folder (created by start_test_environment.py)
+    logs_dir = Path(__file__).parent / "data" / "logs"
+    if os.path.exists(logs_dir):
+        print("✅ Logs directory exists")
+    else:
+        print("⚠️  Logs directory not found (will be created when test environment starts)")
     
     # Check if options.json exists in data directory
     options_path = str(Path(__file__).parent / "data" / "options.json")
-    if not os.path.exists(options_path):
-        print(f"❌ Options file not found in data directory: {options_path}")
-        return False
-    
+    assert os.path.exists(options_path), f"Options file not found in data directory: {options_path}"
     print("✅ Options file exists in data directory")
-    
-    return True
 
 def test_script_syntax():
     """Test if the script has valid Python syntax."""
@@ -189,21 +140,18 @@ def test_script_syntax():
     
     script_path = str(Path(__file__).parent / "start_test_environment.py")
     
+    with open(script_path, 'r') as f:
+        content = f.read()
+    
     try:
-        # Try to compile the script
-        with open(script_path, 'r') as f:
-            content = f.read()
-        
         compile(content, script_path, 'exec')
         print("✅ Script has valid Python syntax")
-        return True
-        
     except SyntaxError as e:
         print(f"❌ Syntax error in script: {e}")
-        return False
+        raise
     except Exception as e:
         print(f"❌ Error checking script syntax: {e}")
-        return False
+        raise
 
 def test_documentation():
     """Test if documentation is present."""
@@ -211,33 +159,21 @@ def test_documentation():
     
     doc_path = Path(__file__).parent / "TEST_ENVIRONMENT_SETUP.md"
     
-    if not os.path.exists(doc_path):
-        print(f"❌ Documentation not found: {doc_path}")
-        return False
+    assert os.path.exists(doc_path), f"Documentation not found: {doc_path}"
     
-    try:
-        with open(doc_path, 'r') as f:
-            content = f.read()
-        
-        # Check for essential documentation sections
-        required_sections = ['# TimeLimit UI Test Environment Setup', '## Overview', '## Quick Start', '## Configuration', '## Usage', '## Testing', '## Troubleshooting', '## Benefits of Local Development', '## Next Steps', '## Conclusion']
-        
-        missing_sections = []
-        for section in required_sections:
-            if section not in content:
-                missing_sections.append(section)
-        
-        if missing_sections:
-            print(f"❌ Missing documentation sections: {', '.join(missing_sections)}")
-            return False
-        else:
-            print("✅ Documentation has all required sections")
-        
-    except Exception as e:
-        print(f"❌ Error reading documentation: {e}")
-        return False
+    with open(doc_path, 'r') as f:
+        content = f.read()
     
-    return True
+    # Check for essential documentation sections
+    required_sections = ['# TimeLimit UI Test Environment Setup', '## Overview', '## Quick Start', '## Configuration', '## Usage', '## Testing', '## Troubleshooting', '## Benefits of Local Development', '## Next Steps', '## Conclusion']
+    
+    missing_sections = []
+    for section in required_sections:
+        if section not in content:
+            missing_sections.append(section)
+    
+    assert len(missing_sections) == 0, f"Missing documentation sections: {missing_sections}"
+    print("✅ Documentation has all required sections")
 
 def main():
     """Run all tests."""

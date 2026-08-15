@@ -3,6 +3,23 @@
 
 This script starts the webserver and all other components for local testing.
 It provides a single entry point to start the complete test environment.
+
+Required System Utilities:
+    - Unix/Linux/macOS:
+        - lsof: Used to find processes listening on a specific port
+          Install with: sudo apt-get install lsof
+        - kill: Used to terminate processes by PID
+    - Windows:
+        - PowerShell with Get-NetTCPConnection (available on Windows 8+)
+        - taskkill: Used to terminate processes by PID (built-in to Windows)
+
+Required Python Dependencies:
+    - requests: For HTTP health checks
+      Install with: pip install requests
+
+Usage:
+    python start_test_environment.py              # Exit if instance running
+    python start_test_environment.py --kill-existing  # Kill existing instance and restart
 """
 
 import os
@@ -12,7 +29,10 @@ import time
 import threading
 import signal
 import json
+import glob
+import argparse
 from pathlib import Path
+from datetime import datetime
 
 # No longer needed - web_server.py now uses relative paths based on script location
 # os.environ['TLUI_ROOTFS_PATH'] = str(Path('../rootfs').resolve())
@@ -21,9 +41,239 @@ from pathlib import Path
 processes = []
 server_process = None
 log_file = None
+TIMESTAMPED_LOG_PATH = None
+kill_existing = False
+
+MAX_LOG_FILES = 10
+
+# Server configuration
+SERVER_URL = "http://localhost:8099"
+SERVER_PORT = 8099
+
+
+def check_requests_available():
+    """Check if the requests library is available.
+    
+    Returns:
+        bool: True if requests is available, False otherwise.
+    """
+    try:
+        import requests
+        return True
+    except ImportError:
+        return False
+
+
+def check_existing_instance():
+    """Check if a TimeLimit UI instance is already running on port 8099.
+    
+    Sends an HTTP GET request to http://localhost:8099/ to verify if
+    an instance is already active.
+    
+    Returns:
+        bool: True if an instance is running (status 200), False otherwise.
+    """
+    if not check_requests_available():
+        print("[WARNING] 'requests' library not available. Cannot check for existing instance.")
+        print("         Install with: pip install requests")
+        return False
+    
+    try:
+        import requests
+        response = requests.get(SERVER_URL, timeout=5)
+        if response.status_code == 200:
+            return True
+        return False
+    except requests.exceptions.ConnectionError:
+        # Connection refused - no server running
+        return False
+    except requests.exceptions.Timeout:
+        # Server not responding within timeout
+        return False
+    except requests.exceptions.RequestException as e:
+        # Other network errors
+        print(f"[WARNING] Error checking for existing instance: {e}")
+        return False
+
+
+def get_pid_on_port(port):
+    """Get the PID of the process listening on the specified port.
+    
+    Uses lsof on Unix/Linux/macOS and PowerShell Get-NetTCPConnection on Windows.
+    
+    Required System Utilities:
+        - Unix/Linux/macOS: lsof (install with: sudo apt-get install lsof)
+        - Windows: PowerShell with Get-NetTCPConnection (available on Windows 8+)
+    
+    Args:
+        port: The port number to check.
+        
+    Returns:
+        int or None: The PID if found, None otherwise.
+    """
+    try:
+        if sys.platform == 'win32':
+            # Windows: Use PowerShell to get PID on port
+            # Get-Process -Id (Get-NetTCPConnection -LocalPort <port>).OwningProcess
+            ps_command = (
+                f"Get-NetTCPConnection -LocalPort {port} -State Listen | "
+                f"Select-Object -ExpandProperty OwningProcess"
+            )
+            result = subprocess.run(
+                ['powershell', '-Command', ps_command],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                # Get the first PID
+                pids = result.stdout.strip().split('\n')
+                return int(pids[0])
+            return None
+        else:
+            # Unix/Linux/macOS: Use lsof
+            # lsof -i :<port> -t returns just the PIDs
+            result = subprocess.run(
+                ['lsof', '-i', f':{port}', '-t'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                # Get the first PID (there might be multiple)
+                pids = result.stdout.strip().split('\n')
+                return int(pids[0])
+            return None
+            
+    except subprocess.TimeoutExpired:
+        print(f"[ERROR] Timeout while checking port {port}")
+        return None
+    except FileNotFoundError as e:
+        if sys.platform == 'win32':
+            print(f"[ERROR] PowerShell command failed: {e}")
+            print("         Ensure PowerShell is available (Windows 8+)")
+        else:
+            print(f"[ERROR] 'lsof' command not found. Please install lsof.")
+            print("         On Ubuntu/Debian: sudo apt-get install lsof")
+            print("         On macOS: lsof is usually pre-installed")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Failed to get PID on port {port}: {e}")
+        return None
+
+
+def kill_process_by_pid(pid):
+    """Kill a process by its PID.
+    
+    Uses kill command on Unix/Linux/macOS and taskkill on Windows.
+    
+    Args:
+        pid: The process ID to kill.
+        
+    Returns:
+        bool: True if successful, False otherwise.
+    """
+    try:
+        # Detect OS and use appropriate kill command
+        if sys.platform == 'win32':
+            # Windows: use taskkill
+            result = subprocess.run(
+                ['taskkill', '/F', '/PID', str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return result.returncode == 0
+        else:
+            # Unix/Linux/macOS: use kill
+            result = subprocess.run(
+                ['kill', '-9', str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return result.returncode == 0
+            
+    except subprocess.TimeoutExpired:
+        print(f"[ERROR] Timeout while killing process {pid}")
+        return False
+    except FileNotFoundError:
+        print(f"[ERROR] Kill command not found")
+        return False
+    except Exception as e:
+        print(f"[ERROR] Failed to kill process {pid}: {e}")
+        return False
+
+
+def terminate_existing_instance():
+    """Terminate the existing TimeLimit UI instance.
+    
+    Finds and kills the process listening on port 8099.
+    
+    Returns:
+        bool: True if termination was successful or no instance was running,
+              False if termination failed.
+    """
+    print(f"=== Checking for existing instance on port {SERVER_PORT} ===")
+    
+    pid = get_pid_on_port(SERVER_PORT)
+    
+    if pid is None:
+        print("[OK] No existing instance found on port 8099")
+        return True
+    
+    print(f"[INFO] Found process {pid} listening on port {SERVER_PORT}")
+    print(f"[INFO] Terminating process {pid}...")
+    
+    if kill_process_by_pid(pid):
+        print(f"[OK] Successfully terminated process {pid}")
+        # Wait a moment for the port to be released
+        time.sleep(2)
+        return True
+    else:
+        print(f"[ERROR] Failed to terminate process {pid}")
+        return False
+
+
+def rotate_log_files():
+    """Remove oldest log files if there are more than MAX_LOG_FILES."""
+    log_dir = Path("data/logs")
+    if not log_dir.exists():
+        return
+    
+    # Find all log files matching the pattern YYYY-MM-DD_HH-MM-SS_*.log
+    log_pattern = str(log_dir / "*_*.log")
+    log_files = sorted(glob.glob(log_pattern), key=os.path.getmtime)
+    
+    # Remove oldest files if we have more than MAX_LOG_FILES
+    while len(log_files) > MAX_LOG_FILES:
+        oldest_file = log_files.pop(0)
+        try:
+            os.remove(oldest_file)
+            print(f"[OK] Removed old log file: {oldest_file}")
+        except Exception as e:
+            print(f"[WARNING] Could not remove old log file {oldest_file}: {e}")
+
+def create_timestamped_log_file():
+    """Create a new log file with timestamp in the filename."""
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_filename = f"{timestamp}_timelimit-ui.log"
+    log_path = Path("data/logs") / log_filename
+    
+    # Ensure directory exists
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Create the file
+    log_path.touch()
+    
+    return str(log_path)
 
 def setup_environment():
     """Set up the test environment directories and files."""
+    global TIMESTAMPED_LOG_PATH
+    
     print("=== Setting up test environment ===")
     
     # Change to the timelimit-ui directory
@@ -46,11 +296,12 @@ def setup_environment():
             json.dump(options, f, indent=2)
         print(f"[OK] Created options.json: {options_path}")
     
-    # Create log file if it doesn't exist
-    log_path = "data/logs/timelimit-ui.log"
-    if not os.path.exists(log_path):
-        Path(log_path).touch()
-        print(f"[OK] Created log file: {log_path}")
+    # Rotate old log files
+    rotate_log_files()
+    
+    # Create timestamped log file
+    TIMESTAMPED_LOG_PATH = create_timestamped_log_file()
+    print(f"[OK] Created timestamped log file: {TIMESTAMPED_LOG_PATH}")
     
     print("Environment setup complete.\n")
 
@@ -138,6 +389,8 @@ def start_frontend_components():
 
 def monitor_server_output():
     """Monitor server output for errors."""
+    global TIMESTAMPED_LOG_PATH
+    
     if not server_process or not server_process.stdout:
         return
     
@@ -146,8 +399,8 @@ def monitor_server_output():
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             print(f"[{timestamp}] [SERVER] {line.strip()}")
             
-            # Write to log file
-            log_path = "data/logs/timelimit-ui.log"
+            # Write to timestamped log file
+            log_path = TIMESTAMPED_LOG_PATH or "data/logs/timelimit-ui.log"
             with open(log_path, 'a') as f:
                 f.write(f"[{timestamp}] [SERVER] {line}")
 
@@ -161,11 +414,16 @@ def check_server_health():
     """Check if the web server is responding."""
     print("=== Checking Server Health ===")
     
+    if not check_requests_available():
+        print("[WARNING] 'requests' library not available. Skipping health check.")
+        print("         Install with: pip install requests")
+        return False
+    
     try:
         import requests
         
         # Test UI server endpoint
-        response = requests.get("http://localhost:8099", timeout=5)
+        response = requests.get(SERVER_URL, timeout=5)
         if response.status_code == 200:
             print("[OK] UI server is responding correctly")
             return True
@@ -173,7 +431,13 @@ def check_server_health():
             print(f"[ERROR] UI server returned status code: {response.status_code}")
             return False
             
-    except Exception as e:
+    except requests.exceptions.ConnectionError as e:
+        print(f"[ERROR] UI server health check failed - Connection refused: {e}")
+        return False
+    except requests.exceptions.Timeout:
+        print(f"[ERROR] UI server health check failed - Request timed out")
+        return False
+    except requests.exceptions.RequestException as e:
         print(f"[ERROR] UI server health check failed: {e}")
         return False
 
@@ -220,6 +484,8 @@ def run_test_suite():
 
 def print_startup_info():
     """Print information about the started services."""
+    global TIMESTAMPED_LOG_PATH
+    
     print("\n" + "="*60)
     print("TIME LIMIT UI TEST ENVIRONMENT STARTED")
     print("="*60)
@@ -231,7 +497,8 @@ def print_startup_info():
     print("\nAccess the UI in your browser:")
     print("  http://localhost:8099")
     print("\nLog files:")
-    print("  • Application logs: timelimit-ui/data/logs/timelimit-ui.log")
+    log_path = TIMESTAMPED_LOG_PATH or "data/logs/timelimit-ui.log"
+    print(f"  • Application logs: {log_path}")
     print("  • Server output: displayed above")
     print("\nTo stop all services:")
     print("  • Press Ctrl+C in this terminal")
@@ -255,8 +522,38 @@ def cleanup():
     
     print("[OK] Cleanup complete")
 
+def parse_arguments():
+    """Parse command-line arguments.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description='Start the TimeLimit UI test environment.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python start_test_environment.py              # Exit if instance running
+    python start_test_environment.py --kill-existing  # Kill existing instance and restart
+        """
+    )
+    
+    parser.add_argument(
+        '--kill-existing',
+        action='store_true',
+        help='Kill any existing instance on port 8099 before starting'
+    )
+    
+    return parser.parse_args()
+
 def main():
     """Main function to start the test environment."""
+    global kill_existing
+    
+    # Parse command-line arguments
+    args = parse_arguments()
+    kill_existing = args.kill_existing
+    
     print("Starting TimeLimit UI Test Environment")
     print("="*60)
     
@@ -270,32 +567,45 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        # Step 1: Set up environment
+        # Step 1: Check for existing instance
+        if check_existing_instance():
+            if kill_existing:
+                print(f"[WARNING] An existing instance is running on port {SERVER_PORT}")
+                if not terminate_existing_instance():
+                    print("[ERROR] Failed to terminate existing instance. Exiting.")
+                    return 1
+            else:
+                print(f"[ERROR] An existing TimeLimit UI instance is already running on {SERVER_URL}")
+                print("         Use --kill-existing flag to terminate it automatically.")
+                print("         Or manually stop it with: pkill -f web_server.py")
+                return 1
+        
+        # Step 2: Set up environment
         setup_environment()
         
-        # Step 2: Start web server
+        # Step 3: Start web server
         if not start_web_server():
             print("[ERROR] Failed to start web server. Exiting.")
             return 1
         
-        # Step 3: Start frontend components
+        # Step 4: Start frontend components
         start_frontend_components()
         
-        # Step 4: Start server monitor thread
+        # Step 5: Start server monitor thread
         monitor_thread = start_server_monitor()
         
-        # Step 5: Check server health
+        # Step 6: Check server health
         if not check_server_health():
             print("[ERROR] Server health check failed. Continuing anyway...")
         
-        # Step 6: Print startup information
+        # Step 7: Print startup information
         print_startup_info()
         
-        # Step 7: Run test suite
+        # Step 8: Run test suite
         print("\nRunning initial test suite...")
         run_test_suite()
         
-        # Step 8: Keep the script running
+        # Step 9: Keep the script running
         print("\nTest environment is running. Press Ctrl+C to stop.")
         
         # Wait for user to interrupt

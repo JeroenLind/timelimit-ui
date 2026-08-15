@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}TimeLimit Dashboard v2 - Select Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+    
+    .landing-container {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 20px;
+        padding: 40px;
+        max-width: 400px;
+        width: 100%;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+    }
+    
+    .landing-container h1 {
+        color: #fff;
+        margin-bottom: 30px;
+        font-size: 24px;
+        font-weight: 600;
+    }
+    
+    .dashboard-option {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .option-btn {
+        width: 100%;
+        padding: 16px;
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .option-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    .option-btn:active {
+        transform: translateY(0);
+    }
+    
+    .option-btn.secondary {
+        background: linear-gradient(135deg, #607dbc 0%, #dcd1ff 100%);
+    }
+    
+    .option-btn.secondary:hover {
+        box-shadow: 0 6px 20px rgba(96, 125, 188, 0.4);
+    }
+    
+    .server-selector {
+        margin-top: 30px;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .server-selector h3 {
+        color: #aaa;
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .server-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .server-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .server-option:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .server-option input {
+        margin-right: 10px;
+    }
+    
+    .log-level-selector {
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .log-level-selector h3 {
+        color: #aaa;
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .log-level-dropdown {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 15px;
+        font-weight: 500;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .log-level-dropdown:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+    }
+
+    @media (max-width: 480px) {
+        .landing-container {
+            padding: 20px;
+        }
+        
+        .landing-container h1 {
+            font-size: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="landing-container">
+    <h1>⏱️ TimeLimit Dashboard v2</h1>
+    
+    <div class="dashboard-option">
+        <button class="option-btn secondary" onclick="selectDashboard('v2')">
+            New Dashboard v2
+        </button>
+    </div>
+    
+    <div class="dashboard-option">
+        <button class="option-btn" onclick="selectDashboard('legacy')">
+            Legacy Dashboard
+        </button>
+    </div>
+    
+    <div class="server-selector">
+            <h3>Select Server</h3>
+            <div class="server-options">
+                <label class="server-option">
+                    <input type="radio" name="server" value="local">
+                    🏠 Lokaal: 192.168.68.30:8080
+                </label>
+                <label class="server-option">
+                    <input type="radio" name="server" value="official">
+                    🌍 Officieel: api.timelimit.io
+                </label>
+                <label class="server-option">
+                    <input type="radio" name="server" value="debug">
+                    🐛 Debug Server: localhost:8080
+                </label>
+            </div>
+        </div>
+
+        <div class="log-level-selector">
+            <h3>Log Level</h3>
+            <select id="logLevel" class="log-level-dropdown">
+                <option value="DEBUG">DEBUG - Detailed diagnostics (request payloads, retry attempts)</option>
+                <option value="INFO" selected>INFO - Operational events (default)</option>
+                <option value="WARNING">WARNING - Potential issues</option>
+                <option value="ERROR">ERROR - Operation failures</option>
+                <option value="CRITICAL">CRITICAL - Application failures</option>
+            </select>
+        </div>
+    </div>
+    
+    <script>
+        // Pre-select the persisted server on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/server-selection')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.server_key) {
+                        const radio = document.querySelector('input[name="server"][value="' + data.server_key + '"]');
+                        if (radio) {
+                            radio.checked = true;
+                        }
+                    }
+                })
+                .catch(error => {
+                    // If fetch fails, default to 'local' (already checked in HTML)
+                    console.log('Could not load persisted server selection, using default');
+                });
+
+            // Pre-select the persisted log level
+            const currentLogLevel = "{{ current_log_level|default('INFO') }}";
+            const logLevelSelect = document.getElementById('logLevel');
+            if (logLevelSelect) {
+                const optionToSelect = logLevelSelect.querySelector('option[value="' + currentLogLevel + '"]');
+                if (optionToSelect) {
+                    optionToSelect.selected = true;
+                }
+            }
+        });
+        
+        function selectDashboard(version) {
+            const selectedServer = document.querySelector('input[name="server"]:checked').value;
+            const serverMap = {
+                'local': 'http://192.168.68.30:8080',
+                'official': 'https://api.timelimit.io',
+                'debug': 'http://localhost:8080'
+            };
+            const serverUrl = serverMap[selectedServer];
+            const selectedLogLevel = document.getElementById('logLevel').value;
+            
+            // Set log level before navigating to dashboard
+            fetch('/api/log-level', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ log_level: selectedLogLevel })
+            }).then(() => {
+                // Store server URL in session via API
+                return fetch('/select-server', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ server_key: selectedServer })
+                });
+            }).then(() => {
+                if (version === 'v2') {
+                    window.location.href = '/dashboardV2';
+                } else {
+                    window.location.href = '/legacy-dashboard';
+                }
+            });
+        }
+    </script>
+    {% endblock %}

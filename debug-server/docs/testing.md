@@ -252,7 +252,39 @@ tests/
 ├── test_child_endpoints.py  # Child endpoint tests
 ├── test_purchase_endpoints.py # Purchase endpoint tests
 ├── test_websocket.py        # WebSocket tests
-└── test_load.py             # Load tests
+├── test_load.py             # Load tests
+├── test_message_sent_logger.py # MessageSentLogger facade tests
+├── test_server_message_logger_enhanced.py # Enhanced ServerMessageLogger tests
+├── test_sync_service_logging.py # SyncService logging integration tests
+├── test_auth_service_logging.py # AuthService logging integration tests
+└── test_api_message_logger_sanitization.py # API middleware sanitization tests
+```
+
+## Message Logging Tests
+
+The message sent logging feature includes comprehensive test coverage across five new test files:
+
+### Test Files
+
+| File | Test Classes | Description |
+|------|-------------|-------------|
+| `tests/test_message_sent_logger.py` | 7 classes | Tests for MessageSentLogger facade: initialization, sanitization, API/WebSocket/broadcast/sync/auth reply logging, async mode, buffer, edge cases |
+| `tests/test_server_message_logger_enhanced.py` | 7 classes | Tests for enhanced ServerMessageLogger: sanitization, async mode, buffer, log level filtering, flush, global instance, MessageType enum, SENSITIVE_KEYS |
+| `tests/test_sync_service_logging.py` | 4 classes | Tests for SyncService logging integration: sync action logging in all methods, content verification, error scenarios |
+| `tests/test_auth_service_logging.py` | 4 classes | Tests for AuthService logging integration: auth event logging in all methods, content verification, error scenarios |
+| `tests/test_api_message_logger_sanitization.py` | 4 classes | Tests for APIMessageLoggingMiddleware sanitization: request/response body sanitization, sensitive data handling, edge cases, integration |
+
+### Running Message Logging Tests
+
+```bash
+# Run all message logging tests
+pytest tests/test_message_sent_logger.py tests/test_server_message_logger_enhanced.py tests/test_sync_service_logging.py tests/test_auth_service_logging.py tests/test_api_message_logger_sanitization.py -v
+
+# Run specific test file
+pytest tests/test_message_sent_logger.py -v
+
+# Run with timeout (tests include @pytest.mark.timeout(30) decorators)
+pytest tests/test_auth_service_logging.py -v --timeout=30
 ```
 
 ## Best Practices
@@ -285,4 +317,9 @@ tests/
 - `tests/config.py` - Test configuration
 - `tests/scenarios/*.json` - Test scenario definitions
 - `tests/fixtures/*.json` - Test fixtures
+- `tests/test_message_sent_logger.py` - MessageSentLogger facade tests
+- `tests/test_server_message_logger_enhanced.py` - Enhanced ServerMessageLogger tests
+- `tests/test_sync_service_logging.py` - SyncService logging integration tests
+- `tests/test_auth_service_logging.py` - AuthService logging integration tests
+- `tests/test_api_message_logger_sanitization.py` - API middleware sanitization tests
 - `docs/testing.md` - This documentation
