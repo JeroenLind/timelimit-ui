@@ -330,3 +330,29 @@ See `plans/dashboardV2-parent-login-plan.md` for the complete step-by-step imple
 ### Status: PLANNED
 
 The implementation plan has been created and is ready for execution.
+
+---
+
+## Local Commit (2026-08-18)
+
+### Commit: fffcd97
+
+All recent changes have been committed locally with the message:
+"Update CONTEXT.md and finalize create family flow fixes"
+
+**Changes included:**
+- Removed `encrypted` field from `parentPassword` in all test data files
+- Added `clientLevel: 7` to create family requests
+- Removed `locale` field from create family requests
+- Fixed bcrypt hash prefix for bcrypt 5.0+ compatibility (`prefix=b'2a'`)
+- Updated `create_family.html` time zone field to dropdown selection
+- Added password validation (client and server side)
+- Updated `auth_client.py` with create family fixes
+- Updated `crypto_utils.py` for bcrypt 5.0+ compatibility
+- Updated `app.py` with password validation and removed encrypted field
+- Added new test files for create family flow
+- Added new plan files for parent login implementation
+
+**Status: COMMITTED**
+
+The branch is ahead of origin/main by 4 commits. Use `git push` to publish the local commits.
