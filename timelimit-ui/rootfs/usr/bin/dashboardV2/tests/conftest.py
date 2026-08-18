@@ -13,6 +13,9 @@ from flask import Flask
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Skip port check during testing to allow module import
+os.environ['SKIP_PORT_CHECK'] = 'true'
+
 from app import app as flask_app
 from config import Config
 from database import Database, reset_database

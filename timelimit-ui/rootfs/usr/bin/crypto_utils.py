@@ -6,13 +6,18 @@ import hashlib
 import base64
 
 def generate_family_hashes(password):
-    """Generate BCrypt hashes for family password, matching Android app logic."""
-    """Generate BCrypt hashes matching the Android app logic (cost factor 12)."""
+    r"""Generate BCrypt hashes for family password, matching Android app logic.
+    
+    Uses $2a$ prefix to match the server's expected format and Android app's jBCrypt.
+    The server validates hashes using regex: /^($2a$[123][0-9]$[./A-Za-z0-9]{53})?$/
+    """
     password_bytes = password.encode('utf-8')
 
     # Two unique salts for maximum safety
-    salt1 = bcrypt.gensalt(rounds=12)
-    salt2 = bcrypt.gensalt(rounds=12)
+    # Use '2a' prefix to match server validation (bcrypt 5.0+ expects prefix without $)
+    # Python bcrypt defaults to $2b$ prefix, but server expects $2a$
+    salt1 = bcrypt.gensalt(rounds=12, prefix=b'2a')
+    salt2 = bcrypt.gensalt(rounds=12, prefix=b'2a')
 
     # Hashes expected by the server
     hash1 = bcrypt.hashpw(password_bytes, salt1)

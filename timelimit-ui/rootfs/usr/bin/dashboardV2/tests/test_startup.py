@@ -18,6 +18,9 @@ import subprocess
 import tempfile
 import time
 
+# Skip port check during testing to allow module import
+os.environ['SKIP_PORT_CHECK'] = 'true'
+
 
 class TestAppImport:
     """Tests for importing the Flask application."""

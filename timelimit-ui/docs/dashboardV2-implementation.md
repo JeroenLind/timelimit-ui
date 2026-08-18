@@ -413,8 +413,70 @@ Expected response:
 {"status": "healthy"}
 ```
 
+## Create New Family Flow
+
+The createNewFamily flow allows users to create a new TimeLimit family (parent account + device) from the dashboardV2 web UI. This is a server-side rendered flow that maximizes Python backend logic and minimizes JavaScript.
+
+### Flow Overview
+
+The flow consists of 3 steps:
+
+1. **Email Entry** → User enters their email → `AuthClient.send_mail_login_code()` → returns `mailLoginToken` (stored in Flask session)
+2. **Code Verification** → User enters verification code → `AuthClient.sign_in_by_mail_code()` → returns `mailAuthToken` (stored in Flask session)
+3. **Password + Device Info** → User enters password and device info → `crypto_utils.generate_family_hashes()` → `AuthClient.create_family_rest()` → returns `deviceAuthToken` + `ownDeviceId` (stored in Flask session)
+
+### Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/create-family` | GET | Renders the appropriate step based on session state |
+| `/create-family` | POST | Processes form submissions for all 3 steps |
+| `/create-family/cancel` | POST | Clears session and redirects to dashboard |
+
+### Templates
+
+| Template | Purpose |
+|----------|---------|
+| `create_family.html` | Server-rendered template for all 3 steps of the create-family flow |
+
+### Session Keys
+
+| Key | Purpose |
+|-----|---------|
+| `mail_login_token` | Token for step 1 → step 2 transition |
+| `mail_auth_token` | Token for step 2 → step 3 transition |
+| `device_auth_token` | Final authentication token for accessing the dashboard |
+| `own_device_id` | The newly created device ID |
+| `create_family_error` | Error message to display (popped after display) |
+
+### Testing
+
+Run the create family tests:
+
+```bash
+# Unit tests for routes and validation
+py -3 -m pytest tests/test_create_family.py -v --timeout=30
+
+# Unit tests for password hash generation
+py -3 -m pytest tests/test_crypto_utils.py -v --timeout=30
+
+# Integration tests for full flow
+py -3 -m pytest tests/test_create_family_integration.py -v --timeout=30
+
+# All tests together
+py -3 -m pytest tests/test_create_family.py tests/test_crypto_utils.py tests/test_create_family_integration.py -v --timeout=30
+```
+
+### Design Principles
+
+- **Server-side rendering**: Flask templates render each step's form
+- **Standard HTML forms**: `method="POST"` with `action="/create-family"` — no AJAX
+- **Server-side validation**: All validation in Python (email regex, code format, password rules)
+- **Inline password hashing**: `crypto_utils.generate_family_hashes()` called directly in the route handler
+- **Zero JavaScript**: No new JavaScript functions added
+
 ## References
 
-- Plan: `plans/new-dashboard-auth-plan.md`
+- Plan: `plans/create-new-family-interaction-plan.md`
 - Debug Server API: See `debug-server/app/api/` for endpoint definitions
 - Original Dashboard: `timelimit-ui/rootfs/usr/bin/dashboard.html`

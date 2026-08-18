@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}Create Family - TimeLimit Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .create-family-container {
+        max-width: 480px;
+        margin: 0 auto;
+    }
+    
+    .form-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .form-card h2 {
+        color: #fff;
+        margin-bottom: 24px;
+        font-size: 22px;
+        font-weight: 600;
+        text-align: center;
+    }
+    
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    
+    .step-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .step-dot.active {
+        background: #667eea;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        color: #aaa;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 14px 16px;
+        font-size: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #fff;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+    }
+    
+    .form-group input::placeholder {
+        color: #666;
+    }
+    
+    .form-group select {
+        width: 100%;
+        padding: 14px 16px;
+        font-size: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #fff;
+    }
+    
+    .form-group option {
+        color: #333;
+    }
+    
+    .error-message {
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 20px;
+        color: #ff6b6b;
+        font-size: 14px;
+        text-align: center;
+    }
+    
+    .btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:active {
+        transform: translateY(0);
+    }
+    
+    .btn.secondary {
+        background: linear-gradient(135deg, #607dbc 0%, #dcd1ff 100%);
+    }
+    
+    .btn.secondary:hover {
+        box-shadow: 0 4px 15px rgba(96, 125, 188, 0.4);
+    }
+    
+    .back-link {
+        display: block;
+        text-align: center;
+        margin-top: 20px;
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+    
+    .password-hint {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="create-family-container">
+    <div class="form-card">
+        <h2>Create New Family</h2>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if step == 1 %}
+        <!-- Step 1: Enter Email -->
+        <form method="POST" action="/create-family">
+            <input type="hidden" name="step" value="1">
+            
+            <div class="step-indicator">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="mail">Email Address</label>
+                <input type="email" id="mail" name="mail" placeholder="you@example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="locale">Locale</label>
+                <input type="text" id="locale" name="locale" placeholder="en" value="en" required>
+            </div>
+            
+            <button type="submit" class="btn">Send Verification Code</button>
+        </form>
+        
+        {% elif step == 2 %}
+        <!-- Step 2: Enter Verification Code -->
+        <form method="POST" action="/create-family">
+            <input type="hidden" name="step" value="2">
+            
+            <div class="step-indicator">
+                <div class="step-dot"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="receivedCode">Verification Code</label>
+                <input type="text" id="receivedCode" name="receivedCode" placeholder="e.g., Pferd Miete abwenden" required>
+                <div class="password-hint">Enter the 3-word code sent to your email (e.g., "Pferd Miete abwenden")</div>
+            </div>
+            
+            <button type="submit" class="btn">Continue</button>
+        </form>
+        
+        {% elif step == 3 %}
+        <!-- Step 3: Enter Password -->
+        <form method="POST" action="/create-family">
+            <input type="hidden" name="step" value="3">
+            
+            <div class="step-indicator">
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot active"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="parentName">Parent Name</label>
+                <input type="text" id="parentName" name="parentName" placeholder="Your name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="timeZone">Time Zone</label>
+                <select id="timeZone" name="timeZone" required>
+                    <option value="Europe/Amsterdam" selected>Europe/Amsterdam</option>
+                    <option value="Europe/Berlin">Europe/Berlin</option>
+                    <option value="Europe/London">Europe/London</option>
+                    <option value="America/New_York">America/New_York</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles</option>
+                    <option value="America/Chicago">America/Chicago</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo</option>
+                    <option value="Asia/Shanghai">Asia/Shanghai</option>
+                    <option value="Asia/Kolkata">Asia/Kolkata</option>
+                    <option value="Australia/Sydney">Australia/Sydney</option>
+                    <option value="UTC">UTC</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="deviceModel">Device Model</label>
+                <input type="text" id="deviceModel" name="deviceModel" placeholder="e.g., Pixel 7" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="deviceName">Device Name</label>
+                <input type="text" id="deviceName" name="deviceName" placeholder="e.g., Parent's Phone" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password" required minlength="8" pattern=".{8,}" title="Password must be at least 8 characters">
+                <div class="password-hint">At least 8 characters</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="secondPassword">Confirm Password</label>
+                <input type="password" id="secondPassword" name="secondPassword" placeholder="Confirm password" required minlength="8" pattern=".{8,}" title="Password must be at least 8 characters">
+            </div>
+            
+            <div class="form-group">
+                <label for="locale">Locale (optional)</label>
+                <input type="text" id="locale" name="locale" placeholder="en" value="en">
+            </div>
+            
+            <button type="submit" class="btn">Create Family</button>
+        </form>
+        {% endif %}
+        
+        <form method="POST" action="/create-family/cancel" style="margin-top: 20px;">
+            <button type="submit" class="btn" style="background: rgba(244, 67, 54, 0.3); border: 1px solid rgba(244, 67, 54, 0.5);">
+                Cancel
+            </button>
+        </form>
+        
+        <a href="/dashboardV2" class="back-link">← Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-focus the first input or select
+        const firstInput = document.querySelector('input[type="email"], input[type="text"], input[type="password"], select');
+        if (firstInput) {
+            firstInput.focus();
+        }
+        
+        // Password validation
+        const passwordInput = document.getElementById('password');
+        const secondPasswordInput = document.getElementById('secondPassword');
+        
+        if (passwordInput) {
+            passwordInput.addEventListener('input', function() {
+                validatePassword(this);
+            });
+        }
+        
+        if (secondPasswordInput) {
+            secondPasswordInput.addEventListener('input', function() {
+                validatePassword(this);
+            });
+        }
+        
+        function validatePassword(input) {
+            const password = passwordInput ? passwordInput.value : '';
+            const secondPassword = secondPasswordInput ? secondPasswordInput.value : '';
+            
+            // Clear all validity states first
+            if (passwordInput) passwordInput.setCustomValidity('');
+            if (secondPasswordInput) secondPasswordInput.setCustomValidity('');
+            
+            // Check minimum length on first password
+            if (password.length > 0 && password.length < 8) {
+                if (passwordInput) passwordInput.setCustomValidity('Password must be at least 8 characters');
+            }
+            
+            // Check password match if both passwords are entered
+            if (password.length > 0 && secondPassword.length > 0 && password !== secondPassword) {
+                if (secondPasswordInput) secondPasswordInput.setCustomValidity('Passwords do not match');
+            }
+        }
+        
+        // Handle form submission with loading state
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                const btn = form.querySelector('.btn');
+                if (btn) {
+                    btn.classList.add('loading');
+                    btn.textContent = 'Processing...';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeLimit Dashboard v2</title>
+    <link rel="stylesheet" href="/static/css/dashboardV2.css">
+    
+<style>
+    .dashboard-content {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .status-section {
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .server-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .server-label {
+        color: #aaa;
+        font-weight: 500;
+    }
+    
+    .server-url {
+        color: #fff;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-success {
+        background: #4caf50;
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    
+    .status-error {
+        background: #f44336;
+        box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    }
+    
+    .status-warning {
+        background: #ff9800;
+        box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    h2 {
+        color: #fff;
+        margin-bottom: 15px;
+        font-size: 18px;
+    }
+    
+    #status-content {
+        color: #ccc;
+    }
+    
+    .content h2 {
+        color: #fff;
+        margin-bottom: 15px;
+    }
+    
+    .content p {
+        color: #aaa;
+        line-height: 1.6;
+    }
+    
+    /* Historical data table styles */
+    .historical-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        overflow-x: auto;
+    }
+    
+    .historical-table th,
+    .historical-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .historical-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #aaa;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .historical-table tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .time-cell {
+        font-family: monospace;
+        font-size: 12px;
+        color: #888;
+    }
+    
+    .success-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .success-badge.success {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+    
+    .success-badge.error {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+    
+    /* Alert notifications */
+    .alert-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+    }
+    
+    .alert {
+        padding: 15px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease-out;
+        border-left: 4px solid;
+        color: #333;
+    }
+    
+    .alert.error {
+        border-left-color: #f44336;
+    }
+    
+    .alert.success {
+        border-left-color: #4caf50;
+    }
+    
+    .alert.warning {
+        border-left-color: #ff9800;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .alert-close {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #888;
+    }
+    
+    .alert-close:hover {
+        color: #fff;
+    }
+    
+    /* Refresh button */
+    .refresh-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .refresh-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    .refresh-btn.loading {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .last-update {
+        color: #666;
+        font-size: 12px;
+        margin-top: 10px;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .server-info {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .historical-table {
+            display: block;
+            overflow-x: auto;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .alert-container {
+            max-width: 90vw;
+            right: 5px;
+            left: 5px;
+        }
+        
+        .historical-table th,
+        .historical-table td {
+            padding: 8px;
+            font-size: 11px;
+        }
+    }
+</style>
+
+</head>
+<body>
+    
+    <header class="dashboard-header">
+        <div class="container">
+            <h1>⏱️ TimeLimit Dashboard</h1>
+            
+        </div>
+    </header>
+    
+    
+    <main class="container">
+        
+<div class="status-section">
+    <h2><span class="status-indicator status-warning" id="status-indicator"></span>Server Status</h2>
+    <div id="status-content">
+        <div class="server-info">
+            <span class="server-label">Checking server...</span>
+        </div>
+    </div>
+    <div id="error-message" style="display: none; margin-top: 10px; padding: 10px; background: rgba(244, 67, 54, 0.1); border-radius: 8px; color: #ff4444;"></div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Dashboard Content</h2>
+    <p>Welcome to the new TimeLimit Dashboard v2.</p>
+    <p>This dashboard provides server status checking and will eventually include family management features.</p>
+    
+    <div style="margin-top: 15px;">
+        <button class="refresh-btn" id="refresh-btn" onclick="refreshServerStatus()">
+            <span id="refresh-icon">🔄</span>
+            <span id="refresh-text">Refresh Status</span>
+        </button>
+        <div class="last-update" id="last-update">Last update: Never</div>
+    </div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Historical Data</h2>
+    <p style="color: #aaa; margin-bottom: 10px;">Recent server check results (last 10 checks)</p>
+    
+    <table class="historical-table" id="historical-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Server Time</th>
+                <th>Attempts</th>
+            </tr>
+        </thead>
+        <tbody id="historical-body">
+            <tr>
+                <td colspan="4" style="text-align: center; color: #666;">Loading historical data...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Session Information</h2>
+    <div id="session-info" class="server-info">
+        <span class="server-label">Server:</span>
+        <span class="server-url" id="current-server">Not selected</span>
+    </div>
+    <div id="auth-info" style="color: #aaa; font-size: 14px; margin-top: 10px;">
+        <p>Authentication status: <span id="auth-status">Not authenticated</span></p>
+    </div>
+</div>
+
+<!-- Alert container for notifications -->
+<div class="alert-container" id="alert-container"></div>
+
+    </main>
+    
+    
+    <footer class="dashboard-footer">
+        <div class="container">
+            <p class="version">Dashboard v2</p>
+        </div>
+    </footer>
+    
+    
+    <script src="/static/js/dashboardV2.js"></script>
+    
+<script>
+    // Display current server URL and authentication status
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchSessionStatus();
+        refreshServerStatus();
+        loadHistoricalData();
+    });
+    
+    function fetchSessionStatus() {
+        const serverUrlElement = document.getElementById('current-server');
+        const authStatusElement = document.getElementById('auth-status');
+        
+        fetch('/api/session/status', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.server_url) {
+                serverUrlElement.textContent = data.server_url;
+            }
+            if (data.authenticated) {
+                authStatusElement.textContent = 'Authenticated';
+                authStatusElement.style.color = '#4caf50';
+            }
+        })
+        .catch(error => {
+            console.log('Could not fetch session status');
+        });
+    }
+    
+    function refreshServerStatus() {
+        const btn = document.getElementById('refresh-btn');
+        const icon = document.getElementById('refresh-icon');
+        const text = document.getElementById('refresh-text');
+        
+        btn.classList.add('loading');
+        icon.textContent = '⏳';
+        text.textContent = 'Refreshing...';
+        
+        fetch('/api/timechecker/status?force_refresh=true', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateStatusDisplay(data);
+            loadHistoricalData();
+            showAlert('Server status updated successfully', 'success');
+        })
+        .catch(error => {
+            showAlert('Failed to refresh server status: ' + error.message, 'error');
+        })
+        .finally(() => {
+            btn.classList.remove('loading');
+            icon.textContent = '🔄';
+            text.textContent = 'Refresh Status';
+        });
+    }
+    
+    function updateStatusDisplay(data) {
+        const statusContent = document.getElementById('status-content');
+        const statusIndicator = document.getElementById('status-indicator');
+        const errorMessage = document.getElementById('error-message');
+        
+        if (data.success) {
+            const serverTime = new Date(data.server_time).toLocaleTimeString();
+            statusContent.innerHTML = `
+                <div class="server-info">
+                    <span class="status-indicator status-success"></span>
+                    <span class="server-label">Server is reachable</span>
+                </div>
+                <div style="margin-top: 10px; color: #aaa; font-size: 14px;">
+                    Server time: <strong style="color: #00ff88;">${serverTime}</strong>
+                </div>
+            `;
+            errorMessage.style.display = 'none';
+        } else {
+            statusContent.innerHTML = `
+                <div class="server-info">
+                    <span class="status-indicator status-error"></span>
+                    <span class="server-label">Server unreachable</span>
+                </div>
+            `;
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = data.error_message || 'Connection failed';
+        }
+        
+        // Update last update time
+        document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+    }
+    
+    function loadHistoricalData() {
+        const tbody = document.getElementById('historical-body');
+        
+        fetch('/api/timechecker/history?limit=10', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.checks && data.checks.length > 0) {
+                tbody.innerHTML = data.checks.map(check => {
+                    const time = new Date(check.timestamp).toLocaleTimeString();
+                    const statusClass = check.success ? 'success' : 'error';
+                    const statusText = check.success ? 'Success' : 'Failed';
+                    const serverTime = check.server_time ? new Date(check.server_time).toLocaleTimeString() : 'N/A';
+                    
+                    return `
+                        <tr>
+                            <td class="time-cell">${time}</td>
+                            <td><span class="success-badge ${statusClass}">${statusText}</span></td>
+                            <td class="time-cell">${serverTime}</td>
+                            <td class="time-cell">${check.attempts}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No historical data available</td></tr>';
+            }
+        })
+        .catch(error => {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Failed to load historical data</td></tr>';
+        });
+    }
+    
+    function showAlert(message, type) {
+        const container = document.getElementById('alert-container');
+        const alert = document.createElement('div');
+        alert.className = 'alert ' + type;
+        alert.innerHTML = `
+            ${message}
+            <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+        `;
+        
+        container.appendChild(alert);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alert.parentElement) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+</script>
+
+</body>
+</html>

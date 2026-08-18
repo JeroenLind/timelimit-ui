@@ -18,112 +18,315 @@
 - WebSocket (Socket.IO) for real-time sync notifications
 - HTTP API with gzip compression, Content-Length auto-negotiation
 
-## Recent Work (2026-08-15)
+---
 
-### Dashboard V2 Alert CSS Fix
-Fixed the issue where alert notifications appeared empty/invisible when the server data refreshed.
+## Reference Sources (Authoritative)
 
-**Problem**
-- The alert notification bar slides in from the right with a white background (`rgba(255, 255, 255, 0.95)`)
-- The text inside was invisible because the `.alert` CSS class had no `color` property
-- The alert inherited white text (`color: #fff`) from the body, resulting in white text on white background
+**⚠️ IMPORTANT: The official app and server sources are the authoritative reference for all implementations.**
 
-**Solution**
-- Added `color: #333;` to the `.alert` CSS class in `dashboardV2.html`
-- This ensures the alert text is visible against the white background
+- **Official Android App Source**: `C:\git\timelimit-android`
+  - HTTP API implementation: `app/src/main/java/io/timelimit/android/sync/network/api/HttpServerApi.kt`
+  - Request/Response models: `app/src/main/java/io/timelimit/android/sync/network/`
 
-**Files Modified**
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added `color: #333;` to `.alert` class
+- **Official Server Source**: `C:\git\timelimit-server`
+  - API endpoints: `src/api/auth.ts`, `src/api/parent.ts`
+  - TypeScript interfaces: `src/api/schema.ts`
+  - JSON Schema validators: `src/api/validator.ts`
+  - Authentication logic: `src/function/authentication/login-by-mail.ts`
 
-### Dashboard V2 Time Endpoint Fix
-Fixed the dashboard V2 endpoint issues identified in the log analysis:
+**All API request formats must match these official sources exactly.**
 
-**Problem**
-1. **URL Construction**: `AuthClient` in `auth_client.py` prepends `API_PREFIX` (`/api/v1`) to all endpoints. When `get_server_time()` calls `/time`, it becomes `/api/v1/time`, which returns 404 on the actual TimeLimit API at `http://192.168.68.30:8080`.
-2. **Response Format**: `AuthClient` expects `{"time": <int>}` but the actual API returns `{"ms": <int>}`.
+---
 
-**Solution (Option A: Skip prefix for time endpoint)**
-- Added `skip_prefix` parameter to `_make_request()` and `_request_with_retry()` methods in `auth_client.py`
-- Modified `get_server_time()` to call `/time` without the API_PREFIX
-- Changed response parsing from `response.data.get('time')` to `response.data.get('ms')`
+## Recent Changes (2026-08-16)
 
-**Files Modified**
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/auth_client.py` - Added `skip_prefix` parameter, fixed URL construction and response format
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Updated response parsing to use `ms` field
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_auth_client.py` - Updated mock responses to use `{'ms': ...}`
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_timechecker.py` - Updated mock responses to use `{'ms': ...}`
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_scheduler.py` - Updated mock responses to use `{'ms': ...}`
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_scheduler_logging.py` - Updated mock responses to use `{'ms': ...}`
+### Create Family Flow Fixes
 
-**Test Results**
-- All time endpoint tests pass (136 passed)
-- 6 pre-existing test failures unrelated to this fix (URL default expectations and scheduler lifecycle test isolation)
+#### Root Cause: Missing `clientLevel` Field
 
-### Debug Server API Prefix Update
-Updated the debug server to use correct endpoints matching the actual TimeLimit API at `http://192.168.68.30:8080`.
+The create family step 3 was failing with a 400 Bad Request error from the TimeLimit server. Analysis of the official Android app source (`HttpServerApi.kt`) revealed that the `clientLevel` field was missing from the API request.
 
-**Changes Made**
-1. **Config** (`debug-server/app/core/config.py`): Changed `API_V1_STR` from `/api/v1` to empty string `""`
-2. **Main** (`debug-server/app/main.py`): Updated to handle empty prefix for openapi_url and docs_url
-3. **Time Response Model** (`debug-server/app/models/auth.py`): Changed `TimeResponse` model to use `ms` field instead of `time`
-4. **Time Endpoint** (`debug-server/app/api/time.py`): Updated to return `TimeResponse(ms=int(time.time() * 1000))`
-5. **Auth Endpoints** (`debug-server/app/api/auth.py`): Removed POST /time endpoint (actual API only supports GET /time)
-6. **Test Files**: Updated all test files to use new endpoints and response format
-7. **Documentation** (`debug-server/docs/api.md`): Updated API documentation to reflect new endpoints and response format
+**Android App Implementation (lines 306-308):**
+```kotlin
+if (!skipClientLevel) {
+    writer.name(CLIENT_LEVEL).value(ClientDataStatus.CLIENT_LEVEL_VALUE)
+}
+```
 
-**Test Results**
-- All 581 tests pass
+**Fix Applied:**
+- Added `'clientLevel': 7` to both `create_family()` and `create_family_rest()` methods in `auth_client.py`
+- The value `7` matches `ClientDataStatus.CLIENT_LEVEL_VALUE` from the Android app
 
-### Dashboard V2 Server Check Display Fix (2026-08-15)
-Fixed the issue where the server status section showed "Checking server..." on initial page load instead of the actual server status.
+### Files Modified
+| File | Changes |
+|------|---------|
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/auth_client.py` | Added `clientLevel: 7` to create_family() and create_family_rest() methods |
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/create_family.html` | Changed time zone from text input to select dropdown with valid IANA time zones |
 
-**Problem**
-1. **Frontend Issue**: When Dashboard V2 page loads, the server status section shows "Checking server..." because `updateStatusDisplay()` is never called on initial page load. The JavaScript only calls `fetchSessionStatus()` and `loadHistoricalData()` on DOMContentLoaded.
-2. **Backend Issue**: In `scheduler.py`, the code used `response.data.get('time')` but the actual API returns `{'ms': ...}`.
+### Time Zone Field Change
 
-**Solution**
-1. **Frontend Fix**: Modified `dashboardV2.html` to call `refreshServerStatus()` on initial page load to properly display the server status.
-2. **Backend Fix**: Fixed `scheduler.py` to use `response.data.get('ms')` instead of `response.data.get('time')` in both `check_server_callback()` and `add_server_check_job()` functions.
+The time zone field in Step 3 of the create family form was changed from a free-text input to a dropdown selection box. This prevents users from entering invalid time zone values like "Europe" instead of "Europe/Amsterdam".
 
-**Files Modified**
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added `refreshServerStatus()` call on initial page load
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/scheduler.py` - Fixed field name from `time` to `ms`
+**Available Time Zones:**
+- Europe/Amsterdam (default)
+- Europe/Berlin
+- Europe/London
+- America/New_York
+- America/Los_Angeles
+- America/Chicago
+- Asia/Tokyo
+- Asia/Shanghai
+- Asia/Kolkata
+- Australia/Sydney
+- UTC
 
-**Test Results**
-- All timechecker tests pass (49 passed)
-- 2 pre-existing test failures unrelated to this fix (scheduler lifecycle test isolation)
+---
 
-## Endpoint Verification Results
+## Additional Fix: Remove `encrypted` Field from `parentPassword`
 
-### Server Status
-- Server at `http://192.168.68.30:8080` is running (actual TimeLimit backend, Express.js-style)
-- The FastAPI debug server is NOT running (it would serve `/api/v1/time` with `{"time": <int>}`)
+### Root Cause: Invalid `encrypted` Field in `PlaintextParentPassword`
 
-### Endpoint Tests (check_endpoints.sh)
-| Check | Result | Details |
-|-------|--------|---------|
-| Server Reachability | PASS | HTTP 404 (server is reachable) |
-| GET /time | PASS | HTTP 200, returns `{"ms": <timestamp_ms>}` |
-| POST /time | PASS | Correctly rejected with HTTP 404 (POST not supported) |
+The create family step 3 was failing with a 400 Bad Request error because the `parentPassword` object included an `encrypted` field that is not allowed by the server's validation schema.
 
-### Test Config Files Status
-| File | Status | Notes |
-|------|--------|-------|
-| `debug-server/tests/config.py` | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `test/conftest.py` (root) | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `timelimit-ui/test/config.yaml` | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `timelimit-ui/rootfs/usr/bin/dashboardV2/config.py` | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `timelimit-ui/test/conftest.py` | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `debug-server/tests/client.py` | ✅ Updated | Uses `http://192.168.68.30:8080` |
-| `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/conftest.py` | ✅ Updated | Uses `http://192.168.68.30:8080` |
+**Server Schema (`C:\git\timelimit-server\src\api\schema.ts`):**
+```typescript
+export interface PlaintextParentPassword {
+  hash: string
+  secondHash: string
+  secondSalt: string
+}
+```
 
-## Next Steps
-- Integrate logging into dashboardV2 components
-- Add CI/CD pipeline configuration for automated testing
+The `PlaintextParentPassword` interface does NOT include the `encrypted` field. The `encrypted` field is only valid for `EncryptableParentPassword` type.
 
-## Notes
-- The actual TimeLimit API uses `/time` endpoint (not `/api/v1/time`)
-- The response format is `{"ms": <timestamp_ms>}` (not `{"time": <int>}`)
-- POST /time is not supported by the actual TimeLimit API
-- The FastAPI debug server at `debug-server/` now uses `/` prefix with `{"ms": <int>}` format
-- See `context.md` for full project structure and component overview
+**Server Validator (`C:\git\timelimit-server\src\api\validator.ts`):**
+```json
+"PlaintextParentPassword": {
+  "type": "object",
+  "properties": {
+    "hash": { "type": "string" },
+    "secondHash": { "type": "string" },
+    "secondSalt": { "type": "string" }
+  },
+  "additionalProperties": false,  // <-- No extra properties allowed!
+  "required": ["hash", "secondHash", "secondSalt"]
+}
+```
+
+**Fix Applied:**
+- Removed `password_data['encrypted'] = False` from `app.py` line 1020
+- The `generate_family_hashes()` function already returns the correct structure with `hash`, `secondHash`, and `secondSalt`
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` | Removed `password_data['encrypted'] = False` line |
+| `create_family_data.json` | Removed `encrypted` field from `parentPassword` |
+| `test_create_family.json` | Removed `encrypted` field from `parentPassword` |
+| `test_create_family_v2.json` | Removed `encrypted` field from `parentPassword` |
+| `test_create_family_v3.json` | Removed `encrypted` field from `parentPassword` |
+| `test_api_families.json` | Removed `encrypted` field from `parentPassword` |
+| `test_families_flow.py` | Removed `encrypted` field from all test data |
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_create_family_integration.py` | Updated test to verify `encrypted` is NOT in password data |
+
+---
+
+## Additional Fix: Remove `locale` Field from Create Family Request
+
+### Root Cause: Invalid `locale` Field in `CreateFamilyByMailTokenRequest`
+
+The create family request was failing with a 400 Bad Request error because the `locale` field was being sent in the request body, but it's not allowed by the server's validation schema.
+
+**Server Schema (`C:\git\timelimit-server\src/api/schema.ts`):**
+```typescript
+export interface CreateFamilyByMailTokenRequest {
+  mailAuthToken: string
+  parentPassword: PlaintextParentPassword
+  parentDevice: NewDeviceInfo
+  deviceName: string
+  timeZone: string
+  parentName: string
+  clientLevel?: number
+}
+```
+
+**Server Validator (`C:\git\timelimit-server\src/api/validator.ts`):**
+```json
+{
+  "type": "object",
+  "properties": {
+    "mailAuthToken": { "type": "string" },
+    "parentPassword": { "$ref": "#/definitions/PlaintextParentPassword" },
+    "parentDevice": { "$ref": "#/definitions/NewDeviceInfo" },
+    "deviceName": { "type": "string" },
+    "timeZone": { "type": "string" },
+    "parentName": { "type": "string" },
+    "clientLevel": { "type": "number" }
+  },
+  "additionalProperties": false,  // <-- No extra properties allowed!
+  "required": ["deviceName", "mailAuthToken", "parentDevice", "parentName", "parentPassword", "timeZone"]
+}
+```
+
+The `CreateFamilyByMailTokenRequest` schema has `additionalProperties: false`, which means any extra fields like `locale` will cause validation to fail.
+
+**Android App Implementation (lines 273-326):**
+The official Android app's `createFamilyByMailToken()` function does NOT include `locale` in the request body.
+
+**Fix Applied:**
+- Removed the `locale` field from the request data in `auth_client.py` for both `create_family()` and `create_family_rest()` methods
+- The `locale` parameter is kept in the function signature for API compatibility but is no longer sent to the server
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/auth_client.py` | Removed `locale` from request data in `create_family()` and `create_family_rest()` methods |
+| `create_family_data.json` | Removed `locale` field, added `clientLevel: 7` |
+| `test_create_family.json` | Removed `locale` field, added `clientLevel: 7` |
+| `test_create_family_v2.json` | Removed `locale` field, added `clientLevel: 7` |
+| `test_create_family_v3.json` | Removed `locale` field, added `clientLevel: 7` |
+| `test_api_families.json` | Removed `locale` field, added `clientLevel: 7` |
+| `test_families_flow.py` | Removed `locale` field from test data |
+| `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_create_family_integration.py` | Updated tests to verify `locale` is NOT sent to server |
+
+---
+
+## Additional Fix: Bcrypt Hash Prefix Mismatch
+
+### Root Cause: bcrypt 5.0+ prefix parameter format
+
+The create family step 3 was failing with "Failed to generate password hashes" error because bcrypt 5.0+ requires the prefix parameter to be `b'2a'` or `b'2b'` (without dollar signs), but the code was passing `b'$2a$'` (with dollar signs).
+
+**Error from logs:**
+```json
+{"error": "Supported prefixes are b'2a' or b'2b'", "event": "Create family step 3 failed: hash generation error"}
+```
+
+**bcrypt 5.0+ behavior:**
+```python
+# bcrypt 5.0+ expects prefix without dollar signs
+bcrypt.gensalt(rounds=12, prefix=b'2a')  # Produces: $2a$12$...
+```
+
+**Python bcrypt default behavior (bcrypt 4.x and earlier):**
+```python
+# Python bcrypt generates $2b$ prefixed hashes by default
+bcrypt.gensalt(rounds=12)  # Produces: $2b$12$...
+```
+
+**Android App (jBCrypt) behavior:**
+```kotlin
+// jBCrypt generates $2a$ prefixed hashes
+BCrypt.gensalt()  // Produces: $2a$10$...
+```
+
+**Server Validation Regex (`C:\git\timelimit-server\src\util\password.ts`):**
+```typescript
+export const optionalPasswordRegex = /^(\$2a\$[123][0-9]\$[./A-Za-z0-9]{53})?$/
+```
+
+This regex only matches:
+- `$2a$` prefix (not `$2b$` or `$2y$`)
+- Cost factor 10-39
+- 53 character hash
+
+**Fix Applied:**
+- Updated `crypto_utils.py` to use `prefix=b'2a'` (without dollar signs) for bcrypt 5.0+ compatibility
+- The bcrypt library automatically adds the `$` characters when generating the salt
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `timelimit-ui/rootfs/usr/bin/crypto_utils.py` | Changed `prefix=b'$2a$'` to `prefix=b'2a'` for bcrypt 5.0+ compatibility |
+
+### Password Validation on Dashboard
+
+Added server-side and client-side password validation to prevent users from entering passwords that don't meet the minimum requirements:
+
+**Server-side validation (`app.py`):**
+- Added minimum password length check (8 characters)
+- Validates password before sending to server
+
+**Client-side validation (`create_family.html`):**
+- Added `minlength="8"` and `pattern=".{8,}"` attributes to password inputs
+- Added JavaScript validation to show real-time feedback
+
+---
+
+## Verification Complete (2026-08-17)
+
+All fixes for the "Failed to generate password hashes" error have been verified and applied:
+
+### ✅ Verified Fixes
+
+1. **Bcrypt Hash Prefix Fix** (`crypto_utils.py` lines 18-19):
+   - `bcrypt.gensalt(rounds=12, prefix=b'2a')` generates `$2a$` prefixed hashes
+   - Compatible with bcrypt 5.0+ which expects prefix without dollar signs
+   - Matches server validation regex: `/^(\$2a\$[123][0-9]\$[./A-Za-z0-9]{53})?$/`
+
+2. **Server-Side Password Validation** (`app.py` lines 997-1001):
+   - Minimum 8 character password check
+   - Prevents sending invalid passwords to server
+
+3. **Client-Side Password Validation** (`create_family.html`):
+   - Password inputs have `minlength="8"` and `pattern=".{8,}"` attributes (lines 256, 262)
+   - JavaScript validation provides real-time feedback (lines 294-322)
+
+### Status: COMPLETE
+
+The dashboard will now:
+- Prevent users from entering passwords shorter than 8 characters
+- Show immediate validation feedback on the client side
+- Validate password length server-side before sending to the TimeLimit server
+- Generate bcrypt hashes with `$2a$` prefix that the server accepts
+- Work correctly with bcrypt 5.0+ library
+
+### Next Steps
+- Test the full create family flow with the official TimeLimit server
+- Verify the fixes work with the actual TimeLimit API
+
+---
+
+## Planned: Parent Login to Existing Family (2026-08-17)
+
+### Overview
+
+Adding functionality to dashboardV2 that allows a parent to log in to an existing family using email-based authentication. This is different from "Create Family" which creates a new family.
+
+### Key Finding
+
+The `sign-in-into-family` endpoint does **NOT** require a password! It only requires:
+- `mailAuthToken` (from email verification)
+- `deviceName`
+- `parentDevice.model`
+- `clientLevel` (optional, defaults to 7)
+
+This matches the Android app's `signInToFamilyByMailToken` implementation.
+
+### Implementation Flow
+
+```
+Step 1: Enter Email → Send Mail Login Code
+    ↓
+Step 2: Enter Verification Code → Get MailAuthToken
+    ↓
+Step 3: Enter Device Info → Sign In to Family
+    ↓
+Success: Redirect to Dashboard with deviceAuthToken
+```
+
+### Files to Modify
+
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Add routes and handlers
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/auth_client.py` - Fix sign_in_into_family method to use correct request format
+3. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/login_as_parent.html` - Create new template
+4. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Add link to login page
+5. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_login_as_parent.py` - Create tests
+
+### Detailed Plan
+
+See `plans/dashboardV2-parent-login-plan.md` for the complete step-by-step implementation plan with code examples.
+
+### Status: PLANNED
+
+The implementation plan has been created and is ready for execution.

@@ -41,7 +41,7 @@ class Config:
     }
     
     # API endpoint prefix
-    API_PREFIX: str = '/api/v1'
+    API_PREFIX: str = ''
     
     # Request timeout for HTTP calls (seconds)
     REQUEST_TIMEOUT: int = 10
@@ -59,7 +59,7 @@ class Config:
     @property
     def DEBUG_SERVER_URL(self) -> str:
         """Debug-server API URL."""
-        return os.environ.get('DEBUG_SERVER_URL', 'http://192.168.68.30:8080')
+        return os.environ.get('DEBUG_SERVER_URL', 'http://127.0.0.1:8081').strip()
     
     @property
     def FLASK_HOST(self) -> str:

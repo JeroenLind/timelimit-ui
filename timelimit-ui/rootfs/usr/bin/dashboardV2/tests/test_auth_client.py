@@ -58,7 +58,7 @@ class TestAuthClientInitialization:
         """Test AuthClient with default values."""
         client = AuthClient()
         
-        assert client.base_url == 'http://localhost:8080'
+        assert client.base_url == 'http://127.0.0.1:8081'
         assert client.timeout == 10
         assert client.max_retries == 3
         assert client.retry_delay == 1.0
@@ -171,7 +171,7 @@ class TestAuthClientMailLoginCode:
         mock_session_class.return_value = mock_session
         
         client = AuthClient()
-        response = client.send_mail_login_code(mail='test@example.com')
+        response = client.send_mail_login_code(mail='test@example.com', locale='en')
         
         assert response.success is True
         assert response.data['mailLoginToken'] == 'test_token_123'
@@ -250,12 +250,618 @@ class TestAuthClientFamilyCreation:
                 'hash': '$2b$12$hash1',
                 'secondHash': '$2b$12$hash2',
                 'secondSalt': '$2b$12$salt'
-            }
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
         )
         
         assert response.success is True
         assert response.data['deviceAuthToken'] == 'device_token_123'
     
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_success(self, mock_session_class):
+        """Test successful create family REST endpoint request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_rest',
+            'ownDeviceId': 'device_rest456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User',
+            locale='en'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'device_token_rest'
+        assert response.data['ownDeviceId'] == 'device_rest456'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_with_minimal_fields(self, mock_session_class):
+        """Test create family REST endpoint with minimal required fields."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_minimal',
+            'ownDeviceId': 'device_minimal123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'device_token_minimal'
+
+    # ========================================================================
+    # Success Cases for create_family_rest
+    # ========================================================================
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_returns_device_auth_token(self, mock_session_class):
+        """Test that create_family_rest returns deviceAuthToken in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_abc123',
+            'ownDeviceId': 'device_xyz789'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert 'deviceAuthToken' in response.data
+        assert response.data['deviceAuthToken'] == 'device_token_abc123'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_returns_own_device_id(self, mock_session_class):
+        """Test that create_family_rest returns ownDeviceId in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_abc123',
+            'ownDeviceId': 'device_xyz789'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert 'ownDeviceId' in response.data
+        assert response.data['ownDeviceId'] == 'device_xyz789'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_returns_initial_data(self, mock_session_class):
+        """Test that create_family_rest returns initial server data in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_abc123',
+            'ownDeviceId': 'device_xyz789',
+            'initialData': {
+                'serverTime': 1704067200000,
+                'familyId': 'family_abc123',
+                'devices': []
+            }
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert 'initialData' in response.data
+        assert response.data['initialData']['serverTime'] == 1704067200000
+        assert response.data['initialData']['familyId'] == 'family_abc123'
+
+    # ========================================================================
+    # Validation Error Tests for create_family_rest
+    # ========================================================================
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_mail_auth_token(self, mock_session_class):
+        """Test create_family_rest fails when mailAuthToken is missing."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Missing mailAuthToken'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token=None,
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_parent_password(self, mock_session_class):
+        """Test create_family_rest fails when parentPassword is missing."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Missing parentPassword'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password=None,
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_hash(self, mock_session_class):
+        """Test create_family_rest fails when hash is missing in parentPassword."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Missing hash in parentPassword'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_second_hash(self, mock_session_class):
+        """Test create_family_rest fails when secondHash is missing in parentPassword."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Missing secondHash in parentPassword'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_second_salt(self, mock_session_class):
+        """Test create_family_rest fails when secondSalt is missing in parentPassword."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Missing secondSalt in parentPassword'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_missing_encrypted(self, mock_session_class):
+        """Test create_family_rest succeeds when encrypted is missing (not required by server)."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_no_encrypted',
+            'ownDeviceId': 'device_no_encrypted123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+
+    # ========================================================================
+    # Edge Cases for create_family_rest
+    # ========================================================================
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_invalid_mail_auth_token(self, mock_session_class):
+        """Test create_family_rest fails with invalid/expired mailAuthToken."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Invalid or expired token'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='invalid_token_xyz',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+        assert response.error_code == 'unauthorized'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_family_already_exists(self, mock_session_class):
+        """Test create_family_rest fails when family already exists for email."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'family_exists',
+            'error_message': 'Family already exists for this email'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+        assert response.error_code == 'family_exists'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_with_locale(self, mock_session_class):
+        """Test create_family_rest with locale parameter."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_locale',
+            'ownDeviceId': 'device_locale123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User',
+            locale='nl_NL'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'device_token_locale'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_with_device_name(self, mock_session_class):
+        """Test create_family_rest with deviceName parameter."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_name',
+            'ownDeviceId': 'device_name123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'device_token_name'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_with_device_model(self, mock_session_class):
+        """Test create_family_rest with deviceModel parameter."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_model',
+            'ownDeviceId': 'device_model123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'device_token_model'
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_empty_parent_password(self, mock_session_class):
+        """Test create_family_rest fails with empty parentPassword object."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Invalid parentPassword: empty object'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={},
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_family_rest_empty_string_mail_auth_token(self, mock_session_class):
+        """Test create_family_rest fails with empty string mailAuthToken."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Invalid mailAuthToken: empty string'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 400
+
     @pytest.mark.timeout(10)
     @patch('requests.Session')
     def test_sign_in_into_family_success(self, mock_session_class):
@@ -594,7 +1200,7 @@ class TestAuthClientIntegration:
         client = AuthClient()
         
         # Step 1: Send mail login code
-        response1 = client.send_mail_login_code(mail='test@example.com')
+        response1 = client.send_mail_login_code(mail='test@example.com', locale='en')
         assert response1.success is True
         assert response1.data['mailLoginToken'] == 'login_token_123'
         
@@ -613,7 +1219,11 @@ class TestAuthClientIntegration:
                 'hash': '$2b$12$hash1',
                 'secondHash': '$2b$12$hash2',
                 'secondSalt': '$2b$12$salt'
-            }
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
         )
         assert response3.success is True
         assert response3.data['deviceAuthToken'] == 'device_token_123'

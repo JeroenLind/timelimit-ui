@@ -14,10 +14,13 @@ as an ingress app.
 import atexit
 import json
 import os
+import re
 import secrets
+import socket
+import sys
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for, send_from_directory, g
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -29,6 +32,10 @@ from middleware.request_logging import init_request_logging, shutdown_log_worker
 from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
 from scheduler import start_scheduler, stop_scheduler
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
+
+# Add parent directory to sys.path for crypto_utils import
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from crypto_utils import generate_family_hashes
 
 # Path to the legacy dashboard.html file (in parent directory)
 LEGACY_DASHBOARD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'dashboard.html')
@@ -68,6 +75,53 @@ init_request_logging(app)
 
 # Initialize persistence store
 persistence_store = get_server_selection_store()
+
+
+# ============================================================================
+# Port Availability Check
+# ============================================================================
+
+def check_port_available(host: str, port: int) -> bool:
+    """Check if a port is available for binding.
+    
+    Attempts to bind a socket to the specified host and port to verify
+    availability. If the port is already in use, logs an error and exits.
+    
+    Args:
+        host: The host address to bind to.
+        port: The port number to check.
+        
+    Returns:
+        True if the port is available (function does not return on failure).
+        
+    Raises:
+        SystemExit: If the port is already in use (exits with code 1).
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    
+    try:
+        sock.bind((host, port))
+        sock.close()
+        return True
+    except OSError as e:
+        sock.close()
+        error_message = str(e)
+        logger.error(
+            f"Port {port} on host {host} is already in use. Another instance of the dashboard or another server is already running on this port.",
+            port=port,
+            host=host,
+            error=error_message,
+            suggestion="Stop the other process using the port, or change the port by setting the FLASK_PORT environment variable to a different port number."
+        )
+        # Print plain text error message to stderr for immediate console visibility
+        plain_text_error = (
+            f"ERROR: Port {port} on host {host} is already in use. "
+            f"Another instance of the dashboard or another server is already running on this port. "
+            f"Stop the process using the port or change the FLASK_PORT environment variable."
+        )
+        print(plain_text_error, file=sys.stderr)
+        sys.exit(1)
 
 
 # ============================================================================
@@ -404,6 +458,7 @@ def api_send_mail_login_code():
     request_id = get_request_id()
     data = request.get_json() or {}
     mail = data.get('mail')
+    locale = data.get('locale', 'en')
     
     if not mail:
         logger.error(
@@ -419,11 +474,12 @@ def api_send_mail_login_code():
         "Send mail login code request",
         server_url=server_url,
         mail=mail,
+        locale=locale,
         request_id=request_id
     )
     
     client = AuthClient(base_url=server_url)
-    response = client.send_mail_login_code(mail=mail)
+    response = client.send_mail_login_code(mail=mail, locale=locale)
     
     duration_ms = int((time.time() - start_time) * 1000)
     
@@ -525,7 +581,14 @@ def api_sign_in_by_mail_code():
 def api_create_family():
     """Proxy to debug-server /api/v1/parent/create-family endpoint.
     
-    Expects JSON body with 'mailAuthToken' and 'parentPassword' fields.
+    Expects JSON body with:
+        - mailAuthToken: Mail auth token from sign-in
+        - parentPassword: Password data with hash, secondHash, secondSalt, encrypted
+        - parentDevice: Device info dict with 'model' key
+        - deviceName: Device name
+        - timeZone: Time zone string
+        - parentName: Parent name
+        - locale: Optional locale string
     
     Returns:
         JSON response with deviceAuthToken and ownDeviceId.
@@ -535,6 +598,11 @@ def api_create_family():
     data = request.get_json() or {}
     mail_auth_token = data.get('mailAuthToken')
     parent_password = data.get('parentPassword')
+    parent_device = data.get('parentDevice', {'model': 'Unknown'})
+    device_name = data.get('deviceName', 'Unknown Device')
+    time_zone = data.get('timeZone', 'Europe/Amsterdam')
+    parent_name = data.get('parentName', 'Parent')
+    locale = data.get('locale')
     
     if not mail_auth_token or not parent_password:
         logger.error(
@@ -549,13 +617,20 @@ def api_create_family():
     logger.info(
         "Create family request",
         server_url=server_url,
+        parent_name=parent_name,
+        time_zone=time_zone,
         request_id=request_id
     )
     
     client = AuthClient(base_url=server_url)
     response = client.create_family(
         mail_auth_token=mail_auth_token,
-        parent_password=parent_password
+        parent_password=parent_password,
+        parent_device=parent_device,
+        device_name=device_name,
+        time_zone=time_zone,
+        parent_name=parent_name,
+        locale=locale
     )
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -576,6 +651,97 @@ def api_create_family():
     else:
         logger.error(
             "Create family failed",
+            server_url=server_url,
+            status_code=response.status_code,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), 401
+
+
+@app.route('/api/families', methods=['POST'])
+def api_create_family_rest():
+    """Create a new family (RESTful alias for POST /parent/create-family).
+    
+    This endpoint is a RESTful alias that proxies to the debug-server's
+    /parent/create-family endpoint.
+    
+    Expects JSON body with:
+        - mailAuthToken: Mail auth token from sign-in
+        - parentPassword: Password data with hash, secondHash, secondSalt, encrypted
+        - parentDevice: Device info dict with 'model' key
+        - deviceName: Device name
+        - timeZone: Time zone string
+        - parentName: Parent name
+        - locale: Optional locale string
+    
+    Returns:
+        JSON response with deviceAuthToken and ownDeviceId.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail_auth_token = data.get('mailAuthToken')
+    parent_password = data.get('parentPassword')
+    parent_device = data.get('parentDevice', {'model': 'Unknown'})
+    device_name = data.get('deviceName', 'Unknown Device')
+    time_zone = data.get('timeZone', 'Europe/Amsterdam')
+    parent_name = data.get('parentName', 'Parent')
+    locale = data.get('locale')
+    
+    if not mail_auth_token or not parent_password:
+        logger.error(
+            "Create family (REST) failed: missing required fields",
+            request_id=request_id,
+            error="Missing required fields"
+        )
+        return jsonify({'status': 'error', 'error': 'Missing required fields'}), 400
+    
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Create family (REST) request",
+        server_url=server_url,
+        parent_name=parent_name,
+        time_zone=time_zone,
+        request_id=request_id
+    )
+    
+    client = AuthClient(base_url=server_url)
+    response = client.create_family_rest(
+        mail_auth_token=mail_auth_token,
+        parent_password=parent_password,
+        parent_device=parent_device,
+        device_name=device_name,
+        time_zone=time_zone,
+        parent_name=parent_name,
+        locale=locale
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        # Store device auth token in session
+        session['device_auth_token'] = response.data.get('deviceAuthToken')
+        session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        logger.info(
+            "Create family (REST) successful",
+            server_url=server_url,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify(response.data)
+    else:
+        logger.error(
+            "Create family (REST) failed",
             server_url=server_url,
             status_code=response.status_code,
             error_code=response.error_code,
@@ -657,6 +823,280 @@ def api_sign_in_into_family():
             'error_code': response.error_code,
             'error_message': response.error_message
         }), 401
+
+
+# ============================================================================
+# Create Family Routes (Server-Side Rendered)
+# ============================================================================
+
+@app.route('/create-family', methods=['GET'])
+def get_create_family():
+    """Render the create family page with the appropriate step.
+    
+    The page shows different forms based on session state:
+    - No mail_login_token: Step 1 - Enter email
+    - Has mail_login_token, no mail_auth_token: Step 2 - Enter verification code
+    - Has mail_auth_token, no device_auth_token: Step 3 - Enter password
+    - Has device_auth_token: Already authenticated, redirect to dashboard
+    
+    Returns:
+        Rendered HTML template with the appropriate step.
+    """
+    request_id = get_request_id()
+    
+    # Check if already authenticated
+    if session.get('device_auth_token'):
+        logger.info("User already authenticated, redirecting to dashboard", request_id=request_id)
+        return redirect('/dashboardV2')
+    
+    # Determine current step based on session state
+    has_mail_login_token = session.get('mail_login_token') is not None
+    has_mail_auth_token = session.get('mail_auth_token') is not None
+    
+    if not has_mail_login_token:
+        # Step 1: Enter email
+        step = 1
+        error = session.pop('create_family_error', None)
+        logger.info("Rendering create family step 1 (email)", request_id=request_id)
+        return render_template('create_family.html', step=step, error=error)
+    elif not has_mail_auth_token:
+        # Step 2: Enter verification code
+        step = 2
+        error = session.pop('create_family_error', None)
+        logger.info("Rendering create family step 2 (code)", request_id=request_id)
+        return render_template('create_family.html', step=step, error=error)
+    else:
+        # Step 3: Enter password
+        step = 3
+        error = session.pop('create_family_error', None)
+        logger.info("Rendering create family step 3 (password)", request_id=request_id)
+        return render_template('create_family.html', step=step, error=error)
+
+
+@app.route('/create-family', methods=['POST'])
+def post_create_family():
+    """Process create family form submission.
+    
+    Handles all three steps of the create family flow:
+    - Step 1: Send mail login code
+    - Step 2: Sign in by mail code
+    - Step 3: Create family
+    
+    Returns:
+        Redirect to next step or dashboard on success.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    step = request.form.get('step', '1')
+    
+    server_url = get_current_server_url()
+    
+    if step == '1':
+        # Step 1: Send mail login code
+        mail = request.form.get('mail', '').strip()
+        
+        if not mail:
+            session['create_family_error'] = 'Email is required'
+            logger.warning("Create family step 1 failed: missing email", request_id=request_id)
+            return redirect('/create-family')
+        
+        # Validate email format
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, mail):
+            session['create_family_error'] = 'Invalid email format'
+            logger.warning("Create family step 1 failed: invalid email", request_id=request_id)
+            return redirect('/create-family')
+        
+        locale = 'en'  # Default locale
+        logger.info("Create family step 1: sending mail login code", server_url=server_url, mail=mail, locale=locale, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.send_mail_login_code(mail=mail, locale=locale)
+        
+        if response.success:
+            session['mail_login_token'] = response.data.get('mailLoginToken')
+            logger.info("Create family step 1 successful", request_id=request_id)
+            return redirect('/create-family')
+        else:
+            session['create_family_error'] = response.error_message or 'Failed to send verification code'
+            logger.error("Create family step 1 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/create-family')
+    
+    elif step == '2':
+        # Step 2: Sign in by mail code
+        mail_login_token = session.get('mail_login_token')
+        received_code = request.form.get('receivedCode', '').strip()
+        
+        if not mail_login_token:
+            session['create_family_error'] = 'Session expired. Please start again.'
+            logger.warning("Create family step 2 failed: missing mail_login_token", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not received_code:
+            session['create_family_error'] = 'Verification code is required'
+            logger.warning("Create family step 2 failed: missing code", request_id=request_id)
+            return redirect('/create-family')
+        
+        # Validate code format (3-word passphrase)
+        # The official server uses randomWords(3) to generate a 3-word passphrase
+        # like "Pferd Miete abwenden"
+        code_words = received_code.split()
+        if len(code_words) != 3:
+            session['create_family_error'] = 'Invalid verification code format (expected 3 words)'
+            logger.warning("Create family step 2 failed: invalid code format", request_id=request_id)
+            return redirect('/create-family')
+        
+        logger.info("Create family step 2: verifying code", server_url=server_url, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.sign_in_by_mail_code(
+            mail_login_token=mail_login_token,
+            received_code=received_code
+        )
+        
+        if response.success:
+            session['mail_auth_token'] = response.data.get('mailAuthToken')
+            logger.info("Create family step 2 successful", request_id=request_id)
+            return redirect('/create-family')
+        else:
+            session['create_family_error'] = response.error_message or 'Invalid verification code'
+            logger.error("Create family step 2 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/create-family')
+    
+    elif step == '3':
+        # Step 3: Create family
+        mail_auth_token = session.get('mail_auth_token')
+        password = request.form.get('password', '').strip()
+        second_password = request.form.get('secondPassword', '').strip()
+        parent_name = request.form.get('parentName', '').strip()
+        time_zone = request.form.get('timeZone', 'Europe/Amsterdam').strip()
+        device_model = request.form.get('deviceModel', '').strip()
+        device_name = request.form.get('deviceName', '').strip()
+        locale = request.form.get('locale', 'en').strip()
+        
+        if not mail_auth_token:
+            session['create_family_error'] = 'Session expired. Please start again.'
+            logger.warning("Create family step 3 failed: missing mail_auth_token", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not password:
+            session['create_family_error'] = 'Password is required'
+            logger.warning("Create family step 3 failed: missing password", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not second_password:
+            session['create_family_error'] = 'Second password is required'
+            logger.warning("Create family step 3 failed: missing second password", request_id=request_id)
+            return redirect('/create-family')
+        
+        if password != second_password:
+            session['create_family_error'] = 'Passwords do not match'
+            logger.warning("Create family step 3 failed: password mismatch", request_id=request_id)
+            return redirect('/create-family')
+        
+        # Validate password meets minimum requirements
+        if len(password) < 8:
+            session['create_family_error'] = 'Password must be at least 8 characters long'
+            logger.warning("Create family step 3 failed: password too short", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not parent_name:
+            session['create_family_error'] = 'Parent name is required'
+            logger.warning("Create family step 3 failed: missing parent name", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not time_zone:
+            session['create_family_error'] = 'Time zone is required'
+            logger.warning("Create family step 3 failed: missing time zone", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not device_model:
+            session['create_family_error'] = 'Device model is required'
+            logger.warning("Create family step 3 failed: missing device model", request_id=request_id)
+            return redirect('/create-family')
+        
+        if not device_name:
+            session['create_family_error'] = 'Device name is required'
+            logger.warning("Create family step 3 failed: missing device name", request_id=request_id)
+            return redirect('/create-family')
+        
+        # Generate password hashes
+        try:
+            password_data = generate_family_hashes(password)
+        except ValueError as e:
+            # Handle specific validation errors
+            error_msg = str(e)
+            session['create_family_error'] = f'Password validation error: {error_msg}'
+            logger.error("Create family step 3 failed: password validation error", error=error_msg, request_id=request_id)
+            return redirect('/create-family')
+        except Exception as e:
+            # Handle unexpected errors with detailed logging
+            error_msg = str(e)
+            error_type = type(e).__name__
+            session['create_family_error'] = f'Failed to generate password hashes: {error_type}'
+            logger.error(
+                "Create family step 3 failed: hash generation error",
+                error=error_msg,
+                error_type=error_type,
+                request_id=request_id
+            )
+            return redirect('/create-family')
+        
+        # Build parent device info
+        parent_device = {'model': device_model}
+        
+        logger.info("Create family step 3: creating family", server_url=server_url, parent_name=parent_name, time_zone=time_zone, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.create_family_rest(
+            mail_auth_token=mail_auth_token,
+            parent_password=password_data,
+            parent_device=parent_device,
+            device_name=device_name,
+            time_zone=time_zone,
+            parent_name=parent_name,
+            locale=locale if locale else None
+        )
+        
+        if response.success:
+            # Store device auth token in session
+            session['device_auth_token'] = response.data.get('deviceAuthToken')
+            session['own_device_id'] = response.data.get('ownDeviceId')
+            # Clear temporary session data
+            session.pop('mail_login_token', None)
+            session.pop('mail_auth_token', None)
+            
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info("Create family successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
+            return redirect('/dashboardV2')
+        else:
+            session['create_family_error'] = response.error_message or 'Failed to create family'
+            logger.error("Create family step 3 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/create-family')
+    
+    else:
+        session['create_family_error'] = 'Invalid step'
+        return redirect('/create-family')
+
+
+@app.route('/create-family/cancel', methods=['POST'])
+def cancel_create_family():
+    """Cancel create family flow and clear session.
+    
+    Returns:
+        Redirect to dashboard.
+    """
+    request_id = get_request_id()
+    
+    # Clear all create family session data
+    session.pop('mail_login_token', None)
+    session.pop('mail_auth_token', None)
+    session.pop('device_auth_token', None)
+    session.pop('own_device_id', None)
+    session.pop('create_family_error', None)
+    
+    logger.info("Create family cancelled", request_id=request_id)
+    return redirect('/dashboardV2')
 
 
 @app.route('/api/parent/create-add-device-token', methods=['POST'])
@@ -1211,6 +1651,13 @@ def create_app(config_class: Optional[type] = None) -> Flask:
 # Scheduler Initialization
 # ============================================================================
 
+# Check port availability before starting the scheduler (fail fast)
+# This ensures we exit early if the port is already in use, before
+# any resources (like the scheduler) are allocated.
+# Skip port check during testing (set SKIP_PORT_CHECK=true in environment)
+if os.environ.get('SKIP_PORT_CHECK', 'false').lower() != 'true':
+    check_port_available(config.FLASK_HOST, config.FLASK_PORT)
+
 # Start the background scheduler for periodic server checks
 start_scheduler()
 
@@ -1255,12 +1702,13 @@ if __name__ == '__main__':
             '/', '/legacy-dashboard', '/dashboard.html', '/dashboardV2',
             '/select-server', '/api/server-selection', '/api/time',
             '/api/auth/send-mail-login-code', '/api/auth/sign-in-by-mail-code',
-            '/api/auth/create-family', '/api/auth/sign-in-into-family',
+            '/api/auth/create-family', '/api/families', '/api/auth/sign-in-into-family',
             '/api/parent/create-add-device-token', '/api/child/add-device',
             '/api/auth/get-status-by-mail-address', '/api/auth/recover-parent-password',
             '/api/session/clear', '/api/session/status',
             '/api/timechecker/status', '/api/timechecker/history',
-            '/health'
+            '/health',
+            '/create-family', '/create-family/cancel'
         ]
     )
     

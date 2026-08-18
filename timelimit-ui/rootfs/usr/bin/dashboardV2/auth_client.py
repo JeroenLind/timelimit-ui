@@ -375,14 +375,14 @@ class AuthClient:
     def send_mail_login_code(
         self,
         mail: str,
-        locale: Optional[str] = None,
+        locale: str,
         device_auth_token: Optional[str] = None
     ) -> APIResponse:
         """Send a mail login code to the specified email.
         
         Args:
             mail: Email address to send code to.
-            locale: Optional locale string.
+            locale: Locale string (required by server).
             device_auth_token: Optional existing device auth token.
             
         Returns:
@@ -391,9 +391,7 @@ class AuthClient:
         request_id = get_request_id()
         
         # Sanitize request data for logging
-        data = {'mail': mail}
-        if locale:
-            data['locale'] = locale
+        data = {'mail': mail, 'locale': locale}
         if device_auth_token:
             data['deviceAuthToken'] = device_auth_token
         sanitized_data = sanitize_dict(data)
@@ -522,18 +520,22 @@ class AuthClient:
         self,
         mail_auth_token: str,
         parent_password: Dict[str, Any],
-        locale: Optional[str] = None,
-        device_name: Optional[str] = None,
-        device_model: Optional[str] = None
+        parent_device: Dict[str, str],
+        device_name: str,
+        time_zone: str,
+        parent_name: str,
+        locale: Optional[str] = None
     ) -> APIResponse:
         """Create a new family.
         
         Args:
             mail_auth_token: Mail auth token from sign-in.
-            parent_password: Password data with hash, secondHash, secondSalt, encrypted.
-            locale: Optional locale string.
-            device_name: Optional device name.
-            device_model: Optional device model.
+            parent_password: Password data with hash, secondHash, secondSalt.
+            parent_device: Device info dict with 'model' key.
+            device_name: Device name (required).
+            time_zone: Time zone string (required).
+            parent_name: Parent name (required).
+            locale: Optional locale string (not sent to server, kept for API compatibility).
             
         Returns:
             APIResponse with deviceAuthToken and ownDeviceId.
@@ -541,24 +543,25 @@ class AuthClient:
         request_id = get_request_id()
         
         # Sanitize request data for logging
+        # Note: locale is NOT included in the request body as it's not part of the server schema
         data = {
             'mailAuthToken': mail_auth_token,
-            'parentPassword': parent_password
+            'parentPassword': parent_password,
+            'parentDevice': parent_device,
+            'deviceName': device_name,
+            'timeZone': time_zone,
+            'parentName': parent_name,
+            'clientLevel': 7  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
         }
-        if locale:
-            data['locale'] = locale
-        if device_name:
-            data['deviceName'] = device_name
-        if device_model:
-            data['deviceModel'] = device_model
         sanitized_data = sanitize_dict(data)
         
         logger.info(
             "Creating family",
             request_id=request_id,
             locale=locale,
-            has_device_name=device_name is not None,
-            has_device_model=device_model is not None
+            device_name=device_name,
+            time_zone=time_zone,
+            parent_name=parent_name
         )
         
         response = self._request_with_retry('POST', '/parent/create-family', data)
@@ -579,6 +582,75 @@ class AuthClient:
         
         return response
     
+    def create_family_rest(
+        self,
+        mail_auth_token: str,
+        parent_password: Dict[str, Any],
+        parent_device: Dict[str, str],
+        device_name: str,
+        time_zone: str,
+        parent_name: str,
+        locale: Optional[str] = None
+    ) -> APIResponse:
+        """Create a new family via RESTful endpoint.
+        
+        This is a RESTful alias for create_family() that proxies to the
+        debug-server's /parent/create-family endpoint.
+        
+        Args:
+            mail_auth_token: Mail auth token from sign-in.
+            parent_password: Password data with hash, secondHash, secondSalt.
+            parent_device: Device info dict with 'model' key.
+            device_name: Device name (required).
+            time_zone: Time zone string (required).
+            parent_name: Parent name (required).
+            locale: Optional locale string (not sent to server, kept for API compatibility).
+            
+        Returns:
+            APIResponse with deviceAuthToken and ownDeviceId.
+        """
+        request_id = get_request_id()
+        
+        # Sanitize request data for logging
+        # Note: locale is NOT included in the request body as it's not part of the server schema
+        data = {
+            'mailAuthToken': mail_auth_token,
+            'parentPassword': parent_password,
+            'parentDevice': parent_device,
+            'deviceName': device_name,
+            'timeZone': time_zone,
+            'parentName': parent_name,
+            'clientLevel': 7  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
+        }
+        sanitized_data = sanitize_dict(data)
+        
+        logger.info(
+            "Creating family (REST endpoint)",
+            request_id=request_id,
+            locale=locale,
+            device_name=device_name,
+            time_zone=time_zone,
+            parent_name=parent_name
+        )
+        
+        response = self._request_with_retry('POST', '/parent/create-family', data)
+        
+        if response.success:
+            logger.info(
+                "Family created successfully (REST endpoint)",
+                request_id=request_id,
+                has_device_auth_token=bool(response.data.get('deviceAuthToken')) if isinstance(response.data, dict) else False
+            )
+        else:
+            logger.warning(
+                "Failed to create family (REST endpoint)",
+                request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+
     def sign_in_into_family(
         self,
         mail_auth_token: str,
