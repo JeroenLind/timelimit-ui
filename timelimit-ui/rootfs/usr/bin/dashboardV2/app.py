@@ -847,7 +847,7 @@ def get_create_family():
     # Check if already authenticated
     if session.get('device_auth_token'):
         logger.info("User already authenticated, redirecting to dashboard", request_id=request_id)
-        return redirect('/dashboardV2')
+        return redirect('/dashboardV2?message=already_authenticated')
     
     # Determine current step based on session state
     has_mail_login_token = session.get('mail_login_token') is not None
@@ -1113,6 +1113,7 @@ def cancel_create_family():
     session.pop('mail_auth_token', None)
     session.pop('device_auth_token', None)
     session.pop('own_device_id', None)
+    session.pop('family_id', None)
     session.pop('create_family_error', None)
     
     logger.info("Create family cancelled", request_id=request_id)
@@ -1141,7 +1142,7 @@ def get_login_as_parent():
     # Check if already authenticated
     if session.get('device_auth_token'):
         logger.info("User already authenticated, redirecting to dashboard", request_id=request_id)
-        return redirect('/dashboardV2')
+        return redirect('/dashboardV2?message=already_authenticated')
     
     # Determine current step based on session state
     has_mail_login_token = session.get('mail_login_token') is not None

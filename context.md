@@ -231,6 +231,27 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ---
 
+### Redirect Message for Already Authenticated Users (2026-08-19)
+**Issue:** When clicking "Login to Existing Family" or "Create New Family" buttons while already authenticated, users were silently redirected to the dashboard without any explanation.
+
+**Fix Applied:**
+1. Modified `get_login_as_parent()` to redirect with a query parameter `?message=already_authenticated` when user is already authenticated
+2. Modified `get_create_family()` to redirect with the same query parameter when user is already authenticated
+3. Added `checkRedirectMessage()` JavaScript function in `dashboardV2.html` to detect the query parameter and display a warning alert
+4. The alert is automatically removed after 5 seconds and the URL is cleaned up
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Updated redirect logic in `get_login_as_parent()` and `get_create_family()`
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added `checkRedirectMessage()` function to display the warning message
+
+**Expected Behavior:**
+- Users who click "Login to Existing Family" while already authenticated see: "Already logged in - skipping login"
+- Users who click "Create New Family" while already authenticated see: "Already logged in - skipping login"
+- The message is displayed as a warning alert (yellow border) that auto-dismisses after 5 seconds
+- The URL is cleaned up to remove the message parameter after display
+
+---
+
 ## Status
 
 **Local Git Commit (2026-08-19):**
@@ -289,22 +310,4 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 11. **Added session information overview** - Added detailed session field status display on dashboard
 12. **Fixed JavaScript error in updateSessionOverview()** - The function was trying to call `.substring()` on `undefined` when `data.device_auth_token` and `data.mail_auth_token` were not returned by the `/api/session/status` endpoint. Fixed to display '***' instead of trying to access non-existent token values.
 13. **Added redirect message for already authenticated users** - When clicking "Login to Existing Family" or "Create New Family" while already authenticated, users now see a clear warning message "Already logged in - skipping login" instead of being silently redirected.
-
-### Redirect Message for Already Authenticated Users (2026-08-19)
-**Issue:** When clicking "Login to Existing Family" or "Create New Family" buttons while already authenticated, users were silently redirected to the dashboard without any explanation.
-
-**Fix Applied:**
-1. Modified `get_login_as_parent()` to redirect with a query parameter `?message=already_authenticated` when user is already authenticated
-2. Modified `get_create_family()` to redirect with the same query parameter when user is already authenticated
-3. Added `checkRedirectMessage()` JavaScript function in `dashboardV2.html` to detect the query parameter and display a warning alert
-4. The alert is automatically removed after 5 seconds and the URL is cleaned up
-
-**Files modified:**
-1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Updated redirect logic in `get_login_as_parent()` and `get_create_family()`
-2. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added `checkRedirectMessage()` function to display the warning message
-
-**Expected Behavior:**
-- Users who click "Login to Existing Family" while already authenticated see: "Already logged in - skipping login"
-- Users who click "Create New Family" while already authenticated see: "Already logged in - skipping login"
-- The message is displayed as a warning alert (yellow border) that auto-dismisses after 5 seconds
-- The URL is cleaned up to remove the message parameter after display
+14. **Fixed cancel_create_family to clear family_id** - Added `session.pop('family_id', None)` to properly clean up session data when canceling create family flow
