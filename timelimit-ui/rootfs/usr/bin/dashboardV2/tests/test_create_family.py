@@ -281,13 +281,26 @@ class TestPostCreateFamilyStep3:
         
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {
+            
+            # Mock create_family_rest response without familyId (triggers fallback)
+            mock_create_response = MagicMock()
+            mock_create_response.success = True
+            mock_create_response.data = {
                 'deviceAuthToken': 'test-device-token',
                 'ownDeviceId': 'test-device-id'
             }
-            mock_client.create_family_rest.return_value = mock_response
+            mock_client.create_family_rest.return_value = mock_create_response
+            
+            # Mock pull_status response with familyId
+            mock_pull_response = MagicMock()
+            mock_pull_response.success = True
+            mock_pull_response.data = {
+                'familyId': 'test-family-id',
+                'users': [],
+                'devices': []
+            }
+            mock_client.pull_status.return_value = mock_pull_response
+            
             mock_auth_client_class.return_value = mock_client
             
             response = client.post('/create-family', data={
@@ -303,6 +316,12 @@ class TestPostCreateFamilyStep3:
             
             # Should redirect to dashboard
             assert response.status_code == 200
+            
+            # Verify family_id was stored in session
+            with client.session_transaction() as sess:
+                assert sess.get('family_id') == 'test-family-id'
+                assert sess.get('device_auth_token') == 'test-device-token'
+                assert sess.get('own_device_id') == 'test-device-id'
 
     @pytest.mark.timeout(10)
     def test_post_create_family_step3_api_failure(self, client):
@@ -330,6 +349,113 @@ class TestPostCreateFamilyStep3:
             }, follow_redirects=True)
             
             assert b'Failed to create family' in response.data or b'Failed' in response.data
+
+    @pytest.mark.timeout(10)
+    def test_post_create_family_step3_fallback_to_pull_status(self, client):
+        """Test that step 3 falls back to pull_status when family_id not in response."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_family_rest response without familyId
+            mock_create_response = MagicMock()
+            mock_create_response.success = True
+            mock_create_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.create_family_rest.return_value = mock_create_response
+            
+            # Mock pull_status response with familyId
+            mock_pull_response = MagicMock()
+            mock_pull_response.success = True
+            mock_pull_response.data = {
+                'familyId': 'test-family-id',
+                'users': [],
+                'devices': []
+            }
+            mock_client.pull_status.return_value = mock_pull_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            response = client.post('/create-family', data={
+                'step': '3',
+                'password': 'testpass123',
+                'secondPassword': 'testpass123',
+                'deviceName': 'Test Device',
+                'deviceModel': 'Test Model',
+                'locale': 'en',
+                'parentName': 'Test Parent',
+                'timeZone': 'Europe/Amsterdam'
+            }, follow_redirects=True)
+            
+            # Should redirect to dashboard
+            assert response.status_code == 200
+            
+            # Verify pull_status was called
+            mock_client.pull_status.assert_called_once_with(
+                device_auth_token='test-device-token'
+            )
+            
+            # Verify family_id was stored in session
+            with client.session_transaction() as sess:
+                assert sess.get('family_id') == 'test-family-id'
+                assert sess.get('device_auth_token') == 'test-device-token'
+                assert sess.get('own_device_id') == 'test-device-id'
+
+    @pytest.mark.timeout(10)
+    def test_post_create_family_step3_pull_status_failure_shows_error(self, client):
+        """Test that step 3 shows error when pull_status fails."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_family_rest response without familyId
+            mock_create_response = MagicMock()
+            mock_create_response.success = True
+            mock_create_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.create_family_rest.return_value = mock_create_response
+            
+            # Mock pull_status failure
+            mock_pull_response = MagicMock()
+            mock_pull_response.success = False
+            mock_pull_response.error_message = 'No family selected'
+            mock_client.pull_status.return_value = mock_pull_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            response = client.post('/create-family', data={
+                'step': '3',
+                'password': 'testpass123',
+                'secondPassword': 'testpass123',
+                'deviceName': 'Test Device',
+                'deviceModel': 'Test Model',
+                'locale': 'en',
+                'parentName': 'Test Parent',
+                'timeZone': 'Europe/Amsterdam'
+            }, follow_redirects=True)
+            
+            # Should redirect to create-family with error
+            assert response.status_code == 200
+            
+            # Verify pull_status was called
+            mock_client.pull_status.assert_called_once_with(
+                device_auth_token='test-device-token'
+            )
+            
+            # Verify login_error was set in session
+            with client.session_transaction() as sess:
+                assert 'login_error' in sess
+                assert 'No family selected' in sess.get('login_error', '')
 
 
 class TestPostCreateFamilyCancel:

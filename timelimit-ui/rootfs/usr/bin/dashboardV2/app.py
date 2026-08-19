@@ -1071,21 +1071,62 @@ def post_create_family():
             # Extract and store family_id from initialData if present
             initial_data = response.data.get('initialData', {})
             family_id = initial_data.get('familyId')
+            
+            # If family_id not in initialData, check data field
+            if not family_id:
+                data_field = response.data.get('data', {})
+                family_id = data_field.get('familyId')
+            
+            # If still not found, perform pull_status to get family_id
+            if not family_id:
+                logger.info("Family ID not in response, performing pull_status", request_id=request_id)
+                pull_response = client.pull_status(
+                    device_auth_token=response.data.get('deviceAuthToken')
+                )
+                if pull_response.success:
+                    # Extract family_id from pull_status response
+                    # The response may have familyId at the top level or in data
+                    family_id = pull_response.data.get('familyId')
+                    if not family_id:
+                        data_field = pull_response.data.get('data', {})
+                        family_id = data_field.get('familyId')
+                    
+                    # If still not found, set error for user feedback
+                    if not family_id:
+                        error_msg = 'Failed to retrieve family information from server'
+                        session['login_error'] = error_msg
+                        logger.warning("Family ID not found in pull_status response", error_message=error_msg, request_id=request_id)
+                else:
+                    # Store the pull_status error for user feedback
+                    # Error message may be in error_message or data field
+                    error_msg = pull_response.error_message
+                    if not error_msg and pull_response.data:
+                        # Extract error from HTML response in data field
+                        data_str = str(pull_response.data)
+                        if 'BadRequestError' in data_str:
+                            error_msg = 'Server error: Invalid request format'
+                        else:
+                            error_msg = 'Failed to retrieve family information'
+                    # Ensure we have an error message
+                    error_msg = error_msg or 'Failed to retrieve family information'
+                    session['login_error'] = error_msg
+                    logger.warning("Failed to pull server status during family creation", error_message=error_msg, request_id=request_id)
+            
             if family_id:
                 session['family_id'] = family_id
-                logger.info("Family ID extracted from initialData", family_id=family_id, request_id=request_id)
-            
-            # Store auth token in database for later lookup
-            if family_id and response.data.get('deviceAuthToken'):
-                db = get_database()
-                store_auth_token(
-                    db=db,
-                    token_type='device_auth_token',
-                    token_value=response.data.get('deviceAuthToken'),
-                    device_id=response.data.get('ownDeviceId'),
-                    family_id=family_id
-                )
-                logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
+                logger.info("Family ID extracted and stored in session", family_id=family_id, request_id=request_id)
+                
+                # Store auth token in database for later lookup
+                if response.data.get('deviceAuthToken'):
+                    db = get_database()
+                    store_auth_token(
+                        db=db,
+                        token_type='device_auth_token',
+                        token_value=response.data.get('deviceAuthToken'),
+                        device_id=response.data.get('ownDeviceId'),
+                        family_id=family_id
+                    )
+                    logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
             
             # Clear temporary session data
             session.pop('mail_login_token', None)

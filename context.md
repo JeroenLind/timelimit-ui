@@ -346,9 +346,8 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 ## Status
 
 **Local Git Commit (2026-08-19):**
-- Commit: `fa593c1` - "feat: Add session information overview and family ID storage fixes"
-- 20 files changed, 6362 insertions(+), 369 deletions(-)
-- New files: add_routes.py, users-devices-dashboard-plan.md, create-family-fixes.md, sync_manager.py, login_as_parent.html, test_dashboard_api.py, test_login_as_parent.py, test_sync_manager.py
+- Commit: `cb28213` - "fix: Display login_error when pull_status fails during family sign-in"
+- 4 files changed, 57 insertions(+), 65 deletions(-)
 
 **Create Family Flow:** ✅ Complete and verified
 
@@ -368,6 +367,27 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 **Login Error Display Fix:** ✅ Complete and verified
 
+**Family ID Fallback Fix (2026-08-19):**
+**Issue:** After family creation, the `family_id` was `null` in the session because the create family API response doesn't include `initialData` with `familyId`.
+
+**Root Cause:** The `post_create_family()` function only extracted `family_id` from `initialData` which doesn't exist in the response. It lacked the fallback logic that `post_login_as_parent()` already has.
+
+**Fix Applied:** Added fallback logic to `post_create_family()` that calls `pull_status()` when `family_id` is not found in the response:
+1. Check `initialData.familyId` first
+2. Check `data.familyId` second
+3. If still not found, call `pull_status()` to retrieve family information
+4. Store error message in `session['login_error']` when `pull_status()` fails
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Added fallback logic to `post_create_family()` function
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_create_family.py` - Added tests for fallback logic
+3. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_create_family_integration.py` - Updated existing tests to mock `pull_status()`
+
+**Test Results:**
+- ✅ All 73 tests in create_family and login_as_parent tests pass
+- ✅ New tests verify fallback logic works correctly
+- ✅ Error messages are properly displayed when `pull_status()` fails
+
 **Login Flow Verification (2026-08-18):**
 - ✅ Step 1 (Email): Successfully sent mail login code to `test@pietje.nl`
 - ✅ Step 2 (Verification): Successfully verified code and obtained mail auth token
@@ -386,7 +406,7 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 **Test Results (2026-08-19):**
 - ✅ All 30 login_as_parent tests pass
-- ✅ All 41 create_family tests pass
+- ✅ All 43 create_family tests pass
 - ✅ All 4 session management tests pass
 - ✅ All 115 landing page tests pass (3 pre-existing failures in server selection tests unrelated to this fix)
 - ✅ All 21 dashboard API tests pass
@@ -409,3 +429,4 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 15. **Implemented missing dashboard API routes** - Added `/api/sync/pull`, `/api/dashboard/users`, `/api/dashboard/devices`, `/api/dashboard/categories`, `/api/dashboard/connected-devices`, `/api/dashboard/stream` routes with proper error handling
 16. **Fixed test mock patch target** - Updated `test_dashboard_api.py` to patch `app.create_sync_manager` instead of `app.SyncManager`
 17. **Fixed login_error display** - Fixed error handling in `post_login_as_parent()` to properly extract and store error message when `pull_status` fails, ensuring users see meaningful error messages in the session overview
+18. **Fixed family_id fallback in post_create_family** - Added fallback logic to call `pull_status()` when `family_id` is not in the create family response, ensuring users always get a valid family_id after family creation
