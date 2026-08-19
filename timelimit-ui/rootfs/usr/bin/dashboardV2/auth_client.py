@@ -7,10 +7,11 @@ does not import any debug-server internals.
 All API calls use the Authorization: Bearer <token> header for authentication.
 """
 
+import gzip
 import json
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -106,7 +107,8 @@ class AuthClient:
         data: Optional[Dict[str, Any]] = None,
         token: Optional[str] = None,
         retry_count: int = 0,
-        skip_prefix: bool = False
+        skip_prefix: bool = False,
+        gzip_compress: bool = False
     ) -> APIResponse:
         """Make an HTTP request to the API.
         
@@ -117,6 +119,7 @@ class AuthClient:
             token: Optional Bearer token.
             retry_count: Current retry count.
             skip_prefix: If True, skip the API_PREFIX (for endpoints like /time).
+            gzip_compress: If True, gzip-compress the request body.
             
         Returns:
             APIResponse object.
@@ -140,17 +143,31 @@ class AuthClient:
             url=url,
             endpoint=endpoint,
             data=sanitized_data,
-            retry_count=retry_count
+            retry_count=retry_count,
+            gzip_compress=gzip_compress
         )
         
         try:
             if method.upper() == 'POST':
-                response = self.session.post(
-                    url,
-                    json=data,
-                    headers=headers,
-                    timeout=self.timeout
-                )
+                if gzip_compress:
+                    # Gzip-compress the JSON body
+                    json_body = json.dumps(data)
+                    gzipped_body = gzip.compress(json_body.encode('utf-8'))
+                    headers['Content-Encoding'] = 'gzip'
+                    headers['Content-Length'] = str(len(gzipped_body))
+                    response = self.session.post(
+                        url,
+                        data=gzipped_body,
+                        headers=headers,
+                        timeout=self.timeout
+                    )
+                else:
+                    response = self.session.post(
+                        url,
+                        json=data,
+                        headers=headers,
+                        timeout=self.timeout
+                    )
             elif method.upper() == 'GET':
                 response = self.session.get(
                     url,
@@ -283,7 +300,8 @@ class AuthClient:
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         token: Optional[str] = None,
-        skip_prefix: bool = False
+        skip_prefix: bool = False,
+        gzip_compress: bool = False
     ) -> APIResponse:
         """Make a request with retry logic.
         
@@ -293,6 +311,7 @@ class AuthClient:
             data: Request body data.
             token: Optional Bearer token.
             skip_prefix: If True, skip the API_PREFIX (for endpoints like /time).
+            gzip_compress: If True, gzip-compress the request body.
             
         Returns:
             APIResponse object.
@@ -300,7 +319,11 @@ class AuthClient:
         last_error: Optional[APIResponse] = None
         
         for attempt in range(self.max_retries):
-            response = self._make_request(method, endpoint, data, token, retry_count=attempt, skip_prefix=skip_prefix)
+            response = self._make_request(
+                method, endpoint, data, token, 
+                retry_count=attempt, skip_prefix=skip_prefix,
+                gzip_compress=gzip_compress
+            )
             
             if response.success:
                 return response
@@ -654,36 +677,42 @@ class AuthClient:
     def sign_in_into_family(
         self,
         mail_auth_token: str,
-        parent_password_second_hash: str,
+        parent_password_second_hash: Optional[str] = None,
         locale: Optional[str] = None,
         device_name: Optional[str] = None,
-        device_model: Optional[str] = None
+        device_model: Optional[str] = None,
+        client_level: Optional[int] = None
     ) -> APIResponse:
         """Sign in to an existing family.
         
         Args:
             mail_auth_token: Mail auth token from sign-in.
-            parent_password_second_hash: Second password hash.
+            parent_password_second_hash: Optional second password hash (not required for email-based sign-in).
             locale: Optional locale string.
-            device_name: Optional device name.
-            device_model: Optional device model.
+            device_name: Device name.
+            device_model: Device model.
+            client_level: Optional client level/version.
             
         Returns:
             APIResponse with deviceAuthToken and ownDeviceId.
         """
         request_id = get_request_id()
         
-        # Sanitize request data for logging
+        # Build request data - parentDevice is required with model field
         data = {
             'mailAuthToken': mail_auth_token,
-            'parentPasswordSecondHash': parent_password_second_hash
+            'parentDevice': {'model': device_model} if device_model else {'model': 'Unknown'},
+            'deviceName': device_name or 'Unknown Device'
         }
-        if locale:
-            data['locale'] = locale
-        if device_name:
-            data['deviceName'] = device_name
-        if device_model:
-            data['deviceModel'] = device_model
+        
+        # parentPasswordSecondHash is optional (not required for email-based sign-in)
+        if parent_password_second_hash:
+            data['parentPasswordSecondHash'] = parent_password_second_hash
+        
+        # clientLevel is optional
+        if client_level:
+            data['clientLevel'] = client_level
+        
         sanitized_data = sanitize_dict(data)
         
         logger.info(
@@ -691,7 +720,8 @@ class AuthClient:
             request_id=request_id,
             locale=locale,
             has_device_name=device_name is not None,
-            has_device_model=device_model is not None
+            has_device_model=device_model is not None,
+            has_client_level=client_level is not None
         )
         
         response = self._request_with_retry('POST', '/parent/sign-in-into-family', data)
@@ -869,6 +899,143 @@ class AuthClient:
         else:
             logger.warning(
                 "Failed to recover parent password",
+                request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    # ========================================================================
+    # Sync Protocol Endpoints
+    # ========================================================================
+    
+    def pull_status(
+        self,
+        device_auth_token: str,
+        client_data_status: Optional[Dict[str, Any]] = None
+    ) -> APIResponse:
+        """Pull server status (devices, users, categories) from the TimeLimit server.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            client_data_status: Client sync state (version numbers). If None,
+                               an empty status is sent for initial full sync.
+            
+        Returns:
+            APIResponse with ServerDataStatus data.
+        """
+        request_id = get_request_id()
+        
+        # Build ClientDataStatus - empty for initial sync
+        if client_data_status is None:
+            client_data_status = {
+                "clientLevel": 7,
+                "devices": None,
+                "users": None,
+                "apps": {},
+                "devicesDetail": {},
+                "categories": {},
+                "kri": 0,
+                "kr": 0,
+                "dh": None,
+                "u2f": None
+            }
+        
+        data = {
+            "deviceAuthToken": device_auth_token,
+            "status": client_data_status
+        }
+        
+        logger.info(
+            "Pulling server status",
+            request_id=request_id,
+            has_device_auth_token=True
+        )
+        
+        response = self._request_with_retry(
+            'POST', 
+            '/sync/pull-status', 
+            data,
+            gzip_compress=True
+        )
+        
+        if response.success:
+            logger.info(
+                "Server status pulled successfully",
+                request_id=request_id,
+                has_devices=isinstance(response.data, dict) and 'devices' in response.data,
+                has_users=isinstance(response.data, dict) and 'users' in response.data
+            )
+        else:
+            logger.warning(
+                "Failed to pull server status",
+                request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    def push_actions(
+        self,
+        device_auth_token: str,
+        actions: List[Dict[str, Any]]
+    ) -> APIResponse:
+        """Push pending actions to the server.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            actions: List of action objects with encodedAction, sequenceNumber,
+                     integrity, type, and userId fields.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag.
+        """
+        request_id = get_request_id()
+        
+        # Sanitize request data for logging (remove sensitive fields)
+        sanitized_actions = []
+        for action in actions:
+            sanitized_action = {
+                'type': action.get('type'),
+                'userId': action.get('userId'),
+                'sequenceNumber': action.get('sequenceNumber')
+            }
+            sanitized_actions.append(sanitized_action)
+        
+        data = {
+            'deviceAuthToken': device_auth_token,
+            'actions': actions
+        }
+        
+        logger.info(
+            "Pushing actions to server",
+            request_id=request_id,
+            has_device_auth_token=True,
+            actions_count=len(actions),
+            actions_preview=sanitized_actions[:5]  # Log first 5 actions for debugging
+        )
+        
+        # Batch actions in groups of 25 as per the Android app implementation
+        # For now, we send all actions in a single request
+        response = self._request_with_retry(
+            'POST',
+            '/sync/push-actions',
+            data,
+            token=device_auth_token,
+            gzip_compress=True
+        )
+        
+        if response.success:
+            logger.info(
+                "Actions pushed successfully",
+                request_id=request_id,
+                actions_count=len(actions)
+            )
+        else:
+            logger.warning(
+                "Failed to push actions",
                 request_id=request_id,
                 error_code=response.error_code,
                 error_message=response.error_message

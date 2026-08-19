@@ -27,7 +27,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth_client import AuthClient, APIResponse
 from config import Config
-from database import Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check
+from database import Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
 from scheduler import start_scheduler, stop_scheduler
@@ -1062,6 +1062,26 @@ def post_create_family():
             # Store device auth token in session
             session['device_auth_token'] = response.data.get('deviceAuthToken')
             session['own_device_id'] = response.data.get('ownDeviceId')
+            
+            # Extract and store family_id from initialData if present
+            initial_data = response.data.get('initialData', {})
+            family_id = initial_data.get('familyId')
+            if family_id:
+                session['family_id'] = family_id
+                logger.info("Family ID extracted from initialData", family_id=family_id, request_id=request_id)
+            
+            # Store auth token in database for later lookup
+            if family_id and response.data.get('deviceAuthToken'):
+                db = get_database()
+                store_auth_token(
+                    db=db,
+                    token_type='device_auth_token',
+                    token_value=response.data.get('deviceAuthToken'),
+                    device_id=response.data.get('ownDeviceId'),
+                    family_id=family_id
+                )
+                logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
+            
             # Clear temporary session data
             session.pop('mail_login_token', None)
             session.pop('mail_auth_token', None)
@@ -1096,6 +1116,256 @@ def cancel_create_family():
     session.pop('create_family_error', None)
     
     logger.info("Create family cancelled", request_id=request_id)
+    return redirect('/dashboardV2')
+
+
+# ============================================================================
+# Login as Parent Routes (Server-Side Rendered)
+# ============================================================================
+
+@app.route('/login-as-parent', methods=['GET'])
+def get_login_as_parent():
+    """Render the login as parent page with the appropriate step.
+    
+    The page shows different forms based on session state:
+    - No mail_login_token: Step 1 - Enter email
+    - Has mail_login_token, no mail_auth_token: Step 2 - Enter verification code
+    - Has mail_auth_token, no device_auth_token: Step 3 - Enter device info
+    - Has device_auth_token: Already authenticated, redirect to dashboard
+    
+    Returns:
+        Rendered HTML template with the appropriate step.
+    """
+    request_id = get_request_id()
+    
+    # Check if already authenticated
+    if session.get('device_auth_token'):
+        logger.info("User already authenticated, redirecting to dashboard", request_id=request_id)
+        return redirect('/dashboardV2')
+    
+    # Determine current step based on session state
+    has_mail_login_token = session.get('mail_login_token') is not None
+    has_mail_auth_token = session.get('mail_auth_token') is not None
+    
+    if not has_mail_login_token:
+        # Step 1: Enter email
+        step = 1
+        error = session.pop('login_as_parent_error', None)
+        logger.info("Rendering login as parent step 1 (email)", request_id=request_id)
+        return render_template('login_as_parent.html', step=step, error=error)
+    elif not has_mail_auth_token:
+        # Step 2: Enter verification code
+        step = 2
+        error = session.pop('login_as_parent_error', None)
+        logger.info("Rendering login as parent step 2 (code)", request_id=request_id)
+        return render_template('login_as_parent.html', step=step, error=error)
+    else:
+        # Step 3: Enter device info
+        step = 3
+        error = session.pop('login_as_parent_error', None)
+        logger.info("Rendering login as parent step 3 (device)", request_id=request_id)
+        return render_template('login_as_parent.html', step=step, error=error)
+
+
+@app.route('/login-as-parent', methods=['POST'])
+def post_login_as_parent():
+    """Process login as parent form submission.
+    
+    Handles all three steps of the login as parent flow:
+    - Step 1: Send mail login code
+    - Step 2: Sign in by mail code
+    - Step 3: Sign in to family
+    
+    Returns:
+        Redirect to next step or dashboard on success.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    step = request.form.get('step', '1')
+    
+    server_url = get_current_server_url()
+    
+    if step == '1':
+        # Step 1: Send mail login code
+        mail = request.form.get('mail', '').strip()
+        
+        if not mail:
+            session['login_as_parent_error'] = 'Email is required'
+            logger.warning("Login as parent step 1 failed: missing email", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        # Validate email format
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, mail):
+            session['login_as_parent_error'] = 'Invalid email format'
+            logger.warning("Login as parent step 1 failed: invalid email", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        locale = 'en'  # Default locale
+        logger.info("Login as parent step 1: sending mail login code", server_url=server_url, mail=mail, locale=locale, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.send_mail_login_code(mail=mail, locale=locale)
+        
+        if response.success:
+            session['mail_login_token'] = response.data.get('mailLoginToken')
+            logger.info("Login as parent step 1 successful", request_id=request_id)
+            return redirect('/login-as-parent')
+        else:
+            session['login_as_parent_error'] = response.error_message or 'Failed to send verification code'
+            logger.error("Login as parent step 1 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/login-as-parent')
+    
+    elif step == '2':
+        # Step 2: Sign in by mail code
+        mail_login_token = session.get('mail_login_token')
+        received_code = request.form.get('receivedCode', '').strip()
+        
+        if not mail_login_token:
+            session['login_as_parent_error'] = 'Session expired. Please start again.'
+            logger.warning("Login as parent step 2 failed: missing mail_login_token", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        if not received_code:
+            session['login_as_parent_error'] = 'Verification code is required'
+            logger.warning("Login as parent step 2 failed: missing code", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        # Validate code format (3-word passphrase)
+        code_words = received_code.split()
+        if len(code_words) != 3:
+            session['login_as_parent_error'] = 'Invalid verification code format (expected 3 words)'
+            logger.warning("Login as parent step 2 failed: invalid code format", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        logger.info("Login as parent step 2: verifying code", server_url=server_url, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.sign_in_by_mail_code(
+            mail_login_token=mail_login_token,
+            received_code=received_code
+        )
+        
+        if response.success:
+            session['mail_auth_token'] = response.data.get('mailAuthToken')
+            logger.info("Login as parent step 2 successful", request_id=request_id)
+            return redirect('/login-as-parent')
+        else:
+            session['login_as_parent_error'] = response.error_message or 'Invalid verification code'
+            logger.error("Login as parent step 2 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/login-as-parent')
+    
+    elif step == '3':
+        # Step 3: Sign in to family
+        mail_auth_token = session.get('mail_auth_token')
+        device_model = request.form.get('deviceModel', '').strip()
+        device_name = request.form.get('deviceName', '').strip()
+        
+        if not mail_auth_token:
+            session['login_as_parent_error'] = 'Session expired. Please start again.'
+            logger.warning("Login as parent step 3 failed: missing mail_auth_token", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        if not device_model:
+            session['login_as_parent_error'] = 'Device model is required'
+            logger.warning("Login as parent step 3 failed: missing device model", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        if not device_name:
+            session['login_as_parent_error'] = 'Device name is required'
+            logger.warning("Login as parent step 3 failed: missing device name", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        logger.info("Login as parent step 3: signing in to family", server_url=server_url, device_name=device_name, device_model=device_model, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.sign_in_into_family(
+            mail_auth_token=mail_auth_token,
+            device_name=device_name,
+            device_model=device_model,
+            client_level=7  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
+        )
+        
+        if response.success:
+            # Store device auth token in session
+            session['device_auth_token'] = response.data.get('deviceAuthToken')
+            session['own_device_id'] = response.data.get('ownDeviceId')
+            
+            # Extract family_id from response
+            # The sign-in-into-family endpoint may return familyId in initialData or data
+            initial_data = response.data.get('initialData', {})
+            family_id = initial_data.get('familyId')
+            
+            # If family_id not in initialData, check data field
+            if not family_id:
+                data_field = response.data.get('data', {})
+                family_id = data_field.get('familyId')
+            
+            # If still not found, perform pull_status to get family_id
+            if not family_id:
+                logger.info("Family ID not in response, performing pull_status", request_id=request_id)
+                pull_response = client.pull_status(
+                    device_auth_token=response.data.get('deviceAuthToken')
+                )
+                if pull_response.success:
+                    # Extract family_id from pull_status response
+                    # The response may have familyId at the top level or in data
+                    family_id = pull_response.data.get('familyId')
+                    if not family_id:
+                        data_field = pull_response.data.get('data', {})
+                        family_id = data_field.get('familyId')
+            
+            # Only store family_id if it's a valid string (not a MagicMock or other non-string type)
+            if isinstance(family_id, str):
+                session['family_id'] = family_id
+                logger.info("Family ID extracted and stored in session", family_id=family_id, request_id=request_id)
+                
+                # Store auth token in database for later lookup
+                db = get_database()
+                store_auth_token(
+                    db=db,
+                    token_type='device_auth_token',
+                    token_value=response.data.get('deviceAuthToken'),
+                    device_id=response.data.get('ownDeviceId'),
+                    family_id=family_id
+                )
+                logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
+            
+            # Clear temporary session data
+            session.pop('mail_login_token', None)
+            session.pop('mail_auth_token', None)
+            
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info("Login as parent successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
+            return redirect('/dashboardV2')
+        else:
+            session['login_as_parent_error'] = response.error_message or 'Failed to sign in to family'
+            logger.error("Login as parent step 3 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/login-as-parent')
+    
+    else:
+        session['login_as_parent_error'] = 'Invalid step'
+        return redirect('/login-as-parent')
+
+
+@app.route('/login-as-parent/cancel', methods=['POST'])
+def cancel_login_as_parent():
+    """Cancel login as parent flow and clear session.
+    
+    Returns:
+        Redirect to dashboard.
+    """
+    request_id = get_request_id()
+    
+    # Clear all login as parent session data
+    session.pop('mail_login_token', None)
+    session.pop('mail_auth_token', None)
+    session.pop('device_auth_token', None)
+    session.pop('own_device_id', None)
+    session.pop('family_id', None)
+    session.pop('login_as_parent_error', None)
+    
+    logger.info("Login as parent cancelled", request_id=request_id)
     return redirect('/dashboardV2')
 
 
@@ -1403,7 +1673,11 @@ def session_status():
         'server_url': server_url,
         'has_mail_auth_token': 'mail_auth_token' in session,
         'has_device_auth_token': 'device_auth_token' in session,
-        'has_child_device_auth_token': 'child_device_auth_token' in session
+        'has_child_device_auth_token': 'child_device_auth_token' in session,
+        'family_id': session.get('family_id'),
+        'own_device_id': session.get('own_device_id'),
+        'device_auth_token': session.get('device_auth_token'),
+        'mail_auth_token': session.get('mail_auth_token')
     }
     
     duration_ms = int((time.time() - start_time) * 1000)

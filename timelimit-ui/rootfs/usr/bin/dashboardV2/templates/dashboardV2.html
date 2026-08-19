@@ -318,18 +318,162 @@
 
 <div class="dashboard-content">
     <h2>Session Information</h2>
-    <div id="session-info" class="server-info">
-        <span class="server-label">Server:</span>
-        <span class="server-url" id="current-server">Not selected</span>
-    </div>
-    <div id="auth-info" style="color: #aaa; font-size: 14px; margin-top: 10px;">
-        <p>Authentication status: <span id="auth-status">Not authenticated</span></p>
-        <div id="create-family-link" style="margin-top: 10px;">
-            <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none;">
-                Create New Family
-            </a>
+    
+    <!-- Session Status Overview -->
+    <div id="session-overview" style="margin-bottom: 20px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="server-status-indicator" class="status-indicator status-warning"></span>
+                <span id="server-status-text">Server: Not selected</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="auth-status-indicator" class="status-indicator status-warning"></span>
+                <span id="auth-status-text">Auth: Not authenticated</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="family-status-indicator" class="status-indicator status-warning"></span>
+                <span id="family-status-text">Family: Not selected</span>
+            </div>
+        </div>
+        
+        <!-- Detailed Session Fields -->
+        <div style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="color: #aaa;">Field</span>
+                <span style="color: #aaa;">Status</span>
+            </div>
+            
+            <div id="session-fields-container">
+                <!-- Server URL -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Server URL</span>
+                        <span id="field-server-url" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="server-url-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not configured</div>
+                </div>
+                
+                <!-- Device Auth Token -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Device Auth Token</span>
+                        <span id="field-device-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="device-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Own Device ID -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Own Device ID</span>
+                        <span id="field-device-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="device-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Family ID -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Family ID</span>
+                        <span id="field-family-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="family-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Mail Auth Token -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Mail Auth Token</span>
+                        <span id="field-mail-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="mail-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Links (shown when not fully authenticated) -->
+        <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <div id="create-family-link" style="margin-bottom: 10px;">
+                <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
+                    Create New Family
+                </a>
+            </div>
+            <div id="login-existing-family-link">
+                <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
+                    Login to Existing Family
+                </a>
+            </div>
         </div>
     </div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Family Users <span class="version-badge">v1.0.0</span></h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-users-btn" onclick="refreshUsers()">
+            <span>🔄</span> Refresh Users
+        </button>
+    </div>
+    <table class="historical-table" id="users-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Email</th>
+                <th>Current Device</th>
+                <th>Time Zone</th>
+                <th>Limits Disabled</th>
+            </tr>
+        </thead>
+        <tbody id="users-body">
+            <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Family Devices</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-devices-btn" onclick="refreshDevices()">
+            <span>🔄</span> Refresh Devices
+        </button>
+    </div>
+    <table class="historical-table" id="devices-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Model</th>
+                <th>Current User</th>
+                <th>Protection Level</th>
+                <th>App Version</th>
+                <th>Platform</th>
+                <th>Added At</th>
+            </tr>
+        </thead>
+        <tbody id="devices-body">
+            <tr><td colspan="7" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Connected Devices</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-connected-btn" onclick="refreshConnectedDevices()">
+            <span>🔄</span> Refresh Connected Devices
+        </button>
+    </div>
+    <table class="historical-table" id="connected-devices-table">
+        <thead>
+            <tr>
+                <th>Device ID</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+        <tbody id="connected-devices-body">
+            <tr><td colspan="2" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
 </div>
 
 <!-- Alert container for notifications -->
@@ -337,36 +481,35 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/dashboardV2.js"></script>
 <script>
-    // Display current server URL and authentication status
-    document.addEventListener('DOMContentLoaded', function() {
-        fetchSessionStatus();
-        refreshServerStatus();
-        loadHistoricalData();
-    });
-    
+    // Server status and historical data functions
     function fetchSessionStatus() {
-        const serverUrlElement = document.getElementById('current-server');
-        const authStatusElement = document.getElementById('auth-status');
-        
-        fetch('/api/session/status', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.server_url) {
-                serverUrlElement.textContent = data.server_url;
-            }
-            if (data.authenticated) {
-                authStatusElement.textContent = 'Authenticated';
-                authStatusElement.style.color = '#4caf50';
-            }
-        })
-        .catch(error => {
-            console.log('Could not fetch session status');
-        });
-    }
+            const serverUrlElement = document.getElementById('current-server');
+            const authStatusElement = document.getElementById('auth-status');
+            
+            fetch('/api/session/status', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.server_url) {
+                    serverUrlElement.textContent = data.server_url;
+                }
+                if (data.authenticated) {
+                    authStatusElement.textContent = 'Authenticated';
+                    authStatusElement.style.color = '#4caf50';
+                }
+                // Update the detailed session overview
+                if (typeof updateSessionOverview === 'function') {
+                    updateSessionOverview(data);
+                }
+            })
+            .catch(error => {
+                console.log('Could not fetch session status');
+            });
+        }
     
     function refreshServerStatus() {
         const btn = document.getElementById('refresh-btn');
@@ -481,5 +624,26 @@
             }
         }, 5000);
     }
+    
+    // Check for redirect message from login-as-parent
+    function checkRedirectMessage() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        
+        if (message === 'already_authenticated') {
+            showAlert('Already logged in - skipping login', 'warning');
+            // Clean up the URL by removing the message parameter
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete('message');
+            window.history.replaceState({}, '', newUrl);
+        }
+    }
+    
+    // Automatically refresh server status and session info when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        checkRedirectMessage();
+        refreshServerStatus();
+        fetchSessionStatus();
+    });
 </script>
 {% endblock %}

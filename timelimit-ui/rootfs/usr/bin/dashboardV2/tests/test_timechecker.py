@@ -361,7 +361,7 @@ class TestDashboardTemplate:
         response = client.get('/dashboardV2')
         
         assert b'Session Information' in response.data
-        assert b'Authentication status' in response.data
+        assert b'Auth:' in response.data
 
 
 class TestDashboardJavaScript:

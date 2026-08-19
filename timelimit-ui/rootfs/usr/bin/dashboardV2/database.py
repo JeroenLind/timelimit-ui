@@ -5,6 +5,10 @@ This module provides database setup and models for storing:
 - families: Family account information
 - devices: Device registration data
 - auth_tokens: Authentication tokens for session management
+- users: User data from TimeLimit sync
+- sync_state: Sync version tracking
+- categories: TimeLimit categories
+- connected_devices: Real-time connected device tracking
 
 The database uses SQLite for cross-platform compatibility and simplicity.
 All file paths use os.path for cross-platform compatibility.
@@ -46,24 +50,24 @@ class Database:
         )
     
     def get_connection(self) -> sqlite3.Connection:
-            """Get or create a database connection.
-            
-            Returns:
-                SQLite connection object.
-            """
-            with self._lock:
-                if self._connection is None:
-                    # check_same_thread=False allows the connection to be used across threads
-                    # This is necessary for Flask's threaded mode where different requests
-                    # are handled by different threads
-                    logger.debug(
-                        "Creating new database connection",
-                        component="database",
-                        db_path=self.db_path
-                    )
-                    self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
-                    self._connection.row_factory = sqlite3.Row
-                return self._connection
+        """Get or create a database connection.
+        
+        Returns:
+            SQLite connection object.
+        """
+        with self._lock:
+            if self._connection is None:
+                # check_same_thread=False allows the connection to be used across threads
+                # This is necessary for Flask's threaded mode where different requests
+                # are handled by different threads
+                logger.debug(
+                    "Creating new database connection",
+                    component="database",
+                    db_path=self.db_path
+                )
+                self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
+                self._connection.row_factory = sqlite3.Row
+            return self._connection
     
     def close(self) -> None:
         """Close the database connection."""
@@ -148,6 +152,75 @@ class Database:
                 )
             ''')
             
+            # Create users table (for TimeLimit sync)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    family_id TEXT NOT NULL,
+                    name TEXT,
+                    password TEXT,
+                    second_password_salt TEXT,
+                    type TEXT,
+                    time_zone TEXT,
+                    disable_limits_until INTEGER,
+                    mail TEXT,
+                    current_device TEXT,
+                    category_for_not_assigned_apps TEXT,
+                    relax_primary_device INTEGER DEFAULT 0,
+                    flags INTEGER DEFAULT 0,
+                    limit_login_category TEXT,
+                    pre_block_duration INTEGER DEFAULT 0,
+                    last_updated INTEGER,
+                    FOREIGN KEY (family_id) REFERENCES families(id)
+                )
+            ''')
+            
+            # Create sync_state table (for tracking sync versions)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sync_state (
+                    family_id TEXT PRIMARY KEY,
+                    device_list_version TEXT,
+                    user_list_version TEXT,
+                    last_sync_timestamp INTEGER,
+                    last_sync_success INTEGER,
+                    FOREIGN KEY (family_id) REFERENCES families(id)
+                )
+            ''')
+            
+            # Create categories table (for TimeLimit categories)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS categories (
+                    id TEXT PRIMARY KEY,
+                    family_id TEXT NOT NULL,
+                    child_id TEXT,
+                    title TEXT,
+                    blocked_times TEXT,
+                    extra_time INTEGER,
+                    extra_time_day INTEGER,
+                    temp_blocked INTEGER DEFAULT 0,
+                    temp_block_time INTEGER,
+                    version TEXT,
+                    parent_category_id TEXT,
+                    block_all_notifications INTEGER DEFAULT 0,
+                    time_warnings INTEGER DEFAULT 0,
+                    sort_order INTEGER DEFAULT 0,
+                    flags INTEGER DEFAULT 0,
+                    last_updated INTEGER,
+                    FOREIGN KEY (family_id) REFERENCES families(id)
+                )
+            ''')
+            
+            # Create connected_devices table (for real-time device tracking)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS connected_devices (
+                    family_id TEXT NOT NULL,
+                    device_id TEXT NOT NULL,
+                    last_seen INTEGER,
+                    PRIMARY KEY (family_id, device_id),
+                    FOREIGN KEY (family_id) REFERENCES families(id)
+                )
+            ''')
+            
             conn.commit()
             logger.info(
                 "Database initialized",
@@ -161,6 +234,10 @@ class Database:
             conn = self.get_connection()
             cursor = conn.cursor()
             
+            cursor.execute('DROP TABLE IF EXISTS connected_devices')
+            cursor.execute('DROP TABLE IF EXISTS categories')
+            cursor.execute('DROP TABLE IF EXISTS sync_state')
+            cursor.execute('DROP TABLE IF EXISTS users')
             cursor.execute('DROP TABLE IF EXISTS auth_tokens')
             cursor.execute('DROP TABLE IF EXISTS devices')
             cursor.execute('DROP TABLE IF EXISTS families')
@@ -636,8 +713,9 @@ def store_auth_token(
         conn = db.get_connection()
         cursor = conn.cursor()
         
+        # Use INSERT OR REPLACE to handle existing tokens with the same value
         cursor.execute('''
-            INSERT INTO auth_tokens
+            INSERT OR REPLACE INTO auth_tokens
             (token_type, token_value, device_id, family_id, mail, code, created_at, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
@@ -749,6 +827,285 @@ def cleanup_expired_tokens(db: Database) -> int:
             )
         
         return count
+
+
+# ============================================================================
+# Users Operations (TimeLimit Sync)
+# ============================================================================
+
+def save_users(
+    db: Database,
+    family_id: str,
+    users_data: List[Dict[str, Any]]
+) -> None:
+    """Save users from ServerDataStatus to the database.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID.
+        users_data: List of user data from ServerDataStatus.users.data.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        for user in users_data:
+            cursor.execute('''
+                INSERT OR REPLACE INTO users
+                (id, family_id, name, password, second_password_salt, type, time_zone,
+                 disable_limits_until, mail, current_device, category_for_not_assigned_apps,
+                 relax_primary_device, flags, limit_login_category, pre_block_duration, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user.get('id'),
+                family_id,
+                user.get('name'),
+                user.get('password'),
+                user.get('secondPasswordSalt'),
+                user.get('type'),
+                user.get('timeZone'),
+                user.get('disableLimitsUntil'),
+                user.get('mail'),
+                user.get('currentDevice'),
+                user.get('categoryForNotAssignedApps'),
+                user.get('relaxPrimaryDevice', 0),
+                user.get('flags', 0),
+                user.get('limitLoginCategory'),
+                user.get('preBlockDuration', 0),
+                current_time
+            ))
+        
+        conn.commit()
+        logger.info(
+            "Users saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="users",
+            family_id=family_id,
+            count=len(users_data)
+        )
+
+
+def get_users_by_family(db: Database, family_id: str) -> List[Dict[str, Any]]:
+    """Get all users for a family.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID to look up.
+        
+    Returns:
+        List of user records.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM users WHERE family_id = ?', (family_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+# ============================================================================
+# Sync State Operations
+# ============================================================================
+
+def save_sync_state(
+    db: Database,
+    family_id: str,
+    device_list_version: Optional[str],
+    user_list_version: Optional[str]
+) -> None:
+    """Save sync state version numbers.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID.
+        device_list_version: Version string for device list.
+        user_list_version: Version string for user list.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO sync_state
+            (family_id, device_list_version, user_list_version, last_sync_timestamp, last_sync_success)
+            VALUES (?, ?, ?, ?, 1)
+        ''', (
+            family_id,
+            device_list_version,
+            user_list_version,
+            current_time
+        ))
+        
+        conn.commit()
+        logger.debug(
+            "Sync state saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="sync_state",
+            family_id=family_id
+        )
+
+
+def get_sync_state(db: Database, family_id: str) -> Optional[Dict[str, Any]]:
+    """Get sync state for a family.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID to look up.
+        
+    Returns:
+        Sync state record or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM sync_state WHERE family_id = ?', (family_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+# ============================================================================
+# Categories Operations
+# ============================================================================
+
+def save_categories(
+    db: Database,
+    family_id: str,
+    categories_data: List[Dict[str, Any]]
+) -> None:
+    """Save categories from ServerDataStatus to the database.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID.
+        categories_data: List of category data from ServerDataStatus.categoryBase.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        for cat in categories_data:
+            cursor.execute('''
+                INSERT OR REPLACE INTO categories
+                (id, family_id, child_id, title, blocked_times, extra_time, extra_time_day,
+                 temp_blocked, temp_block_time, version, parent_category_id,
+                 block_all_notifications, time_warnings, sort_order, flags, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                cat.get('id'),
+                family_id,
+                cat.get('childId'),
+                cat.get('title'),
+                cat.get('blockedTimes'),
+                cat.get('extraTime', 0),
+                cat.get('extraTimeDay', 0),
+                cat.get('tempBlocked', 0),
+                cat.get('tempBlockTime'),
+                cat.get('version'),
+                cat.get('parentCategoryId'),
+                cat.get('blockAllNotifications', 0),
+                cat.get('timeWarnings', 0),
+                cat.get('sortOrder', 0),
+                cat.get('flags', 0),
+                current_time
+            ))
+        
+        conn.commit()
+        logger.debug(
+            "Categories saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="categories",
+            family_id=family_id,
+            count=len(categories_data)
+        )
+
+
+def get_categories_by_family(db: Database, family_id: str) -> List[Dict[str, Any]]:
+    """Get all categories for a family.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID to look up.
+        
+    Returns:
+        List of category records.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM categories WHERE family_id = ?', (family_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+# ============================================================================
+# Connected Devices Operations
+# ============================================================================
+
+def save_connected_devices(
+    db: Database,
+    family_id: str,
+    device_ids: List[str]
+) -> None:
+    """Save connected devices list for a family.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID.
+        device_ids: List of connected device IDs.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        # Clear existing entries for this family
+        cursor.execute('DELETE FROM connected_devices WHERE family_id = ?', (family_id,))
+        
+        # Insert new entries
+        for device_id in device_ids:
+            cursor.execute('''
+                INSERT INTO connected_devices (family_id, device_id, last_seen)
+                VALUES (?, ?, ?)
+            ''', (family_id, device_id, current_time))
+        
+        conn.commit()
+        logger.debug(
+            "Connected devices saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="connected_devices",
+            family_id=family_id,
+            count=len(device_ids)
+        )
+
+
+def get_connected_devices(db: Database, family_id: str) -> List[Dict[str, Any]]:
+    """Get connected devices for a family with last_seen timestamps.
+    
+    Args:
+        db: Database instance.
+        family_id: The family ID to look up.
+        
+    Returns:
+        List of connected device records with device_id and last_seen.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT device_id, last_seen FROM connected_devices WHERE family_id = ?', (family_id,))
+        return [dict(row) for row in cursor.fetchall()]
 
 
 # ============================================================================

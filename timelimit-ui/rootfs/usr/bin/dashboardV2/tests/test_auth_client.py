@@ -1155,7 +1155,284 @@ class TestAuthClientRequestMethods:
             client._make_request('DELETE', '/test')
 
 
-class TestAuthClientIntegration:
+    """Integration tests for AuthClient."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_complete_auth_flow(self, mock_session_class):
+        """Test complete authentication flow."""
+        # Mock responses for each step
+        mock_session = Mock()
+        
+        mock_send_code = Mock()
+        mock_send_code.ok = True
+        mock_send_code.status_code = 200
+        mock_send_code.json.return_value = {
+            'status': 'ok',
+            'mailLoginToken': 'login_token_123'
+        }
+        
+        mock_sign_in = Mock()
+        mock_sign_in.ok = True
+        mock_sign_in.status_code = 200
+        mock_sign_in.json.return_value = {
+            'status': 'ok',
+            'mailAuthToken': 'mail_auth_123'
+        }
+        
+        mock_create_family = Mock()
+        mock_create_family.ok = True
+        mock_create_family.status_code = 200
+        mock_create_family.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'device_token_123',
+            'ownDeviceId': 'device_abc'
+        }
+        
+        mock_session.post.side_effect = [
+            mock_send_code,
+            mock_sign_in,
+            mock_create_family
+        ]
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        
+        # Step 1: Send mail login code
+        response1 = client.send_mail_login_code(mail='test@example.com', locale='en')
+        assert response1.success is True
+        assert response1.data['mailLoginToken'] == 'login_token_123'
+        
+        # Step 2: Sign in by mail code
+        response2 = client.sign_in_by_mail_code(
+            mail_login_token='login_token_123',
+            received_code='123456'
+        )
+        assert response2.success is True
+        assert response2.data['mailAuthToken'] == 'mail_auth_123'
+        
+        # Step 3: Create family
+        response3 = client.create_family(
+            mail_auth_token='mail_auth_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        assert response3.success is True
+        assert response3.data['deviceAuthToken'] == 'device_token_123'
+
+
+class TestAuthClientSync:
+    """Tests for sync protocol endpoints."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_success(self, mock_session_class):
+        """Test successful pull_status request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'devices': {
+                'version': 'v1',
+                'data': [
+                    {'deviceId': 'device1', 'name': 'Phone', 'model': 'Pixel 7'},
+                    {'deviceId': 'device2', 'name': 'Tablet', 'model': 'iPad'}
+                ]
+            },
+            'users': {
+                'version': 'v1',
+                'data': [
+                    {'id': 'user1', 'name': 'Parent', 'type': 'parent', 'mail': 'parent@example.com'},
+                    {'id': 'user2', 'name': 'Child', 'type': 'child', 'mail': 'child@example.com'}
+                ]
+            },
+            'categoryBase': [
+                {'id': 'cat1', 'title': 'Work', 'childId': 'user2'}
+            ],
+            'devices2': [
+                {'deviceId': 'device1'},
+                {'deviceId': 'device2'}
+            ]
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.pull_status(
+            device_auth_token='device_token_123'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert 'devices' in response.data
+        assert 'users' in response.data
+        assert len(response.data['devices']['data']) == 2
+        assert len(response.data['users']['data']) == 2
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_with_client_status(self, mock_session_class):
+        """Test pull_status with existing client status."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'devices': {'version': 'v2', 'data': []},
+            'users': {'version': 'v2', 'data': []},
+            'categoryBase': []
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client_status = {
+            'clientLevel': 7,
+            'devices': 'v1',
+            'users': 'v1',
+            'apps': {},
+            'devicesDetail': {},
+            'categories': {},
+            'kri': 0,
+            'kr': 0,
+            'dh': None,
+            'u2f': None
+        }
+        response = client.pull_status(
+            device_auth_token='device_token_123',
+            client_data_status=client_status
+        )
+        
+        assert response.success is True
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_failure(self, mock_session_class):
+        """Test failed pull_status request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Invalid or expired token'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.pull_status(
+            device_auth_token='invalid_token'
+        )
+        
+        assert response.success is False
+        assert response.error_code == 'unauthorized'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_uses_gzip(self, mock_session_class):
+        """Test that pull_status uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'devices': {'version': 'v1', 'data': []},
+            'users': {'version': 'v1', 'data': []},
+            'categoryBase': []
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.pull_status(device_auth_token='device_token_123')
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_push_actions_success(self, mock_session_class):
+        """Test successful push_actions request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        actions = [
+            {
+                'encodedAction': 'action1',
+                'sequenceNumber': 1,
+                'integrity': 'hash1',
+                'type': 'type1',
+                'userId': 'user1'
+            }
+        ]
+        response = client.push_actions(
+            device_auth_token='device_token_123',
+            actions=actions
+        )
+        
+        assert response.success is True
+        assert response.data['shouldDoFullSync'] is False
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_push_actions_uses_gzip(self, mock_session_class):
+        """Test that push_actions uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        actions = [
+            {
+                'encodedAction': 'action1',
+                'sequenceNumber': 1,
+                'integrity': 'hash1',
+                'type': 'type1',
+                'userId': 'user1'
+            }
+        ]
+        response = client.push_actions(
+            device_auth_token='device_token_123',
+            actions=actions
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
     """Integration tests for AuthClient."""
     
     @pytest.mark.timeout(10)

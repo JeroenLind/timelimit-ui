@@ -16,7 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import Config
-from database import Database, get_database, save_server_check
+from database import Database, get_database, save_server_check, get_auth_token
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
 
@@ -30,6 +30,12 @@ _scheduler: Optional[BackgroundScheduler] = None
 
 # Current server URL for the scheduler (can be updated from session)
 _current_server_url: Optional[str] = None
+
+# Current family ID for sync (can be updated from session)
+_current_family_id: Optional[str] = None
+
+# Current device auth token for sync (can be updated from session)
+_current_device_auth_token: Optional[str] = None
 
 
 def set_server_url(url: str) -> None:
@@ -315,6 +321,150 @@ def add_server_check_job(
         "Server check job added",
         component="scheduler",
         server_url=server_url,
+        interval=interval
+    )
+
+
+# ============================================================================
+# Sync Job Functions
+# ============================================================================
+
+def set_sync_credentials(
+    family_id: str,
+    device_auth_token: str
+) -> None:
+    """Set the sync credentials for the background sync job.
+    
+    Args:
+        family_id: Family ID for the sync.
+        device_auth_token: Device auth token for authentication.
+    """
+    global _current_family_id, _current_device_auth_token
+    _current_family_id = family_id
+    _current_device_auth_token = device_auth_token
+    logger.debug(
+        "Sync credentials set for scheduler",
+        component="scheduler",
+        family_id=family_id
+    )
+
+
+def get_sync_credentials() -> tuple:
+    """Get the sync credentials for the background sync job.
+    
+    Returns:
+        Tuple of (family_id, device_auth_token) or (None, None) if not set.
+    """
+    return _current_family_id, _current_device_auth_token
+
+
+def sync_callback() -> None:
+    """Callback function to perform sync with the TimeLimit server.
+    
+    This function is called by the scheduler at regular intervals.
+    It pulls server status and applies it to the local database.
+    """
+    from sync_manager import SyncManager, run_background_sync
+    
+    request_id = get_request_id()
+    server_url = get_server_url()
+    family_id, device_auth_token = get_sync_credentials()
+    
+    if not family_id or not device_auth_token:
+        logger.debug(
+            "Sync skipped: no credentials available",
+            component="scheduler",
+            request_id=request_id
+        )
+        return
+    
+    logger.info(
+        "Scheduled sync execution started",
+        component="scheduler",
+        server_url=server_url,
+        family_id=family_id,
+        request_id=request_id
+    )
+    
+    try:
+        run_background_sync(device_auth_token, server_url, family_id)
+    except Exception as e:
+        logger.error(
+            "Scheduled sync error",
+            component="scheduler",
+            server_url=server_url,
+            family_id=family_id,
+            success=False,
+            error=str(e),
+            error_code="scheduler_sync_error",
+            request_id=request_id
+        )
+
+
+def add_sync_job(
+    scheduler: BackgroundScheduler,
+    family_id: str,
+    device_auth_token: str,
+    server_url: Optional[str] = None,
+    interval_seconds: Optional[int] = None
+) -> None:
+    """Add a sync job to an existing scheduler.
+    
+    Args:
+        scheduler: The scheduler to add the job to.
+        family_id: Family ID for the sync.
+        device_auth_token: Device auth token for authentication.
+        server_url: The TimeLimit server URL. Uses config default if not provided.
+        interval_seconds: Interval between syncs in seconds. Default is 30 seconds.
+    """
+    interval = interval_seconds or 30  # Default 30 seconds for sync
+    url = server_url or get_server_url()
+    
+    # Set sync credentials
+    set_sync_credentials(family_id, device_auth_token)
+    
+    # Create a closure with the specific credentials
+    def sync_with_credentials():
+        """Sync with the specified credentials."""
+        from sync_manager import SyncManager, run_background_sync
+        
+        request_id = get_request_id()
+        
+        logger.debug(
+            "Running scheduled sync",
+            component="scheduler",
+            server_url=url,
+            family_id=family_id,
+            request_id=request_id
+        )
+        
+        try:
+            run_background_sync(device_auth_token, url, family_id)
+        except Exception as e:
+            logger.error(
+                "Sync error",
+                component="scheduler",
+                server_url=url,
+                family_id=family_id,
+                success=False,
+                error=str(e),
+                error_code="scheduler_sync_error",
+                request_id=request_id
+            )
+    
+    scheduler.add_job(
+        func=sync_with_credentials,
+        trigger=IntervalTrigger(seconds=interval),
+        id=f'sync_{family_id}',
+        name=f'Sync Job for {family_id}',
+        replace_existing=True
+    )
+    
+    logger.info(
+        "Sync job added",
+        component="scheduler",
+        family_id=family_id,
+        server_url=url,
         interval=interval
     )
 
