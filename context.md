@@ -233,6 +233,11 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ## Status
 
+**Local Git Commit (2026-08-19):**
+- Commit: `fa593c1` - "feat: Add session information overview and family ID storage fixes"
+- 20 files changed, 6362 insertions(+), 369 deletions(-)
+- New files: add_routes.py, users-devices-dashboard-plan.md, create-family-fixes.md, sync_manager.py, login_as_parent.html, test_dashboard_api.py, test_login_as_parent.py, test_sync_manager.py
+
 **Create Family Flow:** ✅ Complete and verified
 
 **Parent Login Flow:** ✅ Complete and implemented
