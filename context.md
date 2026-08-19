@@ -14,7 +14,7 @@
 ## Key Architecture
 - Client-server: TimeLimit UI ↔ TimeLimit Backend Server ↔ Android App / Devices
 - Sync protocol: Action-based CRDT with HMAC-SHA256 integrity signing
-- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp25519, HMAC-SHA512/SHA256
+- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp25619, HMAC-SHA512/SHA256
 - WebSocket (Socket.IO) for real-time sync notifications
 - HTTP API with gzip compression, Content-Length auto-negotiation
 
@@ -39,6 +39,27 @@
 ---
 
 ## Recent Changes
+
+### Login Error Display Fix (2026-08-19)
+**Issue:** After signing out and signing back in to "family action", the session information box did not show any valid data. The `family_id` was `null` because `pull_status` failed with BadRequestError, but the error was not communicated to the user.
+
+**Root Cause:** When `pull_status` fails during the login flow, the error message was not being properly extracted and stored in the session. The `login_error` field was not being returned by the `/api/session/status` endpoint.
+
+**Fix Applied:**
+1. Fixed error handling in `post_login_as_parent()` to properly extract error message from `pull_status` response
+2. The error message is now stored in `session['login_error']` when `pull_status` fails
+3. The `session_status()` endpoint already includes `login_error` in the response
+4. The frontend JavaScript (`dashboardV2.js`) already displays `login_error` when `family_id` is null but an error exists
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Fixed error handling logic in `post_login_as_parent()` to ensure `login_error` is always set when `pull_status` fails
+
+**Expected Behavior:**
+- When `pull_status` fails during login, the error message is displayed in the session overview
+- The Family ID field shows the error message in red instead of just "Missing - Create or join a family"
+- Users can see what went wrong and take appropriate action
+
+---
 
 ### Session Information Overview (2026-08-19)
 **Feature:** Added a detailed session information overview on the dashboard that shows for each required data field whether it is valid and available.
@@ -252,68 +273,6 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ---
 
-## Status
-
-**Local Git Commit (2026-08-19):**
-- Commit: `fa593c1` - "feat: Add session information overview and family ID storage fixes"
-- 20 files changed, 6362 insertions(+), 369 deletions(-)
-- New files: add_routes.py, users-devices-dashboard-plan.md, create-family-fixes.md, sync_manager.py, login_as_parent.html, test_dashboard_api.py, test_login_as_parent.py, test_sync_manager.py
-
-**Create Family Flow:** ✅ Complete and verified
-
-**Parent Login Flow:** ✅ Complete and implemented
-
-**Users & Devices Dashboard:** ✅ Complete and implemented
-
-**Dashboard Authentication Fix:** ✅ Complete and verified
-
-**Connected Devices Data Source Fix:** ✅ Complete and verified
-
-**Family ID Storage Fix:** ✅ Complete and verified
-
-**Session Information Overview:** ✅ Complete and verified
-
-**Login Flow Verification (2026-08-18):**
-- ✅ Step 1 (Email): Successfully sent mail login code to `test@pietje.nl`
-- ✅ Step 2 (Verification): Successfully verified code and obtained mail auth token
-- ✅ Step 3 (Device): Successfully signed in to family with device "Laptop" (Windows)
-- ✅ Dashboard Access: User authenticated and dashboard rendered with `is_authenticated: true`
-
-**Users & Devices Dashboard Verification:**
-- ✅ `pull_status()` method added to AuthClient with gzip compression
-- ✅ `push_actions()` method added to AuthClient with gzip compression
-- ✅ Database tables created: users, sync_state, categories, connected_devices
-- ✅ CRUD functions implemented for all new tables
-- ✅ SyncManager class created with sync orchestration
-- ✅ API routes added for sync and dashboard data
-- ✅ SSE endpoint implemented for real-time updates
-- ✅ Frontend HTML and JavaScript updated
-
-**Test Results (2026-08-19):**
-- ✅ All 30 login_as_parent tests pass
-- ✅ All 41 create_family tests pass
-- ✅ All 4 session management tests pass
-- ✅ All 115 landing page tests pass (3 pre-existing failures in server selection tests unrelated to this fix)
-- ⚠️ Dashboard API tests fail due to missing routes (`/api/sync/pull`, `/api/dashboard/users`, etc.) - these routes were not implemented in app.py
-
-**Bug Fixes Applied:**
-1. Fixed `test_app` fixture to delete existing database file before creating new one
-2. Fixed `DATABASE_PATH` environment variable to use full absolute path instead of basename
-3. Fixed mock patch target from `sync_manager.get_event_queue` to `app.get_event_queue`
-4. Added `TEST_MAX_KEEPALIVES` environment variable support in `event_stream()` for testing
-5. Fixed `store_auth_token` to use `INSERT OR REPLACE` instead of `INSERT` for UNIQUE constraint handling
-6. **Fixed authentication check in dashboardV2.js** - Added authentication verification before loading dashboard data
-7. **Fixed indentation in sync_manager.py** - Connected devices code block was not properly indented
-8. **Fixed duplicate DOMContentLoaded handler** - Removed duplicate handler from HTML template
-9. **Fixed test assertions** - Updated test to check device_id in dictionaries instead of strings
-10. **Fixed family_id storage** - Added family_id extraction and storage in all authentication routes
-11. **Added session information overview** - Added detailed session field status display on dashboard
-12. **Fixed JavaScript error in updateSessionOverview()** - The function was trying to call `.substring()` on `undefined` when `data.device_auth_token` and `data.mail_auth_token` were not returned by the `/api/session/status` endpoint. Fixed to display '***' instead of trying to access non-existent token values.
-13. **Added redirect message for already authenticated users** - When clicking "Login to Existing Family" or "Create New Family" while already authenticated, users now see a clear warning message "Already logged in - skipping login" instead of being silently redirected.
-14. **Fixed cancel_create_family to clear family_id** - Added `session.pop('family_id', None)` to properly clean up session data when canceling create family flow
-
----
-
 ## Sign-Out Button Addition (2026-08-19)
 
 **Issue:** Users who were authenticated had no way to sign out and clear their session.
@@ -407,6 +366,8 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 **Dashboard API Routes:** ✅ Complete and verified
 
+**Login Error Display Fix:** ✅ Complete and verified
+
 **Login Flow Verification (2026-08-18):**
 - ✅ Step 1 (Email): Successfully sent mail login code to `test@pietje.nl`
 - ✅ Step 2 (Verification): Successfully verified code and obtained mail auth token
@@ -447,3 +408,4 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 14. **Fixed cancel_create_family to clear family_id** - Added `session.pop('family_id', None)` to properly clean up session data when canceling create family flow
 15. **Implemented missing dashboard API routes** - Added `/api/sync/pull`, `/api/dashboard/users`, `/api/dashboard/devices`, `/api/dashboard/categories`, `/api/dashboard/connected-devices`, `/api/dashboard/stream` routes with proper error handling
 16. **Fixed test mock patch target** - Updated `test_dashboard_api.py` to patch `app.create_sync_manager` instead of `app.SyncManager`
+17. **Fixed login_error display** - Fixed error handling in `post_login_as_parent()` to properly extract and store error message when `pull_status` fails, ensuring users see meaningful error messages in the session overview

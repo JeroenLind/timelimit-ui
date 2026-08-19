@@ -1320,10 +1320,33 @@ def post_login_as_parent():
                     if not family_id:
                         data_field = pull_response.data.get('data', {})
                         family_id = data_field.get('familyId')
+                    
+                    # If still not found, set error for user feedback
+                    if not family_id:
+                        error_msg = 'Failed to retrieve family information from server'
+                        session['login_error'] = error_msg
+                        logger.warning("Family ID not found in pull_status response", error_message=error_msg, request_id=request_id)
+                else:
+                    # Store the pull_status error for user feedback
+                    # Error message may be in error_message or data field
+                    error_msg = pull_response.error_message
+                    if not error_msg and pull_response.data:
+                        # Extract error from HTML response in data field
+                        data_str = str(pull_response.data)
+                        if 'BadRequestError' in data_str:
+                            error_msg = 'Server error: Invalid request format'
+                        else:
+                            error_msg = 'Failed to retrieve family information'
+                    # Ensure we have an error message
+                    error_msg = error_msg or 'Failed to retrieve family information'
+                    session['login_error'] = error_msg
+                    logger.warning("Failed to pull server status during login", error_message=error_msg, request_id=request_id)
             
             # Only store family_id if it's a valid string (not a MagicMock or other non-string type)
             if isinstance(family_id, str):
                 session['family_id'] = family_id
+                # Clear any previous login error since we now have family_id
+                session.pop('login_error', None)
                 logger.info("Family ID extracted and stored in session", family_id=family_id, request_id=request_id)
                 
                 # Store auth token in database for later lookup
@@ -1370,6 +1393,7 @@ def cancel_login_as_parent():
     session.pop('own_device_id', None)
     session.pop('family_id', None)
     session.pop('login_as_parent_error', None)
+    session.pop('login_error', None)
     
     logger.info("Login as parent cancelled", request_id=request_id)
     return redirect('/dashboardV2')
@@ -1686,7 +1710,8 @@ def session_status():
         'family_id': session.get('family_id'),
         'own_device_id': session.get('own_device_id'),
         'device_auth_token': session.get('device_auth_token'),
-        'mail_auth_token': session.get('mail_auth_token')
+        'mail_auth_token': session.get('mail_auth_token'),
+        'login_error': session.get('login_error')
     }
     
     duration_ms = int((time.time() - start_time) * 1000)

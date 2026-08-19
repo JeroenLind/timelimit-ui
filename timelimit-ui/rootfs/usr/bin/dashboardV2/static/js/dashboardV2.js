@@ -194,6 +194,11 @@
                 familyIdField.style.color = '#00ff88';
                 familyIdStatus.textContent = 'Valid - Family connected';
                 familyIdStatus.style.color = '#4caf50';
+            } else if (data.login_error) {
+                familyIdField.textContent = '-';
+                familyIdField.style.color = '#ff9800';
+                familyIdStatus.textContent = 'Error - ' + data.login_error;
+                familyIdStatus.style.color = '#f44336';
             } else {
                 familyIdField.textContent = '-';
                 familyIdField.style.color = '#888';
