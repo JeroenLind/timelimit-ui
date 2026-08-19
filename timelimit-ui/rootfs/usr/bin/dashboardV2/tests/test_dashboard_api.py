@@ -163,13 +163,13 @@ class TestApiSyncPull:
         assert data['error_code'] == 'no_family'
     
     @pytest.mark.timeout(10)
-    @patch('app.SyncManager')
-    def test_sync_pull_success(self, mock_manager_class, auth_session):
+    @patch('app.create_sync_manager')
+    def test_sync_pull_success(self, mock_create_manager, auth_session):
         """Test successful sync pull."""
         # Mock the sync manager
         mock_manager = Mock()
         mock_manager.do_sync.return_value = True
-        mock_manager_class.return_value = mock_manager
+        mock_create_manager.return_value = mock_manager
         
         response = auth_session.post('/api/sync/pull')
         
@@ -179,13 +179,13 @@ class TestApiSyncPull:
         assert data['synced'] is True
     
     @pytest.mark.timeout(10)
-    @patch('app.SyncManager')
-    def test_sync_pull_failure(self, mock_manager_class, auth_session):
+    @patch('app.create_sync_manager')
+    def test_sync_pull_failure(self, mock_create_manager, auth_session):
         """Test failed sync pull."""
         # Mock the sync manager to return failure
         mock_manager = Mock()
         mock_manager.do_sync.return_value = False
-        mock_manager_class.return_value = mock_manager
+        mock_create_manager.return_value = mock_manager
         
         response = auth_session.post('/api/sync/pull')
         

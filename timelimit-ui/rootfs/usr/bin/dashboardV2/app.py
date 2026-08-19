@@ -14,6 +14,7 @@ as an ingress app.
 import atexit
 import json
 import os
+import queue
 import re
 import secrets
 import socket
@@ -22,15 +23,19 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for, send_from_directory, g
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for, send_from_directory, g, Response
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth_client import AuthClient, APIResponse
 from config import Config
-from database import Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token
+from database import (
+    Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token,
+    get_users_by_family, get_devices_by_family, get_categories_by_family, get_connected_devices
+)
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
 from scheduler import start_scheduler, stop_scheduler
+from sync_manager import SyncManager, create_sync_manager, get_event_queue
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
 
 # Add parent directory to sys.path for crypto_utils import
@@ -1648,7 +1653,6 @@ def clear_session():
     session.clear()
     
     duration_ms = int((time.time() - start_time) * 1000)
-    
     logger.info(
         "Session cleared successfully",
         duration_ms=duration_ms,
@@ -1657,6 +1661,10 @@ def clear_session():
     
     return jsonify({'status': 'ok'})
 
+
+# ============================================================================
+# Session Status Route
+# ============================================================================
 
 @app.route('/api/session/status', methods=['GET'])
 def session_status():
@@ -1691,6 +1699,470 @@ def session_status():
     )
     
     return jsonify(status)
+
+    
+
+
+# ============================================================================
+# Dashboard API Routes
+# ============================================================================
+
+@app.route('/api/sync/pull', methods=['POST'])
+def api_sync_pull():
+    """Trigger a manual sync with the TimeLimit server.
+    
+    Returns:
+        JSON response with sync result.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Sync pull attempted without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "Sync pull attempted without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'no_family',
+            'error': 'No family selected'
+        }), 400
+    
+    server_url = get_current_server_url()
+    device_auth_token = session.get('device_auth_token')
+    
+    logger.info(
+        "Sync pull requested",
+        request_id=request_id,
+        family_id=family_id,
+        server_url=server_url
+    )
+    
+    try:
+        db = get_database()
+        manager = create_sync_manager(db)
+        success = manager.do_sync(device_auth_token, server_url, family_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        if success:
+            logger.info(
+                "Sync pull completed successfully",
+                duration_ms=duration_ms,
+                request_id=request_id,
+                family_id=family_id
+            )
+            return jsonify({
+                'status': 'ok',
+                'synced': True
+            })
+        else:
+            logger.error(
+                "Sync pull failed",
+                duration_ms=duration_ms,
+                request_id=request_id,
+                family_id=family_id
+            )
+            return jsonify({
+                'status': 'error',
+                'error_code': 'sync_failed',
+                'error': 'Sync failed'
+            }), 500
+            
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Sync pull error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'sync_error',
+            'error': 'Sync error'
+        }), 500
+
+
+@app.route('/api/dashboard/users', methods=['GET'])
+def api_dashboard_users():
+    """Get users for the current family.
+    
+    Returns:
+        JSON response with users list.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Users request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "Users request without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No family selected'
+        }), 400
+    
+    logger.info(
+        "Users request",
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    try:
+        db = get_database()
+        users = get_users_by_family(db, family_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Users retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            count=len(users)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'count': len(users),
+            'users': users
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Users request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve users'
+        }), 500
+
+
+@app.route('/api/dashboard/devices', methods=['GET'])
+def api_dashboard_devices():
+    """Get devices for the current family.
+    
+    Returns:
+        JSON response with devices list.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Devices request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "Devices request without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No family selected'
+        }), 400
+    
+    logger.info(
+        "Devices request",
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    try:
+        db = get_database()
+        devices = get_devices_by_family(db, family_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Devices retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            count=len(devices)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'count': len(devices),
+            'devices': devices
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Devices request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve devices'
+        }), 500
+
+
+@app.route('/api/dashboard/categories', methods=['GET'])
+def api_dashboard_categories():
+    """Get categories for the current family.
+    
+    Returns:
+        JSON response with categories list.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Categories request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "Categories request without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No family selected'
+        }), 400
+    
+    logger.info(
+        "Categories request",
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    try:
+        db = get_database()
+        categories = get_categories_by_family(db, family_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Categories retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            count=len(categories)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'count': len(categories),
+            'categories': categories
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Categories request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve categories'
+        }), 500
+
+
+@app.route('/api/dashboard/connected-devices', methods=['GET'])
+def api_dashboard_connected_devices():
+    """Get connected devices for the current family.
+    
+    Returns:
+        JSON response with connected devices list.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Connected devices request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "Connected devices request without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No family selected'
+        }), 400
+    
+    logger.info(
+        "Connected devices request",
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    try:
+        db = get_database()
+        devices = get_connected_devices(db, family_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Connected devices retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            count=len(devices)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'count': len(devices),
+            'devices': devices
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Connected devices request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            family_id=family_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve connected devices'
+        }), 500
+
+
+@app.route('/api/dashboard/stream')
+def api_dashboard_stream():
+    """SSE endpoint for real-time dashboard updates.
+    
+    Returns:
+        Server-Sent Events stream.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "SSE stream request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    # Check family_id
+    family_id = session.get('family_id')
+    if not family_id:
+        logger.warning(
+            "SSE stream request without family selected",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No family selected'
+        }), 400
+    
+    logger.info(
+        "SSE stream request",
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    def event_stream():
+        """Generator for SSE events."""
+        q = get_event_queue(family_id)
+        max_keepalives = int(os.environ.get('TEST_MAX_KEEPALIVES', 0))
+        keepalive_count = 0
+        
+        while True:
+            try:
+                event = q.get(timeout=30)
+                data = json.dumps(event)
+                yield f"data: {data}\n\n"
+            except queue.Empty:
+                # Send keepalive if configured
+                if max_keepalives > 0:
+                    keepalive_count += 1
+                    if keepalive_count > max_keepalives:
+                        break
+                yield ": keepalive\n\n"
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "SSE stream started",
+        duration_ms=duration_ms,
+        request_id=request_id,
+        family_id=family_id
+    )
+    
+    return Response(event_stream(), mimetype='text/event-stream')
 
 
 # ============================================================================
@@ -1981,6 +2453,9 @@ if __name__ == '__main__':
             '/api/parent/create-add-device-token', '/api/child/add-device',
             '/api/auth/get-status-by-mail-address', '/api/auth/recover-parent-password',
             '/api/session/clear', '/api/session/status',
+            '/api/sync/pull',
+            '/api/dashboard/users', '/api/dashboard/devices', '/api/dashboard/categories',
+            '/api/dashboard/connected-devices', '/api/dashboard/stream',
             '/api/timechecker/status', '/api/timechecker/history',
             '/health',
             '/create-family', '/create-family/cancel'
