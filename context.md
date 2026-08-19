@@ -311,3 +311,25 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 12. **Fixed JavaScript error in updateSessionOverview()** - The function was trying to call `.substring()` on `undefined` when `data.device_auth_token` and `data.mail_auth_token` were not returned by the `/api/session/status` endpoint. Fixed to display '***' instead of trying to access non-existent token values.
 13. **Added redirect message for already authenticated users** - When clicking "Login to Existing Family" or "Create New Family" while already authenticated, users now see a clear warning message "Already logged in - skipping login" instead of being silently redirected.
 14. **Fixed cancel_create_family to clear family_id** - Added `session.pop('family_id', None)` to properly clean up session data when canceling create family flow
+
+---
+
+## Sign-Out Button Addition (2026-08-19)
+
+**Issue:** Users who were authenticated had no way to sign out and clear their session.
+
+**Fix Applied:**
+1. Added "Sign Out" button to the session information section in `dashboardV2.html`
+2. Updated `updateSessionOverview()` in `dashboardV2.js` to show/hide the sign-out button based on authentication status
+3. The button calls the existing `clearSession()` function which:
+   - Calls `/api/session/clear` endpoint
+   - Reloads the page to show the unauthenticated state
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added sign-out button
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/static/js/dashboardV2.js` - Updated to show/hide sign-out button
+
+**Expected Behavior:**
+- When authenticated: "Sign Out" button is visible
+- When not authenticated: "Create New Family" and "Login to Existing Family" buttons are visible
+- Clicking "Sign Out" clears the session and redirects to the landing page

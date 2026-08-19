@@ -392,18 +392,25 @@
         </div>
         
         <!-- Action Links (shown when not fully authenticated) -->
-        <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-            <div id="create-family-link" style="margin-bottom: 10px;">
-                <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
-                    Create New Family
-                </a>
-            </div>
-            <div id="login-existing-family-link">
-                <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
-                    Login to Existing Family
-                </a>
-            </div>
-        </div>
+                <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div id="create-family-link" style="margin-bottom: 10px;">
+                        <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
+                            Create New Family
+                        </a>
+                    </div>
+                    <div id="login-existing-family-link">
+                        <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
+                            Login to Existing Family
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Sign Out Button (shown when authenticated) -->
+                <div id="signout-link" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <button class="refresh-btn" id="signout-btn" onclick="clearSession()" style="display: inline-block; text-decoration: none; background: rgba(244, 67, 54, 0.2); border: 1px solid rgba(244, 67, 54, 0.5); color: #f44336;">
+                        Sign Out
+                    </button>
+                </div>
     </div>
 </div>
 

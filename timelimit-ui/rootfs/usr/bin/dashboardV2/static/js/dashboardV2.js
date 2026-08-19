@@ -189,17 +189,24 @@
             }
             
             // Show/hide action links based on authentication status
-            const createFamilyLink = document.getElementById('create-family-link');
-            const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
-            if (createFamilyLink && loginExistingFamilyLink) {
-                if (data.authenticated) {
-                    createFamilyLink.style.display = 'none';
-                    loginExistingFamilyLink.style.display = 'none';
-                } else {
-                    createFamilyLink.style.display = 'block';
-                    loginExistingFamilyLink.style.display = 'block';
-                }
-            }
+                        const createFamilyLink = document.getElementById('create-family-link');
+                        const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
+                        const signoutLink = document.getElementById('signout-link');
+                        if (createFamilyLink && loginExistingFamilyLink) {
+                            if (data.authenticated) {
+                                createFamilyLink.style.display = 'none';
+                                loginExistingFamilyLink.style.display = 'none';
+                                if (signoutLink) {
+                                    signoutLink.style.display = 'block';
+                                }
+                            } else {
+                                createFamilyLink.style.display = 'block';
+                                loginExistingFamilyLink.style.display = 'block';
+                                if (signoutLink) {
+                                    signoutLink.style.display = 'none';
+                                }
+                            }
+                        }
         }
     
     /**
