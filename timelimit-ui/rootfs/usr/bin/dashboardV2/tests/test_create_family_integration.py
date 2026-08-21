@@ -84,7 +84,7 @@ class TestCreateFamilyIntegration:
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
             
-            # Mock create_family_rest response without familyId (triggers fallback)
+            # Mock create_family_rest response
             mock_create_response = MagicMock()
             mock_create_response.success = True
             mock_create_response.data = {
@@ -92,16 +92,6 @@ class TestCreateFamilyIntegration:
                 'ownDeviceId': 'device-id-abc'
             }
             mock_client.create_family_rest.return_value = mock_create_response
-            
-            # Mock pull_status response with familyId
-            mock_pull_response = MagicMock()
-            mock_pull_response.success = True
-            mock_pull_response.data = {
-                'familyId': 'test-family-id',
-                'users': [],
-                'devices': []
-            }
-            mock_client.pull_status.return_value = mock_pull_response
             
             mock_auth_client_class.return_value = mock_client
             
@@ -122,7 +112,6 @@ class TestCreateFamilyIntegration:
             with client.session_transaction() as sess:
                 assert sess.get('device_auth_token') == 'device-token-789'
                 assert sess.get('own_device_id') == 'device-id-abc'
-                assert sess.get('family_id') == 'test-family-id'
                 assert 'mail_login_token' not in sess
                 assert 'mail_auth_token' not in sess
 
@@ -169,7 +158,7 @@ class TestCreateFamilyIntegration:
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
             
-            # Mock create_family_rest response without familyId (triggers fallback)
+            # Mock create_family_rest response
             mock_create_response = MagicMock()
             mock_create_response.success = True
             mock_create_response.data = {
@@ -177,16 +166,6 @@ class TestCreateFamilyIntegration:
                 'ownDeviceId': 'final-device-id'
             }
             mock_client.create_family_rest.return_value = mock_create_response
-            
-            # Mock pull_status response with familyId
-            mock_pull_response = MagicMock()
-            mock_pull_response.success = True
-            mock_pull_response.data = {
-                'familyId': 'test-family-id',
-                'users': [],
-                'devices': []
-            }
-            mock_client.pull_status.return_value = mock_pull_response
             
             mock_auth_client_class.return_value = mock_client
             
@@ -207,7 +186,6 @@ class TestCreateFamilyIntegration:
             with client.session_transaction() as sess:
                 assert sess.get('device_auth_token') == 'final-device-token'
                 assert sess.get('own_device_id') == 'final-device-id'
-                assert sess.get('family_id') == 'test-family-id'
 
     @pytest.mark.timeout(30)
     def test_flow_with_password_hashes(self, client):
@@ -220,7 +198,7 @@ class TestCreateFamilyIntegration:
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
             
-            # Mock create_family_rest response without familyId (triggers fallback)
+            # Mock create_family_rest response
             mock_create_response = MagicMock()
             mock_create_response.success = True
             mock_create_response.data = {
@@ -228,16 +206,6 @@ class TestCreateFamilyIntegration:
                 'ownDeviceId': 'device-id'
             }
             mock_client.create_family_rest.return_value = mock_create_response
-            
-            # Mock pull_status response with familyId
-            mock_pull_response = MagicMock()
-            mock_pull_response.success = True
-            mock_pull_response.data = {
-                'familyId': 'test-family-id',
-                'users': [],
-                'devices': []
-            }
-            mock_client.pull_status.return_value = mock_pull_response
             
             mock_auth_client_class.return_value = mock_client
             
@@ -282,7 +250,7 @@ class TestCreateFamilyIntegration:
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
             
-            # Mock create_family_rest response without familyId (triggers fallback)
+            # Mock create_family_rest response
             mock_create_response = MagicMock()
             mock_create_response.success = True
             mock_create_response.data = {
@@ -290,16 +258,6 @@ class TestCreateFamilyIntegration:
                 'ownDeviceId': 'device-id'
             }
             mock_client.create_family_rest.return_value = mock_create_response
-            
-            # Mock pull_status response with familyId
-            mock_pull_response = MagicMock()
-            mock_pull_response.success = True
-            mock_pull_response.data = {
-                'familyId': 'test-family-id',
-                'users': [],
-                'devices': []
-            }
-            mock_client.pull_status.return_value = mock_pull_response
             
             mock_auth_client_class.return_value = mock_client
             
@@ -336,7 +294,7 @@ class TestCreateFamilyIntegration:
         with patch('app.AuthClient') as mock_auth_client_class:
             mock_client = MagicMock()
             
-            # Mock create_family_rest response without familyId (triggers fallback)
+            # Mock create_family_rest response
             mock_create_response = MagicMock()
             mock_create_response.success = True
             mock_create_response.data = {
@@ -344,16 +302,6 @@ class TestCreateFamilyIntegration:
                 'ownDeviceId': 'device-id'
             }
             mock_client.create_family_rest.return_value = mock_create_response
-            
-            # Mock pull_status response with familyId
-            mock_pull_response = MagicMock()
-            mock_pull_response.success = True
-            mock_pull_response.data = {
-                'familyId': 'test-family-id',
-                'users': [],
-                'devices': []
-            }
-            mock_client.pull_status.return_value = mock_pull_response
             
             mock_auth_client_class.return_value = mock_client
             

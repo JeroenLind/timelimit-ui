@@ -7,6 +7,10 @@ This module tests the database module functionality including:
 - Devices CRUD operations
 - Auth tokens CRUD operations
 - Thread safety for Flask threaded mode
+
+Key change: Using device_auth_token as primary key instead of family_id,
+matching the official Android app's approach where the server looks up
+family from device using deviceAuthToken.
 """
 
 import os
@@ -29,18 +33,18 @@ from database import (
     delete_family,
     create_device,
     get_device,
-    get_devices_by_family,
+    get_devices_by_device_auth_token,
     delete_device,
     store_auth_token,
     get_auth_token,
     delete_auth_token,
     cleanup_expired_tokens,
     save_users,
-    get_users_by_family,
+    get_users_by_device_auth_token,
     save_sync_state,
     get_sync_state,
     save_categories,
-    get_categories_by_family,
+    get_categories_by_device_auth_token,
     save_connected_devices,
     get_connected_devices
 )
@@ -223,7 +227,7 @@ class TestFamilies:
         """Test creating a family."""
         create_family(
             db=test_db,
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             mail='test@example.com',
             parent_password_hash='$2b$12$hash1',
             parent_password_second_hash='$2b$12$hash2',
@@ -231,7 +235,7 @@ class TestFamilies:
             parent_password_encrypted=False
         )
         
-        family = get_family(test_db, 'family_test123')
+        family = get_family(test_db, 'device_token_test123')
         
         assert family is not None
         assert family['mail'] == 'test@example.com'
@@ -240,7 +244,7 @@ class TestFamilies:
     @pytest.mark.timeout(10)
     def test_get_family_not_found(self, test_db):
         """Test getting a non-existent family."""
-        family = get_family(test_db, 'nonexistent')
+        family = get_family(test_db, 'nonexistent_token')
         
         assert family is None
     
@@ -249,7 +253,7 @@ class TestFamilies:
         """Test getting a family by email."""
         create_family(
             db=test_db,
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             mail='test@example.com',
             parent_password_hash='$2b$12$hash1',
             parent_password_second_hash='$2b$12$hash2',
@@ -260,7 +264,7 @@ class TestFamilies:
         family = get_family_by_mail(test_db, 'test@example.com')
         
         assert family is not None
-        assert family['family_id'] == 'family_test123'
+        assert family['device_auth_token'] == 'device_token_test123'
     
     @pytest.mark.timeout(10)
     def test_get_family_by_mail_not_found(self, test_db):
@@ -274,7 +278,7 @@ class TestFamilies:
         """Test updating a family."""
         create_family(
             db=test_db,
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             mail='test@example.com',
             parent_password_hash='$2b$12$hash1',
             parent_password_second_hash='$2b$12$hash2',
@@ -284,13 +288,13 @@ class TestFamilies:
         
         result = update_family(
             db=test_db,
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             updates={'parent_password_hash': '$2b$12$newhash'}
         )
         
         assert result is True
         
-        family = get_family(test_db, 'family_test123')
+        family = get_family(test_db, 'device_token_test123')
         assert family['parent_password_hash'] == '$2b$12$newhash'
     
     @pytest.mark.timeout(10)
@@ -298,7 +302,7 @@ class TestFamilies:
         """Test updating a non-existent family."""
         result = update_family(
             db=test_db,
-            family_id='nonexistent',
+            device_auth_token='nonexistent_token',
             updates={'parent_password_hash': 'newhash'}
         )
         
@@ -309,7 +313,7 @@ class TestFamilies:
         """Test deleting a family."""
         create_family(
             db=test_db,
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             mail='test@example.com',
             parent_password_hash='$2b$12$hash1',
             parent_password_second_hash='$2b$12$hash2',
@@ -317,15 +321,15 @@ class TestFamilies:
             parent_password_encrypted=False
         )
         
-        result = delete_family(test_db, 'family_test123')
+        result = delete_family(test_db, 'device_token_test123')
         
         assert result is True
-        assert get_family(test_db, 'family_test123') is None
+        assert get_family(test_db, 'device_token_test123') is None
     
     @pytest.mark.timeout(10)
     def test_delete_family_not_found(self, test_db):
         """Test deleting a non-existent family."""
-        result = delete_family(test_db, 'nonexistent')
+        result = delete_family(test_db, 'nonexistent_token')
         
         assert result is False
 
@@ -350,7 +354,7 @@ class TestDevices:
         create_device(
             db=test_db,
             device_id='device_test123',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             name='Test Device',
             model='Pixel 7'
         )
@@ -360,7 +364,7 @@ class TestDevices:
         assert device is not None
         assert device['name'] == 'Test Device'
         assert device['model'] == 'Pixel 7'
-        assert device['family_id'] == 'family_test123'
+        assert device['device_auth_token'] == 'device_token_test123'
     
     @pytest.mark.timeout(10)
     def test_get_device_not_found(self, test_db):
@@ -370,33 +374,33 @@ class TestDevices:
         assert device is None
     
     @pytest.mark.timeout(10)
-    def test_get_devices_by_family(self, test_db):
-        """Test getting devices by family."""
+    def test_get_devices_by_device_auth_token(self, test_db):
+        """Test getting devices by device auth token."""
         create_device(
             db=test_db,
             device_id='device1',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             name='Device 1'
         )
         
         create_device(
             db=test_db,
             device_id='device2',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             name='Device 2'
         )
         
         create_device(
             db=test_db,
             device_id='device3',
-            family_id='family_other',
+            device_auth_token='device_token_other',
             name='Device 3'
         )
         
-        devices = get_devices_by_family(test_db, 'family_test123')
+        devices = get_devices_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(devices) == 2
-        assert all(d['family_id'] == 'family_test123' for d in devices)
+        assert all(d['device_auth_token'] == 'device_token_test123' for d in devices)
     
     @pytest.mark.timeout(10)
     def test_delete_device(self, test_db):
@@ -404,7 +408,7 @@ class TestDevices:
         create_device(
             db=test_db,
             device_id='device_test123',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             name='Test Device'
         )
         
@@ -443,7 +447,7 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='test_token_123',
             device_id='device_test123',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             mail='test@example.com'
         )
         
@@ -468,7 +472,7 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='test_token_123',
             device_id='device_test123',
-            family_id='family_test123'
+            device_auth_token='device_token_test123'
         )
         
         result = delete_auth_token(test_db, 'test_token_123')
@@ -492,7 +496,7 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='expired_token',
             device_id='device_test123',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             expires_at=datetime.now(timezone.utc) - timedelta(hours=1)
         )
         
@@ -502,7 +506,7 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='valid_token',
             device_id='device_test123',
-            family_id='family_test123',
+            device_auth_token='device_token_test123',
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
         )
         
@@ -695,6 +699,7 @@ class TestDatabaseSingleton:
         thread.join(timeout=5)
         
         assert results['value'] == 42, f"Unexpected value: {results['value']}"
+        assert results['error'] is None, f"Thread error: {results['error']}"
 
 
 class TestUsers:
@@ -731,9 +736,9 @@ class TestUsers:
             }
         ]
         
-        save_users(test_db, 'family_test123', users_data)
+        save_users(test_db, 'device_token_test123', users_data)
         
-        users = get_users_by_family(test_db, 'family_test123')
+        users = get_users_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(users) == 2
         assert users[0]['id'] == 'user1'
@@ -743,9 +748,9 @@ class TestUsers:
         assert users[1]['type'] == 'child'
     
     @pytest.mark.timeout(10)
-    def test_get_users_by_family_empty(self, test_db):
-        """Test getting users for a family with no users."""
-        users = get_users_by_family(test_db, 'family_test123')
+    def test_get_users_by_device_auth_token_empty(self, test_db):
+        """Test getting users for a device auth token with no users."""
+        users = get_users_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(users) == 0
     
@@ -761,13 +766,13 @@ class TestUsers:
             }
         ]
         
-        save_users(test_db, 'family_test123', users_data)
+        save_users(test_db, 'device_token_test123', users_data)
         
         # Update the user
         users_data[0]['name'] = 'Updated Parent'
-        save_users(test_db, 'family_test123', users_data)
+        save_users(test_db, 'device_token_test123', users_data)
         
-        users = get_users_by_family(test_db, 'family_test123')
+        users = get_users_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(users) == 1
         assert users[0]['name'] == 'Updated Parent'
@@ -792,23 +797,23 @@ class TestSyncState:
         """Test saving sync state."""
         save_sync_state(
             test_db,
-            'family_test123',
+            'device_token_test123',
             device_list_version='v1',
             user_list_version='v2'
         )
         
-        state = get_sync_state(test_db, 'family_test123')
+        state = get_sync_state(test_db, 'device_token_test123')
         
         assert state is not None
-        assert state['family_id'] == 'family_test123'
+        assert state['device_auth_token'] == 'device_token_test123'
         assert state['device_list_version'] == 'v1'
         assert state['user_list_version'] == 'v2'
         assert state['last_sync_success'] == 1
     
     @pytest.mark.timeout(10)
     def test_get_sync_state_not_found(self, test_db):
-        """Test getting sync state for non-existent family."""
-        state = get_sync_state(test_db, 'nonexistent_family')
+        """Test getting sync state for non-existent device auth token."""
+        state = get_sync_state(test_db, 'nonexistent_token')
         
         assert state is None
     
@@ -817,7 +822,7 @@ class TestSyncState:
         """Test that save_sync_state updates existing state."""
         save_sync_state(
             test_db,
-            'family_test123',
+            'device_token_test123',
             device_list_version='v1',
             user_list_version='v1'
         )
@@ -825,12 +830,12 @@ class TestSyncState:
         # Update the state
         save_sync_state(
             test_db,
-            'family_test123',
+            'device_token_test123',
             device_list_version='v2',
             user_list_version='v3'
         )
         
-        state = get_sync_state(test_db, 'family_test123')
+        state = get_sync_state(test_db, 'device_token_test123')
         
         assert state['device_list_version'] == 'v2'
         assert state['user_list_version'] == 'v3'
@@ -868,9 +873,9 @@ class TestCategories:
             }
         ]
         
-        save_categories(test_db, 'family_test123', categories_data)
+        save_categories(test_db, 'device_token_test123', categories_data)
         
-        categories = get_categories_by_family(test_db, 'family_test123')
+        categories = get_categories_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(categories) == 2
         assert categories[0]['id'] == 'cat1'
@@ -879,9 +884,9 @@ class TestCategories:
         assert categories[1]['title'] == 'Play'
     
     @pytest.mark.timeout(10)
-    def test_get_categories_by_family_empty(self, test_db):
-        """Test getting categories for a family with no categories."""
-        categories = get_categories_by_family(test_db, 'family_test123')
+    def test_get_categories_by_device_auth_token_empty(self, test_db):
+        """Test getting categories for a device auth token with no categories."""
+        categories = get_categories_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(categories) == 0
     
@@ -896,13 +901,13 @@ class TestCategories:
             }
         ]
         
-        save_categories(test_db, 'family_test123', categories_data)
+        save_categories(test_db, 'device_token_test123', categories_data)
         
         # Update the category
         categories_data[0]['title'] = 'Work & Study'
-        save_categories(test_db, 'family_test123', categories_data)
+        save_categories(test_db, 'device_token_test123', categories_data)
         
-        categories = get_categories_by_family(test_db, 'family_test123')
+        categories = get_categories_by_device_auth_token(test_db, 'device_token_test123')
         
         assert len(categories) == 1
         assert categories[0]['title'] == 'Work & Study'
@@ -927,9 +932,9 @@ class TestConnectedDevices:
         """Test saving connected devices."""
         device_ids = ['device1', 'device2', 'device3']
         
-        save_connected_devices(test_db, 'family_test123', device_ids)
+        save_connected_devices(test_db, 'device_token_test123', device_ids)
         
-        retrieved = get_connected_devices(test_db, 'family_test123')
+        retrieved = get_connected_devices(test_db, 'device_token_test123')
         
         assert len(retrieved) == 3
         device_id_list = [d['device_id'] for d in retrieved]
@@ -939,8 +944,8 @@ class TestConnectedDevices:
     
     @pytest.mark.timeout(10)
     def test_get_connected_devices_empty(self, test_db):
-        """Test getting connected devices for a family with none."""
-        devices = get_connected_devices(test_db, 'family_test123')
+        """Test getting connected devices for a device auth token with none."""
+        devices = get_connected_devices(test_db, 'device_token_test123')
         
         assert len(devices) == 0
     
@@ -950,10 +955,10 @@ class TestConnectedDevices:
         device_ids_1 = ['device1', 'device2']
         device_ids_2 = ['device3', 'device4']
         
-        save_connected_devices(test_db, 'family_test123', device_ids_1)
-        save_connected_devices(test_db, 'family_test123', device_ids_2)
+        save_connected_devices(test_db, 'device_token_test123', device_ids_1)
+        save_connected_devices(test_db, 'device_token_test123', device_ids_2)
         
-        devices = get_connected_devices(test_db, 'family_test123')
+        devices = get_connected_devices(test_db, 'device_token_test123')
         
         assert len(devices) == 2
         device_id_list = [d['device_id'] for d in devices]

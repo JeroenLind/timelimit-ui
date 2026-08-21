@@ -6,6 +6,10 @@ with the TimeLimit server. It handles:
 - Applying server data to the local database
 - Tracking sync versions
 - Broadcasting SSE events for real-time updates
+
+Key change: Using device_auth_token as primary key instead of family_id,
+matching the official Android app's approach where the server looks up
+family from device using deviceAuthToken.
 """
 
 import json
@@ -19,9 +23,9 @@ from auth_client import AuthClient, APIResponse
 from config import Config
 from database import (
     Database, get_database,
-    save_users, get_users_by_family,
+    save_users, get_users_by_device_auth_token,
     save_sync_state, get_sync_state,
-    save_categories, get_categories_by_family,
+    save_categories, get_categories_by_device_auth_token,
     save_connected_devices, get_connected_devices
 )
 from middleware.request_logging import get_request_id
@@ -29,7 +33,7 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# In-memory event queues for SSE (per family)
+# In-memory event queues for SSE (per device_auth_token)
 _event_queues: Dict[str, queue.Queue] = {}
 
 
@@ -56,15 +60,13 @@ class SyncManager:
     def do_sync(
         self,
         device_auth_token: str,
-        server_url: str,
-        family_id: str
+        server_url: str
     ) -> bool:
         """Execute one sync round: pull status, apply to database.
         
         Args:
             device_auth_token: Device auth token for authentication.
             server_url: TimeLimit server URL.
-            family_id: Family ID for the sync.
             
         Returns:
             True if sync was successful, False otherwise.
@@ -74,7 +76,7 @@ class SyncManager:
         logger.info(
             "Starting sync",
             request_id=request_id,
-            family_id=family_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
             server_url=server_url
         )
         
@@ -83,7 +85,7 @@ class SyncManager:
             client = AuthClient(base_url=server_url)
             
             # Get current sync state from database
-            sync_state = get_sync_state(self.db, family_id)
+            sync_state = get_sync_state(self.db, device_auth_token)
             client_status = self._build_client_data_status(sync_state)
             
             # Pull server status
@@ -93,7 +95,6 @@ class SyncManager:
                 logger.warning(
                     "Sync failed: pull_status unsuccessful",
                     request_id=request_id,
-                    family_id=family_id,
                     error_code=response.error_code,
                     error_message=response.error_message
                 )
@@ -101,21 +102,21 @@ class SyncManager:
                 return False
             
             # Apply server data to database
-            self._apply_server_data_status(response.data, family_id)
+            self._apply_server_data_status(response.data, device_auth_token)
             
             # Update sync state
-            self._update_sync_state(response.data, family_id)
+            self._update_sync_state(response.data, device_auth_token)
             
             # Close client
             client.close()
             
             # Broadcast SSE event
-            self._broadcast_sync_complete(family_id, response.data)
+            self._broadcast_sync_complete(device_auth_token, response.data)
             
             logger.info(
                 "Sync completed successfully",
                 request_id=request_id,
-                family_id=family_id
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
             )
             
             return True
@@ -124,7 +125,6 @@ class SyncManager:
             logger.error(
                 "Sync error",
                 request_id=request_id,
-                family_id=family_id,
                 error=str(e),
                 error_code="sync_error"
             )
@@ -144,43 +144,41 @@ class SyncManager:
         """
         if sync_state is None:
             # No prior sync state - send empty status for full sync
+            # Format matches Android app's ClientDataStatus.empty
             return {
                 "clientLevel": 7,
-                "devices": None,
-                "users": None,
+                "devices": "",
+                "users": "",
                 "apps": {},
-                "devicesDetail": {},
-                "categories": {},
-                "kri": 0,
-                "kr": 0,
-                "dh": None,
-                "u2f": None
+                "categories": {}
             }
         
         # Build from stored state
-        return {
+        # Format matches Android app's ClientDataStatus.serialize()
+        # devices and users are strings (empty if no version), optional fields omitted when empty
+        device_version = sync_state.get('device_list_version')
+        user_version = sync_state.get('user_list_version')
+        
+        result = {
             "clientLevel": 7,
-            "devices": sync_state.get('device_list_version'),
-            "users": sync_state.get('user_list_version'),
+            "devices": device_version if device_version is not None else "",
+            "users": user_version if user_version is not None else "",
             "apps": {},
-            "devicesDetail": {},
-            "categories": {},
-            "kri": 0,
-            "kr": 0,
-            "dh": None,
-            "u2f": None
+            "categories": {}
         }
+        
+        return result
     
     def _apply_server_data_status(
         self,
         server_data: Dict[str, Any],
-        family_id: str
+        device_auth_token: str
     ) -> None:
         """Apply ServerDataStatus to local database.
         
         Args:
             server_data: ServerDataStatus from pull-status response.
-            family_id: Family ID for the data.
+            device_auth_token: Device auth token for the data.
         """
         request_id = get_request_id()
         
@@ -188,33 +186,33 @@ class SyncManager:
         if 'devices' in server_data and 'data' in server_data['devices']:
             devices = server_data['devices']['data']
             for device in devices:
-                self._save_device_from_server(device, family_id)
+                self._save_device_from_server(device, device_auth_token)
             logger.debug(
                 "Devices applied from sync",
                 request_id=request_id,
-                family_id=family_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(devices)
             )
         
         # Store users
         if 'users' in server_data and 'data' in server_data['users']:
             users = server_data['users']['data']
-            save_users(self.db, family_id, users)
+            save_users(self.db, device_auth_token, users)
             logger.debug(
                 "Users applied from sync",
                 request_id=request_id,
-                family_id=family_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(users)
             )
         
         # Store categories
         if 'categoryBase' in server_data:
             categories = server_data['categoryBase']
-            save_categories(self.db, family_id, categories)
+            save_categories(self.db, device_auth_token, categories)
             logger.debug(
                 "Categories applied from sync",
                 request_id=request_id,
-                family_id=family_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(categories)
             )
         
@@ -224,31 +222,31 @@ class SyncManager:
         if 'pings' in server_data:
             pings = server_data['pings']
             device_ids = [p.get('deviceId') for p in pings if p.get('deviceId')]
-            save_connected_devices(self.db, family_id, device_ids)
+            save_connected_devices(self.db, device_auth_token, device_ids)
             logger.debug(
                 "Connected devices applied from sync",
                 request_id=request_id,
-                family_id=family_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(device_ids)
             )
     
     def _save_device_from_server(
         self,
         device_data: Dict[str, Any],
-        family_id: str
+        device_auth_token: str
     ) -> None:
         """Save a device from server data to the database.
         
         Args:
             device_data: ServerDeviceData from server.
-            family_id: Family ID for the device.
+            device_auth_token: Device auth token for the device.
         """
         from database import create_device
         
         create_device(
             db=self.db,
             device_id=device_data.get('deviceId'),
-            family_id=family_id,
+            device_auth_token=device_auth_token,
             name=device_data.get('name'),
             model=device_data.get('model'),
             current_user_id=device_data.get('currentUserId'),
@@ -264,35 +262,35 @@ class SyncManager:
     def _update_sync_state(
         self,
         server_data: Dict[str, Any],
-        family_id: str
+        device_auth_token: str
     ) -> None:
         """Update sync state version numbers.
         
         Args:
             server_data: ServerDataStatus from pull-status response.
-            family_id: Family ID for the sync state.
+            device_auth_token: Device auth token for the sync state.
         """
         device_version = server_data.get('devices', {}).get('version')
         user_version = server_data.get('users', {}).get('version')
         
-        save_sync_state(self.db, family_id, device_version, user_version)
+        save_sync_state(self.db, device_auth_token, device_version, user_version)
         
         logger.debug(
             "Sync state updated",
-            family_id=family_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
             device_version=device_version,
             user_version=user_version
         )
     
     def _broadcast_sync_complete(
         self,
-        family_id: str,
+        device_auth_token: str,
         server_data: Dict[str, Any]
     ) -> None:
         """Broadcast sync complete event via SSE.
         
         Args:
-            family_id: Family ID for the event.
+            device_auth_token: Device auth token for the event.
             server_data: ServerDataStatus from pull-status response.
         """
         # Get counts
@@ -305,8 +303,8 @@ class SyncManager:
         if 'devices' in server_data and 'data' in server_data['devices']:
             devices_count = len(server_data['devices']['data'])
         
-        # Get event queue for this family
-        q = _event_queues.setdefault(family_id, queue.Queue())
+        # Get event queue for this device_auth_token
+        q = _event_queues.setdefault(device_auth_token, queue.Queue())
         
         # Put event in queue
         event = {
@@ -320,22 +318,22 @@ class SyncManager:
         
         logger.debug(
             "Sync complete event broadcast",
-            family_id=family_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
             users_count=users_count,
             devices_count=devices_count
         )
 
 
-def get_event_queue(family_id: str) -> queue.Queue:
-    """Get the event queue for a family.
+def get_event_queue(device_auth_token: str) -> queue.Queue:
+    """Get the event queue for a device auth token.
     
     Args:
-        family_id: Family ID to get queue for.
+        device_auth_token: Device auth token to get queue for.
         
     Returns:
         Queue for SSE events.
     """
-    return _event_queues.setdefault(family_id, queue.Queue())
+    return _event_queues.setdefault(device_auth_token, queue.Queue())
 
 
 def create_sync_manager(db: Optional[Database] = None) -> SyncManager:
@@ -358,8 +356,7 @@ def create_sync_manager(db: Optional[Database] = None) -> SyncManager:
 
 def run_background_sync(
     device_auth_token: str,
-    server_url: str,
-    family_id: str
+    server_url: str
 ) -> None:
     """Run a background sync job.
     
@@ -368,39 +365,37 @@ def run_background_sync(
     Args:
         device_auth_token: Device auth token for authentication.
         server_url: TimeLimit server URL.
-        family_id: Family ID for the sync.
     """
     request_id = get_request_id()
     
     logger.info(
         "Background sync job started",
         request_id=request_id,
-        family_id=family_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
         server_url=server_url
     )
     
     try:
         db = get_database()
         manager = SyncManager(db)
-        success = manager.do_sync(device_auth_token, server_url, family_id)
+        success = manager.do_sync(device_auth_token, server_url)
         
         if success:
             logger.info(
                 "Background sync job completed successfully",
                 request_id=request_id,
-                family_id=family_id
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
             )
         else:
             logger.warning(
                 "Background sync job failed",
                 request_id=request_id,
-                family_id=family_id
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
             )
     except Exception as e:
         logger.error(
             "Background sync job error",
             request_id=request_id,
-            family_id=family_id,
             error=str(e),
             error_code="background_sync_error"
         )
@@ -412,14 +407,12 @@ def run_background_sync(
 
 def store_sync_credentials(
     db: Database,
-    family_id: str,
     device_auth_token: str
 ) -> None:
     """Store sync credentials for background jobs.
     
     Args:
         db: Database instance.
-        family_id: Family ID.
         device_auth_token: Device auth token.
     """
     from database import store_auth_token
@@ -428,39 +421,30 @@ def store_sync_credentials(
         db=db,
         token_type='sync_device_auth_token',
         token_value=device_auth_token,
-        family_id=family_id
+        device_auth_token=device_auth_token
     )
     
     logger.info(
         "Sync credentials stored",
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
 
 
-def get_sync_credentials(db: Database, family_id: str) -> Optional[str]:
-    """Get sync credentials for a family.
+def get_sync_credentials(db: Database, device_auth_token: str) -> Optional[str]:
+    """Get sync credentials for a device auth token.
     
     Args:
         db: Database instance.
-        family_id: Family ID to look up.
+        device_auth_token: Device auth token to look up.
         
     Returns:
         Device auth token or None if not found.
     """
     from database import get_auth_token
     
-    # We need to find the token by family_id
-    # This is a simplified version - in production you might want a more efficient approach
-    with db._lock:
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            'SELECT token_value FROM auth_tokens WHERE family_id = ? AND token_type = ?',
-            (family_id, 'sync_device_auth_token')
-        )
-        row = cursor.fetchone()
-        
-        if row:
-            return row['token_value']
-        return None
+    # Look up the token by its value
+    token_record = get_auth_token(db, device_auth_token)
+    
+    if token_record:
+        return device_auth_token
+    return None

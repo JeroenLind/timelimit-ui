@@ -2,9 +2,9 @@
 
 This module tests the dashboard API endpoints including:
 - /api/sync/pull - Manual sync trigger
-- /api/dashboard/users - Get users for family
-- /api/dashboard/devices - Get devices for family
-- /api/dashboard/categories - Get categories for family
+- /api/dashboard/users - Get users for device auth token
+- /api/dashboard/devices - Get devices for device auth token
+- /api/dashboard/categories - Get categories for device auth token
 - /api/dashboard/connected-devices - Get connected devices
 - /api/dashboard/stream - SSE endpoint for real-time updates
 """
@@ -99,16 +99,15 @@ def auth_session(client, request):
     test_name = request.node.name
     unique_suffix = f"_{test_name}"
     
-    # Create a test family with unique ID
-    family_id = f'family_test123{unique_suffix}'
-    token_value = f'device_token_test123{unique_suffix}'
+    # Create a test device auth token with unique suffix
+    device_auth_token = f'device_token_test123{unique_suffix}'
     
     # Get the database from the app
     db = client.application.test_db
     
     create_family(
         db=db,
-        family_id=family_id,
+        device_auth_token=device_auth_token,
         mail='test@example.com',
         parent_password_hash='$2b$12$hash1',
         parent_password_second_hash='$2b$12$hash2',
@@ -118,17 +117,15 @@ def auth_session(client, request):
     
     # Store auth token in session
     with client.session_transaction() as sess:
-        sess['device_auth_token'] = token_value
-        sess['family_id'] = family_id
+        sess['device_auth_token'] = device_auth_token
         sess['server_url'] = 'http://localhost:8080'
     
     # Store the token in database
     store_auth_token(
         db=db,
         token_type='device_auth_token',
-        token_value=token_value,
+        token_value=device_auth_token,
         device_id='device_test123',
-        family_id=family_id,
         mail='test@example.com'
     )
     
@@ -149,18 +146,17 @@ class TestApiSyncPull:
         assert data['error_code'] == 'unauthorized'
     
     @pytest.mark.timeout(10)
-    def test_sync_pull_no_family(self, client):
-        """Test sync pull without family selected."""
+    def test_sync_pull_no_device_auth_token(self, client):
+        """Test sync pull without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.post('/api/sync/pull')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error_code'] == 'no_family'
+        assert data['error_code'] == 'no_device_auth_token'
     
     @pytest.mark.timeout(10)
     @patch('app.create_sync_manager')
@@ -209,29 +205,28 @@ class TestApiDashboardUsers:
         assert data['error'] == 'Not authenticated'
     
     @pytest.mark.timeout(10)
-    def test_users_no_family(self, client):
-        """Test getting users without family selected."""
+    def test_users_no_device_auth_token(self, client):
+        """Test getting users without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.get('/api/dashboard/users')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error'] == 'No family selected'
+        assert data['error'] == 'No device auth token'
     
     @pytest.mark.timeout(10)
     def test_users_success(self, auth_session):
         """Test getting users successfully."""
-        # Get family_id from session
+        # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
+            device_auth_token = sess['device_auth_token']
         
         # Add some users
         db = auth_session.application.test_db
-        save_users(db, family_id, [
+        save_users(db, device_auth_token, [
             {
                 'id': 'user1',
                 'name': 'Parent User',
@@ -282,25 +277,24 @@ class TestApiDashboardDevices:
         assert data['error'] == 'Not authenticated'
     
     @pytest.mark.timeout(10)
-    def test_devices_no_family(self, client):
-        """Test getting devices without family selected."""
+    def test_devices_no_device_auth_token(self, client):
+        """Test getting devices without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.get('/api/dashboard/devices')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error'] == 'No family selected'
+        assert data['error'] == 'No device auth token'
     
     @pytest.mark.timeout(10)
     def test_devices_success(self, auth_session):
         """Test getting devices successfully."""
-        # Get family_id from session
+        # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
+            device_auth_token = sess['device_auth_token']
         
         # Add some devices
         db = auth_session.application.test_db
@@ -308,14 +302,14 @@ class TestApiDashboardDevices:
         create_device(
             db=db,
             device_id='device1',
-            family_id=family_id,
+            device_auth_token=device_auth_token,
             name='Parent Phone',
             model='Pixel 7'
         )
         create_device(
             db=db,
             device_id='device2',
-            family_id=family_id,
+            device_auth_token=device_auth_token,
             name='Child Tablet',
             model='iPad'
         )
@@ -343,29 +337,28 @@ class TestApiDashboardCategories:
         assert data['error'] == 'Not authenticated'
     
     @pytest.mark.timeout(10)
-    def test_categories_no_family(self, client):
-        """Test getting categories without family selected."""
+    def test_categories_no_device_auth_token(self, client):
+        """Test getting categories without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.get('/api/dashboard/categories')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error'] == 'No family selected'
+        assert data['error'] == 'No device auth token'
     
     @pytest.mark.timeout(10)
     def test_categories_success(self, auth_session):
         """Test getting categories successfully."""
-        # Get family_id from session
+        # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
+            device_auth_token = sess['device_auth_token']
         
         # Add some categories
         db = auth_session.application.test_db
-        save_categories(db, family_id, [
+        save_categories(db, device_auth_token, [
             {
                 'id': 'cat1',
                 'title': 'Work',
@@ -403,29 +396,28 @@ class TestApiDashboardConnectedDevices:
         assert data['error'] == 'Not authenticated'
     
     @pytest.mark.timeout(10)
-    def test_connected_devices_no_family(self, client):
-        """Test getting connected devices without family selected."""
+    def test_connected_devices_no_device_auth_token(self, client):
+        """Test getting connected devices without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.get('/api/dashboard/connected-devices')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error'] == 'No family selected'
+        assert data['error'] == 'No device auth token'
     
     @pytest.mark.timeout(10)
     def test_connected_devices_success(self, auth_session):
         """Test getting connected devices successfully."""
-        # Get family_id from session
+        # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
+            device_auth_token = sess['device_auth_token']
         
         # Add some connected devices
         db = auth_session.application.test_db
-        save_connected_devices(db, family_id, ['device1', 'device2', 'device3'])
+        save_connected_devices(db, device_auth_token, ['device1', 'device2', 'device3'])
         
         response = auth_session.get('/api/dashboard/connected-devices')
         
@@ -454,26 +446,21 @@ class TestDashboardStream:
         assert data['error'] == 'Not authenticated'
     
     @pytest.mark.timeout(10)
-    def test_stream_no_family(self, client):
-        """Test SSE stream without family selected."""
+    def test_stream_no_device_auth_token(self, client):
+        """Test SSE stream without device auth token in session."""
         with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'device_token_test123'
-            sess['family_id'] = None
+            sess['device_auth_token'] = None
         
         response = client.get('/api/dashboard/stream')
         
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
-        assert data['error'] == 'No family selected'
+        assert data['error'] == 'No device auth token'
     
     @pytest.mark.timeout(10)
     def test_stream_authenticated(self, auth_session):
         """Test SSE stream with authentication."""
-        # Get family_id from session
-        with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
-        
         # Set environment variable to limit keep-alive messages for testing
         original_max_keepalives = os.environ.get('TEST_MAX_KEEPALIVES')
         os.environ['TEST_MAX_KEEPALIVES'] = '1'
@@ -506,14 +493,14 @@ class TestDashboardIntegration:
     @pytest.mark.timeout(10)
     def test_full_dashboard_flow(self, auth_session):
         """Test the full dashboard data flow."""
-        # Get family_id from session
+        # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
-            family_id = sess['family_id']
+            device_auth_token = sess['device_auth_token']
         
         db = auth_session.application.test_db
         
         # Add users
-        save_users(db, family_id, [
+        save_users(db, device_auth_token, [
             {
                 'id': 'user1',
                 'name': 'Parent User',
@@ -528,13 +515,13 @@ class TestDashboardIntegration:
         create_device(
             db=db,
             device_id='device1',
-            family_id=family_id,
+            device_auth_token=device_auth_token,
             name='Parent Phone',
             model='Pixel 7'
         )
         
         # Add categories
-        save_categories(db, family_id, [
+        save_categories(db, device_auth_token, [
             {
                 'id': 'cat1',
                 'title': 'Work',
@@ -543,7 +530,7 @@ class TestDashboardIntegration:
         ])
         
         # Add connected devices
-        save_connected_devices(db, family_id, ['device1'])
+        save_connected_devices(db, device_auth_token, ['device1'])
         
         # Test users endpoint
         response = auth_session.get('/api/dashboard/users')

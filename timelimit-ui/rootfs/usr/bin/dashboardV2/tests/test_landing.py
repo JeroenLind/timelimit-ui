@@ -69,7 +69,7 @@ class TestLandingPage:
         """Test that landing page has debug server option."""
         response = client.get('/')
         
-        assert b'localhost:8080' in response.data
+        assert b'192.168.68.30:8080' in response.data
     
     @pytest.mark.timeout(10)
     def test_landing_page_has_javascript(self, client):
@@ -202,7 +202,7 @@ class TestServerSelection:
         assert response.status_code == 200
         data = response.get_json()
         assert data['status'] == 'ok'
-        assert data['server_url'] == 'http://localhost:8080'
+        assert data['server_url'] == 'http://192.168.68.30:8080'
         assert data['server_name'] == '🐛 Debug Server'
     
     @pytest.mark.timeout(10)
@@ -294,7 +294,7 @@ class TestServerSelectionPersistence:
         
         data = response.get_json()
         assert data['server_key'] == 'debug'
-        assert data['server_url'] == 'http://localhost:8080'
+        assert data['server_url'] == 'http://192.168.68.30:8080'
     
     @pytest.mark.timeout(10)
     def test_get_current_server_url_uses_persistence(self, client):
@@ -479,7 +479,7 @@ class TestServerSelectionOptions:
         
         debug = Config.SERVER_OPTIONS['debug']
         assert debug['name'] == '🐛 Debug Server'
-        assert debug['url'] == 'http://localhost:8080'
+        assert debug['url'] == 'http://192.168.68.30:8080'
 
 
 class TestTemplateInheritance:

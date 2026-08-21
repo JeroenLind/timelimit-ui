@@ -7,6 +7,10 @@
  * - Data refresh
  * - Server selection
  * - Users & Devices dashboard
+ * 
+ * Key change: Using device_auth_token as primary key instead of family_id,
+ * matching the official Android app's approach where the server looks up
+ * family from device using deviceAuthToken.
  */
 
 (function() {
@@ -85,165 +89,177 @@
     }
     
     /**
-     * Update session overview display with validation status
+     * Update login status banner at the top of the dashboard
      * @param {Object} data - Session status data from API
      */
-    function updateSessionOverview(data) {
-        if (!data) {
-            console.error('updateSessionOverview: No data provided');
-            return;
-        }
+    function updateLoginStatusBanner(data) {
+        const banner = document.getElementById('login-status-banner');
+        const indicator = document.getElementById('login-banner-indicator');
+        const message = document.getElementById('login-banner-message');
         
-        // Update server status indicator and text
-        const serverIndicator = document.getElementById('server-status-indicator');
-        const serverStatusText = document.getElementById('server-status-text');
-        if (serverIndicator && serverStatusText) {
-            if (data.server_url) {
-                serverIndicator.className = 'status-indicator status-success';
-                serverStatusText.textContent = 'Server: ' + data.server_url;
-            } else {
-                serverIndicator.className = 'status-indicator status-warning';
-                serverStatusText.textContent = 'Server: Not selected';
-            }
-        }
+        if (!banner || !indicator || !message) return;
         
-        // Update auth status indicator and text
-        const authIndicator = document.getElementById('auth-status-indicator');
-        const authStatusText = document.getElementById('auth-status-text');
-        if (authIndicator && authStatusText) {
-            if (data.has_device_auth_token) {
-                authIndicator.className = 'status-indicator status-success';
-                authStatusText.textContent = 'Auth: Authenticated';
-            } else {
-                authIndicator.className = 'status-indicator status-error';
-                authStatusText.textContent = 'Auth: Not authenticated';
-            }
-        }
-        
-        // Update family status indicator and text
-        const familyIndicator = document.getElementById('family-status-indicator');
-        const familyStatusText = document.getElementById('family-status-text');
-        if (familyIndicator && familyStatusText) {
-            if (data.family_id) {
-                familyIndicator.className = 'status-indicator status-success';
-                familyStatusText.textContent = 'Family: ' + data.family_id.substring(0, 8) + '...';
-            } else {
-                familyIndicator.className = 'status-indicator status-warning';
-                familyStatusText.textContent = 'Family: Not selected';
-            }
-        }
-        
-        // Update detailed field values and statuses
-        // Server URL
-        const serverUrlField = document.getElementById('field-server-url');
-        const serverUrlStatus = document.getElementById('server-url-status');
-        if (serverUrlField && serverUrlStatus) {
-            if (data.server_url) {
-                serverUrlField.textContent = data.server_url;
-                serverUrlField.style.color = '#00ff88';
-                serverUrlStatus.textContent = 'Valid - Server URL configured';
-                serverUrlStatus.style.color = '#4caf50';
-            } else {
-                serverUrlField.textContent = '-';
-                serverUrlField.style.color = '#888';
-                serverUrlStatus.textContent = 'Missing - Select a server first';
-                serverUrlStatus.style.color = '#ff9800';
-            }
-        }
-        
-        // Device Auth Token
-        const deviceTokenField = document.getElementById('field-device-token');
-        const deviceTokenStatus = document.getElementById('device-token-status');
-        if (deviceTokenField && deviceTokenStatus) {
-            if (data.has_device_auth_token) {
-                deviceTokenField.textContent = '***';
-                deviceTokenField.style.color = '#00ff88';
-                deviceTokenStatus.textContent = 'Valid - Device authenticated';
-                deviceTokenStatus.style.color = '#4caf50';
-            } else {
-                deviceTokenField.textContent = '-';
-                deviceTokenField.style.color = '#888';
-                deviceTokenStatus.textContent = 'Missing - Sign in to get device token';
-                deviceTokenStatus.style.color = '#ff9800';
-            }
-        }
-        
-        // Own Device ID
-        const deviceIdField = document.getElementById('field-device-id');
-        const deviceIdStatus = document.getElementById('device-id-status');
-        if (deviceIdField && deviceIdStatus) {
-            if (data.own_device_id) {
-                deviceIdField.textContent = data.own_device_id;
-                deviceIdField.style.color = '#00ff88';
-                deviceIdStatus.textContent = 'Valid - Own device registered';
-                deviceIdStatus.style.color = '#4caf50';
-            } else {
-                deviceIdField.textContent = '-';
-                deviceIdField.style.color = '#888';
-                deviceIdStatus.textContent = 'Missing - Device ID not set';
-                deviceIdStatus.style.color = '#ff9800';
-            }
-        }
-        
-        // Family ID
-        const familyIdField = document.getElementById('field-family-id');
-        const familyIdStatus = document.getElementById('family-id-status');
-        if (familyIdField && familyIdStatus) {
-            if (data.family_id) {
-                familyIdField.textContent = data.family_id;
-                familyIdField.style.color = '#00ff88';
-                familyIdStatus.textContent = 'Valid - Family connected';
-                familyIdStatus.style.color = '#4caf50';
-            } else if (data.login_error) {
-                familyIdField.textContent = '-';
-                familyIdField.style.color = '#ff9800';
-                familyIdStatus.textContent = 'Error - ' + data.login_error;
-                familyIdStatus.style.color = '#f44336';
-            } else {
-                familyIdField.textContent = '-';
-                familyIdField.style.color = '#888';
-                familyIdStatus.textContent = 'Missing - Create or join a family';
-                familyIdStatus.style.color = '#ff9800';
-            }
-        }
-        
-        // Mail Auth Token
-        const mailTokenField = document.getElementById('field-mail-token');
-        const mailTokenStatus = document.getElementById('mail-token-status');
-        if (mailTokenField && mailTokenStatus) {
-            if (data.has_mail_auth_token) {
-                mailTokenField.textContent = '***';
-                mailTokenField.style.color = '#00ff88';
-                mailTokenStatus.textContent = 'Valid - Mail auth token available';
-                mailTokenStatus.style.color = '#4caf50';
-            } else {
-                mailTokenField.textContent = '-';
-                mailTokenField.style.color = '#888';
-                mailTokenStatus.textContent = 'Missing - Used for family creation/login';
-                mailTokenStatus.style.color = '#666';
-            }
-        }
-        
-        // Show/hide action links based on authentication status
-        const createFamilyLink = document.getElementById('create-family-link');
-        const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
-        const signoutLink = document.getElementById('signout-link');
-        if (createFamilyLink && loginExistingFamilyLink) {
-            if (data.authenticated) {
-                createFamilyLink.style.display = 'none';
-                loginExistingFamilyLink.style.display = 'none';
-                if (signoutLink) {
-                    signoutLink.style.display = 'block';
-                }
-            } else {
-                createFamilyLink.style.display = 'block';
-                loginExistingFamilyLink.style.display = 'block';
-                if (signoutLink) {
-                    signoutLink.style.display = 'none';
-                }
-            }
+        if (data.login_error) {
+            banner.style.display = 'block';
+            indicator.className = 'status-indicator status-error';
+            message.textContent = 'Login Failed: ' + data.login_error;
+            message.style.color = '#f44336';
+        } else if (data.authenticated) {
+            banner.style.display = 'block';
+            indicator.className = 'status-indicator status-success';
+            message.textContent = 'Authenticated - Successfully logged in to family';
+            message.style.color = '#00ff88';
+        } else {
+            banner.style.display = 'block';
+            indicator.className = 'status-indicator status-warning';
+            message.textContent = 'Not Authenticated - Please log in to access family data';
+            message.style.color = '#ff9800';
         }
     }
+        
+        /**
+         * Update session overview display with validation status
+         * @param {Object} data - Session status data from API
+         */
+        function updateSessionOverview(data) {
+            if (!data) {
+                console.error('updateSessionOverview: No data provided');
+                return;
+            }
+            
+            // Update server status indicator and text
+            const serverIndicator = document.getElementById('server-status-indicator');
+            const serverStatusText = document.getElementById('server-status-text');
+            if (serverIndicator && serverStatusText) {
+                if (data.server_url) {
+                    serverIndicator.className = 'status-indicator status-success';
+                    serverStatusText.textContent = 'Server: ' + data.server_url;
+                } else {
+                    serverIndicator.className = 'status-indicator status-warning';
+                    serverStatusText.textContent = 'Server: Not selected';
+                }
+            }
+            
+            // Update auth status indicator and text
+            const authIndicator = document.getElementById('auth-status-indicator');
+            const authStatusText = document.getElementById('auth-status-text');
+            if (authIndicator && authStatusText) {
+                if (data.has_device_auth_token) {
+                    authIndicator.className = 'status-indicator status-success';
+                    authStatusText.textContent = 'Auth: Authenticated';
+                } else {
+                    authIndicator.className = 'status-indicator status-error';
+                    authStatusText.textContent = 'Auth: Not authenticated';
+                }
+            }
+            
+            // Update device auth token status indicator and text
+            const deviceTokenIndicator = document.getElementById('device-token-status-indicator');
+            const deviceTokenStatusText = document.getElementById('device-token-status-text');
+            if (deviceTokenIndicator && deviceTokenStatusText) {
+                if (data.has_device_auth_token) {
+                    deviceTokenIndicator.className = 'status-indicator status-success';
+                    deviceTokenStatusText.textContent = 'Device Token: Authenticated';
+                } else {
+                    deviceTokenIndicator.className = 'status-indicator status-error';
+                    deviceTokenStatusText.textContent = 'Device Token: Not authenticated';
+                }
+            }
+            
+            // Update detailed field values and statuses
+            // Server URL
+            const serverUrlField = document.getElementById('field-server-url');
+            const serverUrlStatus = document.getElementById('server-url-status');
+            if (serverUrlField && serverUrlStatus) {
+                if (data.server_url) {
+                    serverUrlField.textContent = data.server_url;
+                    serverUrlField.style.color = '#00ff88';
+                    serverUrlStatus.textContent = 'Valid - Server URL configured';
+                    serverUrlStatus.style.color = '#4caf50';
+                } else {
+                    serverUrlField.textContent = '-';
+                    serverUrlField.style.color = '#888';
+                    serverUrlStatus.textContent = 'Missing - Select a server first';
+                    serverUrlStatus.style.color = '#ff9800';
+                }
+            }
+            
+            // Device Auth Token
+            const deviceTokenField = document.getElementById('field-device-token');
+            const deviceTokenStatus = document.getElementById('device-token-status');
+            if (deviceTokenField && deviceTokenStatus) {
+                if (data.has_device_auth_token) {
+                    deviceTokenField.textContent = '***';
+                    deviceTokenField.style.color = '#00ff88';
+                    deviceTokenStatus.textContent = 'Valid - Device authenticated';
+                    deviceTokenStatus.style.color = '#4caf50';
+                } else {
+                    deviceTokenField.textContent = '-';
+                    deviceTokenField.style.color = '#888';
+                    deviceTokenStatus.textContent = 'Missing - Sign in to get device token';
+                    deviceTokenStatus.style.color = '#ff9800';
+                }
+            }
+            
+            // Own Device ID
+            const deviceIdField = document.getElementById('field-device-id');
+            const deviceIdStatus = document.getElementById('device-id-status');
+            if (deviceIdField && deviceIdStatus) {
+                if (data.own_device_id) {
+                    deviceIdField.textContent = data.own_device_id;
+                    deviceIdField.style.color = '#00ff88';
+                    deviceIdStatus.textContent = 'Valid - Own device registered';
+                    deviceIdStatus.style.color = '#4caf50';
+                } else {
+                    deviceIdField.textContent = '-';
+                    deviceIdField.style.color = '#888';
+                    deviceIdStatus.textContent = 'Missing - Device ID not set';
+                    deviceIdStatus.style.color = '#ff9800';
+                }
+            }
+            
+            // Update Login Status field
+            const loginStatusField = document.getElementById('field-login-status');
+            const loginStatusMessage = document.getElementById('login-status-message');
+            if (loginStatusField && loginStatusMessage) {
+                if (data.login_error) {
+                    loginStatusField.textContent = 'Login Failed';
+                    loginStatusField.style.color = '#f44336';
+                    loginStatusMessage.textContent = 'Error: ' + data.login_error;
+                    loginStatusMessage.style.color = '#f44336';
+                } else if (data.authenticated) {
+                    loginStatusField.textContent = 'Authenticated';
+                    loginStatusField.style.color = '#00ff88';
+                    loginStatusMessage.textContent = 'Successfully logged in to family';
+                    loginStatusMessage.style.color = '#4caf50';
+                } else {
+                    loginStatusField.textContent = 'Not Authenticated';
+                    loginStatusField.style.color = '#ff9800';
+                    loginStatusMessage.textContent = 'Please log in to access family data';
+                    loginStatusMessage.style.color = '#ff9800';
+                }
+            }
+            
+            // Show/hide action links based on authentication status
+            const createFamilyLink = document.getElementById('create-family-link');
+            const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
+            const signoutLink = document.getElementById('signout-link');
+            if (createFamilyLink && loginExistingFamilyLink) {
+                if (data.authenticated) {
+                    createFamilyLink.style.display = 'none';
+                    loginExistingFamilyLink.style.display = 'none';
+                    if (signoutLink) {
+                        signoutLink.style.display = 'block';
+                    }
+                } else {
+                    createFamilyLink.style.display = 'block';
+                    loginExistingFamilyLink.style.display = 'block';
+                    if (signoutLink) {
+                        signoutLink.style.display = 'none';
+                    }
+                }
+            }
+        }
     
     /**
      * Select a server
@@ -612,42 +628,44 @@
     }
     
     // Expose functions globally for HTML onclick handlers
-    window.refreshUsers = refreshUsers;
-    window.refreshDevices = refreshDevices;
-    window.refreshConnectedDevices = refreshConnectedDevices;
-    window.loadUsers = loadUsers;
-    window.loadDevices = loadDevices;
-    window.loadConnectedDevices = loadConnectedDevices;
-    window.triggerSync = triggerSync;
-    window.connectSSE = connectSSE;
-    window.checkAuthentication = checkAuthentication;
-    window.selectServer = selectServer;
-    window.refreshData = refreshData;
-    window.clearSession = clearSession;
-    window.apiRequest = apiRequest;
-    window.refreshAll = refreshAll;
-    window.updateSessionOverview = updateSessionOverview;
-    window.showAlert = showAlert;
+        window.refreshUsers = refreshUsers;
+        window.refreshDevices = refreshDevices;
+        window.refreshConnectedDevices = refreshConnectedDevices;
+        window.loadUsers = loadUsers;
+        window.loadDevices = loadDevices;
+        window.loadConnectedDevices = loadConnectedDevices;
+        window.triggerSync = triggerSync;
+        window.connectSSE = connectSSE;
+        window.checkAuthentication = checkAuthentication;
+        window.selectServer = selectServer;
+        window.refreshData = refreshData;
+        window.clearSession = clearSession;
+        window.apiRequest = apiRequest;
+        window.refreshAll = refreshAll;
+        window.updateSessionOverview = updateSessionOverview;
+        window.updateLoginStatusBanner = updateLoginStatusBanner;
+        window.showAlert = showAlert;
     
     // Also expose on dashboardV2 object for programmatic access
-    window.dashboardV2 = {
-        selectServer: selectServer,
-        refreshData: refreshData,
-        clearSession: clearSession,
-        checkAuthentication: checkAuthentication,
-        apiRequest: apiRequest,
-        loadUsers: loadUsers,
-        loadDevices: loadDevices,
-        loadConnectedDevices: loadConnectedDevices,
-        refreshUsers: refreshUsers,
-        refreshDevices: refreshDevices,
-        refreshConnectedDevices: refreshConnectedDevices,
-        refreshAll: refreshAll,
-        triggerSync: triggerSync,
-        connectSSE: connectSSE,
-        updateSessionOverview: updateSessionOverview,
-        showAlert: showAlert
-    };
+        window.dashboardV2 = {
+            selectServer: selectServer,
+            refreshData: refreshData,
+            clearSession: clearSession,
+            checkAuthentication: checkAuthentication,
+            apiRequest: apiRequest,
+            loadUsers: loadUsers,
+            loadDevices: loadDevices,
+            loadConnectedDevices: loadConnectedDevices,
+            refreshUsers: refreshUsers,
+            refreshDevices: refreshDevices,
+            refreshConnectedDevices: refreshConnectedDevices,
+            refreshAll: refreshAll,
+            triggerSync: triggerSync,
+            connectSSE: connectSSE,
+            updateSessionOverview: updateSessionOverview,
+            updateLoginStatusBanner: updateLoginStatusBanner,
+            showAlert: showAlert
+        };
 
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', async function() {

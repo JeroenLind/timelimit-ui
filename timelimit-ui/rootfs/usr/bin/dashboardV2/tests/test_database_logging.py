@@ -27,7 +27,7 @@ from database import (
     delete_family,
     create_device,
     get_device,
-    get_devices_by_family,
+    get_devices_by_device_auth_token,
     delete_device,
     store_auth_token,
     get_auth_token,
@@ -429,7 +429,7 @@ class TestFamilyOperationsLogging:
 
                 create_family(
                     db=db,
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     parent_password_hash='hash123',
                     parent_password_second_hash='hash456',
@@ -440,7 +440,7 @@ class TestFamilyOperationsLogging:
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Family created', family_id='fam123')
+                    logger.info('Family created', device_auth_token='device_token_test123')
 
                 reset_structlog()
 
@@ -468,7 +468,7 @@ class TestFamilyOperationsLogging:
                 # Add family
                 create_family(
                     db=db,
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     parent_password_hash='hash123',
                     parent_password_second_hash='hash456',
@@ -477,12 +477,12 @@ class TestFamilyOperationsLogging:
                 )
 
                 # Query
-                get_family(db, 'fam123')
+                get_family(db, 'device_token_test123')
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Family queried', family_id='fam123')
+                    logger.info('Family queried', device_auth_token='device_token_test123')
 
                 reset_structlog()
 
@@ -510,7 +510,7 @@ class TestFamilyOperationsLogging:
                 # Add family
                 create_family(
                     db=db,
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     parent_password_hash='hash123',
                     parent_password_second_hash='hash456',
@@ -519,12 +519,12 @@ class TestFamilyOperationsLogging:
                 )
 
                 # Delete
-                delete_family(db, 'fam123')
+                delete_family(db, 'device_token_test123')
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Family deleted', family_id='fam123')
+                    logger.info('Family deleted', device_auth_token='device_token_test123')
 
                 reset_structlog()
 
@@ -556,10 +556,10 @@ class TestDeviceOperationsLogging:
                 create_device(
                     db=db,
                     device_id='dev123',
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     name='Test Device',
                     model='Pixel 7',
-                    current_user_id='fam123',
+                    current_user_id='device_token_test123',
                     current_protection_level=0,
                     highest_protection_level=0,
                     current_app_version='1.0.0',
@@ -582,8 +582,8 @@ class TestDeviceOperationsLogging:
                 db.close()
 
     @pytest.mark.timeout(10)
-    def test_get_devices_by_family_logs_query(self):
-        """Verify get_devices_by_family logs query."""
+    def test_get_devices_by_device_auth_token_logs_query(self):
+        """Verify get_devices_by_device_auth_token logs query."""
         reset_structlog()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch.dict(os.environ, {
@@ -601,10 +601,10 @@ class TestDeviceOperationsLogging:
                 create_device(
                     db=db,
                     device_id='dev123',
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     name='Test Device',
                     model='Pixel 7',
-                    current_user_id='fam123',
+                    current_user_id='device_token_test123',
                     current_protection_level=0,
                     highest_protection_level=0,
                     current_app_version='1.0.0',
@@ -615,12 +615,12 @@ class TestDeviceOperationsLogging:
                 )
 
                 # Query
-                get_devices_by_family(db, 'fam123')
+                get_devices_by_device_auth_token(db, 'device_token_test123')
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Devices queried by family', family_id='fam123')
+                    logger.info('Devices queried by device_auth_token', device_auth_token='device_token_test123')
 
                 reset_structlog()
 
@@ -654,7 +654,7 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )
@@ -693,7 +693,7 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )
@@ -735,7 +735,7 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    family_id='fam123',
+                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )

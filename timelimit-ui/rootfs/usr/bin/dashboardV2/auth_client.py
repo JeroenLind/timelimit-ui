@@ -928,18 +928,15 @@ class AuthClient:
         request_id = get_request_id()
         
         # Build ClientDataStatus - empty for initial sync
+        # Format matches Android app's ClientDataStatus.empty (devices and users as empty strings,
+        # optional fields omitted when not present)
         if client_data_status is None:
             client_data_status = {
                 "clientLevel": 7,
-                "devices": None,
-                "users": None,
+                "devices": "",
+                "users": "",
                 "apps": {},
-                "devicesDetail": {},
-                "categories": {},
-                "kri": 0,
-                "kr": 0,
-                "dh": None,
-                "u2f": None
+                "categories": {}
             }
         
         data = {

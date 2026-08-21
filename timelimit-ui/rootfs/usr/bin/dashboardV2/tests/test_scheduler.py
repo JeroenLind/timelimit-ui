@@ -161,7 +161,7 @@ class TestSchedulerLifecycle:
         start_scheduler()
         stop_scheduler()
         
-        assert _scheduler is None
+        assert scheduler_module._scheduler is None
     
     def test_is_scheduler_running(self):
         """Test checking if scheduler is running."""
@@ -305,7 +305,7 @@ class TestInitializeShutdown:
         initialize_scheduler()
         shutdown_scheduler()
         
-        assert _scheduler is None
+        assert scheduler_module._scheduler is None
 
 
 class TestSchedulerCallback:

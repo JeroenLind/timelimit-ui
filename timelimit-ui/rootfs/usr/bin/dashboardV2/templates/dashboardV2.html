@@ -281,6 +281,12 @@
     <div id="error-message" style="display: none; margin-top: 10px; padding: 10px; background: rgba(244, 67, 54, 0.1); border-radius: 8px; color: #ff4444;"></div>
 </div>
 
+<!-- Login Status Banner - Prominent display at top of dashboard -->
+<div class="status-section" id="login-status-banner" style="display: none;">
+    <h2><span class="status-indicator status-warning" id="login-banner-indicator"></span>Login Status</h2>
+    <div id="login-banner-message">Checking login status...</div>
+</div>
+
 <div class="dashboard-content">
     <h2>Dashboard Content <span class="version-badge">v1.0.0</span></h2>
     <p>Welcome to the new TimeLimit Dashboard v2.</p>
@@ -331,8 +337,8 @@
                 <span id="auth-status-text">Auth: Not authenticated</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span id="family-status-indicator" class="status-indicator status-warning"></span>
-                <span id="family-status-text">Family: Not selected</span>
+                <span id="device-token-status-indicator" class="status-indicator status-warning"></span>
+                <span id="device-token-status-text">Device Token: Not authenticated</span>
             </div>
         </div>
         
@@ -371,15 +377,6 @@
                     <div id="device-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
                 </div>
                 
-                <!-- Family ID -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #aaa;">Family ID</span>
-                        <span id="field-family-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
-                    </div>
-                    <div id="family-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
-                </div>
-                
                 <!-- Mail Auth Token -->
                 <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -387,6 +384,15 @@
                         <span id="field-mail-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
                     </div>
                     <div id="mail-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Login Status -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Login Status</span>
+                        <span id="field-login-status" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="login-status-message" style="font-size: 11px; color: #666; margin-top: 4px;">Checking login status...</div>
                 </div>
             </div>
         </div>
@@ -492,31 +498,40 @@
 <script>
     // Server status and historical data functions
     function fetchSessionStatus() {
-            const serverUrlElement = document.getElementById('current-server');
-            const authStatusElement = document.getElementById('auth-status');
-            
-            fetch('/api/session/status', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.server_url) {
-                    serverUrlElement.textContent = data.server_url;
-                }
+        const serverUrlElement = document.getElementById('server-status-text');
+        const authStatusElement = document.getElementById('auth-status-text');
+        
+        fetch('/api/session/status', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.server_url && serverUrlElement) {
+                serverUrlElement.textContent = 'Server: ' + data.server_url;
+            }
+            if (authStatusElement) {
                 if (data.authenticated) {
-                    authStatusElement.textContent = 'Authenticated';
+                    authStatusElement.textContent = 'Auth: Authenticated';
                     authStatusElement.style.color = '#4caf50';
+                } else {
+                    authStatusElement.textContent = 'Auth: Not authenticated';
+                    authStatusElement.style.color = '#ff9800';
                 }
-                // Update the detailed session overview
-                if (typeof updateSessionOverview === 'function') {
-                    updateSessionOverview(data);
-                }
-            })
-            .catch(error => {
-                console.log('Could not fetch session status');
-            });
-        }
+            }
+            // Update the login status banner
+            if (typeof updateLoginStatusBanner === 'function') {
+                updateLoginStatusBanner(data);
+            }
+            // Update the detailed session overview
+            if (typeof updateSessionOverview === 'function') {
+                updateSessionOverview(data);
+            }
+        })
+        .catch(error => {
+            console.log('Could not fetch session status');
+        });
+    }
     
     function refreshServerStatus() {
         const btn = document.getElementById('refresh-btn');

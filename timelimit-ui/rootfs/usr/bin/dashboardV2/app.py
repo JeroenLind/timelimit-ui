@@ -9,6 +9,10 @@ for the new dashboard. It handles:
 
 The application is designed to run on both Windows laptop and Home Assistant
 as an ingress app.
+
+Key change: Using device_auth_token as primary key instead of family_id,
+matching the official Android app's approach where the server looks up
+family from device using deviceAuthToken.
 """
 
 import atexit
@@ -30,7 +34,7 @@ from auth_client import AuthClient, APIResponse
 from config import Config
 from database import (
     Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token,
-    get_users_by_family, get_devices_by_family, get_categories_by_family, get_connected_devices
+    get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
@@ -1068,65 +1072,16 @@ def post_create_family():
             session['device_auth_token'] = response.data.get('deviceAuthToken')
             session['own_device_id'] = response.data.get('ownDeviceId')
             
-            # Extract and store family_id from initialData if present
-            initial_data = response.data.get('initialData', {})
-            family_id = initial_data.get('familyId')
-            
-            # If family_id not in initialData, check data field
-            if not family_id:
-                data_field = response.data.get('data', {})
-                family_id = data_field.get('familyId')
-            
-            # If still not found, perform pull_status to get family_id
-            if not family_id:
-                logger.info("Family ID not in response, performing pull_status", request_id=request_id)
-                pull_response = client.pull_status(
-                    device_auth_token=response.data.get('deviceAuthToken')
+            # Store auth token in database for later lookup
+            if response.data.get('deviceAuthToken'):
+                db = get_database()
+                store_auth_token(
+                    db=db,
+                    token_type='device_auth_token',
+                    token_value=response.data.get('deviceAuthToken'),
+                    device_id=response.data.get('ownDeviceId')
                 )
-                if pull_response.success:
-                    # Extract family_id from pull_status response
-                    # The response may have familyId at the top level or in data
-                    family_id = pull_response.data.get('familyId')
-                    if not family_id:
-                        data_field = pull_response.data.get('data', {})
-                        family_id = data_field.get('familyId')
-                    
-                    # If still not found, set error for user feedback
-                    if not family_id:
-                        error_msg = 'Failed to retrieve family information from server'
-                        session['login_error'] = error_msg
-                        logger.warning("Family ID not found in pull_status response", error_message=error_msg, request_id=request_id)
-                else:
-                    # Store the pull_status error for user feedback
-                    # Error message may be in error_message or data field
-                    error_msg = pull_response.error_message
-                    if not error_msg and pull_response.data:
-                        # Extract error from HTML response in data field
-                        data_str = str(pull_response.data)
-                        if 'BadRequestError' in data_str:
-                            error_msg = 'Server error: Invalid request format'
-                        else:
-                            error_msg = 'Failed to retrieve family information'
-                    # Ensure we have an error message
-                    error_msg = error_msg or 'Failed to retrieve family information'
-                    session['login_error'] = error_msg
-                    logger.warning("Failed to pull server status during family creation", error_message=error_msg, request_id=request_id)
-            
-            if family_id:
-                session['family_id'] = family_id
-                logger.info("Family ID extracted and stored in session", family_id=family_id, request_id=request_id)
-                
-                # Store auth token in database for later lookup
-                if response.data.get('deviceAuthToken'):
-                    db = get_database()
-                    store_auth_token(
-                        db=db,
-                        token_type='device_auth_token',
-                        token_value=response.data.get('deviceAuthToken'),
-                        device_id=response.data.get('ownDeviceId'),
-                        family_id=family_id
-                    )
-                    logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
+                logger.info("Auth token stored in database", request_id=request_id)
             
             # Clear temporary session data
             session.pop('mail_login_token', None)
@@ -1159,7 +1114,6 @@ def cancel_create_family():
     session.pop('mail_auth_token', None)
     session.pop('device_auth_token', None)
     session.pop('own_device_id', None)
-    session.pop('family_id', None)
     session.pop('create_family_error', None)
     
     logger.info("Create family cancelled", request_id=request_id)
@@ -1338,68 +1292,16 @@ def post_login_as_parent():
             session['device_auth_token'] = response.data.get('deviceAuthToken')
             session['own_device_id'] = response.data.get('ownDeviceId')
             
-            # Extract family_id from response
-            # The sign-in-into-family endpoint may return familyId in initialData or data
-            initial_data = response.data.get('initialData', {})
-            family_id = initial_data.get('familyId')
-            
-            # If family_id not in initialData, check data field
-            if not family_id:
-                data_field = response.data.get('data', {})
-                family_id = data_field.get('familyId')
-            
-            # If still not found, perform pull_status to get family_id
-            if not family_id:
-                logger.info("Family ID not in response, performing pull_status", request_id=request_id)
-                pull_response = client.pull_status(
-                    device_auth_token=response.data.get('deviceAuthToken')
-                )
-                if pull_response.success:
-                    # Extract family_id from pull_status response
-                    # The response may have familyId at the top level or in data
-                    family_id = pull_response.data.get('familyId')
-                    if not family_id:
-                        data_field = pull_response.data.get('data', {})
-                        family_id = data_field.get('familyId')
-                    
-                    # If still not found, set error for user feedback
-                    if not family_id:
-                        error_msg = 'Failed to retrieve family information from server'
-                        session['login_error'] = error_msg
-                        logger.warning("Family ID not found in pull_status response", error_message=error_msg, request_id=request_id)
-                else:
-                    # Store the pull_status error for user feedback
-                    # Error message may be in error_message or data field
-                    error_msg = pull_response.error_message
-                    if not error_msg and pull_response.data:
-                        # Extract error from HTML response in data field
-                        data_str = str(pull_response.data)
-                        if 'BadRequestError' in data_str:
-                            error_msg = 'Server error: Invalid request format'
-                        else:
-                            error_msg = 'Failed to retrieve family information'
-                    # Ensure we have an error message
-                    error_msg = error_msg or 'Failed to retrieve family information'
-                    session['login_error'] = error_msg
-                    logger.warning("Failed to pull server status during login", error_message=error_msg, request_id=request_id)
-            
-            # Only store family_id if it's a valid string (not a MagicMock or other non-string type)
-            if isinstance(family_id, str):
-                session['family_id'] = family_id
-                # Clear any previous login error since we now have family_id
-                session.pop('login_error', None)
-                logger.info("Family ID extracted and stored in session", family_id=family_id, request_id=request_id)
-                
-                # Store auth token in database for later lookup
+            # Store auth token in database for later lookup
+            if response.data.get('deviceAuthToken'):
                 db = get_database()
                 store_auth_token(
                     db=db,
                     token_type='device_auth_token',
                     token_value=response.data.get('deviceAuthToken'),
-                    device_id=response.data.get('ownDeviceId'),
-                    family_id=family_id
+                    device_id=response.data.get('ownDeviceId')
                 )
-                logger.info("Auth token stored in database", family_id=family_id, request_id=request_id)
+                logger.info("Auth token stored in database", request_id=request_id)
             
             # Clear temporary session data
             session.pop('mail_login_token', None)
@@ -1432,9 +1334,7 @@ def cancel_login_as_parent():
     session.pop('mail_auth_token', None)
     session.pop('device_auth_token', None)
     session.pop('own_device_id', None)
-    session.pop('family_id', None)
     session.pop('login_as_parent_error', None)
-    session.pop('login_error', None)
     
     logger.info("Login as parent cancelled", request_id=request_id)
     return redirect('/dashboardV2')
@@ -1748,10 +1648,9 @@ def session_status():
         'has_mail_auth_token': 'mail_auth_token' in session,
         'has_device_auth_token': 'device_auth_token' in session,
         'has_child_device_auth_token': 'child_device_auth_token' in session,
-        'family_id': session.get('family_id'),
-        'own_device_id': session.get('own_device_id'),
         'device_auth_token': session.get('device_auth_token'),
         'mail_auth_token': session.get('mail_auth_token'),
+        'own_device_id': session.get('own_device_id'),
         'login_error': session.get('login_error')
     }
     
@@ -1765,8 +1664,6 @@ def session_status():
     )
     
     return jsonify(status)
-
-    
 
 
 # ============================================================================
@@ -1795,33 +1692,31 @@ def api_sync_pull():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "Sync pull attempted without family selected",
+            "Sync pull attempted without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error_code': 'no_family',
-            'error': 'No family selected'
+            'error_code': 'no_device_auth_token',
+            'error': 'No device auth token'
         }), 400
     
     server_url = get_current_server_url()
-    device_auth_token = session.get('device_auth_token')
     
     logger.info(
         "Sync pull requested",
         request_id=request_id,
-        family_id=family_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
         server_url=server_url
     )
     
     try:
         db = get_database()
         manager = create_sync_manager(db)
-        success = manager.do_sync(device_auth_token, server_url, family_id)
+        success = manager.do_sync(device_auth_token, server_url)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -1829,8 +1724,7 @@ def api_sync_pull():
             logger.info(
                 "Sync pull completed successfully",
                 duration_ms=duration_ms,
-                request_id=request_id,
-                family_id=family_id
+                request_id=request_id
             )
             return jsonify({
                 'status': 'ok',
@@ -1840,8 +1734,7 @@ def api_sync_pull():
             logger.error(
                 "Sync pull failed",
                 duration_ms=duration_ms,
-                request_id=request_id,
-                family_id=family_id
+                request_id=request_id
             )
             return jsonify({
                 'status': 'error',
@@ -1855,7 +1748,6 @@ def api_sync_pull():
             "Sync pull error",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             error=str(e)
         )
         return jsonify({
@@ -1867,7 +1759,7 @@ def api_sync_pull():
 
 @app.route('/api/dashboard/users', methods=['GET'])
 def api_dashboard_users():
-    """Get users for the current family.
+    """Get users for the current device auth token.
     
     Returns:
         JSON response with users list.
@@ -1886,27 +1778,26 @@ def api_dashboard_users():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "Users request without family selected",
+            "Users request without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error': 'No family selected'
+            'error': 'No device auth token'
         }), 400
     
     logger.info(
         "Users request",
         request_id=request_id,
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
     
     try:
         db = get_database()
-        users = get_users_by_family(db, family_id)
+        users = get_users_by_device_auth_token(db, device_auth_token)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -1914,7 +1805,6 @@ def api_dashboard_users():
             "Users retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             count=len(users)
         )
         
@@ -1930,7 +1820,6 @@ def api_dashboard_users():
             "Users request error",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             error=str(e)
         )
         return jsonify({
@@ -1941,7 +1830,7 @@ def api_dashboard_users():
 
 @app.route('/api/dashboard/devices', methods=['GET'])
 def api_dashboard_devices():
-    """Get devices for the current family.
+    """Get devices for the current device auth token.
     
     Returns:
         JSON response with devices list.
@@ -1960,27 +1849,26 @@ def api_dashboard_devices():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "Devices request without family selected",
+            "Devices request without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error': 'No family selected'
+            'error': 'No device auth token'
         }), 400
     
     logger.info(
         "Devices request",
         request_id=request_id,
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
     
     try:
         db = get_database()
-        devices = get_devices_by_family(db, family_id)
+        devices = get_devices_by_device_auth_token(db, device_auth_token)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -1988,7 +1876,6 @@ def api_dashboard_devices():
             "Devices retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             count=len(devices)
         )
         
@@ -2004,7 +1891,6 @@ def api_dashboard_devices():
             "Devices request error",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             error=str(e)
         )
         return jsonify({
@@ -2015,7 +1901,7 @@ def api_dashboard_devices():
 
 @app.route('/api/dashboard/categories', methods=['GET'])
 def api_dashboard_categories():
-    """Get categories for the current family.
+    """Get categories for the current device auth token.
     
     Returns:
         JSON response with categories list.
@@ -2034,27 +1920,26 @@ def api_dashboard_categories():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "Categories request without family selected",
+            "Categories request without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error': 'No family selected'
+            'error': 'No device auth token'
         }), 400
     
     logger.info(
         "Categories request",
         request_id=request_id,
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
     
     try:
         db = get_database()
-        categories = get_categories_by_family(db, family_id)
+        categories = get_categories_by_device_auth_token(db, device_auth_token)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -2062,7 +1947,6 @@ def api_dashboard_categories():
             "Categories retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             count=len(categories)
         )
         
@@ -2078,7 +1962,6 @@ def api_dashboard_categories():
             "Categories request error",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             error=str(e)
         )
         return jsonify({
@@ -2089,7 +1972,7 @@ def api_dashboard_categories():
 
 @app.route('/api/dashboard/connected-devices', methods=['GET'])
 def api_dashboard_connected_devices():
-    """Get connected devices for the current family.
+    """Get connected devices for the current device auth token.
     
     Returns:
         JSON response with connected devices list.
@@ -2108,27 +1991,26 @@ def api_dashboard_connected_devices():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "Connected devices request without family selected",
+            "Connected devices request without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error': 'No family selected'
+            'error': 'No device auth token'
         }), 400
     
     logger.info(
         "Connected devices request",
         request_id=request_id,
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
     
     try:
         db = get_database()
-        devices = get_connected_devices(db, family_id)
+        devices = get_connected_devices(db, device_auth_token)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -2136,7 +2018,6 @@ def api_dashboard_connected_devices():
             "Connected devices retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             count=len(devices)
         )
         
@@ -2152,7 +2033,6 @@ def api_dashboard_connected_devices():
             "Connected devices request error",
             duration_ms=duration_ms,
             request_id=request_id,
-            family_id=family_id,
             error=str(e)
         )
         return jsonify({
@@ -2182,27 +2062,26 @@ def api_dashboard_stream():
             'error': 'Not authenticated'
         }), 401
     
-    # Check family_id
-    family_id = session.get('family_id')
-    if not family_id:
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
         logger.warning(
-            "SSE stream request without family selected",
+            "SSE stream request without device_auth_token",
             request_id=request_id
         )
         return jsonify({
             'status': 'error',
-            'error': 'No family selected'
+            'error': 'No device auth token'
         }), 400
     
     logger.info(
         "SSE stream request",
         request_id=request_id,
-        family_id=family_id
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
     )
     
     def event_stream():
         """Generator for SSE events."""
-        q = get_event_queue(family_id)
+        q = get_event_queue(device_auth_token)
         max_keepalives = int(os.environ.get('TEST_MAX_KEEPALIVES', 0))
         keepalive_count = 0
         
@@ -2224,8 +2103,7 @@ def api_dashboard_stream():
     logger.info(
         "SSE stream started",
         duration_ms=duration_ms,
-        request_id=request_id,
-        family_id=family_id
+        request_id=request_id
     )
     
     return Response(event_stream(), mimetype='text/event-stream')

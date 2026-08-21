@@ -1296,17 +1296,13 @@ class TestAuthClientSync:
         mock_session_class.return_value = mock_session
         
         client = AuthClient()
+        # Use the correct format matching Android app's ClientDataStatus
         client_status = {
             'clientLevel': 7,
             'devices': 'v1',
             'users': 'v1',
             'apps': {},
-            'devicesDetail': {},
-            'categories': {},
-            'kri': 0,
-            'kr': 0,
-            'dh': None,
-            'u2f': None
+            'categories': {}
         }
         response = client.pull_status(
             device_auth_token='device_token_123',
@@ -1314,6 +1310,61 @@ class TestAuthClientSync:
         )
         
         assert response.success is True
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_empty_client_data_status_format(self, mock_session_class):
+        """Test that pull_status sends correct empty ClientDataStatus format.
+        
+        The empty status format must match Android app's ClientDataStatus.empty:
+        - devices and users are empty strings (not null)
+        - Optional fields (devicesDetail, kri, kr, dh, u2f) are omitted
+        """
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'devices': {'version': 'v1', 'data': []},
+            'users': {'version': 'v1', 'data': []},
+            'categoryBase': []
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.pull_status(device_auth_token='device_token_123')
+        
+        assert response.success is True
+        
+        # Verify the request body contains the correct format
+        call_args = mock_session.post.call_args
+        import json
+        import gzip
+        
+        # Get the gzipped request body
+        request_body = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            # Decompress and parse JSON
+            decompressed = gzip.decompress(request_body)
+            request_data = json.loads(decompressed.decode('utf-8'))
+        else:
+            request_data = json.loads(request_body.decode('utf-8') if isinstance(request_body, bytes) else request_body)
+        
+        # Verify the status field has the correct format
+        status = request_data.get('status', {})
+        assert status['clientLevel'] == 7
+        assert status['devices'] == ""
+        assert status['users'] == ""
+        assert status['apps'] == {}
+        assert status['categories'] == {}
+        # Optional fields should be omitted
+        assert 'devicesDetail' not in status
+        assert 'kri' not in status
+        assert 'kr' not in status
+        assert 'dh' not in status
+        assert 'u2f' not in status
     
     @pytest.mark.timeout(10)
     @patch('requests.Session')

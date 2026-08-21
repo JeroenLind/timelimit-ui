@@ -21,7 +21,7 @@ from sync_manager import (
     store_sync_credentials,
     get_sync_credentials
 )
-from database import Database, save_users, get_users_by_family, save_sync_state, get_sync_state
+from database import Database, save_users, get_users_by_device_auth_token, save_sync_state, get_sync_state
 
 
 class TestSyncManagerInitialization:
@@ -77,30 +77,36 @@ class TestBuildClientDataStatus:
         os.unlink(db_path)
     
     def test_build_client_data_status_no_prior_state(self, test_db):
-        """Test building ClientDataStatus with no prior sync state."""
+        """Test building ClientDataStatus with no prior sync state.
+        
+        The format matches Android app's ClientDataStatus.empty:
+        - devices and users are empty strings (not null)
+        - Optional fields (devicesDetail, kri, kr, dh, u2f) are omitted
+        """
         manager = SyncManager(test_db)
         
         client_status = manager._build_client_data_status(None)
         
         assert client_status['clientLevel'] == 7
-        assert client_status['devices'] is None
-        assert client_status['users'] is None
+        assert client_status['devices'] == ""
+        assert client_status['users'] == ""
         assert client_status['apps'] == {}
-        assert client_status['devicesDetail'] == {}
         assert client_status['categories'] == {}
-        assert client_status['kri'] == 0
-        assert client_status['kr'] == 0
-        assert client_status['dh'] is None
-        assert client_status['u2f'] is None
+        # Optional fields should be omitted when empty
+        assert 'devicesDetail' not in client_status
+        assert 'kri' not in client_status
+        assert 'kr' not in client_status
+        assert 'dh' not in client_status
+        assert 'u2f' not in client_status
     
     def test_build_client_data_status_with_prior_state(self, test_db):
         """Test building ClientDataStatus with existing sync state."""
         manager = SyncManager(test_db)
         
         # Save a sync state first
-        save_sync_state(test_db, 'family_test123', 'device_v1', 'user_v1')
+        save_sync_state(test_db, 'device_test123', 'device_v1', 'user_v1')
         
-        sync_state = get_sync_state(test_db, 'family_test123')
+        sync_state = get_sync_state(test_db, 'device_test123')
         client_status = manager._build_client_data_status(sync_state)
         
         assert client_status['clientLevel'] == 7
@@ -148,9 +154,9 @@ class TestApplyServerDataStatus:
             }
         }
         
-        manager._apply_server_data_status(server_data, 'family_test123')
+        manager._apply_server_data_status(server_data, 'device_test123')
         
-        users = get_users_by_family(test_db, 'family_test123')
+        users = get_users_by_device_auth_token(test_db, 'device_test123')
         
         assert len(users) == 2
         assert users[0]['id'] == 'user1'
@@ -178,10 +184,10 @@ class TestApplyServerDataStatus:
             ]
         }
         
-        manager._apply_server_data_status(server_data, 'family_test123')
+        manager._apply_server_data_status(server_data, 'device_test123')
         
-        from database import get_categories_by_family
-        categories = get_categories_by_family(test_db, 'family_test123')
+        from database import get_categories_by_device_auth_token
+        categories = get_categories_by_device_auth_token(test_db, 'device_test123')
         
         assert len(categories) == 2
         assert categories[0]['id'] == 'cat1'
@@ -201,10 +207,10 @@ class TestApplyServerDataStatus:
             ]
         }
         
-        manager._apply_server_data_status(server_data, 'family_test123')
+        manager._apply_server_data_status(server_data, 'device_test123')
         
         from database import get_connected_devices
-        devices = get_connected_devices(test_db, 'family_test123')
+        devices = get_connected_devices(test_db, 'device_test123')
         
         assert len(devices) == 3
         device_ids = [d['device_id'] for d in devices]
@@ -236,9 +242,9 @@ class TestUpdateSyncState:
             'users': {'version': 'user_v3'}
         }
         
-        manager._update_sync_state(server_data, 'family_test123')
+        manager._update_sync_state(server_data, 'device_test123')
         
-        state = get_sync_state(test_db, 'family_test123')
+        state = get_sync_state(test_db, 'device_test123')
         
         assert state is not None
         assert state['device_list_version'] == 'device_v2'
@@ -280,10 +286,10 @@ class TestBroadcastSyncComplete:
             }
         }
         
-        manager._broadcast_sync_complete('family_test123', server_data)
+        manager._broadcast_sync_complete('device_test123', server_data)
         
         # Get the event queue and verify event was broadcast
-        q = get_event_queue('family_test123')
+        q = get_event_queue('device_test123')
         event = q.get(timeout=5)
         
         assert event['type'] == 'sync_complete'
@@ -295,16 +301,16 @@ class TestGetEventQueue:
     """Tests for get_event_queue function."""
     
     def test_get_event_queue_creates_new(self):
-        """Test that get_event_queue creates a new queue for new family."""
-        q = get_event_queue('new_family')
+        """Test that get_event_queue creates a new queue for new device."""
+        q = get_event_queue('device_test')
         
         assert q is not None
         assert isinstance(q, type(q))  # It's a Queue
     
     def test_get_event_queue_returns_same_queue(self):
-        """Test that get_event_queue returns the same queue for same family."""
-        q1 = get_event_queue('family_test')
-        q2 = get_event_queue('family_test')
+        """Test that get_event_queue returns the same queue for same device."""
+        q1 = get_event_queue('device_test')
+        q2 = get_event_queue('device_test')
         
         assert q1 is q2
 
@@ -327,7 +333,6 @@ class TestStoreSyncCredentials:
         """Test storing sync credentials."""
         store_sync_credentials(
             test_db,
-            'family_test123',
             'device_token_abc123'
         )
         
@@ -338,7 +343,7 @@ class TestStoreSyncCredentials:
         assert token is not None
         assert token['token_type'] == 'sync_device_auth_token'
         assert token['token_value'] == 'device_token_abc123'
-        assert token['family_id'] == 'family_test123'
+        assert token['device_auth_token'] == 'device_token_abc123'
 
 
 class TestGetSyncCredentials:
@@ -360,17 +365,16 @@ class TestGetSyncCredentials:
         # Store credentials first
         store_sync_credentials(
             test_db,
-            'family_test123',
             'device_token_abc123'
         )
         
-        token = get_sync_credentials(test_db, 'family_test123')
+        token = get_sync_credentials(test_db, 'device_token_abc123')
         
         assert token == 'device_token_abc123'
     
     def test_get_sync_credentials_not_found(self, test_db):
         """Test getting sync credentials when they don't exist."""
-        token = get_sync_credentials(test_db, 'nonexistent_family')
+        token = get_sync_credentials(test_db, 'nonexistent_device_token')
         
         assert token is None
 
@@ -417,13 +421,13 @@ class TestDoSync:
         mock_client_class.return_value = mock_client
         
         manager = SyncManager(test_db)
-        result = manager.do_sync('device_token_123', 'http://localhost:8080', 'family_test123')
+        result = manager.do_sync('device_token_123', 'http://localhost:8080')
         
         assert result is True
         mock_client.pull_status.assert_called_once()
         
         # Verify data was saved
-        users = get_users_by_family(test_db, 'family_test123')
+        users = get_users_by_device_auth_token(test_db, 'device_token_123')
         assert len(users) == 1
     
     @pytest.mark.timeout(10)
@@ -440,7 +444,7 @@ class TestDoSync:
         mock_client_class.return_value = mock_client
         
         manager = SyncManager(test_db)
-        result = manager.do_sync('invalid_token', 'http://localhost:8080', 'family_test123')
+        result = manager.do_sync('invalid_token', 'http://localhost:8080')
         
         assert result is False
 
@@ -461,10 +465,9 @@ class TestRunBackgroundSync:
         mock_manager.do_sync.return_value = True
         mock_sync_manager_class.return_value = mock_manager
         
-        run_background_sync('device_token_123', 'http://localhost:8080', 'family_test123')
+        run_background_sync('device_token_123', 'http://localhost:8080')
         
         mock_manager.do_sync.assert_called_once_with(
             'device_token_123',
-            'http://localhost:8080',
-            'family_test123'
+            'http://localhost:8080'
         )

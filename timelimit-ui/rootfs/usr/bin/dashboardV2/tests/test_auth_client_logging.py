@@ -723,7 +723,7 @@ class TestAuthClientSpecificMethodsLogging:
                 # Capture stdout to get JSON output
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
-                    client.send_mail_login_code('test@example.com')
+                    client.send_mail_login_code('test@example.com', 'en')
                 
                 reset_structlog()
 
@@ -761,7 +761,7 @@ class TestAuthClientSpecificMethodsLogging:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.ok = True
-                mock_response.json.return_value = {'family_id': 'fam123'}
+                mock_response.json.return_value = {'deviceAuthToken': 'test_token', 'ownDeviceId': 'device123'}
                 mock_session.post.return_value = mock_response
                 mock_session_class.return_value = mock_session
 
@@ -770,7 +770,14 @@ class TestAuthClientSpecificMethodsLogging:
                 # Capture stdout to get JSON output
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
-                    client.create_family('parent@example.com', 'password123')
+                    client.create_family(
+                        'mail_token_123',
+                        {'hash': 'hash1', 'secondHash': 'hash2', 'secondSalt': 'salt'},
+                        {'model': 'Pixel 7'},
+                        'Test Device',
+                        'Europe/Amsterdam',
+                        'Test Parent'
+                    )
                 
                 reset_structlog()
 
@@ -808,7 +815,7 @@ class TestAuthClientSpecificMethodsLogging:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.ok = True
-                mock_response.json.return_value = {'success': True}
+                mock_response.json.return_value = {'deviceAuthToken': 'test_token', 'ownDeviceId': 'device123'}
                 mock_session.post.return_value = mock_response
                 mock_session_class.return_value = mock_session
 
@@ -817,7 +824,7 @@ class TestAuthClientSpecificMethodsLogging:
                 # Capture stdout to get JSON output
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
-                    client.sign_in_into_family('test@example.com', 'password123')
+                    client.sign_in_into_family('mail_token_123', 'password123')
                 
                 reset_structlog()
 
@@ -868,7 +875,7 @@ class TestAuthClientSanitization:
                 # Capture stdout to get JSON output
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
-                    client.sign_in_into_family('test@example.com', 'mysecretpassword')
+                    client.sign_in_into_family('mail_token_123', 'mysecretpassword')
                 
                 reset_structlog()
 
@@ -1057,8 +1064,8 @@ class TestAuthClientLoggingIntegration:
                 with patch('sys.stdout', captured_output):
                     # Simulate auth flow
                     client.get_server_time()
-                    client.send_mail_login_code('test@example.com')
-                    client.sign_in_by_mail_code('test@example.com', '123456')
+                    client.send_mail_login_code('test@example.com', 'en')
+                    client.sign_in_by_mail_code('mail_token_123', '123456')
                 
                 reset_structlog()
 

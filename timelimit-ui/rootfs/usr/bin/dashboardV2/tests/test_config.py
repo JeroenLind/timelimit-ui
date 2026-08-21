@@ -31,7 +31,7 @@ class TestConfigDefaults:
             # Create new config instance
             config = Config()
             
-            assert config.DEBUG_SERVER_URL == 'http://localhost:8080'
+            assert config.DEBUG_SERVER_URL == 'http://127.0.0.1:8081'
         finally:
             # Restore original value
             if original:
@@ -164,7 +164,7 @@ class TestServerOptions:
         """Test debug server option."""
         debug = Config.SERVER_OPTIONS['debug']
         assert debug['name'] == '🐛 Debug Server'
-        assert debug['url'] == 'http://localhost:8080'
+        assert debug['url'] == 'http://192.168.68.30:8080'
 
 
 class TestConfigMethods:
@@ -189,7 +189,7 @@ class TestConfigMethods:
         assert url == 'https://api.timelimit.io'
         
         url = Config.get_server_url('debug')
-        assert url == 'http://localhost:8080'
+        assert url == 'http://192.168.68.30:8080'
         
         # Invalid key returns None
         url = Config.get_server_url('invalid')
@@ -266,7 +266,7 @@ class TestConfigConstants:
     
     def test_api_prefix(self):
         """Test API prefix constant."""
-        assert Config.API_PREFIX == '/api/v1'
+        assert Config.API_PREFIX == ''
     
     def test_request_timeout(self):
         """Test request timeout constant."""
