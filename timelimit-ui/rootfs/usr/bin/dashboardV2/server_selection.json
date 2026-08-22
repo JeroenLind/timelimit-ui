@@ -1,8 +1,6 @@
 {
   "server_key": "local",
   "server_url": "http://192.168.68.30:8080",
-  "updated_at": 1787388793191,
-  "log_level": "DEBUG",
-  "device_auth_token": "pF9Dwys0FeOv085K3QHXFFrQwJ4t1jGK",
-  "own_device_id": "f2dsp3"
+  "updated_at": 1787389835385,
+  "log_level": "DEBUG"
 }

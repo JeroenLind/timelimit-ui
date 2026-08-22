@@ -1944,7 +1944,7 @@ def api_dashboard_devices():
     """Get devices for the current device auth token.
     
     Returns:
-        JSON response with devices list.
+        JSON response with devices list and own_device_id for highlighting current device.
     """
     start_time = time.time()
     request_id = get_request_id()
@@ -1971,10 +1971,14 @@ def api_dashboard_devices():
             'error': 'No device auth token'
         }), 400
     
+    # Get own_device_id for highlighting the current device
+    own_device_id = session.get('own_device_id')
+    
     logger.info(
         "Devices request",
         request_id=request_id,
-        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        has_own_device_id=own_device_id is not None
     )
     
     try:
@@ -1987,13 +1991,15 @@ def api_dashboard_devices():
             "Devices retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            count=len(devices)
+            count=len(devices),
+            own_device_id=own_device_id
         )
         
         return jsonify({
             'status': 'ok',
             'count': len(devices),
-            'devices': devices
+            'devices': devices,
+            'own_device_id': own_device_id
         })
         
     except Exception as e:

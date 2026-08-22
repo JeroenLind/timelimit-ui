@@ -160,7 +160,35 @@ This allows devices to be updated if they already exist, matching the behavior o
 - ✅ All 133 relevant tests pass (auth_client, sync_manager, create_family, login_as_parent)
 
 ---
+ 
+### Current Device Highlighting in Devices Table (2026-08-22) ✅ COMPLETED
+**Issue:** When logging into the dashboard, users see 6 devices listed which are all previous registration attempts and local persistence. There was no way to identify which device the current running instance of the dashboard is.
 
+**Root Cause:** The `own_device_id` is stored in the session and persisted to `server_selection.json`, but it was not being passed to the frontend when fetching devices. The frontend could not highlight the current device.
+
+**Solution:**
+1. Modified `/api/dashboard/devices` endpoint to include `own_device_id` in the response
+2. Updated `loadDevices()` JavaScript function to pass `own_device_id` to `renderDevicesTable()`
+3. Updated `renderDevicesTable()` to:
+   - Accept `ownDeviceId` parameter
+   - Compare each device's `id` with `ownDeviceId`
+   - Add "(Current)" badge to the device name for the current device
+   - Add `device-current` CSS class for visual highlighting
+4. Added CSS styling for `.device-current` class to highlight the current device row
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Added `own_device_id` to devices API response
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/static/js/dashboardV2.js` - Updated device rendering to highlight current device
+3. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - Added CSS for current device highlight
+4. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_dashboard_api.py` - Added tests for new functionality
+
+**Test Results:**
+- ✅ All device-related tests pass
+- ✅ `test_devices_success` - Verifies devices API returns `own_device_id`
+- ✅ `test_devices_with_own_device_id` - Verifies current device is correctly identified
+
+---
+ 
 ## Git Status (2026-08-22)
 
 - **Local commits ahead of origin:** 17 commits

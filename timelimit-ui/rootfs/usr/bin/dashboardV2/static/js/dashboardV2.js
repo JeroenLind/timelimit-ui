@@ -399,40 +399,41 @@
     }
     
     /**
-     * Load devices from the API
-     */
-    async function loadDevices() {
-        const tbody = document.getElementById('devices-body');
-        if (!tbody) return;
-        
-        // Check authentication first
-        if (!isAuthenticated) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">Please log in to view devices</td></tr>';
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/dashboard/devices');
-            const data = await response.json();
+         * Load devices from the API
+         */
+        async function loadDevices() {
+            const tbody = document.getElementById('devices-body');
+            if (!tbody) return;
             
-            if (data.status === 'ok') {
-                renderDevicesTable(data.devices);
-            } else if (data.error) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">' + escapeHtml(data.error) + '</td></tr>';
-            } else {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">Failed to load devices - API endpoint not available</td></tr>';
+            // Check authentication first
+            if (!isAuthenticated) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">Please log in to view devices</td></tr>';
+                return;
             }
-        } catch (error) {
-            console.error('Failed to load devices:', error);
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">Error loading devices: ' + escapeHtml(error.message) + '</td></tr>';
+            
+            try {
+                const response = await fetch('/api/dashboard/devices');
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    renderDevicesTable(data.devices, data.own_device_id);
+                } else if (data.error) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">' + escapeHtml(data.error) + '</td></tr>';
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">Failed to load devices - API endpoint not available</td></tr>';
+                }
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">Error loading devices: ' + escapeHtml(error.message) + '</td></tr>';
+            }
         }
-    }
     
     /**
      * Render devices table
      * @param {Array} devices - Array of device objects
+     * @param {string} ownDeviceId - The ID of the current device (for highlighting)
      */
-    function renderDevicesTable(devices) {
+    function renderDevicesTable(devices, ownDeviceId) {
         const tbody = document.getElementById('devices-body');
         if (!tbody) return;
         
@@ -446,9 +447,16 @@
             const platform = device.platform_type || 'Unknown';
             const platformLevel = device.platform_level || 'N/A';
             
+            // Check if this is the current device
+            const isCurrentDevice = device.id === ownDeviceId;
+            const currentDeviceBadge = isCurrentDevice ? ' <span style="color: #4caf50; font-weight: bold; margin-left: 8px;">(Current)</span>' : '';
+            
+            // Add highlight class for current device
+            const rowClass = isCurrentDevice ? 'device-current' : '';
+            
             return `
-                <tr>
-                    <td>${escapeHtml(device.name)}</td>
+                <tr class="${rowClass}">
+                    <td>${escapeHtml(device.name)}${currentDeviceBadge}</td>
                     <td>${escapeHtml(device.model)}</td>
                     <td>${escapeHtml(device.current_user_id)}</td>
                     <td>${device.current_protection_level || 0}</td>

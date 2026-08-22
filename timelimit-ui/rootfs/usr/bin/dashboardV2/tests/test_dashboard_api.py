@@ -321,6 +321,45 @@ class TestApiDashboardDevices:
         assert data['status'] == 'ok'
         assert data['count'] == 2
         assert len(data['devices']) == 2
+        # own_device_id should be None when not set in session
+        assert 'own_device_id' in data
+
+    @pytest.mark.timeout(10)
+    def test_devices_with_own_device_id(self, auth_session):
+        """Test getting devices with own_device_id set in session."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            # Set own_device_id in session
+            sess['own_device_id'] = 'device1'
+        
+        # Add some devices
+        db = auth_session.application.test_db
+        from database import create_device
+        create_device(
+            db=db,
+            device_id='device1',
+            device_auth_token=device_auth_token,
+            name='Parent Phone',
+            model='Pixel 7'
+        )
+        create_device(
+            db=db,
+            device_id='device2',
+            device_auth_token=device_auth_token,
+            name='Child Tablet',
+            model='iPad'
+        )
+        
+        response = auth_session.get('/api/dashboard/devices')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['count'] == 2
+        assert len(data['devices']) == 2
+        # own_device_id should be set in the response
+        assert data['own_device_id'] == 'device1'
 
 
 class TestApiDashboardCategories:
