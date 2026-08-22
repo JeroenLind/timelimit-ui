@@ -38,7 +38,7 @@ from database import (
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
-from scheduler import start_scheduler, stop_scheduler
+from scheduler import start_scheduler, stop_scheduler, set_server_url
 from sync_manager import SyncManager, create_sync_manager, get_event_queue
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
 
@@ -259,7 +259,29 @@ def dashboard_v2():
     """
     request_id = get_request_id()
     device_auth_token = session.get('device_auth_token')
+    server_url = get_current_server_url()
     is_authenticated = device_auth_token is not None
+    
+    # Trigger sync if authenticated but has no local data
+    # This ensures users see their data after login or session restore
+    if is_authenticated and device_auth_token and server_url:
+        db = get_database()
+        users = get_users_by_device_auth_token(db, device_auth_token)
+        devices = get_devices_by_device_auth_token(db, device_auth_token)
+        
+        # If no local data, trigger a sync to fetch from server
+        if not users and not devices:
+            logger.info(
+                "Triggering sync on dashboard load - no local data found",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+            )
+            sync_manager = create_sync_manager(db)
+            sync_success = sync_manager.do_sync(device_auth_token, server_url)
+            if sync_success:
+                logger.info("Sync completed on dashboard load", request_id=request_id)
+            else:
+                logger.warning("Sync failed on dashboard load", request_id=request_id)
     
     logger.info(
         "Dashboard V2 page rendered",
@@ -308,6 +330,9 @@ def select_server():
     # Persist to file (survives container restarts)
     set_current_server_key(server_key)
     persistence_store.set_selected_server_url(server_url)
+    
+    # Update the scheduler to use the selected server URL
+    set_server_url(server_url)
     
     duration_ms = int((time.time() - start_time) * 1000)
     
@@ -1087,6 +1112,18 @@ def post_create_family():
             session.pop('mail_login_token', None)
             session.pop('mail_auth_token', None)
             
+            # Trigger sync to fetch family data (users, devices, categories)
+            # This matches the Android app's behavior of calling pullChanges after create/sign-in
+            device_auth_token = response.data.get('deviceAuthToken')
+            if device_auth_token:
+                db = get_database()
+                sync_manager = create_sync_manager(db)
+                sync_success = sync_manager.do_sync(device_auth_token, server_url)
+                if sync_success:
+                    logger.info("Sync completed after family creation", request_id=request_id)
+                else:
+                    logger.warning("Sync failed after family creation", request_id=request_id)
+            
             duration_ms = int((time.time() - start_time) * 1000)
             logger.info("Create family successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
             return redirect('/dashboardV2')
@@ -1306,6 +1343,18 @@ def post_login_as_parent():
             # Clear temporary session data
             session.pop('mail_login_token', None)
             session.pop('mail_auth_token', None)
+            
+            # Trigger sync to fetch family data (users, devices, categories)
+            # This matches the Android app's behavior of calling pullChanges after create/sign-in
+            device_auth_token = response.data.get('deviceAuthToken')
+            if device_auth_token:
+                db = get_database()
+                sync_manager = create_sync_manager(db)
+                sync_success = sync_manager.do_sync(device_auth_token, server_url)
+                if sync_success:
+                    logger.info("Sync completed after login", request_id=request_id)
+                else:
+                    logger.warning("Sync failed after login", request_id=request_id)
             
             duration_ms = int((time.time() - start_time) * 1000)
             logger.info("Login as parent successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
@@ -2349,8 +2398,20 @@ def create_app(config_class: Optional[type] = None) -> Flask:
 if os.environ.get('SKIP_PORT_CHECK', 'false').lower() != 'true':
     check_port_available(config.FLASK_HOST, config.FLASK_PORT)
 
+# Get the persisted server URL (if any) to initialize the scheduler
+persisted_server_url = get_current_server_url()
+if persisted_server_url != config.DEBUG_SERVER_URL:
+    logger.info(
+        "Initializing scheduler with persisted server URL",
+        server_url=persisted_server_url
+    )
+
 # Start the background scheduler for periodic server checks
 start_scheduler()
+
+# Update the scheduler with the correct server URL
+# (either persisted or default)
+set_server_url(persisted_server_url)
 
 # Register shutdown handler to stop the scheduler gracefully
 atexit.register(stop_scheduler)

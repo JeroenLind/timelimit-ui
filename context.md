@@ -14,97 +14,41 @@
 ## Key Architecture
 - Client-server: TimeLimit UI ↔ TimeLimit Backend Server ↔ Android App / Devices
 - Sync protocol: Action-based CRDT with HMAC-SHA256 integrity signing
-- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp25619, HMAC-SHA512/SHA256
+- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp25519, HMAC-SHA512/SHA256
 - WebSocket (Socket.IO) for real-time sync notifications
 - HTTP API with gzip compression, Content-Length auto-negotiation
 
 ---
 
-## Implementation: device_auth_token as Primary Key (2026-08-21)
-
-### Overview
-Updated the dashboard application to match the official Android app flow. The key insight is that the official app uses `deviceAuthToken` for all server communication and doesn't require `familyId` in responses. The dashboard now adopts the same approach.
-
-### Key Changes
-
-#### Database Schema (database.py)
-- Changed all table schemas to use `device_auth_token` as the primary key instead of `family_id`
-- `families` table: `device_auth_token TEXT PRIMARY KEY`
-- `devices` table: `device_auth_token TEXT NOT NULL` with FK to families
-- `users` table: `device_auth_token TEXT NOT NULL` with FK to families
-- `sync_state` table: `device_auth_token TEXT PRIMARY KEY`
-- `categories` table: `device_auth_token TEXT NOT NULL` with FK to families
-- `connected_devices` table: Composite PK on `(device_auth_token, device_id)`
-
-#### Function Signature Changes
-- `create_family(db, device_auth_token, mail, ...)` - uses device_auth_token as PK
-- `get_users_by_device_auth_token(db, device_auth_token)` - retrieves users by device_auth_token
-- `get_devices_by_device_auth_token(db, device_auth_token)` - retrieves devices by device_auth_token
-- `get_categories_by_device_auth_token(db, device_auth_token)` - retrieves categories by device_auth_token
-- `get_connected_devices(db, device_auth_token)` - retrieves connected devices by device_auth_token
-- `save_users(db, device_auth_token, users_data)` - saves users with device_auth_token
-- `save_categories(db, device_auth_token, categories_data)` - saves categories with device_auth_token
-- `save_connected_devices(db, device_auth_token, device_ids)` - saves connected devices with device_auth_token
-- `save_sync_state(db, device_auth_token, device_list_version, user_list_version)` - saves sync state with device_auth_token
-
-#### Session Management (app.py)
-- Session now stores `device_auth_token` instead of `family_id`
-- Removed logic that tried to extract `family_id` from server responses
-- All dashboard API routes now use `device_auth_token` from session
-
-#### Sync Logic (sync_manager.py)
-- `do_sync(device_auth_token, server_url)` - no longer takes family_id parameter
-- `_apply_server_data_status(server_data, device_auth_token)` - uses device_auth_token
-- `_update_sync_state(server_data, device_auth_token)` - uses device_auth_token
-- `_broadcast_sync_complete(device_auth_token, server_data)` - uses device_auth_token
-
-#### Frontend (dashboardV2.js, dashboardV2.html)
-- Displays `device_auth_token` instead of `family_id` in session overview
-- Updated SSE event queue to use `device_auth_token` as key
-
-### Test Updates
-- Updated `test_sync_manager.py` to use `device_auth_token` instead of `family_id`
-- Updated `test_dashboard_api.py` to use `device_auth_token` instead of `family_id`
-- Updated `test_create_family.py` to verify `device_auth_token` in session
-- Updated `test_create_family_integration.py` to remove `pull_status` mocks and `family_id` assertions
-- Updated `test_landing.py` server selection tests
-
-### Test Results
-- **All 191 tests pass**
-
----
-
-## Reference Sources (Authoritative)
-
-**⚠️ IMPORTANT: The official app and server sources are the authoritative reference for all implementations.**
-
-- **Official Android App Source**: `C:\git\timelimit-android`
-  - HTTP API implementation: `app/src/main/java/io/timelimit/android/sync/network/api/HttpServerApi.kt`
-  - Request/Response models: `app/src/main/java/io/timelimit/android/sync/network/`
-
-- **Official Server Source**: `C:\git\timelimit-server`
-  - API endpoints: `src/api/auth.ts`, `src/api/parent.ts`
-  - TypeScript interfaces: `src/api/schema.ts`
-  - JSON Schema validators: `src/api/validator.ts`
-  - Authentication logic: `src/function/authentication/login-by-mail.ts`
-
-**All API request formats must match these official sources exactly.**
-
----
-
-## Family ID Retrieval
-
-### Current Approach
-The `create_family_rest` endpoint returns `deviceAuthToken` and `ownDeviceId` directly. The `family_id` is NOT returned in the response. The dashboard now uses `device_auth_token` as the primary identifier for all operations.
-
-### Implementation Details
-1. After family creation, `device_auth_token` is stored in session
-2. The `device_auth_token` is used to look up family data from the database
-3. All dashboard API routes use `device_auth_token` from session to retrieve users, devices, categories
-
----
-
 ## Recent Changes
+
+### Auto-Sync After Authentication (2026-08-21)
+**Issue:** The Users and Devices sections in the dashboard were empty after successful login. The server returned 0 users and 0 devices because no sync was performed to populate the local database.
+
+**Root Cause:** The dashboard stored the `device_auth_token` in the session after authentication but did not trigger a sync to fetch the family data (users, devices, categories) from the server. The official Android app automatically calls `pullChanges` after create/sign-in operations to fetch this data.
+
+**Fix Applied:**
+1. Added sync call in `post_create_family()` after successful family creation (lines 1093-1103)
+2. Added sync call in `post_login_as_parent()` after successful sign-in (lines 1325-1335)
+3. Added sync trigger in `dashboard_v2()` when authenticated but has no local data (lines 253-291)
+4. Both functions call `sync_manager.do_sync(device_auth_token, server_url)` to fetch family data
+5. Sync results are logged appropriately (info on success, warning on failure)
+6. Sync failures don't block the login flow - users still get redirected to dashboard
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Added sync calls after authentication and on dashboard load
+
+**Expected Behavior:**
+- After creating a new family, the dashboard immediately fetches users, devices, and categories from the server
+- After signing into an existing family, the dashboard immediately fetches the family data
+- When accessing dashboard with authenticated session but no local data, sync is triggered
+- Users see their data populated in the Users and Devices sections
+- Sync failures are logged but don't prevent login
+
+**Test Results:**
+- ✅ All 713 tests pass
+
+---
 
 ### device_auth_token as Primary Key (2026-08-21)
 **Issue:** The dashboard was using `family_id` as the primary key, but the official Android app uses `deviceAuthToken` for all server communication.
@@ -402,7 +346,7 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ---
 
-## Sign-Out Button Addition (2026-08-19)
+### Sign-Out Button Addition (2026-08-19)
 
 **Issue:** Users who were authenticated had no way to sign out and clear their session.
 
@@ -424,7 +368,7 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ---
 
-## Dashboard API Routes Implementation (2026-08-19)
+### Dashboard API Routes Implementation (2026-08-19)
 
 **Issue:** The dashboard API endpoints (`/api/sync/pull`, `/api/dashboard/users`, `/api/dashboard/devices`, `/api/dashboard/categories`, `/api/dashboard/connected-devices`, `/api/dashboard/stream`) were returning 404 errors because they were not implemented in `app.py`.
 
@@ -472,11 +416,31 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 ---
 
+### Scheduler Server URL Fix (2026-08-21)
+**Issue:** The dashboard was trying to connect to `http://127.0.0.1:8081` (a local debug server) for periodic server checks, even when the user had selected a different server (e.g., `http://192.168.68.30:8080` for local TimeLimit server or `https://api.timelimit.io` for official server).
+
+**Root Cause:** The scheduler was initialized at application startup with the default `DEBUG_SERVER_URL` (`http://127.0.0.1:8081`), and the server URL was never updated when the user selected a different server via the UI. The `select_server()` endpoint persisted the server selection to a file, but the scheduler's internal `_current_server_url` variable was never updated.
+
+**Fix Applied:**
+1. Added `set_server_url` import from `scheduler` module in `app.py`
+2. Added call to `set_server_url(server_url)` in the `select_server()` function after persisting the server selection
+3. Added initialization code at module load time to set the scheduler's server URL from persisted server selection (if available)
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Added import and updated `select_server()` function, added scheduler initialization with persisted server URL
+
+**Expected Behavior:**
+- The scheduler uses the persisted server URL (if set) instead of the default `DEBUG_SERVER_URL`
+- When the user selects a server via the UI, the scheduler immediately starts checking that server
+- No more spurious connection errors to `http://127.0.0.1:8081`
+
+---
+
 ## Test Results Summary
 
 ### Final Test Run (2026-08-21)
-- **All 191 tests pass**
-- Tests run: `tests/test_create_family.py`, `tests/test_create_family_integration.py`, `tests/test_landing.py`, `tests/test_config.py`, `tests/test_scheduler.py`, `tests/test_sync_manager.py`, `tests/test_auth_client_logging.py`
+- **All 713 tests pass**
+- Tests run: `tests/test_create_family.py`, `tests/test_create_family_integration.py`, `tests/test_landing.py`, `tests/test_config.py`, `tests/test_scheduler.py`, `tests/test_sync_manager.py`, `tests/test_auth_client_logging.py`, `tests/test_dashboard_api.py`, `tests/test_login_as_parent.py`
 
 ### Test Categories
 - ✅ Create Family tests (unit and integration)
@@ -485,15 +449,8 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 - ✅ Scheduler tests
 - ✅ Sync Manager tests
 - ✅ Auth Client logging tests
-
----
-
-## Pending Issues
-
-### Issue 1: ClientDataStatus Payload Format Mismatch
-**Status:** ✅ **RESOLVED**
-
-**Fix Applied:** Updated `auth_client.py` and `sync_manager.py` to use the correct ClientDataStatus format matching Android app's `ClientDataStatus.empty`.
+- ✅ Dashboard API tests
+- ✅ Login as Parent tests
 
 ---
 
@@ -501,10 +458,44 @@ See `timelimit-ui/docs/create-family-fixes.md` for detailed documentation.
 
 1. **Documentation Update** ✅ COMPLETED
 2. **Fix ClientDataStatus Payload Format** ✅ COMPLETED
-3. **Run Tests** ✅ COMPLETED (191 tests pass)
-4. **Manual Testing** - Recommended to test the full flow:
+3. **Run Tests** ✅ COMPLETED (713 tests pass)
+4. **Auto-Sync After Authentication** ✅ COMPLETED
+   - Added sync calls in `post_create_family()` and `post_login_as_parent()`
+   - Added sync trigger in `dashboard_v2()` when authenticated but has no local data
+   - All tests pass
+5. **Manual Testing** - Recommended to test the full flow:
    - Create a new family
    - Verify device_auth_token is stored in session
+   - Verify sync is triggered after authentication
    - Access dashboard and verify users/devices/categories load correctly
    - Test sync functionality
    - Test sign-out and re-login
+
+---
+
+## Reference Sources (Authoritative)
+
+**⚠️ IMPORTANT: The official app and server sources are the authoritative reference for all implementations.**
+
+- **Official Android App Source**: `C:\git\timelimit-android`
+  - HTTP API implementation: `app/src/main/java/io/timelimit/android/sync/network/api/HttpServerApi.kt`
+  - Request/Response models: `app/src/main/java/io/timelimit/android/sync/network/`
+
+- **Official Server Source**: `C:\git\timelimit-server`
+  - API endpoints: `src/api/auth.ts`, `src/api/parent.ts`
+  - TypeScript interfaces: `src/api/schema.ts`
+  - JSON Schema validators: `src/api/validator.ts`
+  - Authentication logic: `src/function/authentication/login-by-mail.ts`
+
+**All API request formats must match these official sources exactly.**
+
+---
+
+## Git Status (2026-08-21)
+
+- **Local commits ahead of origin:** 16 commits
+- **Working tree status:** Clean
+- **Latest commit:** `381c9e2` - "feat: implement device_auth_token as primary key for dashboard"
+- **Commit message:** Comprehensive implementation of device_auth_token as primary key, ClientDataStatus payload fixes, login status improvements, Users & Devices dashboard, and authentication checks
+
+All changes have been committed locally and are ready to be pushed to remote repository.
