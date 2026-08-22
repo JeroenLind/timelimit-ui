@@ -602,7 +602,7 @@ def create_device(
         cursor = conn.cursor()
         
         cursor.execute('''
-            INSERT INTO devices
+            INSERT OR REPLACE INTO devices
             (id, device_auth_token, name, model, created_at, current_user_id,
              current_protection_level, highest_protection_level,
              current_app_version, highest_app_version, public_key,
@@ -1114,6 +1114,43 @@ def get_connected_devices(db: Database, device_auth_token: str) -> List[Dict[str
         
         cursor.execute('SELECT device_id, last_seen FROM connected_devices WHERE device_auth_token = ?', (device_auth_token,))
         return [dict(row) for row in cursor.fetchall()]
+
+
+# ============================================================================
+# Auth Token Retrieval for Session Persistence
+# ============================================================================
+
+def get_device_auth_tokens(db: Database) -> List[Dict[str, Any]]:
+    """Get all device_auth_tokens from the database.
+    
+    Used for session persistence - retrieves stored device auth tokens
+    that can be restored to the session on application startup.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        List of token records with token_type='device_auth_token',
+        ordered by created_at descending (most recent first).
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM auth_tokens
+            WHERE token_type = 'device_auth_token'
+            ORDER BY created_at DESC
+        ''')
+        results = [dict(row) for row in cursor.fetchall()]
+        logger.debug(
+            "Device auth tokens retrieved",
+            component="database",
+            db_path=db.db_path,
+            table_name="auth_tokens",
+            count=len(results)
+        )
+        return results
 
 
 # ============================================================================

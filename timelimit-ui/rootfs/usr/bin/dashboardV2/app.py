@@ -34,10 +34,15 @@ from auth_client import AuthClient, APIResponse
 from config import Config
 from database import (
     Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token,
-    get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices
+    get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
+    get_device_auth_tokens
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
-from persistence import get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level
+from persistence import (
+    get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level,
+    get_persisted_device_auth_token, set_persisted_device_auth_token,
+    get_persisted_own_device_id, set_persisted_own_device_id, clear_persisted_auth_tokens
+)
 from scheduler import start_scheduler, stop_scheduler, set_server_url
 from sync_manager import SyncManager, create_sync_manager, get_event_queue
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
@@ -84,6 +89,37 @@ init_request_logging(app)
 
 # Initialize persistence store
 persistence_store = get_server_selection_store()
+
+
+# ============================================================================
+# Session Restoration (before_request handler)
+# ============================================================================
+
+@app.before_request
+def restore_session_from_persistence():
+    """Restore session from persistent storage on each request.
+    
+    This is done in a before_request handler because Flask sessions
+    can only be accessed within a request context.
+    
+    This allows users to remain authenticated after app restart by
+    restoring the device_auth_token from persistent storage.
+    """
+    # Only restore if not already authenticated
+    if 'device_auth_token' not in session:
+        persisted_device_auth_token = get_persisted_device_auth_token()
+        persisted_own_device_id = get_persisted_own_device_id()
+        
+        if persisted_device_auth_token:
+            session['device_auth_token'] = persisted_device_auth_token
+            logger.debug(
+                "Session restored from persistence",
+                component="session",
+                token_restored=True
+            )
+        
+        if persisted_own_device_id:
+            session['own_device_id'] = persisted_own_device_id
 
 
 # ============================================================================
@@ -674,6 +710,11 @@ def api_create_family():
         session['device_auth_token'] = response.data.get('deviceAuthToken')
         session['own_device_id'] = response.data.get('ownDeviceId')
         
+        # Persist auth token to file for session restoration after restart
+        if response.data.get('deviceAuthToken'):
+            set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
+            set_persisted_own_device_id(response.data.get('ownDeviceId'))
+        
         logger.info(
             "Create family successful",
             server_url=server_url,
@@ -765,6 +806,11 @@ def api_create_family_rest():
         session['device_auth_token'] = response.data.get('deviceAuthToken')
         session['own_device_id'] = response.data.get('ownDeviceId')
         
+        # Persist auth token to file for session restoration after restart
+        if response.data.get('deviceAuthToken'):
+            set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
+            set_persisted_own_device_id(response.data.get('ownDeviceId'))
+        
         logger.info(
             "Create family (REST) successful",
             server_url=server_url,
@@ -833,6 +879,11 @@ def api_sign_in_into_family():
         # Store device auth token in session
         session['device_auth_token'] = response.data.get('deviceAuthToken')
         session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        # Persist auth token to file for session restoration after restart
+        if response.data.get('deviceAuthToken'):
+            set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
+            set_persisted_own_device_id(response.data.get('ownDeviceId'))
         
         logger.info(
             "Sign in into family successful",
@@ -1107,6 +1158,10 @@ def post_create_family():
                     device_id=response.data.get('ownDeviceId')
                 )
                 logger.info("Auth token stored in database", request_id=request_id)
+                
+                # Persist auth token to file for session restoration after restart
+                set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
+                set_persisted_own_device_id(response.data.get('ownDeviceId'))
             
             # Clear temporary session data
             session.pop('mail_login_token', None)
@@ -1339,6 +1394,10 @@ def post_login_as_parent():
                     device_id=response.data.get('ownDeviceId')
                 )
                 logger.info("Auth token stored in database", request_id=request_id)
+                
+                # Persist auth token to file for session restoration after restart
+                set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
+                set_persisted_own_device_id(response.data.get('ownDeviceId'))
             
             # Clear temporary session data
             session.pop('mail_login_token', None)
@@ -1665,6 +1724,9 @@ def clear_session():
     logger.info("Session clear request", request_id=request_id)
     
     session.clear()
+    
+    # Also clear persisted auth tokens
+    clear_persisted_auth_tokens()
     
     duration_ms = int((time.time() - start_time) * 1000)
     logger.info(

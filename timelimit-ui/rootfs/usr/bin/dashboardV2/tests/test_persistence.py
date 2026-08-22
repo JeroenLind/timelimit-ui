@@ -5,6 +5,7 @@ This module tests the persistence module functionality including:
 - HaIngressServerSelectionStore: HA-specific implementation
 - PersistenceFactory: environment detection and store selection
 - Atomic writes and thread safety
+- Auth token persistence for session restoration
 """
 
 import os
@@ -27,7 +28,12 @@ from persistence import (
     get_current_server_key,
     set_current_server_key,
     get_current_server_url,
-    set_current_server_url
+    set_current_server_url,
+    get_persisted_device_auth_token,
+    set_persisted_device_auth_token,
+    get_persisted_own_device_id,
+    set_persisted_own_device_id,
+    clear_persisted_auth_tokens
 )
 
 
@@ -403,3 +409,115 @@ class TestPersistenceIntegration:
         assert 'server_url' in data
         assert 'updated_at' in data
         assert isinstance(data['updated_at'], int)
+
+
+class TestAuthTokenPersistence:
+    """Tests for auth token persistence functions."""
+    
+    @pytest.fixture
+    def temp_file(self, tmp_path):
+        """Create a temporary file for testing."""
+        return str(tmp_path / "test_server_selection.json")
+    
+    @pytest.mark.timeout(10)
+    def test_set_and_get_device_auth_token(self, temp_file):
+        """Test saving and retrieving device_auth_token."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            test_token = "test_device_auth_token_12345"
+            set_persisted_device_auth_token(test_token)
+            
+            result = get_persisted_device_auth_token()
+            assert result == test_token
+    
+    @pytest.mark.timeout(10)
+    def test_get_device_auth_token_returns_none_when_not_set(self, temp_file):
+        """Test that get returns None when device_auth_token is not set."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            result = get_persisted_device_auth_token()
+            assert result is None
+    
+    @pytest.mark.timeout(10)
+    def test_set_and_get_own_device_id(self, temp_file):
+        """Test saving and retrieving own_device_id."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            test_device_id = "test_device_id_67890"
+            set_persisted_own_device_id(test_device_id)
+            
+            result = get_persisted_own_device_id()
+            assert result == test_device_id
+    
+    @pytest.mark.timeout(10)
+    def test_get_own_device_id_returns_none_when_not_set(self, temp_file):
+        """Test that get returns None when own_device_id is not set."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            result = get_persisted_own_device_id()
+            assert result is None
+    
+    @pytest.mark.timeout(10)
+    def test_clear_persisted_auth_tokens(self, temp_file):
+        """Test clearing persisted auth tokens."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            # Set tokens
+            set_persisted_device_auth_token("test_token")
+            set_persisted_own_device_id("test_device_id")
+            
+            # Clear tokens
+            clear_persisted_auth_tokens()
+            
+            # Verify cleared
+            assert get_persisted_device_auth_token() is None
+            assert get_persisted_own_device_id() is None
+    
+    @pytest.mark.timeout(10)
+    def test_auth_tokens_persist_across_instances(self, temp_file):
+        """Test that auth tokens persist across store instances."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            # First instance - set tokens
+            mock_instance1 = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance1
+            
+            set_persisted_device_auth_token("test_token_123")
+            set_persisted_own_device_id("device_id_456")
+            
+            # Second instance - retrieve tokens
+            mock_instance2 = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance2
+            
+            assert get_persisted_device_auth_token() == "test_token_123"
+            assert get_persisted_own_device_id() == "device_id_456"
+    
+    @pytest.mark.timeout(10)
+    def test_auth_tokens_in_file(self, temp_file):
+        """Test that auth tokens are stored in the JSON file."""
+        with patch('persistence.get_server_selection_store') as mock_store:
+            mock_instance = FileServerSelectionStore(temp_file)
+            mock_store.return_value = mock_instance
+            
+            test_token = "test_device_auth_token_abc"
+            test_device_id = "device_id_xyz"
+            
+            set_persisted_device_auth_token(test_token)
+            set_persisted_own_device_id(test_device_id)
+            
+            # Read file directly
+            with open(temp_file, 'r') as f:
+                data = json.load(f)
+            
+            assert data.get('device_auth_token') == test_token
+            assert data.get('own_device_id') == test_device_id
+            assert 'updated_at' in data

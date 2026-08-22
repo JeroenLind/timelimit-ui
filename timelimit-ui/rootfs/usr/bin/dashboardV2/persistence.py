@@ -457,12 +457,117 @@ def get_current_log_level() -> Optional[str]:
 
 def set_current_log_level(level: str) -> None:
     """Save the current log level to persistent storage.
-
+ 
     Args:
         level: The log level to save (e.g., 'DEBUG', 'INFO').
     """
     store = get_server_selection_store()
     store.set_log_level(level)
+
+
+# ============================================================================
+# Auth Token Persistence (for session restoration)
+# ============================================================================
+
+def get_persisted_device_auth_token() -> Optional[str]:
+    """Get the persisted device_auth_token from persistent storage.
+    
+    This is used to restore the session on application startup.
+    
+    Returns:
+        The device_auth_token string or None if not set.
+    """
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+        token = data.get('device_auth_token')
+        logger.debug(
+            "Retrieved device_auth_token from persistence",
+            component="persistence",
+            file_path=store.file_path,
+            token_found=token is not None
+        )
+        return token
+
+
+def set_persisted_device_auth_token(token: str) -> None:
+    """Save the device_auth_token to persistent storage.
+    
+    This allows session restoration on application restart.
+    
+    Args:
+        token: The device_auth_token to save.
+    """
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+        data['device_auth_token'] = token
+        data['updated_at'] = int(datetime.now(timezone.utc).timestamp() * 1000)
+        store._write(data)
+        logger.info(
+            "Device auth token persisted",
+            component="persistence",
+            file_path=store.file_path,
+            updated_at=data['updated_at']
+        )
+
+
+def get_persisted_own_device_id() -> Optional[str]:
+    """Get the persisted own_device_id from persistent storage.
+    
+    Returns:
+        The own_device_id string or None if not set.
+    """
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+        device_id = data.get('own_device_id')
+        logger.debug(
+            "Retrieved own_device_id from persistence",
+            component="persistence",
+            file_path=store.file_path,
+            device_id_found=device_id is not None
+        )
+        return device_id
+
+
+def set_persisted_own_device_id(device_id: str) -> None:
+    """Save the own_device_id to persistent storage.
+    
+    Args:
+        device_id: The own_device_id to save.
+    """
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+        data['own_device_id'] = device_id
+        data['updated_at'] = int(datetime.now(timezone.utc).timestamp() * 1000)
+        store._write(data)
+        logger.info(
+            "Own device ID persisted",
+            component="persistence",
+            file_path=store.file_path,
+            updated_at=data['updated_at']
+        )
+
+
+def clear_persisted_auth_tokens() -> None:
+    """Clear persisted auth tokens from storage.
+    
+    Called when user logs out or session is cleared.
+    """
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+        data.pop('device_auth_token', None)
+        data.pop('own_device_id', None)
+        data['updated_at'] = int(datetime.now(timezone.utc).timestamp() * 1000)
+        store._write(data)
+        logger.info(
+            "Auth tokens cleared from persistence",
+            component="persistence",
+            file_path=store.file_path
+        )
 
 
 # ============================================================================

@@ -22,6 +22,65 @@
 
 ## Recent Changes
 
+### Device Sync UNIQUE Constraint Fix (2026-08-22) ✅ COMPLETED
+**Issue:** After successful login, the Users and Devices sections in the dashboard were empty. The sync was failing with `UNIQUE constraint failed: devices.id` error.
+
+**Root Cause:** The `create_device()` function in `database.py` used a plain `INSERT INTO devices` statement, which fails when a device with the same ID already exists in the database. This happens during sync when devices are re-inserted from the server. Other save functions (`save_users`, `save_categories`, `save_sync_state`) correctly use `INSERT OR REPLACE INTO` to handle duplicates.
+
+**Fix Applied:**
+Changed `create_device()` in `database.py` (line 604-610) from:
+```sql
+INSERT INTO devices (...)
+```
+to:
+```sql
+INSERT OR REPLACE INTO devices (...)
+```
+
+This allows devices to be updated if they already exist, matching the behavior of other save functions.
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/database.py` - Changed `INSERT INTO devices` to `INSERT OR REPLACE INTO devices`
+
+**Test Results:**
+- ✅ All 47 database tests pass
+- ✅ All 17 sync_manager tests pass
+- ✅ All 35 persistence tests pass
+- ✅ All 11 startup tests pass
+
+---
+
+### Login Persistence (2026-08-22) ✅ COMPLETED
+**Issue:** Flask sessions are ephemeral - stored in memory and lost when the application restarts. While `device_auth_token` is stored in the SQLite database, there's no mechanism to restore it to the session on application startup.
+
+**Solution:** Implemented session persistence for authentication tokens by:
+1. Adding database function to retrieve stored device_auth_tokens
+2. Adding persistence layer for auth tokens (similar to server selection)
+3. Restoring session on application startup via `before_request` handler
+
+**Files modified:**
+1. `timelimit-ui/rootfs/usr/bin/dashboardV2/database.py` - Added `get_device_auth_tokens()` function
+2. `timelimit-ui/rootfs/usr/bin/dashboardV2/persistence.py` - Added auth token persistence functions:
+   - `get_persisted_device_auth_token()` - retrieves device_auth_token from JSON file
+   - `set_persisted_device_auth_token()` - saves device_auth_token to JSON file
+   - `get_persisted_own_device_id()` - retrieves own_device_id from JSON file
+   - `set_persisted_own_device_id()` - saves own_device_id to JSON file
+   - `clear_persisted_auth_tokens()` - clears both tokens from JSON file
+3. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Added session restoration logic:
+   - Added module-level `@app.before_request` handler `restore_session_from_persistence()`
+   - Updated `api_create_family()` to persist tokens after successful family creation
+   - Updated `api_create_family_rest()` to persist tokens after successful family creation
+   - Updated `api_sign_in_into_family()` to persist tokens after successful sign-in
+   - Updated `post_create_family()` to persist tokens after successful family creation
+   - Updated `post_login_as_parent()` to persist tokens after successful login
+   - Updated `clear_session()` to also clear persisted auth tokens
+4. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_persistence.py` - Added `TestAuthTokenPersistence` class with 7 new tests
+
+**Test Results:**
+- ✅ All 93 persistence, database, and startup tests pass
+
+---
+
 ### Auto-Sync After Authentication (2026-08-22) ✅ COMPLETED
 **Issue:** The Users and Devices sections in the dashboard were empty after successful login. The server returned 0 users and 0 devices because no sync was performed to populate the local database.
 
@@ -43,7 +102,7 @@
 
 ---
 
-### device_auth_token as Primary Key (2026-08-21)
+### device_auth_token as Primary Key (2026-08-21) ✅ COMPLETED
 **Issue:** The dashboard was using `family_id` as the primary key, but the official Android app uses `deviceAuthToken` for all server communication.
 
 **Root Cause:** The server doesn't provide `familyId` in all responses, and the official app uses `deviceAuthToken` to look up family data.
@@ -74,7 +133,7 @@
 
 ---
 
-### ClientDataStatus Payload Format Fix (2026-08-20)
+### ClientDataStatus Payload Format Fix (2026-08-20) ✅ COMPLETED
 **Issue:** The `pull_status` method in `auth_client.py` and `_build_client_data_status()` in `sync_manager.py` sent a `ClientDataStatus` payload with incorrect field types that the TimeLimit server rejected with HTTP 400 BadRequestError.
 
 **Root Cause:** The Python client was sending:
