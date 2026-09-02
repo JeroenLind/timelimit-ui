@@ -205,3 +205,22 @@ Before attempting device removal, verify:
 - [x] Devices API returns `has_parent_password_second_hash` field
 
 All verification items are now satisfied after the fixes applied.
+
+## Recent Commits
+
+### Commit bfc3b8c (2026-09-02)
+**Message:** Dashboard V2 status update: implementation progress and test updates
+
+**Files Changed:** 33 files, 9973 insertions(+), 762 deletions(-)
+
+**Key Changes:**
+- Updated dashboardV2 implementation documentation
+- Modified core dashboard files (app.py, auth_client.py, config.py, database.py, persistence.py, scheduler.py, sync_manager.py)
+- Updated dashboard templates (dashboardV2.html, login_as_parent.html)
+- Added new test files for dashboard functionality
+- Updated JavaScript frontend (dashboardV2.js)
+- Added server selection configuration
+- Added CONTEXT.md with current status
+- Added dashboard response HTML file
+
+**Status:** ✅ All tests passing (925 tests)
