@@ -8,7 +8,7 @@ Configuration is loaded from environment variables with sensible defaults:
 - FLASK_HOST: Host to bind the Flask app (default: 0.0.0.0)
 - FLASK_PORT: Port to bind the Flask app (default: 8099)
 - DATABASE_PATH: Path to SQLite database file (default: dashboardV2.db)
-- SCHEDULER_INTERVAL: Timechecker interval in seconds (default: 10)
+- SCHEDULER_INTERVAL: Timechecker interval in seconds (default: 60)
 - HA_INGRESS: Whether running in Home Assistant ingress mode (default: false)
 """
 
@@ -84,7 +84,7 @@ class Config:
     @property
     def SCHEDULER_INTERVAL(self) -> int:
         """Scheduler interval in seconds."""
-        return int(os.environ.get('SCHEDULER_INTERVAL', '10'))
+        return int(os.environ.get('SCHEDULER_INTERVAL', '60'))
     
     @property
     def SECRET_KEY(self) -> str:
@@ -164,6 +164,31 @@ class Config:
     def MAX_LOG_FILES(self) -> int:
         """Maximum number of timestamped log files to retain on startup."""
         return int(os.environ.get('MAX_LOG_FILES', '10'))
+    
+    # ==================== Dashboard Device Configuration ====================
+    
+    DASHBOARD_DEVICE_NAME: str = "Dashboard"
+    
+    # ==================== App Version Configuration ====================
+    
+    @property
+    def APP_VERSION(self) -> int:
+        """App version to report as current_app_version for the dashboard device.
+        
+        This is used to match the official Android app's version when the dashboard
+        is running. Can be overridden via DASHBOARD_APP_VERSION environment variable.
+        Defaults to 226 to match the latest official app version.
+        
+        Returns:
+            App version as integer (e.g., 226 for version 226).
+        """
+        env_version = os.environ.get('DASHBOARD_APP_VERSION')
+        if env_version:
+            try:
+                return int(env_version)
+            except ValueError:
+                pass  # Fall through to default
+        return 226
     
     # ==================== Message Logging Properties ====================
     

@@ -98,40 +98,6 @@
         line-height: 1.6;
     }
     
-    /* Historical data table styles */
-    .historical-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 15px;
-        overflow-x: auto;
-    }
-    
-    .historical-table th,
-    .historical-table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .historical-table th {
-        background: rgba(255, 255, 255, 0.05);
-        color: #aaa;
-        font-weight: 600;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    .historical-table tr:hover {
-        background: rgba(255, 255, 255, 0.05);
-    }
-    
-    .time-cell {
-        font-family: monospace;
-        font-size: 12px;
-        color: #888;
-    }
-    
     /* Current device highlight */
     .device-current {
         background: rgba(76, 175, 80, 0.1);
@@ -154,6 +120,34 @@
     .success-badge.error {
         background: rgba(244, 67, 54, 0.2);
         color: #f44336;
+    }
+    
+    /* Dashboard table styles */
+    .dashboard-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        overflow-x: auto;
+    }
+    
+    .dashboard-table th,
+    .dashboard-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .dashboard-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #aaa;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .dashboard-table tr:hover {
+        background: rgba(255, 255, 255, 0.05);
     }
     
     /* Alert notifications */
@@ -241,6 +235,28 @@
         cursor: not-allowed;
     }
     
+    /* Delete button */
+    .delete-btn {
+        background: rgba(244, 67, 54, 0.2);
+        border: 1px solid rgba(244, 67, 54, 0.5);
+        border-radius: 4px;
+        color: #f44336;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .delete-btn:hover {
+        background: rgba(244, 67, 54, 0.3);
+        transform: translateY(-1px);
+    }
+    
+    .delete-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
     .last-update {
         color: #666;
         font-size: 12px;
@@ -253,11 +269,6 @@
             flex-direction: column;
             align-items: flex-start;
         }
-        
-        .historical-table {
-            display: block;
-            overflow-x: auto;
-        }
     }
     
     @media (max-width: 480px) {
@@ -265,12 +276,6 @@
             max-width: 90vw;
             right: 5px;
             left: 5px;
-        }
-        
-        .historical-table th,
-        .historical-table td {
-            padding: 8px;
-            font-size: 11px;
         }
     }
 </style>
@@ -305,27 +310,6 @@
         </button>
         <div class="last-update" id="last-update">Last update: Never</div>
     </div>
-</div>
-
-<div class="dashboard-content">
-    <h2>Historical Data</h2>
-    <p style="color: #aaa; margin-bottom: 10px;">Recent server check results (last 10 checks)</p>
-    
-    <table class="historical-table" id="historical-table">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Server Time</th>
-                <th>Attempts</th>
-            </tr>
-        </thead>
-        <tbody id="historical-body">
-            <tr>
-                <td colspan="4" style="text-align: center; color: #666;">Loading historical data...</td>
-            </tr>
-        </tbody>
-    </table>
 </div>
 
 <div class="dashboard-content">
@@ -400,29 +384,103 @@
                     </div>
                     <div id="login-status-message" style="font-size: 11px; color: #666; margin-top: 4px;">Checking login status...</div>
                 </div>
+                
+                <!-- Configured App Version -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Dashboard App Version</span>
+                        <span id="field-app-version" style="color: #667eea; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="app-version-status" style="font-size: 11px; color: #666; margin-top: 4px;">Configured version for sync</div>
+                </div>
+                
+                <!-- Parent Password Hash (for device removal) -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(244, 67, 54, 0.1); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Parent Password Hash</span>
+                        <span id="field-parent-password-hash" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="parent-password-hash-status" style="font-size: 11px; color: #666; margin-top: 4px;">Hash for device removal operations</div>
+                </div>
+                
+                <!-- Signing Key (for device registration) -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(155, 89, 182, 0.1); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Signing Key</span>
+                        <span id="field-signing-key" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="signing-key-status" style="font-size: 11px; color: #666; margin-top: 4px;">Curve25519 key for device registration</div>
+                </div>
+                
+                <!-- Client Level (for sync protocol) -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Client Level</span>
+                        <span id="field-client-level" style="color: #667eea; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="client-level-status" style="font-size: 11px; color: #666; margin-top: 4px;">Client version level for sync protocol</div>
+                </div>
             </div>
         </div>
         
         <!-- Action Links (shown when not fully authenticated) -->
-                <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                    <div id="create-family-link" style="margin-bottom: 10px;">
-                        <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
-                            Create New Family
-                        </a>
-                    </div>
-                    <div id="login-existing-family-link">
-                        <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
-                            Login to Existing Family
-                        </a>
-                    </div>
-                </div>
-                
-                <!-- Sign Out Button (shown when authenticated) -->
-                <div id="signout-link" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                    <button class="refresh-btn" id="signout-btn" onclick="clearSession()" style="display: inline-block; text-decoration: none; background: rgba(244, 67, 54, 0.2); border: 1px solid rgba(244, 67, 54, 0.5); color: #f44336;">
-                        Sign Out
-                    </button>
-                </div>
+        <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <div id="create-family-link" style="margin-bottom: 10px;">
+                <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
+                    Create New Family
+                </a>
+            </div>
+            <div id="login-existing-family-link">
+                <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
+                    Login to Existing Family
+                </a>
+            </div>
+        </div>
+        
+        <!-- Sign Out Button (shown when authenticated) -->
+        <div id="signout-link" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <button class="refresh-btn" id="signout-btn" onclick="clearSession()" style="display: inline-block; text-decoration: none; background: rgba(244, 67, 54, 0.2); border: 1px solid rgba(244, 67, 54, 0.5); color: #f44336;">
+                Sign Out
+            </button>
+        </div>
+        
+        <!-- Clear All Data Button (shown when authenticated) -->
+        <div id="clear-all-link" style="margin-top: 10px;">
+            <button class="refresh-btn" id="clear-all-btn" onclick="confirmClearAllData()" style="background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.5); color: #9b59b6;">
+                Clear All Data
+            </button>
+        </div>
+        
+        <!-- Set Parent Password Link (shown when authenticated) -->
+        <div id="set-password-link" style="margin-top: 10px;">
+            <a href="/set-parent-password" class="refresh-btn" style="display: inline-block; text-decoration: none; background: rgba(102, 126, 234, 0.2); border: 1px solid rgba(102, 126, 234, 0.5); color: #667eea;">
+                Set Password Hash for Device Removal
+            </a>
+        </div>
+        
+        <!-- Database Viewer Link (shown when authenticated) -->
+        <div id="debug-link" style="margin-top: 10px;">
+            <a href="/debug/database" class="refresh-btn" style="display: inline-block; text-decoration: none; background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.5); color: #9b59b6;">
+                View Database Contents
+            </a>
+        </div>
+        
+        <!-- Auth Token Backup Section (shown when authenticated) -->
+        <div id="backup-section" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="color: #aaa; margin-bottom: 10px;">Auth Token Backup</h4>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="refresh-btn" id="backup-btn" onclick="createBackup()" style="background: rgba(52, 152, 219, 0.2); border: 1px solid rgba(52, 152, 219, 0.5); color: #3498db;">
+                    Create Backup
+                </button>
+                <button class="refresh-btn" id="restore-btn" onclick="restoreBackup()" style="background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.5); color: #9b59b6;">
+                    Restore Backup
+                </button>
+                <button class="refresh-btn" id="clear-backup-btn" onclick="clearBackup()" style="background: rgba(231, 76, 60, 0.2); border: 1px solid rgba(231, 76, 60, 0.5); color: #e74c3c;">
+                    Clear Backup
+                </button>
+            </div>
+            <div id="backup-status" style="margin-top: 10px; font-size: 12px; color: #888;"></div>
+        </div>
     </div>
 </div>
 
@@ -433,7 +491,7 @@
             <span>🔄</span> Refresh Users
         </button>
     </div>
-    <table class="historical-table" id="users-table">
+    <table class="dashboard-table" id="users-table">
         <thead>
             <tr>
                 <th>Name</th>
@@ -457,7 +515,7 @@
             <span>🔄</span> Refresh Devices
         </button>
     </div>
-    <table class="historical-table" id="devices-table">
+    <table class="dashboard-table" id="devices-table">
         <thead>
             <tr>
                 <th>Name</th>
@@ -466,11 +524,35 @@
                 <th>Protection Level</th>
                 <th>App Version</th>
                 <th>Platform</th>
+                <th>Signing Key</th>
                 <th>Added At</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody id="devices-body">
-            <tr><td colspan="7" style="text-align: center; color: #666;">Loading...</td></tr>
+            <tr><td colspan="9" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Historical Data</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-history-btn" onclick="loadHistoricalData()">
+            <span>🔄</span> Refresh History
+        </button>
+    </div>
+    <table class="dashboard-table historical-table" id="historical-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Status</th>
+                <th>Server Time</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody id="history-body">
+            <tr><td colspan="4" style="text-align: center; color: #666;">Loading...</td></tr>
         </tbody>
     </table>
 </div>
@@ -482,10 +564,10 @@
             <span>🔄</span> Refresh Connected Devices
         </button>
     </div>
-    <table class="historical-table" id="connected-devices-table">
+    <table class="dashboard-table" id="connected-devices-table">
         <thead>
             <tr>
-                <th>Device ID</th>
+                <th>Name</th>
                 <th>Last Seen</th>
             </tr>
         </thead>
@@ -502,7 +584,7 @@
 {% block extra_js %}
 <script src="/static/js/dashboardV2.js"></script>
 <script>
-    // Server status and historical data functions
+    // Server status functions
     function fetchSessionStatus() {
         const serverUrlElement = document.getElementById('server-status-text');
         const authStatusElement = document.getElementById('auth-status-text');
@@ -555,7 +637,6 @@
         .then(response => response.json())
         .then(data => {
             updateStatusDisplay(data);
-            loadHistoricalData();
             showAlert('Server status updated successfully', 'success');
         })
         .catch(error => {
@@ -600,40 +681,6 @@
         document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
     }
     
-    function loadHistoricalData() {
-        const tbody = document.getElementById('historical-body');
-        
-        fetch('/api/timechecker/history?limit=10', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.checks && data.checks.length > 0) {
-                tbody.innerHTML = data.checks.map(check => {
-                    const time = new Date(check.timestamp).toLocaleTimeString();
-                    const statusClass = check.success ? 'success' : 'error';
-                    const statusText = check.success ? 'Success' : 'Failed';
-                    const serverTime = check.server_time ? new Date(check.server_time).toLocaleTimeString() : 'N/A';
-                    
-                    return `
-                        <tr>
-                            <td class="time-cell">${time}</td>
-                            <td><span class="success-badge ${statusClass}">${statusText}</span></td>
-                            <td class="time-cell">${serverTime}</td>
-                            <td class="time-cell">${check.attempts}</td>
-                        </tr>
-                    `;
-                }).join('');
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No historical data available</td></tr>';
-            }
-        })
-        .catch(error => {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Failed to load historical data</td></tr>';
-        });
-    }
-    
     function showAlert(message, type) {
         const container = document.getElementById('alert-container');
         const alert = document.createElement('div');
@@ -651,6 +698,38 @@
                 alert.remove();
             }
         }, 5000);
+    }
+    
+    function loadHistoricalData() {
+        fetch('/api/timechecker/history', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const historyBody = document.getElementById('history-body');
+            if (historyBody) {
+                if (data.checks && data.checks.length > 0) {
+                    historyBody.innerHTML = data.checks.map(check => {
+                        const timestamp = check.timestamp ? new Date(check.timestamp).toLocaleString() : 'N/A';
+                        const status = check.success ? 'Success' : 'Error';
+                        const serverTime = check.server_time ? new Date(check.server_time).toLocaleString() : 'N/A';
+                        const error = check.error_message || check.error_code || '-';
+                        return `<tr>
+                            <td>${timestamp}</td>
+                            <td>${status}</td>
+                            <td>${serverTime}</td>
+                            <td>${error}</td>
+                        </tr>`;
+                    }).join('');
+                } else {
+                    historyBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No history data available</td></tr>';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Failed to load historical data:', error);
+        });
     }
     
     // Check for redirect message from login-as-parent

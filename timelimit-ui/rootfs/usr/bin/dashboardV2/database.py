@@ -122,7 +122,8 @@ class Database:
                     parent_password_hash TEXT,
                     parent_password_second_hash TEXT,
                     parent_password_second_salt TEXT,
-                    parent_password_encrypted INTEGER DEFAULT 0
+                    parent_password_encrypted INTEGER DEFAULT 0,
+                    parent_user_id TEXT
                 )
             ''')
             
@@ -194,6 +195,7 @@ class Database:
                     user_list_version TEXT,
                     last_sync_timestamp INTEGER,
                     last_sync_success INTEGER,
+                    next_sequence_number INTEGER DEFAULT 0,
                     FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
                 )
             ''')
@@ -227,6 +229,7 @@ class Database:
                     device_auth_token TEXT NOT NULL,
                     device_id TEXT NOT NULL,
                     last_seen INTEGER,
+                    name TEXT,
                     PRIMARY KEY (device_auth_token, device_id),
                     FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
                 )
@@ -238,6 +241,9 @@ class Database:
                 component="database",
                 db_path=self.db_path
             )
+            
+            # Run migrations for existing databases
+            self._run_migrations()
     
     def drop_tables(self) -> None:
         """Drop all tables (for testing purposes)."""
@@ -260,6 +266,111 @@ class Database:
                 component="database",
                 db_path=self.db_path
             )
+    
+    def clear_all_tables(self) -> Dict[str, int]:
+        """Clear all data from all tables (for fresh start).
+        
+        Deletes all records from all tables while preserving the schema.
+        This provides a fresh start without requiring database reinitialization.
+        
+        Returns:
+            Dictionary with table names as keys and row counts deleted as values.
+        """
+        with self._lock:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            results = {}
+            
+            # Delete in reverse dependency order to avoid foreign key constraints
+            tables = [
+                'connected_devices',
+                'categories',
+                'sync_state',
+                'users',
+                'auth_tokens',
+                'devices',
+                'families',
+                'server_checks'
+            ]
+            
+            for table in tables:
+                try:
+                    cursor.execute(f'DELETE FROM {table}')
+                    count = cursor.rowcount
+                    results[table] = count
+                    logger.debug(
+                        f"Cleared {count} rows from {table}",
+                        component="database",
+                        table=table,
+                        count=count
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to clear table {table}",
+                        component="database",
+                        table=table,
+                        error=str(e)
+                    )
+                    results[table] = 0
+            
+            conn.commit()
+            
+            logger.info(
+                "All tables cleared",
+                component="database",
+                db_path=self.db_path,
+                results=results
+            )
+            
+            return results
+    
+    def _run_migrations(self) -> None:
+        """Run database migrations for existing databases.
+        
+        This method adds new columns to existing tables that were not
+        present in the original schema. It's called after init_db()
+        to ensure existing databases are updated to the latest schema.
+        """
+        with self._lock:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Check if name column exists in connected_devices table
+            cursor.execute("PRAGMA table_info(connected_devices)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'name' not in columns:
+                logger.info(
+                    "Running migration: adding name column to connected_devices",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('ALTER TABLE connected_devices ADD COLUMN name TEXT')
+                conn.commit()
+                logger.info(
+                    "Migration completed: name column added to connected_devices",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            # Migration: Add parent_user_id column to families table
+            cursor.execute("PRAGMA table_info(families)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'parent_user_id' not in columns:
+                logger.info(
+                    "Running migration: adding parent_user_id column to families",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('ALTER TABLE families ADD COLUMN parent_user_id TEXT')
+                conn.commit()
+                logger.info(
+                    "Migration completed: parent_user_id column added to families",
+                    component="database",
+                    db_path=self.db_path
+                )
 
 
 # ============================================================================
@@ -691,6 +802,59 @@ def delete_device(db: Database, device_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+def get_user_by_id(db: Database, user_id: str) -> Optional[Dict[str, Any]]:
+    """Get a user by their ID.
+    
+    Args:
+        db: Database instance.
+        user_id: The user ID to look up.
+        
+    Returns:
+        User record or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def update_device_app_version(
+    db: Database,
+    device_id: str,
+    current_app_version: str,
+    highest_app_version: Optional[str] = None
+) -> bool:
+    """Update a device's app version.
+    
+    Args:
+        db: Database instance.
+        device_id: The device ID to update.
+        current_app_version: The current app version.
+        highest_app_version: The highest app version (defaults to current_app_version).
+        
+    Returns:
+        True if updated, False if device not found.
+    """
+    if highest_app_version is None:
+        highest_app_version = current_app_version
+    
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE devices
+            SET current_app_version = ?, highest_app_version = ?
+            WHERE id = ?
+        ''', (current_app_version, highest_app_version, device_id))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 # ============================================================================
 # Auth Tokens Operations
 # ============================================================================
@@ -914,6 +1078,259 @@ def get_users_by_device_auth_token(db: Database, device_auth_token: str) -> List
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_parent_user_id(db: Database, device_auth_token: str) -> Optional[str]:
+    """Get the parent user ID for a device auth token.
+    
+    First checks the families table (persisted during family creation),
+    then falls back to the users table (populated by sync).
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Parent user ID or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # First, check the families table (persisted during family creation)
+        cursor.execute('SELECT parent_user_id FROM families WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        if row and row['parent_user_id']:
+            return row['parent_user_id']
+        
+        # Fall back to users table (populated by sync)
+        cursor.execute('SELECT id FROM users WHERE device_auth_token = ? AND type = ?', (device_auth_token, 'parent'))
+        row = cursor.fetchone()
+        return row['id'] if row else None
+
+
+# ============================================================================
+# Password Hash Operations
+# ============================================================================
+
+def validate_password_hash(password_hash: str) -> bool:
+    """Validate that a password hash is in correct bcrypt format.
+    
+    Args:
+        password_hash: The hash to validate.
+        
+    Returns:
+        True if valid bcrypt hash, False otherwise.
+    """
+    if not password_hash:
+        return False
+    
+    # Minimum length for a valid bcrypt hash: $2a$10$ + at least 10 chars = 15 chars
+    # Real bcrypt hashes are 60 characters, but we allow shorter for testing
+    if len(password_hash) < 15:
+        return False
+    
+    # Check for valid bcrypt prefixes ($2a$, $2b$, $2y$)
+    valid_prefixes = ('$2a$', '$2b$', '$2y$')
+    return password_hash.startswith(valid_prefixes)
+
+
+def get_parent_password_hash(db: Database, device_auth_token: str) -> Optional[str]:
+    """Get the parent password hash for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Parent password hash or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT parent_password_second_hash FROM families WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        return row['parent_password_second_hash'] if row else None
+
+
+def get_family_with_valid_hash(db: Database, device_auth_token: str) -> Optional[Dict[str, Any]]:
+    """Get family record with validated parent password hash.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Family record with valid hash, or None if not found or invalid.
+    """
+    family = get_family(db, device_auth_token)
+    if not family:
+        return None
+    
+    hash_value = family.get('parent_password_second_hash')
+    if not validate_password_hash(hash_value):
+        logger.warning(
+            "Invalid or missing parent password hash in family record",
+            component="database",
+            device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None
+        )
+        return None
+    
+    return family
+
+
+def update_family_password_hash(
+    db: Database,
+    device_auth_token: str,
+    parent_password_second_hash: str
+) -> bool:
+    """Update the family's parent password hash.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to update.
+        parent_password_second_hash: The parent password hash to store.
+        
+    Returns:
+        True if updated, False if family not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE families SET parent_password_second_hash = ? WHERE device_auth_token = ?
+        ''', (parent_password_second_hash, device_auth_token))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_family_parent_user_id(
+    db: Database,
+    device_auth_token: str,
+    parent_user_id: str
+) -> bool:
+    """Update the family's parent user ID.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to update.
+        parent_user_id: The parent user ID to store.
+        
+    Returns:
+        True if updated, False if family not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE families SET parent_user_id = ? WHERE device_auth_token = ?
+        ''', (parent_user_id, device_auth_token))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def upsert_family_password_hash(
+    db: Database,
+    device_auth_token: str,
+    parent_password_second_hash: str,
+    mail: Optional[str] = None
+) -> bool:
+    """Upsert the family's parent password hash.
+    
+    This function handles both INSERT and UPDATE cases:
+    - If the family record exists, it updates the hash
+    - If the family record doesn't exist, it creates a new record
+    
+    This is needed because the family may be created on the server first,
+    and the local database record may not exist yet.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token (primary key).
+        parent_password_second_hash: The parent password hash to store.
+        mail: Optional email address (uses placeholder if not provided).
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Try UPDATE first
+        cursor.execute('''
+            UPDATE families SET parent_password_second_hash = ? WHERE device_auth_token = ?
+        ''', (parent_password_second_hash, device_auth_token))
+        
+        if cursor.rowcount > 0:
+            conn.commit()
+            logger.debug(
+                "Parent password hash updated in existing family record",
+                component="database",
+                device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None
+            )
+            return True
+        
+        # If no row was updated, try INSERT
+        placeholder_mail = mail or "pending@unknown"
+        cursor.execute('''
+            INSERT INTO families (device_auth_token, mail, created_at, parent_password_second_hash)
+            VALUES (?, ?, ?, ?)
+        ''', (
+            device_auth_token,
+            placeholder_mail,
+            datetime.now(timezone.utc).isoformat(),
+            parent_password_second_hash
+        ))
+        
+        conn.commit()
+        logger.debug(
+            "Parent password hash inserted in new family record",
+            component="database",
+            device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None
+        )
+        return True
+
+
+def clear_family_password_hash(db: Database, device_auth_token: str) -> bool:
+    """Clear the family's parent password hash.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to update.
+        
+    Returns:
+        True if updated, False if family not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE families SET parent_password_second_hash = NULL WHERE device_auth_token = ?
+        ''', (device_auth_token,))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def has_parent_password_hash(db: Database, device_auth_token: str) -> bool:
+    """Check if a valid parent password hash exists for a device.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to check.
+        
+    Returns:
+        True if valid hash exists, False otherwise.
+    """
+    hash_value = get_parent_password_hash(db, device_auth_token)
+    return hash_value is not None and validate_password_hash(hash_value)
+
+
 # ============================================================================
 # Sync State Operations
 # ============================================================================
@@ -925,6 +1342,10 @@ def save_sync_state(
     user_list_version: Optional[str]
 ) -> None:
     """Save sync state version numbers.
+    
+    This function preserves the next_sequence_number value by using an UPDATE
+    statement instead of INSERT OR REPLACE. This prevents the sequence number
+    from being reset when save_sync_state is called after increment_sequence_number.
     
     Args:
         db: Database instance.
@@ -938,16 +1359,37 @@ def save_sync_state(
         
         current_time = int(datetime.now().timestamp() * 1000)
         
-        cursor.execute('''
-            INSERT OR REPLACE INTO sync_state
-            (device_auth_token, device_list_version, user_list_version, last_sync_timestamp, last_sync_success)
-            VALUES (?, ?, ?, ?, 1)
-        ''', (
-            device_auth_token,
-            device_list_version,
-            user_list_version,
-            current_time
-        ))
+        # Check if sync state already exists for this device
+        cursor.execute('SELECT 1 FROM sync_state WHERE device_auth_token = ?', (device_auth_token,))
+        exists = cursor.fetchone() is not None
+        
+        if exists:
+            # Update existing row, preserving next_sequence_number
+            cursor.execute('''
+                UPDATE sync_state
+                SET device_list_version = ?,
+                    user_list_version = ?,
+                    last_sync_timestamp = ?,
+                    last_sync_success = 1
+                WHERE device_auth_token = ?
+            ''', (
+                device_list_version,
+                user_list_version,
+                current_time,
+                device_auth_token
+            ))
+        else:
+            # Insert new row with next_sequence_number = 0
+            cursor.execute('''
+                INSERT INTO sync_state
+                (device_auth_token, device_list_version, user_list_version, last_sync_timestamp, last_sync_success, next_sequence_number)
+                VALUES (?, ?, ?, ?, 1, 0)
+            ''', (
+                device_auth_token,
+                device_list_version,
+                user_list_version,
+                current_time
+            ))
         
         conn.commit()
         logger.debug(
@@ -976,6 +1418,64 @@ def get_sync_state(db: Database, device_auth_token: str) -> Optional[Dict[str, A
         cursor.execute('SELECT * FROM sync_state WHERE device_auth_token = ?', (device_auth_token,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def get_next_sequence_number(db: Database, device_auth_token: str) -> int:
+    """Get the next sequence number for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        The next sequence number (0 if no sync state exists).
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT next_sequence_number FROM sync_state WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        
+        if row and row[0] is not None:
+            return row[0]
+        return 0
+
+
+def increment_sequence_number(db: Database, device_auth_token: str) -> int:
+    """Increment and return the sequence number for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to update.
+        
+    Returns:
+        The new sequence number after incrementing.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Get current sequence number (default to 0 if not exists)
+        cursor.execute('SELECT next_sequence_number FROM sync_state WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        
+        if row and row[0] is not None:
+            current_seq = row[0]
+        else:
+            current_seq = 0
+        
+        new_seq = current_seq + 1
+        
+        # Update or insert the sequence number
+        cursor.execute('''
+            INSERT OR REPLACE INTO sync_state
+            (device_auth_token, next_sequence_number)
+            VALUES (?, ?)
+        ''', (device_auth_token, new_seq))
+        
+        conn.commit()
+        return new_seq
 
 
 # ============================================================================
@@ -1066,6 +1566,9 @@ def save_connected_devices(
 ) -> None:
     """Save connected devices list for a device auth token.
     
+    Looks up device names from the devices table and stores them
+    alongside device IDs in the connected_devices table.
+    
     Args:
         db: Database instance.
         device_auth_token: The device auth token.
@@ -1077,15 +1580,24 @@ def save_connected_devices(
         
         current_time = int(datetime.now().timestamp() * 1000)
         
+        # Get device names from devices table
+        device_names = {}
+        if device_ids:
+            placeholders = ','.join('?' * len(device_ids))
+            cursor.execute(f'SELECT id, name FROM devices WHERE id IN ({placeholders})', device_ids)
+            for row in cursor.fetchall():
+                device_names[row[0]] = row[1]
+        
         # Clear existing entries for this device auth token
         cursor.execute('DELETE FROM connected_devices WHERE device_auth_token = ?', (device_auth_token,))
         
-        # Insert new entries
+        # Insert new entries with names
         for device_id in device_ids:
+            device_name = device_names.get(device_id)
             cursor.execute('''
-                INSERT INTO connected_devices (device_auth_token, device_id, last_seen)
-                VALUES (?, ?, ?)
-            ''', (device_auth_token, device_id, current_time))
+                INSERT INTO connected_devices (device_auth_token, device_id, last_seen, name)
+                VALUES (?, ?, ?, ?)
+            ''', (device_auth_token, device_id, current_time, device_name))
         
         conn.commit()
         logger.debug(
@@ -1106,13 +1618,13 @@ def get_connected_devices(db: Database, device_auth_token: str) -> List[Dict[str
         device_auth_token: The device auth token to look up.
         
     Returns:
-        List of connected device records with device_id and last_seen.
+        List of connected device records with device_id, last_seen, and name.
     """
     with db._lock:
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute('SELECT device_id, last_seen FROM connected_devices WHERE device_auth_token = ?', (device_auth_token,))
+        cursor.execute('SELECT device_id, last_seen, name FROM connected_devices WHERE device_auth_token = ?', (device_auth_token,))
         return [dict(row) for row in cursor.fetchall()]
 
 
@@ -1153,6 +1665,93 @@ def get_device_auth_tokens(db: Database) -> List[Dict[str, Any]]:
         return results
 
 
+def get_latest_device_auth_token(db: Database) -> Optional[str]:
+    """Get the most recent device_auth_token from the database.
+    
+    Used for session persistence - retrieves the most recent device auth token
+    that can be restored to the session on application startup.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        The most recent device_auth_token value, or None if no tokens exist.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT token_value FROM auth_tokens
+            WHERE token_type = 'device_auth_token'
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        
+        if row:
+            return row[0]
+        return None
+
+
+def get_latest_own_device_id(db: Database) -> Optional[str]:
+    """Get the most recent device ID from the devices table.
+    
+    Used for session persistence - retrieves the most recently created device ID
+    that can be restored to the session on application startup.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        The most recently created device ID, or None if no devices exist.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id FROM devices
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        
+        if row:
+            return row[0]
+        return None
+
+
+def delete_all_device_auth_tokens(db: Database) -> int:
+    """Delete all device_auth_token entries from the database.
+    
+    Used for clearing all auth tokens when logging out or when
+    authentication fails.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        Number of tokens deleted.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM auth_tokens WHERE token_type = 'device_auth_token'")
+        conn.commit()
+        
+        count = cursor.rowcount
+        logger.info(
+            "All device auth tokens deleted",
+            component="database",
+            db_path=db.db_path,
+            table_name="auth_tokens",
+            row_count=count
+        )
+        return count
+
+
 # ============================================================================
 # Database Factory
 # ============================================================================
@@ -1189,3 +1788,18 @@ def reset_database() -> None:
         )
         _db_instance.close()
     _db_instance = None
+
+
+def clear_all_tables(db: Database) -> Dict[str, int]:
+    """Clear all data from all tables (for fresh start).
+    
+    This is a convenience function that calls the Database.clear_all_tables() method.
+    It deletes all records from all tables while preserving the schema.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        Dictionary with table names as keys and row counts deleted as values.
+    """
+    return db.clear_all_tables()

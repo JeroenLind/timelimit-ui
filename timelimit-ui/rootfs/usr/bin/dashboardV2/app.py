@@ -35,17 +35,19 @@ from config import Config
 from database import (
     Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token,
     get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
-    get_device_auth_tokens
+    get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_user_id, clear_all_tables
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import (
     get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level,
     get_persisted_device_auth_token, set_persisted_device_auth_token,
-    get_persisted_own_device_id, set_persisted_own_device_id, clear_persisted_auth_tokens
+    get_persisted_own_device_id, set_persisted_own_device_id, clear_persisted_auth_tokens,
+    backup_auth_tokens, restore_auth_tokens, clear_auth_token_backup, clear_server_selection
 )
 from scheduler import start_scheduler, stop_scheduler, set_server_url
 from sync_manager import SyncManager, create_sync_manager, get_event_queue
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
+from utils.family_logging import log_family_creation, ensure_troubleshooting_section_exists
 
 # Add parent directory to sys.path for crypto_utils import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -189,9 +191,13 @@ def get_current_server_url() -> str:
         if server_url:
             return server_url
     
-    # Fall back to session
-    if 'server_url' in session:
-        return session['server_url']
+    # Fall back to session (only if in request context)
+    try:
+        if 'server_url' in session:
+            return session['server_url']
+    except RuntimeError:
+        # Working outside of request context, skip session check
+        pass
     
     # Final fallback to config default
     return config.DEBUG_SERVER_URL
@@ -1000,6 +1006,7 @@ def post_create_family():
         
         if response.success:
             session['mail_login_token'] = response.data.get('mailLoginToken')
+            session['mail'] = mail  # Store email for later use in step 3
             logger.info("Create family step 1 successful", request_id=request_id)
             return redirect('/create-family')
         else:
@@ -1051,6 +1058,7 @@ def post_create_family():
     elif step == '3':
         # Step 3: Create family
         mail_auth_token = session.get('mail_auth_token')
+        mail = session.get('mail', 'unknown')  # Retrieve email from session
         password = request.form.get('password', '').strip()
         second_password = request.form.get('secondPassword', '').strip()
         parent_name = request.form.get('parentName', '').strip()
@@ -1178,6 +1186,30 @@ def post_create_family():
                     logger.info("Sync completed after family creation", request_id=request_id)
                 else:
                     logger.warning("Sync failed after family creation", request_id=request_id)
+                
+                # Store password hash in database for session restoration
+                upsert_family_password_hash(
+                    db=db,
+                    device_auth_token=device_auth_token,
+                    parent_password_second_hash=password_data.get('secondHash')
+                )
+                logger.info("Password hash stored in database", request_id=request_id)
+            
+            # Log family creation to KeyFamilyData.md
+            family_id = response.data.get('deviceAuthToken')
+            if family_id:
+                log_family_creation(
+                    family_id=family_id,
+                    parent_name=parent_name,
+                    email=mail,
+                    password_data=password_data,
+                    device_name=device_name,
+                    device_model=device_model,
+                    time_zone=time_zone,
+                    server_url=server_url,
+                    locale=locale,
+                    request_id=request_id
+                )
             
             duration_ms = int((time.time() - start_time) * 1000)
             logger.info("Create family successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
@@ -1204,6 +1236,7 @@ def cancel_create_family():
     # Clear all create family session data
     session.pop('mail_login_token', None)
     session.pop('mail_auth_token', None)
+    session.pop('mail', None)
     session.pop('device_auth_token', None)
     session.pop('own_device_id', None)
     session.pop('create_family_error', None)
@@ -1353,6 +1386,7 @@ def post_login_as_parent():
         mail_auth_token = session.get('mail_auth_token')
         device_model = request.form.get('deviceModel', '').strip()
         device_name = request.form.get('deviceName', '').strip()
+        parent_password_second_hash = request.form.get('parentPasswordSecondHash', '').strip()
         
         if not mail_auth_token:
             session['login_as_parent_error'] = 'Session expired. Please start again.'
@@ -1398,6 +1432,16 @@ def post_login_as_parent():
                 # Persist auth token to file for session restoration after restart
                 set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
                 set_persisted_own_device_id(response.data.get('ownDeviceId'))
+                
+                # Store password hash in database if provided
+                if parent_password_second_hash:
+                    upsert_family_password_hash(
+                        db=db,
+                        device_auth_token=response.data.get('deviceAuthToken'),
+                        parent_password_second_hash=parent_password_second_hash
+                    )
+                    session['parent_password_second_hash'] = parent_password_second_hash
+                    logger.info("Parent password hash stored in database", request_id=request_id)
             
             # Clear temporary session data
             session.pop('mail_login_token', None)
@@ -1753,6 +1797,14 @@ def session_status():
     request_id = get_request_id()
     server_url = get_current_server_url()
     
+    # Check for parent password hash in session first, then fall back to database
+    parent_password_second_hash = session.get('parent_password_second_hash')
+    if not parent_password_second_hash:
+        device_auth_token = session.get('device_auth_token')
+        if device_auth_token:
+            db = get_database()
+            parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
+    
     status = {
         'authenticated': 'device_auth_token' in session,
         'server_url': server_url,
@@ -1762,7 +1814,10 @@ def session_status():
         'device_auth_token': session.get('device_auth_token'),
         'mail_auth_token': session.get('mail_auth_token'),
         'own_device_id': session.get('own_device_id'),
-        'login_error': session.get('login_error')
+        'login_error': session.get('login_error'),
+        'configured_app_version': 226,
+        'has_parent_password_second_hash': parent_password_second_hash is not None,
+        'parent_password_second_hash': parent_password_second_hash
     }
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -1974,11 +2029,19 @@ def api_dashboard_devices():
     # Get own_device_id for highlighting the current device
     own_device_id = session.get('own_device_id')
     
+    # Check for parent password hash (needed for device removal)
+    # Check session first, then fall back to database
+    parent_password_second_hash = session.get('parent_password_second_hash')
+    if not parent_password_second_hash:
+        parent_password_second_hash = get_parent_password_hash(db=get_database(), device_auth_token=device_auth_token)
+    has_parent_password_second_hash = parent_password_second_hash is not None
+    
     logger.info(
         "Devices request",
         request_id=request_id,
         device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
-        has_own_device_id=own_device_id is not None
+        has_own_device_id=own_device_id is not None,
+        has_parent_password_second_hash=has_parent_password_second_hash
     )
     
     try:
@@ -1992,14 +2055,16 @@ def api_dashboard_devices():
             duration_ms=duration_ms,
             request_id=request_id,
             count=len(devices),
-            own_device_id=own_device_id
+            own_device_id=own_device_id,
+            has_parent_password_second_hash=has_parent_password_second_hash
         )
         
         return jsonify({
             'status': 'ok',
             'count': len(devices),
             'devices': devices,
-            'own_device_id': own_device_id
+            'own_device_id': own_device_id,
+            'has_parent_password_second_hash': has_parent_password_second_hash
         })
         
     except Exception as e:
@@ -2381,6 +2446,381 @@ def health():
     logger.info("Health check requested", request_id=request_id)
     
     return jsonify({'status': 'healthy'})
+
+
+# ============================================================================
+# Set Parent Password Routes (Server-Side Rendered)
+# ============================================================================
+
+@app.route('/set-parent-password', methods=['GET'])
+def get_set_parent_password():
+    """Render the set parent password page.
+    
+    Returns:
+        Rendered HTML template with the password form.
+    """
+    request_id = get_request_id()
+    
+    # Check if authenticated
+    if 'device_auth_token' not in session:
+        logger.info("User not authenticated, redirecting to dashboard", request_id=request_id)
+        return redirect('/dashboardV2')
+    
+    logger.info("Rendering set parent password page", request_id=request_id)
+    return render_template('set_parent_password.html')
+
+
+@app.route('/set-parent-password', methods=['POST'])
+def post_set_parent_password():
+    """Process set parent password form submission.
+    
+    Handles two cases:
+    1. Direct hash input via parentPasswordSecondHash field
+    2. Password hashing via password field
+    
+    Returns:
+        Redirect to dashboard on success.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning("Set parent password attempted without authentication", request_id=request_id)
+        return redirect('/dashboardV2')
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning("Set parent password attempted without device_auth_token", request_id=request_id)
+        return redirect('/dashboardV2')
+    
+    # Get form data
+    password = request.form.get('password', '').strip()
+    parent_password_second_hash = request.form.get('parentPasswordSecondHash', '').strip()
+    
+    # Determine which input was provided
+    if parent_password_second_hash:
+        # Direct hash input - use as-is
+        hash_to_store = parent_password_second_hash
+    elif password:
+        # Password provided - hash it using generate_family_hashes
+        try:
+            password_data = generate_family_hashes(password)
+            hash_to_store = password_data['secondHash']
+        except Exception as e:
+            session['set_parent_password_error'] = f'Failed to hash password: {str(e)}'
+            logger.error("Failed to hash password", error=str(e), request_id=request_id)
+            return redirect('/set-parent-password')
+    else:
+        session['set_parent_password_error'] = 'Either password or hash is required'
+        logger.warning("Set parent password: missing password and hash", request_id=request_id)
+        return redirect('/set-parent-password')
+    
+    # Store hash in session
+    session['parent_password_second_hash'] = hash_to_store
+    
+    # Store hash in database
+    db = get_database()
+    upsert_family_password_hash(db, device_auth_token, hash_to_store)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Parent password hash set successfully",
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    session['set_parent_password_success'] = 'Password hash saved successfully'
+    return redirect('/dashboardV2')
+
+
+# ============================================================================
+# Clear All Data Endpoint
+# ============================================================================
+
+@app.route('/api/clear-all', methods=['POST'])
+def api_clear_all():
+    """Clear all data from the dashboard.
+    
+    This endpoint clears:
+    - All database tables
+    - Session data
+    - Auth tokens from persistence
+    - Server selection
+    
+    Returns:
+        JSON response with status and details of cleared data.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Clear all data request", request_id=request_id)
+    
+    # Clear database tables
+    db = get_database()
+    tables_cleared = clear_all_tables(db)
+    
+    # Clear session
+    session.clear()
+    
+    # Clear persisted auth tokens
+    clear_persisted_auth_tokens()
+    
+    # Clear server selection
+    clear_server_selection()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Clear all data completed",
+        tables_cleared=tables_cleared,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'tables_cleared': tables_cleared,
+        'message': 'All data cleared successfully',
+        'duration_ms': duration_ms
+    })
+
+
+# ============================================================================
+# Auth Token Backup Endpoints
+# ============================================================================
+
+@app.route('/api/auth/backup', methods=['POST'])
+def api_auth_backup():
+    """Create a backup of auth tokens.
+    
+    Returns:
+        JSON response with backup status and token information.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Auth token backup request", request_id=request_id)
+    
+    # Create backup
+    backup_result = backup_auth_tokens()
+    
+    # Fallback: check session for own_device_id if not found in database/JSON
+    if backup_result.get('own_device_id') is None:
+        session_own_device_id = session.get('own_device_id')
+        if session_own_device_id is not None:
+            backup_result['own_device_id'] = session_own_device_id
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Auth token backup completed",
+        backup_successful=backup_result.get('backup_successful'),
+        has_device_auth_token=backup_result.get('device_auth_token') is not None,
+        has_own_device_id=backup_result.get('own_device_id') is not None,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'backup_successful': backup_result.get('backup_successful', False),
+        'device_auth_token': backup_result.get('device_auth_token'),
+        'own_device_id': backup_result.get('own_device_id'),
+        'has_device_auth_token': backup_result.get('device_auth_token') is not None,
+        'has_own_device_id': backup_result.get('own_device_id') is not None,
+        'error': backup_result.get('error')
+    })
+
+
+@app.route('/api/auth/restore', methods=['POST'])
+def api_auth_restore():
+    """Restore auth tokens from backup.
+    
+    Returns:
+        JSON response with restore status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Auth token restore request", request_id=request_id)
+    
+    # Restore from backup
+    restore_result = restore_auth_tokens()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Auth token restore completed",
+        restore_successful=restore_result.get('restore_successful'),
+        has_device_auth_token=restore_result.get('device_auth_token') is not None,
+        has_own_device_id=restore_result.get('own_device_id') is not None,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'restore_successful': restore_result.get('restore_successful', False),
+        'device_auth_token': restore_result.get('device_auth_token'),
+        'own_device_id': restore_result.get('own_device_id'),
+        'error': restore_result.get('error')
+    })
+
+
+@app.route('/api/auth/clear-backup', methods=['POST'])
+def api_auth_clear_backup():
+    """Clear the auth token backup file.
+    
+    Returns:
+        JSON response with clear status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Auth token backup clear request", request_id=request_id)
+    
+    # Clear backup
+    cleared = clear_auth_token_backup()
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Auth token backup clear completed",
+        cleared=cleared,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'cleared': cleared
+    })
+
+
+# ============================================================================
+# Dashboard Device Removal Endpoint
+# ============================================================================
+
+@app.route('/api/dashboard/devices/remove', methods=['POST'])
+def api_dashboard_devices_remove():
+    """Remove a device from the family.
+    
+    Expects JSON body with 'deviceId' field.
+    
+    Returns:
+        JSON response with status.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning("Device removal attempted without authentication", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning("Device removal attempted without device_auth_token", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    # Get request data
+    data = request.get_json() or {}
+    device_id = data.get('deviceId')
+    
+    if not device_id:
+        logger.warning("Device removal attempted without deviceId", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing deviceId'
+        }), 400
+    
+    # Get parent password hash from session
+    parent_password_second_hash = session.get('parent_password_second_hash')
+    if not parent_password_second_hash:
+        logger.warning("Device removal attempted without parent password hash", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'Parent password hash not set. Please set it first via /set-parent-password'
+        }), 400
+    
+    # Get own_device_id to prevent self-removal
+    own_device_id = session.get('own_device_id')
+    if own_device_id and own_device_id == device_id:
+        logger.warning("Device removal attempted for own device", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'Cannot remove the current device'
+        }), 400
+    
+    # Get parent_user_id from session or database
+    parent_user_id = session.get('parent_user_id')
+    if not parent_user_id:
+        db = get_database()
+        parent_user_id = get_parent_user_id(db, device_auth_token)
+    
+    if not parent_user_id:
+        logger.warning("Device removal attempted without parent_user_id", request_id=request_id)
+        return jsonify({
+            'status': 'error',
+            'error': 'Parent user ID not found'
+        }), 400
+    
+    # Get server URL
+    server_url = get_current_server_url()
+    
+    logger.info(
+        "Device removal request",
+        device_id=device_id,
+        parent_user_id=parent_user_id,
+        device_auth_token=device_auth_token[:8] + '...',
+        request_id=request_id
+    )
+    
+    # Call the server's remove-device endpoint
+    client = AuthClient(base_url=server_url)
+    response = client.remove_device(
+        device_auth_token=device_auth_token,
+        parent_user_id=parent_user_id,
+        parent_password_second_hash=parent_password_second_hash,
+        device_id=device_id
+    )
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
+        logger.info(
+            "Device removed successfully",
+            device_id=device_id,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'ok',
+            'message': 'Device removed successfully'
+        })
+    else:
+        logger.error(
+            "Device removal failed",
+            device_id=device_id,
+            error_code=response.error_code,
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': response.error_code,
+            'error_message': response.error_message
+        }), response.status_code
 
 
 # ============================================================================

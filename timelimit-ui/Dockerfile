@@ -3,10 +3,12 @@ FROM $BUILD_FROM
 
 # Installeer Python en de specifieke crypto bibliotheek
 # py3-bcrypt is essentieel voor je nieuwe hashing logica
+# py3-cryptography is nodig voor Curve25519 sleutelgeneratie
 RUN apk add --no-cache \
     python3 \
     py3-requests \
-    py3-bcrypt
+    py3-bcrypt \
+    py3-cryptography
 
 # Kopieer de volledige rootfs map naar de container
 # Zorg dat web_server.py, api_client.py, crypto_utils.py en dashboard.html 

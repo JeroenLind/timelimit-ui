@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Database Viewer - TimeLimit Dashboard v2{% endblock %}
+
+{% block extra_css %}
+<style>
+    .database-container {
+        margin-top: 20px;
+    }
+    
+    .table-section {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .table-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    .row-count {
+        background: rgba(102, 126, 234, 0.2);
+        color: #667eea;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .db-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    
+    .db-table th,
+    .db-table td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        vertical-align: top;
+    }
+    
+    .db-table th {
+        background: rgba(255, 255, 255, 0.08);
+        color: #aaa;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        white-space: nowrap;
+    }
+    
+    .db-table tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .db-table td {
+        color: #ccc;
+        word-break: break-all;
+    }
+    
+    .db-table td strong {
+        color: #fff;
+    }
+    
+    .empty-message {
+        text-align: center;
+        color: #666;
+        padding: 20px;
+        font-style: italic;
+    }
+    
+    .error-message {
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        padding: 15px;
+        color: #ff6b6b;
+        margin-top: 10px;
+    }
+    
+    .back-link {
+        display: inline-block;
+        padding: 8px 16px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.5);
+        border-radius: 8px;
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    
+    .back-link:hover {
+        background: rgba(102, 126, 234, 0.3);
+        transform: translateY(-1px);
+    }
+    
+    .json-value {
+        font-family: monospace;
+        font-size: 12px;
+        word-break: break-all;
+    }
+    
+    .json-string {
+        color: #4caf50;
+    }
+    
+    .json-number, .json-null {
+        color: #ff9800;
+    }
+    
+    .json-boolean {
+        color: #2196f3;
+    }
+    
+    .json-object, .json-array {
+        color: #9c27b0;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .db-table {
+            font-size: 12px;
+        }
+        
+        .db-table th,
+        .db-table td {
+            padding: 6px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="database-container">
+    <h2 style="color: #fff; margin-bottom: 20px;">Database Viewer</h2>
+    
+    <a href="/dashboardV2" class="back-link">← Back to Dashboard</a>
+    
+    {% if tables %}
+        <div style="margin-top: 20px;">
+            {% for table in tables %}
+                <div class="table-section">
+                    <div class="table-header">
+                        <span class="table-name">{{ table }}</span>
+                        {% if table_data[table]['rows'] %}
+                            <span class="row-count">{{ table_data[table]['rows']|length }} rows</span>
+                        {% else %}
+                            <span class="row-count">0 rows</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if table_data[table].get('error') %}
+                        <div class="error-message">
+                            Error reading table: {{ table_data[table]['error'] }}
+                        </div>
+                    {% elif table_data[table]['columns'] %}
+                        <table class="db-table">
+                            <thead>
+                                <tr>
+                                    {% for column in table_data[table]['columns'] %}
+                                        <th>{{ column }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table_data[table]['rows'] %}
+                                    <tr>
+                                        {% for column in table_data[table]['columns'] %}
+                                            <td>
+                                                {% set value = row.get(column) %}
+                                                {% if value is none %}
+                                                    <span class="json-null">NULL</span>
+                                                {% elif value is boolean %}
+                                                    <span class="json-boolean">{{ value }}</span>
+                                                {% elif value is number %}
+                                                    <span class="json-number">{{ value }}</span>
+                                                {% elif value is string %}
+                                                    <span class="json-string">{{ value }}</span>
+                                                {% else %}
+                                                    <span class="json-value">{{ value }}</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="empty-message">No data available</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="table-section">
+            <p class="empty-message">No tables found in database</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

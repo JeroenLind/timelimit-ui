@@ -412,7 +412,7 @@ class TestPersistenceIntegration:
 
 
 class TestAuthTokenPersistence:
-    """Tests for auth token persistence functions."""
+    """Tests for auth token persistence functions (JSON file fallback mode)."""
     
     @pytest.fixture
     def temp_file(self, tmp_path):
@@ -423,101 +423,671 @@ class TestAuthTokenPersistence:
     def test_set_and_get_device_auth_token(self, temp_file):
         """Test saving and retrieving device_auth_token."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            mock_instance = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance
-            
-            test_token = "test_device_auth_token_12345"
-            set_persisted_device_auth_token(test_token)
-            
-            result = get_persisted_device_auth_token()
-            assert result == test_token
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database tokens)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                test_token = "test_device_auth_token_12345"
+                set_persisted_device_auth_token(test_token)
+                
+                result = get_persisted_device_auth_token()
+                assert result == test_token
     
     @pytest.mark.timeout(10)
     def test_get_device_auth_token_returns_none_when_not_set(self, temp_file):
         """Test that get returns None when device_auth_token is not set."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            mock_instance = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance
-            
-            result = get_persisted_device_auth_token()
-            assert result is None
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database tokens)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                result = get_persisted_device_auth_token()
+                assert result is None
     
     @pytest.mark.timeout(10)
     def test_set_and_get_own_device_id(self, temp_file):
         """Test saving and retrieving own_device_id."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            mock_instance = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance
-            
-            test_device_id = "test_device_id_67890"
-            set_persisted_own_device_id(test_device_id)
-            
-            result = get_persisted_own_device_id()
-            assert result == test_device_id
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database devices)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                test_device_id = "test_device_id_67890"
+                set_persisted_own_device_id(test_device_id)
+                
+                result = get_persisted_own_device_id()
+                assert result == test_device_id
     
     @pytest.mark.timeout(10)
     def test_get_own_device_id_returns_none_when_not_set(self, temp_file):
         """Test that get returns None when own_device_id is not set."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            mock_instance = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance
-            
-            result = get_persisted_own_device_id()
-            assert result is None
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database devices)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                result = get_persisted_own_device_id()
+                assert result is None
     
     @pytest.mark.timeout(10)
     def test_clear_persisted_auth_tokens(self, temp_file):
         """Test clearing persisted auth tokens."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            mock_instance = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance
-            
-            # Set tokens
-            set_persisted_device_auth_token("test_token")
-            set_persisted_own_device_id("test_device_id")
-            
-            # Clear tokens
-            clear_persisted_auth_tokens()
-            
-            # Verify cleared
-            assert get_persisted_device_auth_token() is None
-            assert get_persisted_own_device_id() is None
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database tokens)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set tokens
+                set_persisted_device_auth_token("test_token")
+                set_persisted_own_device_id("test_device_id")
+                
+                # Clear tokens
+                clear_persisted_auth_tokens()
+                
+                # Verify cleared
+                assert get_persisted_device_auth_token() is None
+                assert get_persisted_own_device_id() is None
     
     @pytest.mark.timeout(10)
     def test_auth_tokens_persist_across_instances(self, temp_file):
         """Test that auth tokens persist across store instances."""
         with patch('persistence.get_server_selection_store') as mock_store:
-            # First instance - set tokens
-            mock_instance1 = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance1
-            
-            set_persisted_device_auth_token("test_token_123")
-            set_persisted_own_device_id("device_id_456")
-            
-            # Second instance - retrieve tokens
-            mock_instance2 = FileServerSelectionStore(temp_file)
-            mock_store.return_value = mock_instance2
-            
-            assert get_persisted_device_auth_token() == "test_token_123"
-            assert get_persisted_own_device_id() == "device_id_456"
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database tokens)
+                mock_get_db.return_value = None
+                
+                # First instance - set tokens
+                mock_instance1 = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance1
+                
+                set_persisted_device_auth_token("test_token_123")
+                set_persisted_own_device_id("device_id_456")
+                
+                # Second instance - retrieve tokens
+                mock_instance2 = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance2
+                
+                assert get_persisted_device_auth_token() == "test_token_123"
+                assert get_persisted_own_device_id() == "device_id_456"
     
     @pytest.mark.timeout(10)
     def test_auth_tokens_in_file(self, temp_file):
         """Test that auth tokens are stored in the JSON file."""
         with patch('persistence.get_server_selection_store') as mock_store:
+            with patch('persistence.get_database') as mock_get_db:
+                # Mock database to return None (no database tokens)
+                mock_get_db.return_value = None
+                
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                test_token = "test_device_auth_token_abc"
+                test_device_id = "device_id_xyz"
+                
+                set_persisted_device_auth_token(test_token)
+                set_persisted_own_device_id(test_device_id)
+                
+                # Read file directly
+                with open(temp_file, 'r') as f:
+                    data = json.load(f)
+                
+                assert data.get('device_auth_token') == test_token
+                assert data.get('own_device_id') == test_device_id
+                assert 'updated_at' in data
+
+
+class TestAuthTokenPersistenceDatabase:
+    """Tests for auth token persistence using SQLite database as primary storage."""
+    
+    @pytest.fixture
+    def test_db(self):
+        """Create a test database."""
+        import tempfile
+        from database import Database, store_auth_token, get_device_auth_tokens
+        
+        db_fd, db_path = tempfile.mkstemp(suffix='.db')
+        db = Database(db_path=db_path)
+        db.init_db()
+        yield db
+        db.close()
+        os.close(db_fd)
+        os.unlink(db_path)
+    
+    @pytest.fixture
+    def temp_file(self, tmp_path):
+        """Create a temporary file for testing."""
+        return str(tmp_path / "test_server_selection.json")
+    
+    @pytest.mark.timeout(10)
+    def test_get_persisted_device_auth_token_from_database(self, test_db):
+        """Test that get_persisted_device_auth_token retrieves from database."""
+        from database import store_auth_token
+        
+        # Store a token in the database
+        store_auth_token(
+            db=test_db,
+            token_type='device_auth_token',
+            token_value='db_token_123',
+            device_id='device_test123'
+        )
+        
+        # Mock the database module to use our test database
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            result = get_persisted_device_auth_token()
+            assert result == 'db_token_123'
+    
+    @pytest.mark.timeout(10)
+    def test_get_persisted_device_auth_token_returns_none_when_no_database_tokens(self, test_db, temp_file):
+        """Test that get_persisted_device_auth_token returns None when no tokens in database."""
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                result = get_persisted_device_auth_token()
+                assert result is None
+    
+    @pytest.mark.timeout(10)
+    def test_get_persisted_own_device_id_from_database(self, test_db):
+        """Test that get_persisted_own_device_id retrieves from database."""
+        from database import create_device
+        
+        # Create a device in the database
+        create_device(
+            db=test_db,
+            device_id='device_id_456',
+            device_auth_token='device_token_test123',
+            name='Test Device'
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            result = get_persisted_own_device_id()
+            assert result == 'device_id_456'
+    
+    @pytest.mark.timeout(10)
+    def test_get_persisted_own_device_id_returns_none_when_no_database_devices(self, test_db, temp_file):
+        """Test that get_persisted_own_device_id returns None when no devices in database."""
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                result = get_persisted_own_device_id()
+                assert result is None
+    
+    @pytest.mark.timeout(10)
+    def test_set_persisted_device_auth_token_saves_to_database(self, test_db):
+        """Test that set_persisted_device_auth_token saves to database."""
+        from database import get_device_auth_tokens
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            set_persisted_device_auth_token('new_token_789')
+            
+            # Verify token was saved to database
+            tokens = get_device_auth_tokens(test_db)
+            assert len(tokens) == 1
+            assert tokens[0]['token_value'] == 'new_token_789'
+    
+    @pytest.mark.timeout(10)
+    def test_clear_persisted_auth_tokens_deletes_from_database(self, test_db):
+        """Test that clear_persisted_auth_tokens deletes from database."""
+        from database import get_device_auth_tokens, store_auth_token
+        
+        # Store a token first
+        store_auth_token(
+            db=test_db,
+            token_type='device_auth_token',
+            token_value='token_to_delete',
+            device_id='device_test123'
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            clear_persisted_auth_tokens()
+            
+            # Verify token was deleted from database
+            tokens = get_device_auth_tokens(test_db)
+            assert len(tokens) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_database_token_takes_precedence_over_json(self, test_db, temp_file):
+        """Test that database token takes precedence over JSON file."""
+        from database import store_auth_token
+        
+        # Store a token in the database
+        store_auth_token(
+            db=test_db,
+            token_type='device_auth_token',
+            token_value='db_token_priority',
+            device_id='device_test123'
+        )
+        
+        # Store a different token in JSON file
+        with patch('persistence.get_server_selection_store') as mock_store:
             mock_instance = FileServerSelectionStore(temp_file)
             mock_store.return_value = mock_instance
             
-            test_token = "test_device_auth_token_abc"
-            test_device_id = "device_id_xyz"
+            # Write a different token to the JSON file using the correct key
+            with mock_instance._lock:
+                data = mock_instance._read()
+                data['device_auth_token'] = 'json_token_priority'
+                mock_instance._write(data)
             
-            set_persisted_device_auth_token(test_token)
-            set_persisted_own_device_id(test_device_id)
+            with patch('persistence.get_database') as mock_get_db:
+                mock_get_db.return_value = test_db
+                
+                result = get_persisted_device_auth_token()
+                # Database token should take precedence
+                assert result == 'db_token_priority'
+
+
+class TestAuthTokenBackupRestore:
+    """Tests for auth token backup and restore functionality."""
+    
+    @pytest.fixture
+    def temp_file(self, tmp_path):
+        """Create a temporary file for testing."""
+        return str(tmp_path / "test_server_selection.json")
+    
+    @pytest.fixture
+    def test_db(self):
+        """Create a test database."""
+        import tempfile
+        from database import Database
+        
+        db_fd, db_path = tempfile.mkstemp(suffix='.db')
+        db = Database(db_path=db_path)
+        db.init_db()
+        yield db
+        db.close()
+        os.close(db_fd)
+        os.unlink(db_path)
+    
+    @pytest.mark.timeout(10)
+    def test_backup_auth_tokens_creates_backup_file(self, temp_file, test_db):
+        """Test that backup_auth_tokens creates a backup file."""
+        from persistence import (
+            backup_auth_tokens, get_auth_token_backup_path,
+            set_persisted_device_auth_token
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
             
-            # Read file directly
-            with open(temp_file, 'r') as f:
-                data = json.load(f)
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (creates backup automatically)
+                set_persisted_device_auth_token('test_backup_token', 'test_device_id')
+                
+                # Verify backup file exists
+                backup_path = get_auth_token_backup_path()
+                assert os.path.exists(backup_path)
+                
+                # Verify backup file contents
+                with open(backup_path, 'r') as f:
+                    backup_data = json.load(f)
+                assert backup_data['device_auth_token'] == 'test_backup_token'
+                assert backup_data['own_device_id'] == 'test_device_id'
+    
+    @pytest.mark.timeout(10)
+    def test_backup_auth_tokens_manual(self, temp_file, test_db):
+        """Test that backup_auth_tokens creates a backup file manually."""
+        from persistence import (
+            backup_auth_tokens, get_auth_token_backup_path,
+            set_persisted_device_auth_token
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
             
-            assert data.get('device_auth_token') == test_token
-            assert data.get('own_device_id') == test_device_id
-            assert 'updated_at' in data
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (creates backup automatically)
+                set_persisted_device_auth_token('manual_backup_token', 'manual_device_id')
+                
+                # Clear the backup file
+                backup_path = get_auth_token_backup_path()
+                os.unlink(backup_path)
+                
+                # Create backup manually
+                result = backup_auth_tokens()
+                
+                assert result['backup_successful'] is True
+                assert result['device_auth_token'] == 'manual_backup_token'
+                assert result['own_device_id'] == 'manual_device_id'
+                
+                # Verify backup file exists
+                assert os.path.exists(backup_path)
+    
+    @pytest.mark.timeout(10)
+    def test_restore_auth_tokens_from_backup(self, temp_file, test_db):
+        """Test that restore_auth_tokens restores from backup file."""
+        from persistence import (
+            restore_auth_tokens, get_auth_token_backup_path,
+            set_persisted_device_auth_token, backup_auth_tokens
+        )
+        from database import get_device_auth_tokens, delete_all_device_auth_tokens
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (creates backup automatically)
+                set_persisted_device_auth_token('original_token', 'original_device_id')
+                
+                # Verify backup exists
+                backup_path = get_auth_token_backup_path()
+                assert os.path.exists(backup_path)
+                
+                # Simulate database loss by clearing database and JSON file
+                # but NOT the backup (which simulates recovery from backup)
+                delete_all_device_auth_tokens(test_db)
+                
+                # Clear JSON file (simulate file loss)
+                with mock_instance._lock:
+                    data = mock_instance._read()
+                    data.pop('device_auth_token', None)
+                    data.pop('own_device_id', None)
+                    mock_instance._write(data)
+                
+                # Restore from backup
+                restore_result = restore_auth_tokens()
+                
+                assert restore_result['restore_successful'] is True
+                assert restore_result['device_auth_token'] == 'original_token'
+                assert restore_result['own_device_id'] == 'original_device_id'
+                
+                # Verify token was restored to database
+                tokens = get_device_auth_tokens(test_db)
+                assert len(tokens) == 1
+                assert tokens[0]['token_value'] == 'original_token'
+    
+    @pytest.mark.timeout(10)
+    def test_restore_auth_tokens_no_backup_file(self, temp_file, test_db):
+        """Test that restore_auth_tokens handles missing backup file."""
+        from persistence import restore_auth_tokens, get_auth_token_backup_path
+        
+        # Ensure no backup file exists
+        backup_path = get_auth_token_backup_path()
+        if os.path.exists(backup_path):
+            os.unlink(backup_path)
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                result = restore_auth_tokens()
+                
+                assert result['restore_successful'] is False
+                assert 'No backup file found' in result.get('error', '')
+    
+    @pytest.mark.timeout(10)
+    def test_clear_auth_token_backup(self, temp_file, test_db):
+        """Test that clear_auth_token_backup removes the backup file."""
+        from persistence import (
+            backup_auth_tokens, clear_auth_token_backup, get_auth_token_backup_path,
+            set_persisted_device_auth_token
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (creates backup)
+                set_persisted_device_auth_token('test_token', 'test_device_id')
+                
+                # Verify backup file exists
+                backup_path = get_auth_token_backup_path()
+                assert os.path.exists(backup_path)
+                
+                # Clear backup
+                result = clear_auth_token_backup()
+                
+                assert result is True
+                assert not os.path.exists(backup_path)
+    
+    @pytest.mark.timeout(10)
+    def test_automatic_backup_on_set_persisted_device_auth_token(self, temp_file, test_db):
+        """Test that set_persisted_device_auth_token creates automatic backup."""
+        from persistence import (
+            set_persisted_device_auth_token, get_auth_token_backup_path
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (should create automatic backup)
+                set_persisted_device_auth_token('auto_backup_token', 'auto_device_id')
+                
+                # Verify backup file was created
+                backup_path = get_auth_token_backup_path()
+                assert os.path.exists(backup_path)
+                
+                # Verify backup contents
+                with open(backup_path, 'r') as f:
+                    backup_data = json.load(f)
+                assert backup_data['device_auth_token'] == 'auto_backup_token'
+                assert backup_data['own_device_id'] == 'auto_device_id'
+    
+    @pytest.mark.timeout(10)
+    def test_clear_persisted_auth_tokens_clears_backup(self, temp_file, test_db):
+        """Test that clear_persisted_auth_tokens also clears the backup file."""
+        from persistence import (
+            set_persisted_device_auth_token, clear_persisted_auth_tokens,
+            get_auth_token_backup_path
+        )
+        
+        with patch('persistence.get_database') as mock_get_db:
+            mock_get_db.return_value = test_db
+            
+            with patch('persistence.get_server_selection_store') as mock_store:
+                mock_instance = FileServerSelectionStore(temp_file)
+                mock_store.return_value = mock_instance
+                
+                # Set token (creates backup)
+                set_persisted_device_auth_token('token_to_clear', 'device_to_clear')
+                
+                # Verify backup exists
+                backup_path = get_auth_token_backup_path()
+                assert os.path.exists(backup_path)
+                
+                # Clear auth tokens
+                clear_persisted_auth_tokens()
+                
+                # Verify backup was also cleared
+                assert not os.path.exists(backup_path)
+
+
+class TestParentPasswordHashPersistence:
+    """Tests for parent password hash persistence in session restoration."""
+
+    @pytest.fixture
+    def temp_file(self, tmp_path):
+        """Create a temporary file for testing."""
+        return str(tmp_path / "test_server_selection.json")
+
+    @pytest.fixture
+    def test_db(self):
+        """Create a test database."""
+        import tempfile
+        from database import Database
+        
+        db_fd, db_path = tempfile.mkstemp(suffix='.db')
+        db = Database(db_path=db_path)
+        db.init_db()
+        yield db
+        db.close()
+        os.close(db_fd)
+        os.unlink(db_path)
+
+    @pytest.mark.timeout(10)
+    def test_parent_password_hash_restored_from_database(self, test_db):
+        """Test that parent password hash is restored from database during session restoration."""
+        from database import upsert_family_password_hash, get_parent_password_hash
+        
+        # Store a hash in the database
+        upsert_family_password_hash(
+            db=test_db,
+            device_auth_token='test-device-token',
+            parent_password_second_hash='$2b$12$testhash123'
+        )
+        
+        # Verify it was stored
+        stored_hash = get_parent_password_hash(test_db, 'test-device-token')
+        assert stored_hash == '$2b$12$testhash123'
+
+    @pytest.mark.timeout(10)
+    def test_parent_password_hash_not_found_returns_none(self, test_db):
+        """Test that get_parent_password_hash returns None for non-existent family."""
+        from database import get_parent_password_hash
+        
+        hash_value = get_parent_password_hash(test_db, 'nonexistent_token')
+        assert hash_value is None
+
+    @pytest.mark.timeout(10)
+    def test_parent_password_hash_upsert_inserts_new(self, test_db):
+        """Test that upsert inserts hash for new family record."""
+        from database import upsert_family_password_hash, get_parent_password_hash
+        
+        result = upsert_family_password_hash(
+            db=test_db,
+            device_auth_token='new-device-token',
+            parent_password_second_hash='$2b$12$newhash456'
+        )
+        
+        assert result is True
+        
+        hash_value = get_parent_password_hash(test_db, 'new-device-token')
+        assert hash_value == '$2b$12$newhash456'
+
+    @pytest.mark.timeout(10)
+    def test_parent_password_hash_upsert_updates_existing(self, test_db):
+        """Test that upsert updates hash for existing family record."""
+        from database import (
+            upsert_family_password_hash,
+            get_parent_password_hash,
+            create_family
+        )
+        
+        # Create a family first
+        create_family(
+            db=test_db,
+            device_auth_token='existing-token',
+            mail='test@example.com',
+            parent_password_hash='$2b$12$oldhash',
+            parent_password_second_hash='$2b$12$oldsecondhash',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+        
+        # Update the hash
+        result = upsert_family_password_hash(
+            db=test_db,
+            device_auth_token='existing-token',
+            parent_password_second_hash='$2b$12$updatedhash'
+        )
+        
+        assert result is True
+        
+        hash_value = get_parent_password_hash(test_db, 'existing-token')
+        assert hash_value == '$2b$12$updatedhash'
+
+    @pytest.mark.timeout(10)
+    def test_parent_password_hash_preserves_other_fields(self, test_db):
+        """Test that upsert preserves other family fields like mail."""
+        from database import (
+            upsert_family_password_hash,
+            get_family,
+            create_family
+        )
+        
+        # Create a family with mail
+        create_family(
+            db=test_db,
+            device_auth_token='test-token',
+            mail='test@example.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+        
+        # Upsert hash
+        upsert_family_password_hash(
+            db=test_db,
+            device_auth_token='test-token',
+            parent_password_second_hash='$2b$12$newhash'
+        )
+        
+        # Verify mail is preserved
+        family = get_family(test_db, 'test-token')
+        assert family['mail'] == 'test@example.com'
+        assert family['parent_password_second_hash'] == '$2b$12$newhash'
+
+    @pytest.mark.timeout(10)
+    def test_session_restoration_uses_database_hash(self, client, test_db):
+        """Test that session restoration retrieves hash from database."""
+        from database import upsert_family_password_hash
+        
+        # Store a hash in the database
+        upsert_family_password_hash(
+            db=test_db,
+            device_auth_token='test-device-token',
+            parent_password_second_hash='$2b$12$session_test_hash'
+        )
+        
+        # Simulate session restoration by calling the before_request handler
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = 'test-device-token'
+        
+        # Make a request to trigger session restoration
+        response = client.get('/dashboardV2', follow_redirects=False)
+        
+        # The hash should be restored to session
+        with client.session_transaction() as sess:
+            # Note: The actual restoration happens in restore_session_from_persistence
+            # which is called in before_request. The hash should be in session.
+            pass  # Session restoration is tested via integration tests

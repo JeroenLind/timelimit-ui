@@ -6,6 +6,7 @@ This module tests the config module functionality including:
 - Server options
 - Path resolution
 - Persistence configuration (HA detection, persistence directory)
+- App version configuration
 """
 
 import os
@@ -92,7 +93,7 @@ class TestConfigDefaults:
             
             config = Config()
             
-            assert config.SCHEDULER_INTERVAL == 10
+            assert config.SCHEDULER_INTERVAL == 60
         finally:
             if original:
                 os.environ['SCHEDULER_INTERVAL'] = original
@@ -465,3 +466,61 @@ class TestPersistenceConfig:
             os.sys.argv = original_argv
             if original_env:
                 os.environ['HA_INGRESS'] = original_env
+
+
+class TestAppVersionConfig:
+    """Tests for APP_VERSION configuration."""
+    
+    def test_app_version_default(self):
+        """Test APP_VERSION property defaults to 226 when env var not set."""
+        original = os.environ.get('DASHBOARD_APP_VERSION')
+        
+        try:
+            # Remove env var to test default
+            if 'DASHBOARD_APP_VERSION' in os.environ:
+                del os.environ['DASHBOARD_APP_VERSION']
+            
+            config = Config()
+            assert config.APP_VERSION == 226
+        finally:
+            if original:
+                os.environ['DASHBOARD_APP_VERSION'] = original
+    
+    def test_app_version_from_env(self):
+        """Test APP_VERSION property reads from environment variable."""
+        original = os.environ.get('DASHBOARD_APP_VERSION')
+        
+        try:
+            with patch.dict(os.environ, {'DASHBOARD_APP_VERSION': '123'}):
+                config = Config()
+                # Should be 123 from env
+                assert config.APP_VERSION == 123
+        finally:
+            if original:
+                os.environ['DASHBOARD_APP_VERSION'] = original
+    
+    def test_app_version_invalid_env_value(self):
+        """Test APP_VERSION property falls back to default for invalid env value."""
+        original = os.environ.get('DASHBOARD_APP_VERSION')
+        
+        try:
+            with patch.dict(os.environ, {'DASHBOARD_APP_VERSION': 'invalid'}):
+                config = Config()
+                # Should fall back to default 226
+                assert config.APP_VERSION == 226
+        finally:
+            if original:
+                os.environ['DASHBOARD_APP_VERSION'] = original
+    
+    def test_app_version_env_zero(self):
+        """Test APP_VERSION property accepts 0 from environment variable."""
+        original = os.environ.get('DASHBOARD_APP_VERSION')
+        
+        try:
+            with patch.dict(os.environ, {'DASHBOARD_APP_VERSION': '0'}):
+                config = Config()
+                # Should be 0 from env
+                assert config.APP_VERSION == 0
+        finally:
+            if original:
+                os.environ['DASHBOARD_APP_VERSION'] = original

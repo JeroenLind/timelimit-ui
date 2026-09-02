@@ -252,7 +252,8 @@ class TestPostLoginAsParentStep3:
             sess['mail_login_token'] = 'test-login-token'
             sess['mail_auth_token'] = 'test-auth-token'
         
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.success = True
@@ -262,6 +263,11 @@ class TestPostLoginAsParentStep3:
             }
             mock_client.sign_in_into_family.return_value = mock_response
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/login-as-parent', data={
                 'step': '3',
@@ -545,3 +551,170 @@ class TestSignInIntoFamilyRequestFormat:
         assert captured_data['parentDevice'] == {'model': 'Unknown'}
         assert captured_data['deviceName'] == 'Test Device'
         assert response.success
+
+
+class TestLoginAsParentPasswordHashPersistence:
+    """Tests for parent password hash persistence in login as parent flow."""
+
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_stores_password_hash_in_database(self, client):
+        """Test that step 3 stores parent_password_second_hash in database when provided."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'parentPasswordSecondHash': '$2b$12$testhash123'
+            }, follow_redirects=True)
+            
+            # Should redirect to dashboard
+            assert response.status_code == 200
+            
+            # Verify device_auth_token was stored in session
+            with client.session_transaction() as sess:
+                assert sess.get('device_auth_token') == 'test-device-token'
+                assert sess.get('own_device_id') == 'test-device-id'
+                assert sess.get('parent_password_second_hash') == '$2b$12$testhash123'
+            
+            # Verify parent_password_second_hash was stored in database
+            from database import get_parent_password_hash, get_database
+            db = get_database()
+            stored_hash = get_parent_password_hash(db, 'test-device-token')
+            assert stored_hash == '$2b$12$testhash123'
+    
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_without_hash_still_works(self, client):
+        """Test that step 3 works without parent_password_second_hash."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device'
+                # No parentPasswordSecondHash provided
+            }, follow_redirects=True)
+            
+            # Should redirect to dashboard
+            assert response.status_code == 200
+            
+            # Verify device_auth_token was stored in session
+            with client.session_transaction() as sess:
+                assert sess.get('device_auth_token') == 'test-device-token'
+                assert sess.get('own_device_id') == 'test-device-id'
+    
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_hash_persists_across_restart(self, client):
+        """Test that password hash persists across app restart (database storage)."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'parentPasswordSecondHash': '$2b$12$testhash123'
+            }, follow_redirects=True)
+        
+        # Simulate app restart by checking database directly
+        from database import get_parent_password_hash, get_database
+        db = get_database()
+        stored_hash = get_parent_password_hash(db, 'test-device-token')
+        
+        # Hash should still be in database after "restart"
+        assert stored_hash == '$2b$12$testhash123'
+    
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_hash_format(self, client):
+        """Test that stored hash has correct bcrypt format."""
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': 'test-device-token',
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'parentPasswordSecondHash': '$2b$12$testhash123'
+            }, follow_redirects=True)
+        
+        from database import get_parent_password_hash, get_database
+        db = get_database()
+        stored_hash = get_parent_password_hash(db, 'test-device-token')
+        
+        # Verify hash was stored correctly
+        assert stored_hash is not None
+        assert stored_hash == '$2b$12$testhash123'

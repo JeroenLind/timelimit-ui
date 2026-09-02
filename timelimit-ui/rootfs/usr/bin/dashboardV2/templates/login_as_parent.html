@@ -210,6 +210,12 @@
                 <input type="text" id="deviceName" name="deviceName" placeholder="e.g., Parent's Phone" required>
             </div>
             
+            <div class="form-group">
+                <label for="parentPasswordSecondHash">Parent Password Hash (optional)</label>
+                <input type="text" id="parentPasswordSecondHash" name="parentPasswordSecondHash" placeholder="e.g., device or your second password hash">
+                <div class="password-hint">Enter your second password hash or "device" if password checks are disabled. This allows device removal without re-entering the hash.</div>
+            </div>
+            
             <button type="submit" class="btn">Login to Family</button>
         </form>
         {% endif %}

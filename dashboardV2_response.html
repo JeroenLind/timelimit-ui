@@ -91,22 +91,22 @@
         line-height: 1.6;
     }
     
-    /* Historical data table styles */
-    .historical-table {
+    /* Dashboard table styles */
+    .dashboard-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 15px;
         overflow-x: auto;
     }
     
-    .historical-table th,
-    .historical-table td {
+    .dashboard-table th,
+    .dashboard-table td {
         padding: 12px;
         text-align: left;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    .historical-table th {
+    .dashboard-table th {
         background: rgba(255, 255, 255, 0.05);
         color: #aaa;
         font-weight: 600;
@@ -115,7 +115,7 @@
         letter-spacing: 1px;
     }
     
-    .historical-table tr:hover {
+    .dashboard-table tr:hover {
         background: rgba(255, 255, 255, 0.05);
     }
     
@@ -240,11 +240,6 @@
             flex-direction: column;
             align-items: flex-start;
         }
-        
-        .historical-table {
-            display: block;
-            overflow-x: auto;
-        }
     }
     
     @media (max-width: 480px) {
@@ -252,12 +247,6 @@
             max-width: 90vw;
             right: 5px;
             left: 5px;
-        }
-        
-        .historical-table th,
-        .historical-table td {
-            padding: 8px;
-            font-size: 11px;
         }
     }
 </style>
@@ -300,27 +289,6 @@
 </div>
 
 <div class="dashboard-content">
-    <h2>Historical Data</h2>
-    <p style="color: #aaa; margin-bottom: 10px;">Recent server check results (last 10 checks)</p>
-    
-    <table class="historical-table" id="historical-table">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Server Time</th>
-                <th>Attempts</th>
-            </tr>
-        </thead>
-        <tbody id="historical-body">
-            <tr>
-                <td colspan="4" style="text-align: center; color: #666;">Loading historical data...</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-
-<div class="dashboard-content">
     <h2>Session Information</h2>
     <div id="session-info" class="server-info">
         <span class="server-label">Server:</span>
@@ -347,13 +315,7 @@
     <script src="/static/js/dashboardV2.js"></script>
     
 <script>
-    // Display current server URL and authentication status
-    document.addEventListener('DOMContentLoaded', function() {
-        fetchSessionStatus();
-        refreshServerStatus();
-        loadHistoricalData();
-    });
-    
+    // Server status functions
     function fetchSessionStatus() {
         const serverUrlElement = document.getElementById('current-server');
         const authStatusElement = document.getElementById('auth-status');
@@ -393,7 +355,6 @@
         .then(response => response.json())
         .then(data => {
             updateStatusDisplay(data);
-            loadHistoricalData();
             showAlert('Server status updated successfully', 'success');
         })
         .catch(error => {
@@ -436,40 +397,6 @@
         
         // Update last update time
         document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
-    }
-    
-    function loadHistoricalData() {
-        const tbody = document.getElementById('historical-body');
-        
-        fetch('/api/timechecker/history?limit=10', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.checks && data.checks.length > 0) {
-                tbody.innerHTML = data.checks.map(check => {
-                    const time = new Date(check.timestamp).toLocaleTimeString();
-                    const statusClass = check.success ? 'success' : 'error';
-                    const statusText = check.success ? 'Success' : 'Failed';
-                    const serverTime = check.server_time ? new Date(check.server_time).toLocaleTimeString() : 'N/A';
-                    
-                    return `
-                        <tr>
-                            <td class="time-cell">${time}</td>
-                            <td><span class="success-badge ${statusClass}">${statusText}</span></td>
-                            <td class="time-cell">${serverTime}</td>
-                            <td class="time-cell">${check.attempts}</td>
-                        </tr>
-                    `;
-                }).join('');
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No historical data available</td></tr>';
-            }
-        })
-        .catch(error => {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Failed to load historical data</td></tr>';
-        });
     }
     
     function showAlert(message, type) {

@@ -26,10 +26,14 @@ from database import (
     save_users, get_users_by_device_auth_token,
     save_sync_state, get_sync_state,
     save_categories, get_categories_by_device_auth_token,
-    save_connected_devices, get_connected_devices
+    save_connected_devices, get_connected_devices,
+    update_device_app_version,
+    get_next_sequence_number, increment_sequence_number,
+    create_device, get_device, delete_auth_token
 )
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
+from key_manager import get_or_create_signing_key
 
 logger = get_logger(__name__)
 
@@ -60,13 +64,15 @@ class SyncManager:
     def do_sync(
         self,
         device_auth_token: str,
-        server_url: str
+        server_url: str,
+        own_device_id: Optional[str] = None
     ) -> bool:
         """Execute one sync round: pull status, apply to database.
         
         Args:
             device_auth_token: Device auth token for authentication.
             server_url: TimeLimit server URL.
+            own_device_id: Optional own device ID for updating app version.
             
         Returns:
             True if sync was successful, False otherwise.
@@ -77,7 +83,8 @@ class SyncManager:
             "Starting sync",
             request_id=request_id,
             device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
-            server_url=server_url
+            server_url=server_url,
+            has_own_device_id=own_device_id is not None
         )
         
         try:
@@ -92,6 +99,31 @@ class SyncManager:
             response = client.pull_status(device_auth_token, client_status)
             
             if not response.success:
+                # Check if this is an authentication error (401 Unauthorized)
+                # If so, clear the auth token from the database
+                if response.status_code == 401:
+                    logger.warning(
+                        "Sync failed with 401 Unauthorized - clearing auth token",
+                        request_id=request_id,
+                        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                        error_code=response.error_code,
+                        error_message=response.error_message
+                    )
+                    # Clear the auth token from the database
+                    try:
+                        delete_auth_token(self.db, device_auth_token)
+                        logger.info(
+                            "Auth token cleared from database due to 401 error",
+                            request_id=request_id,
+                            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to clear auth token from database",
+                            request_id=request_id,
+                            error=str(e)
+                        )
+                
                 logger.warning(
                     "Sync failed: pull_status unsuccessful",
                     request_id=request_id,
@@ -101,6 +133,17 @@ class SyncManager:
                 client.close()
                 return False
             
+            # Push app version action to server if own_device_id is provided
+            # This ensures the server knows the dashboard's app version
+            if own_device_id:
+                app_version = int(self._config.APP_VERSION)
+                if app_version != 0:
+                    self._push_app_version_action(
+                        device_auth_token=device_auth_token,
+                        server_url=server_url,
+                        app_version=app_version
+                    )
+            
             # Apply server data to database
             self._apply_server_data_status(response.data, device_auth_token)
             
@@ -109,6 +152,34 @@ class SyncManager:
             
             # Close client
             client.close()
+            
+            # Update own device's app version if own_device_id is provided
+            # This ensures the dashboard reports the same version as the official app
+            if own_device_id:
+                app_version = str(self._config.APP_VERSION)
+                if app_version != '0':
+                    updated = update_device_app_version(
+                        db=self.db,
+                        device_id=own_device_id,
+                        current_app_version=app_version,
+                        highest_app_version=app_version
+                    )
+                    if updated:
+                        logger.info(
+                            "Updated own device app version after sync",
+                            request_id=request_id,
+                            device_id=own_device_id,
+                            app_version=app_version
+                        )
+            
+            # Add own device to connected devices list if own_device_id is provided
+            # This ensures the dashboard appears in the connected devices section
+            # matching the behavior of the official Android app
+            if own_device_id:
+                self._add_own_device_to_connected_devices(
+                    device_auth_token=device_auth_token,
+                    own_device_id=own_device_id
+                )
             
             # Broadcast SSE event
             self._broadcast_sync_complete(device_auth_token, response.data)
@@ -230,6 +301,133 @@ class SyncManager:
                 count=len(device_ids)
             )
     
+    def _add_own_device_to_connected_devices(
+        self,
+        device_auth_token: str,
+        own_device_id: str
+    ) -> None:
+        """Add the dashboard's own device ID to the connected devices list.
+        
+        This ensures the dashboard appears in the connected devices section,
+        matching the behavior of the official Android app.
+        
+        Also ensures the dashboard's device is registered in the devices table
+        with a friendly name for display in the connected devices list.
+        
+        Generates a Curve25519 signing key for the dashboard device if one
+        doesn't exist, and stores the public key in the device record.
+        
+        Args:
+            device_auth_token: Device auth token for the data.
+            own_device_id: The dashboard's own device ID.
+        """
+        from config import Config
+        request_id = get_request_id()
+        
+        # Get or create the dashboard's signing key (Curve25519 key pair)
+        # The private key is stored persistently, the public key goes in the device record
+        persistence_dir = self._config.PERSISTENCE_DIR
+        _, dashboard_public_key = get_or_create_signing_key(persistence_dir)
+        
+        # Ensure the dashboard's device is registered in the devices table
+        # with a friendly name for display in the connected devices list
+        # This must happen regardless of whether the device is already in
+        # the connected devices list (it may have been added in a previous sync)
+        existing_device = get_device(self.db, own_device_id)
+        device_was_created = False
+        
+        # Preserve ALL existing device fields when updating the device record.
+        # create_device uses INSERT OR REPLACE which overwrites the entire row,
+        # so we must pass existing values to avoid losing data that was set
+        # by _save_device_from_server() and update_device_app_version() earlier
+        # in the do_sync() flow (e.g., model, current_user_id, app version, etc.)
+        if existing_device:
+            create_device(
+                db=self.db,
+                device_id=own_device_id,
+                device_auth_token=device_auth_token,
+                name=Config.DASHBOARD_DEVICE_NAME,
+                model=existing_device.get('model'),
+                current_user_id=existing_device.get('current_user_id'),
+                current_protection_level=existing_device.get('current_protection_level', 0),
+                highest_protection_level=existing_device.get('highest_protection_level', 0),
+                current_app_version=existing_device.get('current_app_version'),
+                highest_app_version=existing_device.get('highest_app_version'),
+                public_key=existing_device.get('public_key') or dashboard_public_key,
+                platform_type='dashboard',
+                platform_level=1
+            )
+            logger.info(
+                "Updated dashboard device record with platform info",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                own_device_id=own_device_id,
+                platform_type='dashboard',
+                platform_level=1,
+                has_signing_key=bool(existing_device.get('public_key'))
+            )
+        else:
+            # No existing device record - create a new one with platform info
+            create_device(
+                db=self.db,
+                device_id=own_device_id,
+                device_auth_token=device_auth_token,
+                name=Config.DASHBOARD_DEVICE_NAME,
+                public_key=dashboard_public_key,
+                platform_type='dashboard',
+                platform_level=1
+            )
+            device_was_created = True
+            logger.info(
+                "Created dashboard device record",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                own_device_id=own_device_id,
+                name=Config.DASHBOARD_DEVICE_NAME,
+                platform_type='dashboard',
+                platform_level=1,
+                has_signing_key=True
+            )
+        
+        # Get existing connected devices
+        existing_devices = get_connected_devices(self.db, device_auth_token)
+        existing_device_ids = [d.get('device_id') for d in existing_devices]
+        
+        # Add own device ID if not already present
+        if own_device_id not in existing_device_ids:
+            existing_device_ids.append(own_device_id)
+            save_connected_devices(self.db, device_auth_token, existing_device_ids)
+            logger.info(
+                "Added own device to connected devices list",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                own_device_id=own_device_id
+            )
+        else:
+            # Device is already in the connected devices list
+            # Always re-save to ensure the name is updated from the devices table.
+            # This handles the case where the device was added in a previous sync
+            # (before the device record was created with a name), so the connected_devices
+            # entry has name: None. When the device record is created with a name,
+            # we need to update the connected_devices list.
+            save_connected_devices(self.db, device_auth_token, existing_device_ids)
+            device_record = get_device(self.db, own_device_id)
+            if device_record and device_record.get('name'):
+                logger.info(
+                    "Updated connected devices with dashboard device name",
+                    request_id=request_id,
+                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                    own_device_id=own_device_id,
+                    device_name=device_record.get('name')
+                )
+            else:
+                logger.debug(
+                    "Own device already in connected devices list (name may be None)",
+                    request_id=request_id,
+                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                    own_device_id=own_device_id
+                )
+    
     def _save_device_from_server(
         self,
         device_data: Dict[str, Any],
@@ -322,6 +520,97 @@ class SyncManager:
             users_count=users_count,
             devices_count=devices_count
         )
+    
+    def _build_update_device_status_action(self, app_version: int) -> Dict[str, Any]:
+        """Build an UpdateDeviceStatusAction for pushing app version to server.
+        
+        This action is used to report the dashboard's app version to the server,
+        matching the behavior of the official Android app.
+        
+        Args:
+            app_version: The app version code to report.
+            
+        Returns:
+            Dictionary with the action data for push_actions.
+        """
+        # Build the encoded action JSON
+        # Format: {"type":"UPDATE_DEVICE_STATUS","appVersion":226}
+        encoded_action = json.dumps({
+            "type": "UPDATE_DEVICE_STATUS",
+            "appVersion": app_version
+        })
+        
+        return {
+            "encodedAction": encoded_action,
+            "sequenceNumber": 0,  # Will be updated by push_app_version_action
+            "integrity": "",
+            "type": "appLogic",
+            "userId": ""
+        }
+    
+    def _push_app_version_action(
+        self,
+        device_auth_token: str,
+        server_url: str,
+        app_version: int
+    ) -> bool:
+        """Push the app version action to the server.
+        
+        This sends an UpdateDeviceStatusAction to the server to report
+        the dashboard's app version, matching the official Android app's behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            server_url: TimeLimit server URL.
+            app_version: The app version code to report.
+            
+        Returns:
+            True if the action was pushed successfully, False otherwise.
+        """
+        request_id = get_request_id()
+        
+        try:
+            # Get the next sequence number
+            next_seq = get_next_sequence_number(self.db, device_auth_token)
+            
+            # Build the action
+            action = self._build_update_device_status_action(app_version)
+            action["sequenceNumber"] = next_seq
+            
+            # Create auth client and push the action
+            client = AuthClient(base_url=server_url)
+            response = client.push_actions(device_auth_token, [action])
+            client.close()
+            
+            if response.success:
+                # Increment the sequence number after successful push
+                increment_sequence_number(self.db, device_auth_token)
+                
+                logger.info(
+                    "App version action pushed successfully",
+                    request_id=request_id,
+                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                    app_version=app_version,
+                    sequence_number=next_seq
+                )
+                return True
+            else:
+                logger.warning(
+                    "Failed to push app version action",
+                    request_id=request_id,
+                    error_code=response.error_code,
+                    error_message=response.error_message
+                )
+                return False
+                
+        except Exception as e:
+            logger.error(
+                "Error pushing app version action",
+                request_id=request_id,
+                error=str(e),
+                error_code="push_app_version_error"
+            )
+            return False
 
 
 def get_event_queue(device_auth_token: str) -> queue.Queue:
@@ -356,7 +645,8 @@ def create_sync_manager(db: Optional[Database] = None) -> SyncManager:
 
 def run_background_sync(
     device_auth_token: str,
-    server_url: str
+    server_url: str,
+    own_device_id: Optional[str] = None
 ) -> None:
     """Run a background sync job.
     
@@ -365,6 +655,7 @@ def run_background_sync(
     Args:
         device_auth_token: Device auth token for authentication.
         server_url: TimeLimit server URL.
+        own_device_id: Optional own device ID for device registration.
     """
     request_id = get_request_id()
     
@@ -372,13 +663,14 @@ def run_background_sync(
         "Background sync job started",
         request_id=request_id,
         device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
-        server_url=server_url
+        server_url=server_url,
+        has_own_device_id=own_device_id is not None
     )
     
     try:
         db = get_database()
         manager = SyncManager(db)
-        success = manager.do_sync(device_auth_token, server_url)
+        success = manager.do_sync(device_auth_token, server_url, own_device_id)
         
         if success:
             logger.info(

@@ -36,7 +36,7 @@ def app():
 
 
 @pytest.fixture
-def client(app):
+def client(app, request):
     """Create a test client for the Flask application.
     
     Args:
@@ -45,12 +45,32 @@ def client(app):
     Returns:
         Flask test client instance.
     """
+    # Clear persistence file to ensure clean session state
+    from persistence import get_persistence_dir, clear_persisted_auth_tokens
+    persistence_dir = get_persistence_dir()
+    persistence_file = os.path.join(persistence_dir, 'server_selection.json')
+    if os.path.exists(persistence_file):
+        try:
+            os.unlink(persistence_file)
+        except OSError:
+            pass
+    clear_persisted_auth_tokens()
+    
     # Initialize database for tests that need it
     from database import get_database
     db = get_database()
     db.init_db()
     
-    return app.test_client()
+    # Mock persistence functions for non-restoration tests to ensure clean state
+    from unittest.mock import patch
+    is_restoration_test = request.cls and request.cls.__name__ == 'TestSessionRestoration'
+    
+    if not is_restoration_test:
+        with patch('app.get_persisted_device_auth_token', return_value=None), \
+             patch('app.get_persisted_own_device_id', return_value=None):
+            yield app.test_client()
+    else:
+        yield app.test_client()
 
 
 @pytest.fixture

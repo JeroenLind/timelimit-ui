@@ -47,7 +47,7 @@ Configuration class with environment variable support for cross-platform compati
 | `FLASK_HOST` | `0.0.0.0` | Flask server host |
 | `FLASK_PORT` | `8099` | Flask server port |
 | `DATABASE_PATH` | `dashboardV2.db` | SQLite database path |
-| `SCHEDULER_INTERVAL` | `10` | Timechecker interval (seconds) |
+| `SCHEDULER_INTERVAL` | `60` | Timechecker interval (seconds) |
 | `SECRET_KEY` | `dev-secret-key-change-in-production` | Session signing key |
 
 Server options:
@@ -132,7 +132,7 @@ Standalone HTTP client for debug-server API communication:
 ### 4. Scheduler (`scheduler.py`)
 
 APScheduler BackgroundScheduler with:
-- 10-second interval timechecker job
+- 60-second interval timechecker job
 - Server connection checking via `check_server_connection()`
 - Automatic server status updates
 - Server URL management for session-based server selection
@@ -270,7 +270,7 @@ Database is created on first access with all required tables. The `init_db()` me
 
 **Phase 3 COMPLETE** - Timechecker dashboard implemented:
 - [x] `dashboardV2.html` template with real-time status display
-- [x] APScheduler job running every 10 seconds
+- [x] APScheduler job running every 60 seconds
 - [x] Server check results stored in SQLite database
 - [x] Real-time status display with visual indicators
 - [x] Historical data table showing last 10 checks
@@ -323,7 +323,7 @@ $env:DEBUG_SERVER_URL="http://localhost:8080"
 $env:FLASK_HOST="0.0.0.0"
 $env:FLASK_PORT="8099"
 $env:DATABASE_PATH="dashboardV2.db"
-$env:SCHEDULER_INTERVAL="10"
+$env:SCHEDULER_INTERVAL="60"
 $env:SECRET_KEY="your-secret-key"
 py -3 app.py
 ```
@@ -335,7 +335,7 @@ set DEBUG_SERVER_URL=http://localhost:8080
 set FLASK_HOST=0.0.0.0
 set FLASK_PORT=8099
 set DATABASE_PATH=dashboardV2.db
-set SCHEDULER_INTERVAL=10
+set SCHEDULER_INTERVAL=60
 set SECRET_KEY=your-secret-key
 py -3 app.py
 ```
@@ -347,7 +347,7 @@ export DEBUG_SERVER_URL="http://localhost:8080"
 export FLASK_HOST="0.0.0.0"
 export FLASK_PORT="8099"
 export DATABASE_PATH="dashboardV2.db"
-export SCHEDULER_INTERVAL="10"
+export SCHEDULER_INTERVAL="60"
 export SECRET_KEY="your-secret-key"
 python3 app.py
 ```
@@ -478,5 +478,4 @@ py -3 -m pytest tests/test_create_family.py tests/test_crypto_utils.py tests/tes
 ## References
 
 - Plan: `plans/create-new-family-interaction-plan.md`
-- Debug Server API: See `debug-server/app/api/` for endpoint definitions
 - Original Dashboard: `timelimit-ui/rootfs/usr/bin/dashboard.html`

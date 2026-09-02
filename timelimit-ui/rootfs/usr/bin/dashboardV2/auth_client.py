@@ -19,6 +19,10 @@ from config import Config
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
 from utils.sanitization import SENSITIVE_KEYS, sanitize_dict
+from utils.audit_log import (
+    log_device_removal_request as audit_log_device_removal_request,
+    log_device_removal_response as audit_log_device_removal_response
+)
 
 logger = get_logger(__name__)
 
@@ -135,7 +139,15 @@ class AuthClient:
         # Sanitize request data for logging
         sanitized_data = sanitize_dict(data) if data else None
         
-        # Log request start
+        # Log request start with headers for debugging
+        # Sanitize the Authorization header value for logging (show only first 8 chars)
+        auth_header_value = headers.get('Authorization', '')
+        if auth_header_value:
+            auth_header_sanitized = auth_header_value[:8] + '...' if len(auth_header_value) > 8 else '***'
+        else:
+            auth_header_sanitized = None
+        
+        # Log full request details for debugging
         logger.debug(
             "Making API request",
             request_id=request_id,
@@ -144,7 +156,11 @@ class AuthClient:
             endpoint=endpoint,
             data=sanitized_data,
             retry_count=retry_count,
-            gzip_compress=gzip_compress
+            gzip_compress=gzip_compress,
+            has_auth_header='Authorization' in headers,
+            auth_header_present=bool(token),
+            auth_header_value=auth_header_sanitized,
+            all_headers={k: v for k, v in headers.items() if k.lower() != 'authorization' or True}  # Include auth header for debugging
         )
         
         try:
@@ -584,7 +600,9 @@ class AuthClient:
             locale=locale,
             device_name=device_name,
             time_zone=time_zone,
-            parent_name=parent_name
+            parent_name=parent_name,
+            has_parent_password_hash=bool(parent_password.get('secondHash')) if parent_password else False,
+            parent_password_keys=list(parent_password.keys()) if parent_password else []
         )
         
         response = self._request_with_retry('POST', '/parent/create-family', data)
@@ -593,14 +611,17 @@ class AuthClient:
             logger.info(
                 "Family created successfully",
                 request_id=request_id,
-                has_device_auth_token=bool(response.data.get('deviceAuthToken')) if isinstance(response.data, dict) else False
+                has_device_auth_token=bool(response.data.get('deviceAuthToken')) if isinstance(response.data, dict) else False,
+                has_own_device_id=bool(response.data.get('ownDeviceId')) if isinstance(response.data, dict) else False,
+                device_auth_token_preview=response.data.get('deviceAuthToken', '')[:8] + '...' if isinstance(response.data, dict) and response.data.get('deviceAuthToken') else None
             )
         else:
             logger.warning(
                 "Failed to create family",
                 request_id=request_id,
                 error_code=response.error_code,
-                error_message=response.error_message
+                error_message=response.error_message,
+                status_code=response.status_code
             )
         
         return response
@@ -1034,6 +1055,191 @@ class AuthClient:
             logger.warning(
                 "Failed to push actions",
                 request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    # ========================================================================
+    # Device Management Endpoints
+    # ========================================================================
+    
+    def remove_device(
+        self,
+        device_auth_token: str,
+        parent_user_id: str,
+        parent_password_second_hash: str,
+        device_id: str
+    ) -> APIResponse:
+        """Remove a device from the family on the server.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            parent_user_id: ID of the parent user making the request.
+            parent_password_second_hash: Parent's second password hash or U2F integrity.
+            device_id: ID of the device to remove.
+            
+        Returns:
+            APIResponse with ok: true on success.
+        """
+        request_id = get_request_id()
+        
+        # Build complete request payload for audit logging (exact fidelity)
+        data = {
+            'deviceAuthToken': device_auth_token,
+            'parentUserId': parent_user_id,
+            'parentPasswordSecondHash': parent_password_second_hash,
+            'deviceId': device_id
+        }
+        
+        # Get request headers for audit logging (full headers, not sanitized)
+        headers = self._get_headers(token=device_auth_token)
+        
+        # Log the device removal request with complete fidelity to audit log
+        audit_log_device_removal_request(
+            device_id=device_id,
+            parent_user_id=parent_user_id,
+            device_auth_token=device_auth_token,
+            parent_password_second_hash=parent_password_second_hash,
+            request_payload=data,
+            request_headers=headers,
+            request_id=request_id,
+            server_url=self.base_url
+        )
+        
+        # Sanitize request data for regular logging
+        sanitized_data = sanitize_dict(data)
+        
+        logger.info(
+            "Removing device from family",
+            request_id=request_id,
+            device_id=device_id,
+            parent_user_id=parent_user_id,
+            device_auth_token_preview=device_auth_token[:8] + '...' if device_auth_token else None,
+            parent_password_second_hash_preview=parent_password_second_hash[:20] + '...' if parent_password_second_hash else None
+        )
+        
+        response = self._request_with_retry(
+            'POST',
+            '/parent/remove-device',
+            data
+        )
+        
+        # Log the device removal response with complete fidelity to audit log
+        audit_log_device_removal_response(
+            device_id=device_id,
+            parent_user_id=parent_user_id,
+            request_id=request_id,
+            success=response.success,
+            status_code=response.status_code,
+            response_data=response.data,
+            error_code=response.error_code,
+            error_message=response.error_message
+        )
+        
+        if response.success:
+            logger.info(
+                "Device removed successfully",
+                request_id=request_id,
+                device_id=device_id
+            )
+        else:
+            logger.warning(
+                "Failed to remove device",
+                request_id=request_id,
+                device_id=device_id,
+                error_code=response.error_code,
+                error_message=response.error_message,
+                status_code=response.status_code,
+                response_data_preview=str(response.data)[:200] if response.data else None
+            )
+        
+        return response
+    
+    def push_device_removal_action(
+        self,
+        device_auth_token: str,
+        parent_user_id: str,
+        parent_password_second_hash: str,
+        device_id: str,
+        sequence_number: int
+    ) -> APIResponse:
+        """Push a device removal action through the sync protocol.
+        
+        This method sends a REMOVE_DEVICE action via the sync protocol,
+        which is the correct way to remove devices according to the server's
+        expected behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            parent_user_id: ID of the parent user making the request.
+            parent_password_second_hash: Parent's second password hash for integrity.
+            device_id: ID of the device to remove.
+            sequence_number: The sequence number for this action.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag on success.
+        """
+        import json
+        from crypto_utils import calculate_hmac_sha256_binary
+        
+        request_id = get_request_id()
+        
+        # Build the encoded action (no spaces after colons to match server schema)
+        encoded_action = json.dumps({
+            "type": "REMOVE_DEVICE",
+            "deviceId": device_id
+        }, separators=(',', ':'))
+        
+        # Calculate the integrity hash
+        integrity = calculate_hmac_sha256_binary(
+            parent_password_second_hash,
+            sequence_number,
+            device_id,
+            encoded_action
+        )
+        
+        # Build the action
+        action = {
+            "encodedAction": encoded_action,
+            "sequenceNumber": sequence_number,
+            "integrity": integrity,
+            "type": "appLogic",
+            "userId": parent_user_id
+        }
+        
+        # Sanitize for logging (remove sensitive fields)
+        sanitized_action = {
+            'type': action.get('type'),
+            'userId': action.get('userId'),
+            'sequenceNumber': action.get('sequenceNumber')
+        }
+        
+        logger.info(
+            "Pushing device removal action",
+            request_id=request_id,
+            device_id=device_id,
+            parent_user_id=parent_user_id,
+            sequence_number=sequence_number,
+            action_preview=sanitized_action
+        )
+        
+        # Push the action via sync protocol
+        response = self.push_actions(device_auth_token, [action])
+        
+        if response.success:
+            logger.info(
+                "Device removal action pushed successfully",
+                request_id=request_id,
+                device_id=device_id,
+                sequence_number=sequence_number
+            )
+        else:
+            logger.warning(
+                "Failed to push device removal action",
+                request_id=request_id,
+                device_id=device_id,
                 error_code=response.error_code,
                 error_message=response.error_message
             )

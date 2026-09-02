@@ -1,7 +1,7 @@
 """APScheduler scheduler module for dashboardV2 application.
 
 This module provides the APScheduler BackgroundScheduler for running
-the timechecker job every 10 seconds. The scheduler is designed to work
+the timechecker job every 60 seconds. The scheduler is designed to work
 in both Windows and Home Assistant environments.
 
 The scheduler runs ServerChecker.check() periodically and stores results
@@ -36,6 +36,9 @@ _current_family_id: Optional[str] = None
 
 # Current device auth token for sync (can be updated from session)
 _current_device_auth_token: Optional[str] = None
+
+# Current own device ID for sync (can be updated from session)
+_current_own_device_id: Optional[str] = None
 
 
 def set_server_url(url: str) -> None:
@@ -387,7 +390,7 @@ def sync_callback() -> None:
     )
     
     try:
-        run_background_sync(device_auth_token, server_url, family_id)
+        run_background_sync(device_auth_token, server_url, _current_own_device_id)
     except Exception as e:
         logger.error(
             "Scheduled sync error",
@@ -406,7 +409,8 @@ def add_sync_job(
     family_id: str,
     device_auth_token: str,
     server_url: Optional[str] = None,
-    interval_seconds: Optional[int] = None
+    interval_seconds: Optional[int] = None,
+    own_device_id: Optional[str] = None
 ) -> None:
     """Add a sync job to an existing scheduler.
     
@@ -416,12 +420,17 @@ def add_sync_job(
         device_auth_token: Device auth token for authentication.
         server_url: The TimeLimit server URL. Uses config default if not provided.
         interval_seconds: Interval between syncs in seconds. Default is 30 seconds.
+        own_device_id: Optional own device ID for device registration.
     """
     interval = interval_seconds or 30  # Default 30 seconds for sync
     url = server_url or get_server_url()
     
     # Set sync credentials
     set_sync_credentials(family_id, device_auth_token)
+    
+    # Store own_device_id for use in sync callback
+    global _current_own_device_id
+    _current_own_device_id = own_device_id
     
     # Create a closure with the specific credentials
     def sync_with_credentials():
@@ -439,7 +448,7 @@ def add_sync_job(
         )
         
         try:
-            run_background_sync(device_auth_token, url, family_id)
+            run_background_sync(device_auth_token, url, own_device_id)
         except Exception as e:
             logger.error(
                 "Sync error",
