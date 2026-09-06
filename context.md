@@ -23,6 +23,14 @@ Official android app code is at C:\git\timelimit-android
 
 ---
 
+## Git Status (2026-09-06)
+- **Branch**: main
+- **Ahead of origin/main**: 23 commits
+- **Working tree**: Clean
+- **Last commit**: `8eef26a` - "Update CONTEXT.md with login failure investigation and salt validation fix"
+
+---
+
 ## Login Failure Investigation (2026-09-06) ✅ COMPLETED
 
 ### Overview
