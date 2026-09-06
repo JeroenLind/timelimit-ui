@@ -14,6 +14,7 @@
         padding: 20px;
         margin-bottom: 20px;
         border: 1px solid rgba(255, 255, 255, 0.1);
+        overflow: hidden;
     }
     
     .table-header {
@@ -38,10 +39,50 @@
         font-weight: 500;
     }
     
+    .clear-btn {
+        background: rgba(244, 67, 54, 0.2);
+        border: 1px solid rgba(244, 67, 54, 0.5);
+        color: #ff6b6b;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    
+    .clear-btn:hover {
+        background: rgba(244, 67, 54, 0.3);
+    }
+    
+    .clear-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .server-checks-section {
+        margin-top: 20px;
+    }
+    
+    .server-checks-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .db-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
     .db-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: auto;
+        min-width: 300px;
     }
     
     .db-table th,
@@ -50,6 +91,9 @@
         text-align: left;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         vertical-align: top;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     .db-table th {
@@ -59,7 +103,9 @@
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 1px;
-        white-space: nowrap;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     .db-table tr:hover {
@@ -68,11 +114,64 @@
     
     .db-table td {
         color: #ccc;
-        word-break: break-all;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
     
     .db-table td strong {
         color: #fff;
+    }
+    
+    /* Responsive column sizing using flexbox-like behavior */
+    .db-table th:first-child,
+    .db-table td:first-child {
+        min-width: 120px;
+        max-width: 200px;
+    }
+    
+    .db-table th:nth-child(2),
+    .db-table td:nth-child(2) {
+        min-width: 80px;
+    }
+    
+    .db-table th:nth-child(3),
+    .db-table td:nth-child(3) {
+        min-width: 100px;
+    }
+    
+    .db-table th:nth-child(4),
+    .db-table td:nth-child(4) {
+        min-width: 120px;
+    }
+    
+    .db-table th:nth-child(5),
+    .db-table td:nth-child(5) {
+        min-width: 80px;
+    }
+    
+    .db-table th:nth-child(6),
+    .db-table td:nth-child(6) {
+        min-width: 100px;
+    }
+    
+    .db-table th:nth-child(7),
+    .db-table td:nth-child(7) {
+        min-width: 100px;
+    }
+    
+    .db-table th:nth-child(8),
+    .db-table td:nth-child(8) {
+        min-width: 120px;
+    }
+    
+    .db-table th:nth-child(9),
+    .db-table td:nth-child(9) {
+        min-width: 100px;
+    }
+    
+    .db-table th:nth-child(10),
+    .db-table td:nth-child(10) {
+        min-width: 80px;
     }
     
     .empty-message {
@@ -140,6 +239,76 @@
         .db-table td {
             padding: 6px;
         }
+        
+        .db-table th:first-child,
+        .db-table td:first-child {
+            min-width: 80px;
+            max-width: 150px;
+        }
+        
+        .db-table th:nth-child(2),
+        .db-table td:nth-child(2) {
+            min-width: 60px;
+        }
+        
+        .db-table th:nth-child(3),
+        .db-table td:nth-child(3) {
+            min-width: 80px;
+        }
+        
+        .db-table th:nth-child(4),
+        .db-table td:nth-child(4) {
+            min-width: 100px;
+        }
+        
+        .db-table th:nth-child(5),
+        .db-table td:nth-child(5) {
+            min-width: 60px;
+        }
+        
+        .db-table th:nth-child(6),
+        .db-table td:nth-child(6) {
+            min-width: 80px;
+        }
+        
+        .db-table th:nth-child(7),
+        .db-table td:nth-child(7) {
+            min-width: 80px;
+        }
+        
+        .db-table th:nth-child(8),
+        .db-table td:nth-child(8) {
+            min-width: 100px;
+        }
+        
+        .db-table th:nth-child(9),
+        .db-table td:nth-child(9) {
+            min-width: 80px;
+        }
+        
+        .db-table th:nth-child(10),
+        .db-table td:nth-child(10) {
+            min-width: 60px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .db-table {
+            font-size: 11px;
+        }
+        
+        .db-table th,
+        .db-table td {
+            padding: 4px 6px;
+        }
+        
+        .table-section {
+            padding: 15px;
+        }
+        
+        .table-name {
+            font-size: 16px;
+        }
     }
 </style>
 {% endblock %}
@@ -149,6 +318,16 @@
     <h2 style="color: #fff; margin-bottom: 20px;">Database Viewer</h2>
     
     <a href="/dashboardV2" class="back-link">← Back to Dashboard</a>
+    
+    {% if 'server_checks' in tables %}
+    <div class="server-checks-section">
+        <div class="server-checks-header">
+            <h3 style="color: #fff; margin: 0;">Server Checks</h3>
+            <button id="clear-server-checks-btn" class="clear-btn" onclick="clearServerChecks()">Clear Server Checks</button>
+        </div>
+        <div id="clear-server-checks-result" style="margin-top: 10px;"></div>
+    </div>
+    {% endif %}
     
     {% if tables %}
         <div style="margin-top: 20px;">
@@ -168,37 +347,39 @@
                             Error reading table: {{ table_data[table]['error'] }}
                         </div>
                     {% elif table_data[table]['columns'] %}
-                        <table class="db-table">
-                            <thead>
-                                <tr>
-                                    {% for column in table_data[table]['columns'] %}
-                                        <th>{{ column }}</th>
-                                    {% endfor %}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in table_data[table]['rows'] %}
+                        <div class="db-table-wrapper">
+                            <table class="db-table">
+                                <thead>
                                     <tr>
                                         {% for column in table_data[table]['columns'] %}
-                                            <td>
-                                                {% set value = row.get(column) %}
-                                                {% if value is none %}
-                                                    <span class="json-null">NULL</span>
-                                                {% elif value is boolean %}
-                                                    <span class="json-boolean">{{ value }}</span>
-                                                {% elif value is number %}
-                                                    <span class="json-number">{{ value }}</span>
-                                                {% elif value is string %}
-                                                    <span class="json-string">{{ value }}</span>
-                                                {% else %}
-                                                    <span class="json-value">{{ value }}</span>
-                                                {% endif %}
-                                            </td>
+                                            <th>{{ column }}</th>
                                         {% endfor %}
                                     </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {% for row in table_data[table]['rows'] %}
+                                        <tr>
+                                            {% for column in table_data[table]['columns'] %}
+                                                <td>
+                                                    {% set value = row.get(column) %}
+                                                    {% if value is none %}
+                                                        <span class="json-null">NULL</span>
+                                                    {% elif value is boolean %}
+                                                        <span class="json-boolean">{{ value }}</span>
+                                                    {% elif value is number %}
+                                                        <span class="json-number">{{ value }}</span>
+                                                    {% elif value is string %}
+                                                        <span class="json-string">{{ value }}</span>
+                                                    {% else %}
+                                                        <span class="json-value">{{ value }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
                         <div class="empty-message">No data available</div>
                     {% endif %}
@@ -211,4 +392,41 @@
         </div>
     {% endif %}
 </div>
+
+<script>
+function clearServerChecks() {
+    const btn = document.getElementById('clear-server-checks-btn');
+    const resultDiv = document.getElementById('clear-server-checks-result');
+    
+    btn.disabled = true;
+    btn.textContent = 'Clearing...';
+    resultDiv.innerHTML = '<div class="error-message">Clearing server checks...</div>';
+    
+    fetch('/api/clear-server-checks', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            resultDiv.innerHTML = '<div class="error-message" style="background: rgba(76, 175, 80, 0.1); border-color: rgba(76, 175, 80, 0.3); color: #4caf50;">' + data.message + '</div>';
+            // Reload the page to show updated row counts
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            resultDiv.innerHTML = '<div class="error-message">Error: ' + (data.error || 'Unknown error') + '</div>';
+            btn.disabled = false;
+            btn.textContent = 'Clear Server Checks';
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = '<div class="error-message">Error: ' + error.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Clear Server Checks';
+    });
+}
+</script>
 {% endblock %}

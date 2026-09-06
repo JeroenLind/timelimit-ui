@@ -224,6 +224,23 @@
             }
         }
         
+        // Update Mail Auth Token field
+        const mailTokenField = document.getElementById('field-mail-token');
+        const mailTokenStatus = document.getElementById('mail-token-status');
+        if (mailTokenField && mailTokenStatus) {
+            if (data.has_mail_auth_token && data.mail_auth_token) {
+                mailTokenField.textContent = data.mail_auth_token;
+                mailTokenField.style.color = '#00ff88';
+                mailTokenStatus.textContent = 'Valid - Mail authentication token available';
+                mailTokenStatus.style.color = '#4caf50';
+            } else {
+                mailTokenField.textContent = '-';
+                mailTokenField.style.color = '#888';
+                mailTokenStatus.textContent = 'Not available - Token cleared after family creation';
+                mailTokenStatus.style.color = '#666';
+            }
+        }
+        
         // Update Login Status field
         const loginStatusField = document.getElementById('field-login-status');
         const loginStatusMessage = document.getElementById('login-status-message');

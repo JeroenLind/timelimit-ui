@@ -8,7 +8,9 @@ All API calls use the Authorization: Bearer <token> header for authentication.
 """
 
 import gzip
+import html
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -21,10 +23,59 @@ from utils.logging import get_logger
 from utils.sanitization import SENSITIVE_KEYS, sanitize_dict
 from utils.audit_log import (
     log_device_removal_request as audit_log_device_removal_request,
-    log_device_removal_response as audit_log_device_removal_response
+    log_device_removal_response as audit_log_device_removal_response,
+    log_password_recovery_request as audit_log_password_recovery_request,
+    log_password_recovery_response as audit_log_password_recovery_response,
+    log_password_recovery_failure as audit_log_password_recovery_failure,
+    log_sync_pull_request as audit_log_sync_pull_request,
+    log_sync_pull_response as audit_log_sync_pull_response,
+    log_sync_push_request as audit_log_sync_push_request,
+    log_sync_push_response as audit_log_sync_push_response,
+    log_family_creation_request as audit_log_family_creation_request,
+    log_family_creation_response as audit_log_family_creation_response,
+    log_family_creation_failure as audit_log_family_creation_failure
 )
 
 logger = get_logger(__name__)
+
+
+def extract_error_from_html(response_content: bytes) -> Optional[str]:
+    """Extract error message from HTML error response.
+    
+    Some servers return HTML error pages instead of JSON. This function
+    extracts the error message from the HTML content.
+    
+    Args:
+        response_content: Raw response content (bytes).
+        
+    Returns:
+        Extracted error message or None if not found.
+    """
+    try:
+        # Decode bytes to string
+        if isinstance(response_content, bytes):
+            content = response_content.decode('utf-8', errors='replace')
+        else:
+            content = str(response_content)
+        
+        # Try to extract error from <pre> tag (common in error pages)
+        pre_match = re.search(r'<pre>(.*?)</pre>', content, re.DOTALL)
+        if pre_match:
+            error_text = pre_match.group(1)
+            # Unescape HTML entities
+            error_text = html.unescape(error_text)
+            # Clean up whitespace
+            error_text = ' '.join(error_text.split())
+            return error_text
+        
+        # Try to extract error from <title> tag
+        title_match = re.search(r'<title>(.*?)</title>', content, re.DOTALL)
+        if title_match:
+            return title_match.group(1).strip()
+        
+        return None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -228,6 +279,22 @@ class AuthClient:
                     error_code = response_data.get('error_code')
                     error_message = response_data.get('error_message') or response_data.get('detail')
                     technical_detail = response_data.get('technical_detail')
+                elif isinstance(response_data, bytes):
+                    # Try to extract error from HTML response
+                    html_error = extract_error_from_html(response_data)
+                    if html_error:
+                        error_message = html_error
+                        # Set error_code based on status code
+                        if response.status_code == 409:
+                            error_code = 'conflict'
+                        elif response.status_code == 401:
+                            error_code = 'unauthorized'
+                        elif response.status_code == 400:
+                            error_code = 'validation'
+                        elif response.status_code >= 500:
+                            error_code = 'server_error'
+                        else:
+                            error_code = 'http_error'
                 
                 # Log failed response
                 logger.warning(
@@ -563,7 +630,8 @@ class AuthClient:
         device_name: str,
         time_zone: str,
         parent_name: str,
-        locale: Optional[str] = None
+        locale: Optional[str] = None,
+        email: Optional[str] = None
     ) -> APIResponse:
         """Create a new family.
         
@@ -575,6 +643,7 @@ class AuthClient:
             time_zone: Time zone string (required).
             parent_name: Parent name (required).
             locale: Optional locale string (not sent to server, kept for API compatibility).
+            email: Optional email address (for audit logging).
             
         Returns:
             APIResponse with deviceAuthToken and ownDeviceId.
@@ -594,6 +663,20 @@ class AuthClient:
         }
         sanitized_data = sanitize_dict(data)
         
+        # Log the request to audit log with complete fidelity (including password data)
+        audit_log_family_creation_request(
+            mail_auth_token=mail_auth_token,
+            email=email,
+            password_data=parent_password,
+            parent_device=parent_device,
+            device_name=device_name,
+            time_zone=time_zone,
+            parent_name=parent_name,
+            locale=locale,
+            request_id=request_id,
+            server_url=self.base_url
+        )
+        
         logger.info(
             "Creating family",
             request_id=request_id,
@@ -606,6 +689,16 @@ class AuthClient:
         )
         
         response = self._request_with_retry('POST', '/parent/create-family', data)
+        
+        # Log the response to audit log
+        audit_log_family_creation_response(
+            success=response.success,
+            request_id=request_id,
+            status_code=response.status_code,
+            response_data=response.data,
+            error_code=response.error_code,
+            error_message=response.error_message
+        )
         
         if response.success:
             logger.info(
@@ -634,7 +727,8 @@ class AuthClient:
         device_name: str,
         time_zone: str,
         parent_name: str,
-        locale: Optional[str] = None
+        locale: Optional[str] = None,
+        email: Optional[str] = None
     ) -> APIResponse:
         """Create a new family via RESTful endpoint.
         
@@ -649,6 +743,7 @@ class AuthClient:
             time_zone: Time zone string (required).
             parent_name: Parent name (required).
             locale: Optional locale string (not sent to server, kept for API compatibility).
+            email: Optional email address (for audit logging).
             
         Returns:
             APIResponse with deviceAuthToken and ownDeviceId.
@@ -668,6 +763,20 @@ class AuthClient:
         }
         sanitized_data = sanitize_dict(data)
         
+        # Log the request to audit log with complete fidelity (including password data)
+        audit_log_family_creation_request(
+            mail_auth_token=mail_auth_token,
+            email=email,
+            password_data=parent_password,
+            parent_device=parent_device,
+            device_name=device_name,
+            time_zone=time_zone,
+            parent_name=parent_name,
+            locale=locale,
+            request_id=request_id,
+            server_url=self.base_url
+        )
+        
         logger.info(
             "Creating family (REST endpoint)",
             request_id=request_id,
@@ -678,6 +787,16 @@ class AuthClient:
         )
         
         response = self._request_with_retry('POST', '/parent/create-family', data)
+        
+        # Log the response to audit log
+        audit_log_family_creation_response(
+            success=response.success,
+            request_id=request_id,
+            status_code=response.status_code,
+            response_data=response.data,
+            error_code=response.error_code,
+            error_message=response.error_message
+        )
         
         if response.success:
             logger.info(
@@ -725,10 +844,6 @@ class AuthClient:
             'parentDevice': {'model': device_model} if device_model else {'model': 'Unknown'},
             'deviceName': device_name or 'Unknown Device'
         }
-        
-        # parentPasswordSecondHash is optional (not required for email-based sign-in)
-        if parent_password_second_hash:
-            data['parentPasswordSecondHash'] = parent_password_second_hash
         
         # clientLevel is optional
         if client_level:
@@ -898,16 +1013,23 @@ class AuthClient:
         """
         request_id = get_request_id()
         
-        # Sanitize request data for logging
+        # Prepare request data (not sanitized for audit logging)
         data = {
             'mailAuthToken': mail_auth_token,
-            'newPassword': new_password
+            'password': new_password
         }
-        sanitized_data = sanitize_dict(data)
         
         logger.info(
             "Recovering parent password",
             request_id=request_id
+        )
+        
+        # Log the request to audit log (with full password data)
+        audit_log_password_recovery_request(
+            mail_auth_token=mail_auth_token,
+            password_data=new_password,
+            request_id=request_id,
+            server_url=self.base_url
         )
         
         response = self._request_with_retry('POST', '/parent/recover-parent-password', data)
@@ -917,12 +1039,29 @@ class AuthClient:
                 "Parent password recovered successfully",
                 request_id=request_id
             )
+            
+            # Log the successful response to audit log
+            audit_log_password_recovery_response(
+                success=True,
+                request_id=request_id,
+                status_code=response.status_code,
+                response_data=response.data
+            )
         else:
             logger.warning(
                 "Failed to recover parent password",
                 request_id=request_id,
                 error_code=response.error_code,
                 error_message=response.error_message
+            )
+            
+            # Log the failure to audit log
+            audit_log_password_recovery_failure(
+                error_type='server_error',
+                error_message=response.error_message or 'Unknown error',
+                mail_auth_token=mail_auth_token,
+                password_data=new_password,
+                request_id=request_id
             )
         
         return response
@@ -965,6 +1104,14 @@ class AuthClient:
             "status": client_data_status
         }
         
+        # Log the pull request to audit log
+        audit_log_sync_pull_request(
+            device_auth_token=device_auth_token,
+            client_data_status=client_data_status,
+            request_id=request_id,
+            server_url=self.base_url
+        )
+        
         logger.info(
             "Pulling server status",
             request_id=request_id,
@@ -972,10 +1119,21 @@ class AuthClient:
         )
         
         response = self._request_with_retry(
-            'POST', 
-            '/sync/pull-status', 
+            'POST',
+            '/sync/pull-status',
             data,
             gzip_compress=True
+        )
+        
+        # Log the response to audit log
+        audit_log_sync_pull_response(
+            device_auth_token=device_auth_token,
+            request_id=request_id,
+            success=response.success,
+            status_code=response.status_code,
+            response_data=response.data,
+            error_code=response.error_code,
+            error_message=response.error_message
         )
         
         if response.success:
@@ -1027,6 +1185,14 @@ class AuthClient:
             'actions': actions
         }
         
+        # Log the push request to audit log
+        audit_log_sync_push_request(
+            device_auth_token=device_auth_token,
+            actions=actions,
+            request_id=request_id,
+            server_url=self.base_url
+        )
+        
         logger.info(
             "Pushing actions to server",
             request_id=request_id,
@@ -1043,6 +1209,17 @@ class AuthClient:
             data,
             token=device_auth_token,
             gzip_compress=True
+        )
+        
+        # Log the response to audit log
+        audit_log_sync_push_response(
+            device_auth_token=device_auth_token,
+            request_id=request_id,
+            success=response.success,
+            status_code=response.status_code,
+            response_data=response.data,
+            error_code=response.error_code,
+            error_message=response.error_message
         )
         
         if response.success:

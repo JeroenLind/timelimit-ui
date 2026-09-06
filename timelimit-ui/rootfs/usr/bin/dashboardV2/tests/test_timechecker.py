@@ -2,16 +2,13 @@
 
 This module tests the Phase 3 implementation including:
 - Timechecker status endpoint
-- Historical data endpoint
-- Server check data storage and retrieval
+- Historical data endpoint (now returns empty since we don't store server checks)
 - Dashboard template rendering
 """
 
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
-
-from database import save_server_check, get_server_checks, get_latest_server_check
 
 
 class TestTimecheckerStatusEndpoint:
@@ -97,8 +94,8 @@ class TestTimecheckerStatusEndpoint:
 
     @pytest.mark.timeout(10)
     @patch('app.AuthClient')
-    def test_timechecker_status_performs_check_when_no_data(self, mock_auth_client_class):
-        """Test that status endpoint performs a check when no data exists."""
+    def test_timechecker_status_performs_check(self, mock_auth_client_class):
+        """Test that status endpoint performs a check and returns data."""
         # Setup mock
         mock_client = Mock()
         mock_response = Mock()
@@ -159,12 +156,23 @@ class TestTimecheckerHistoryEndpoint:
         assert isinstance(data['total'], int)
     
     @pytest.mark.timeout(10)
+    def test_timechecker_history_returns_empty_list(self, client):
+        """Test that timechecker history returns empty list since we don't store server checks."""
+        response = client.get('/api/timechecker/history')
+        data = response.get_json()
+        
+        # Since we no longer store server checks, history should be empty
+        assert len(data['checks']) == 0
+        assert data['total'] == 0
+    
+    @pytest.mark.timeout(10)
     def test_timechecker_history_respects_limit(self, client):
         """Test that timechecker history respects limit parameter."""
         response = client.get('/api/timechecker/history?limit=5')
         data = response.get_json()
         
-        assert len(data['checks']) <= 5
+        # Should still be empty since we don't store server checks
+        assert len(data['checks']) == 0
     
     @pytest.mark.timeout(10)
     def test_timechecker_history_default_limit(self, client):
@@ -172,128 +180,8 @@ class TestTimecheckerHistoryEndpoint:
         response = client.get('/api/timechecker/history')
         data = response.get_json()
         
-        # Default limit is 10
-        assert len(data['checks']) <= 10
-
-
-class TestServerCheckStorage:
-    """Tests for server check data storage operations."""
-    
-    @pytest.fixture
-    def test_db(self):
-        """Create a test database."""
-        import tempfile
-        import os
-        from database import Database
-        
-        db_fd, db_path = tempfile.mkstemp(suffix='.db')
-        db = Database(db_path=db_path)
-        db.init_db()
-        yield db
-        db.close()
-        os.close(db_fd)
-        os.unlink(db_path)
-    
-    @pytest.mark.timeout(10)
-    def test_save_server_check_success(self, test_db):
-        """Test saving a successful server check."""
-        row_id = save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        assert row_id is not None
-        assert row_id > 0
-    
-    @pytest.mark.timeout(10)
-    def test_save_server_check_failure(self, test_db):
-        """Test saving a failed server check."""
-        row_id = save_server_check(
-            db=test_db,
-            success=False,
-            error_code='timeout',
-            user_message='Connection timeout',
-            technical_detail='Timeout after 10s',
-            server_time=None,
-            attempts=3,
-            server_url='http://localhost:8080'
-        )
-        
-        assert row_id is not None
-        assert row_id > 0
-    
-    @pytest.mark.timeout(10)
-    def test_get_server_checks_returns_list(self, test_db):
-        """Test that get_server_checks returns a list."""
-        checks = get_server_checks(test_db, limit=10)
-        
-        assert isinstance(checks, list)
-    
-    @pytest.mark.timeout(10)
-    def test_get_server_checks_ordering(self, test_db):
-        """Test that server checks are ordered by timestamp descending."""
-        # Save multiple checks
-        save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        save_server_check(
-            db=test_db,
-            success=False,
-            error_code='unreachable',
-            user_message='Cannot connect',
-            technical_detail='Connection refused',
-            server_time=None,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        checks = get_server_checks(test_db, limit=10)
-        
-        assert len(checks) == 2
-        # Most recent first
-        assert checks[0]['success'] == 0
-        assert checks[1]['success'] == 1
-    
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check(self, test_db):
-        """Test getting the latest server check."""
-        save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        latest = get_latest_server_check(test_db, 'http://localhost:8080')
-        
-        assert latest is not None
-        assert latest['success'] == 1
-        assert latest['server_time'] == 1704067200000
-    
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check_not_found(self, test_db):
-        """Test getting latest server check for non-existent server."""
-        latest = get_latest_server_check(test_db, 'http://nonexistent:8080')
-        
-        assert latest is None
+        # Should be empty since we don't store server checks
+        assert len(data['checks']) == 0
 
 
 class TestDashboardTemplate:
@@ -387,7 +275,8 @@ class TestDashboardJavaScript:
         
         response = client.get('/dashboardV2')
         
-        assert b'/api/timechecker/status' in response.data
+        # Refresh button now calls sync endpoint instead of just checking status
+        assert b'/api/sync/pull' in response.data
         assert b'/api/timechecker/history' in response.data
 
 

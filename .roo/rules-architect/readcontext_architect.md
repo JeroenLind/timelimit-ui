@@ -14,4 +14,4 @@ You must maintain project state and memory across ALL projects using a `CONTEXT.
 - Strictly adhere to the technical stack and conventions documented in `CONTEXT.md`.
 
 ## 3. TERMINATION & MEMORY UPDATE
-- Before marking any task complete, update `CONTEXT.md` with recent changes and next steps.
+- Before marking any task complete, update `CONTEXT.md` with the current status of the dashboard. Update or add any relevant info for future usage.

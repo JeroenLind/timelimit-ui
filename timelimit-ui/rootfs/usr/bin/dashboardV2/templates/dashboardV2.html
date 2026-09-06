@@ -123,31 +123,220 @@
     }
     
     /* Dashboard table styles */
-    .dashboard-table {
+    .dashboard-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
+    .dashboard-table, .historical-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 15px;
-        overflow-x: auto;
+        table-layout: auto;
+        min-width: 300px;
     }
     
     .dashboard-table th,
-    .dashboard-table td {
+    .dashboard-table td,
+    .historical-table th,
+    .historical-table td {
         padding: 12px;
         text-align: left;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        vertical-align: top;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
-    .dashboard-table th {
+    .dashboard-table th,
+    .historical-table th {
         background: rgba(255, 255, 255, 0.05);
         color: #aaa;
         font-weight: 600;
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 1px;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
-    .dashboard-table tr:hover {
+    .dashboard-table tr:hover,
+    .historical-table tr:hover {
         background: rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Responsive column sizing for dashboard tables */
+    .dashboard-table th:first-child,
+    .dashboard-table td:first-child {
+        min-width: 120px;
+        max-width: 200px;
+    }
+    
+    .dashboard-table th:nth-child(2),
+    .dashboard-table td:nth-child(2) {
+        min-width: 80px;
+    }
+    
+    .dashboard-table th:nth-child(3),
+    .dashboard-table td:nth-child(3) {
+        min-width: 100px;
+    }
+    
+    .dashboard-table th:nth-child(4),
+    .dashboard-table td:nth-child(4) {
+        min-width: 120px;
+    }
+    
+    .dashboard-table th:nth-child(5),
+    .dashboard-table td:nth-child(5) {
+        min-width: 80px;
+    }
+    
+    .dashboard-table th:nth-child(6),
+    .dashboard-table td:nth-child(6) {
+        min-width: 100px;
+    }
+    
+    .dashboard-table th:nth-child(7),
+    .dashboard-table td:nth-child(7) {
+        min-width: 100px;
+    }
+    
+    .dashboard-table th:nth-child(8),
+    .dashboard-table td:nth-child(8) {
+        min-width: 120px;
+    }
+    
+    .dashboard-table th:nth-child(9),
+    .dashboard-table td:nth-child(9) {
+        min-width: 100px;
+    }
+    
+    .historical-table th:first-child,
+    .historical-table td:first-child {
+        min-width: 150px;
+    }
+    
+    .historical-table th:nth-child(2),
+    .historical-table td:nth-child(2) {
+        min-width: 80px;
+    }
+    
+    .historical-table th:nth-child(3),
+    .historical-table td:nth-child(3) {
+        min-width: 120px;
+    }
+    
+    .historical-table th:nth-child(4),
+    .historical-table td:nth-child(4) {
+        min-width: 100px;
+    }
+    
+    /* Responsive design for tables */
+    @media (max-width: 768px) {
+        .db-table-wrapper {
+            padding: 10px;
+        }
+        
+        .dashboard-table,
+        .historical-table {
+            font-size: 12px;
+        }
+        
+        .dashboard-table th,
+        .dashboard-table td,
+        .historical-table th,
+        .historical-table td {
+            padding: 8px 6px;
+        }
+        
+        .dashboard-table th:first-child,
+        .dashboard-table td:first-child {
+            min-width: 80px;
+            max-width: 150px;
+        }
+        
+        .dashboard-table th:nth-child(2),
+        .dashboard-table td:nth-child(2) {
+            min-width: 60px;
+        }
+        
+        .dashboard-table th:nth-child(3),
+        .dashboard-table td:nth-child(3) {
+            min-width: 80px;
+        }
+        
+        .dashboard-table th:nth-child(4),
+        .dashboard-table td:nth-child(4) {
+            min-width: 100px;
+        }
+        
+        .dashboard-table th:nth-child(5),
+        .dashboard-table td:nth-child(5) {
+            min-width: 60px;
+        }
+        
+        .dashboard-table th:nth-child(6),
+        .dashboard-table td:nth-child(6) {
+            min-width: 80px;
+        }
+        
+        .dashboard-table th:nth-child(7),
+        .dashboard-table td:nth-child(7) {
+            min-width: 80px;
+        }
+        
+        .dashboard-table th:nth-child(8),
+        .dashboard-table td:nth-child(8) {
+            min-width: 100px;
+        }
+        
+        .dashboard-table th:nth-child(9),
+        .dashboard-table td:nth-child(9) {
+            min-width: 80px;
+        }
+        
+        .historical-table th:first-child,
+        .historical-table td:first-child {
+            min-width: 120px;
+        }
+        
+        .historical-table th:nth-child(2),
+        .historical-table td:nth-child(2) {
+            min-width: 60px;
+        }
+        
+        .historical-table th:nth-child(3),
+        .historical-table td:nth-child(3) {
+            min-width: 100px;
+        }
+        
+        .historical-table th:nth-child(4),
+        .historical-table td:nth-child(4) {
+            min-width: 80px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .db-table-wrapper {
+            padding: 5px;
+        }
+        
+        .dashboard-table,
+        .historical-table {
+            font-size: 11px;
+        }
+        
+        .dashboard-table th,
+        .dashboard-table td,
+        .historical-table th,
+        .historical-table td {
+            padding: 6px 4px;
+        }
     }
     
     /* Alert notifications */
@@ -304,7 +493,7 @@
     <p>This dashboard provides server status checking and will eventually include family management features.</p>
     
     <div style="margin-top: 15px;">
-        <button class="refresh-btn" id="refresh-btn" onclick="refreshServerStatus()">
+        <button class="refresh-btn" id="refresh-btn" onclick="triggerSync()">
             <span id="refresh-icon">🔄</span>
             <span id="refresh-text">Refresh Status</span>
         </button>
@@ -430,9 +619,14 @@
                     Create New Family
                 </a>
             </div>
-            <div id="login-existing-family-link">
-                <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
+            <div id="login-existing-family-link" style="margin-bottom: 10px;">
+                <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
                     Login to Existing Family
+                </a>
+            </div>
+            <div id="recover-password-link">
+                <a href="/recover-parent-password" class="refresh-btn" style="display: inline-block; text-decoration: none; background: rgba(102, 126, 234, 0.2); border: 1px solid rgba(102, 126, 234, 0.5); color: #667eea;">
+                    Recover Parent Password
                 </a>
             </div>
         </div>
@@ -491,21 +685,23 @@
             <span>🔄</span> Refresh Users
         </button>
     </div>
-    <table class="dashboard-table" id="users-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Email</th>
-                <th>Current Device</th>
-                <th>Time Zone</th>
-                <th>Limits Disabled</th>
-            </tr>
-        </thead>
-        <tbody id="users-body">
-            <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
-        </tbody>
-    </table>
+    <div class="db-table-wrapper">
+        <table class="dashboard-table" id="users-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Email</th>
+                    <th>Current Device</th>
+                    <th>Time Zone</th>
+                    <th>Limits Disabled</th>
+                </tr>
+            </thead>
+            <tbody id="users-body">
+                <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="dashboard-content">
@@ -515,24 +711,26 @@
             <span>🔄</span> Refresh Devices
         </button>
     </div>
-    <table class="dashboard-table" id="devices-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Model</th>
-                <th>Current User</th>
-                <th>Protection Level</th>
-                <th>App Version</th>
-                <th>Platform</th>
-                <th>Signing Key</th>
-                <th>Added At</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="devices-body">
-            <tr><td colspan="9" style="text-align: center; color: #666;">Loading...</td></tr>
-        </tbody>
-    </table>
+    <div class="db-table-wrapper">
+        <table class="dashboard-table" id="devices-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Model</th>
+                    <th>Current User</th>
+                    <th>Protection Level</th>
+                    <th>App Version</th>
+                    <th>Platform</th>
+                    <th>Signing Key</th>
+                    <th>Added At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="devices-body">
+                <tr><td colspan="9" style="text-align: center; color: #666;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="dashboard-content">
@@ -542,19 +740,21 @@
             <span>🔄</span> Refresh History
         </button>
     </div>
-    <table class="dashboard-table historical-table" id="historical-table">
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Status</th>
-                <th>Server Time</th>
-                <th>Error</th>
-            </tr>
-        </thead>
-        <tbody id="history-body">
-            <tr><td colspan="4" style="text-align: center; color: #666;">Loading...</td></tr>
-        </tbody>
-    </table>
+    <div class="db-table-wrapper">
+        <table class="dashboard-table historical-table" id="historical-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Status</th>
+                    <th>Server Time</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <tr><td colspan="4" style="text-align: center; color: #666;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="dashboard-content">
@@ -564,17 +764,19 @@
             <span>🔄</span> Refresh Connected Devices
         </button>
     </div>
-    <table class="dashboard-table" id="connected-devices-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Last Seen</th>
-            </tr>
-        </thead>
-        <tbody id="connected-devices-body">
-            <tr><td colspan="2" style="text-align: center; color: #666;">Loading...</td></tr>
-        </tbody>
-    </table>
+    <div class="db-table-wrapper">
+        <table class="dashboard-table" id="connected-devices-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody id="connected-devices-body">
+                <tr><td colspan="2" style="text-align: center; color: #666;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- Alert container for notifications -->
@@ -628,19 +830,30 @@
         
         btn.classList.add('loading');
         icon.textContent = '⏳';
-        text.textContent = 'Refreshing...';
+        text.textContent = 'Syncing...';
         
-        fetch('/api/timechecker/status?force_refresh=true', {
-            method: 'GET',
+        // Call the sync endpoint to pull users and devices from the server
+        fetch('/api/sync/pull', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         })
         .then(response => response.json())
         .then(data => {
-            updateStatusDisplay(data);
-            showAlert('Server status updated successfully', 'success');
+            if (data.status === 'ok') {
+                // Reload all data after sync
+                Promise.all([
+                    loadUsers(),
+                    loadDevices(),
+                    loadConnectedDevices()
+                ]).then(() => {
+                    showAlert('Sync completed successfully', 'success');
+                });
+            } else {
+                showAlert('Sync failed: ' + (data.error || 'Unknown error'), 'error');
+            }
         })
         .catch(error => {
-            showAlert('Failed to refresh server status: ' + error.message, 'error');
+            showAlert('Failed to sync: ' + error.message, 'error');
         })
         .finally(() => {
             btn.classList.remove('loading');

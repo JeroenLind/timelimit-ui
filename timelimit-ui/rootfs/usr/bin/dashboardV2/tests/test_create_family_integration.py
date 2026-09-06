@@ -81,7 +81,8 @@ class TestCreateFamilyIntegration:
         assert response.status_code == 200
         
         # Step 3: Submit password with all required fields
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             
             # Mock create_family_rest response
@@ -94,6 +95,11 @@ class TestCreateFamilyIntegration:
             mock_client.create_family_rest.return_value = mock_create_response
             
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/create-family', data={
                 'step': '3',
@@ -155,7 +161,8 @@ class TestCreateFamilyIntegration:
             assert response.status_code == 200
         
         # Step 3: Submit password with all required fields
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             
             # Mock create_family_rest response
@@ -168,6 +175,11 @@ class TestCreateFamilyIntegration:
             mock_client.create_family_rest.return_value = mock_create_response
             
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/create-family', data={
                 'step': '3',
@@ -195,7 +207,8 @@ class TestCreateFamilyIntegration:
             sess['mail_login_token'] = 'test-login-token'
             sess['mail_auth_token'] = 'test-auth-token'
         
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             
             # Mock create_family_rest response
@@ -208,6 +221,11 @@ class TestCreateFamilyIntegration:
             mock_client.create_family_rest.return_value = mock_create_response
             
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/create-family', data={
                 'step': '3',
@@ -247,7 +265,8 @@ class TestCreateFamilyIntegration:
             sess['mail_login_token'] = 'test-login-token'
             sess['mail_auth_token'] = 'test-auth-token'
         
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             
             # Mock create_family_rest response
@@ -260,6 +279,11 @@ class TestCreateFamilyIntegration:
             mock_client.create_family_rest.return_value = mock_create_response
             
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/create-family', data={
                 'step': '3',
@@ -291,7 +315,8 @@ class TestCreateFamilyIntegration:
             sess['mail_login_token'] = 'test-login-token'
             sess['mail_auth_token'] = 'test-auth-token'
         
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             
             # Mock create_family_rest response
@@ -304,6 +329,11 @@ class TestCreateFamilyIntegration:
             mock_client.create_family_rest.return_value = mock_create_response
             
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             # Test with default locale (en)
             response = client.post('/create-family', data={
@@ -379,13 +409,19 @@ class TestCreateFamilyErrorHandling:
             sess['mail_login_token'] = 'test-login-token'
             sess['mail_auth_token'] = 'test-auth-token'
         
-        with patch('app.AuthClient') as mock_auth_client_class:
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
             mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.success = False
             mock_response.error_message = 'Failed to create family'
             mock_client.create_family_rest.return_value = mock_response
             mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success (even on error, sync should be called)
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
             
             response = client.post('/create-family', data={
                 'step': '3',

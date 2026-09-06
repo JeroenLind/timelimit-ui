@@ -961,6 +961,85 @@ def clear_auth_token_backup() -> bool:
 
 
 # ============================================================================
+# Session Data Sync to Database
+# ============================================================================
+
+def sync_session_to_database() -> Dict[str, Any]:
+    """Sync session data from JSON file to database.
+    
+    This function is called during startup to ensure that session data
+    persisted in the JSON file is also stored in the database. This is
+    useful after database migrations or if the database was cleared.
+    
+    Returns:
+        Dictionary with sync results:
+        - 'device_auth_token_synced': bool - Whether device_auth_token was synced
+        - 'own_device_id_synced': bool - Whether own_device_id was synced
+        - 'errors': list - Any errors that occurred during sync
+    """
+    result = {
+        'device_auth_token_synced': False,
+        'own_device_id_synced': False,
+        'errors': []
+    }
+    
+    # Get data from JSON file (fallback storage)
+    store = get_server_selection_store()
+    with store._lock:
+        data = store._read()
+    
+    device_auth_token = data.get('device_auth_token')
+    own_device_id = data.get('own_device_id')
+    
+    # Check if device_auth_token needs to be synced to database
+    if device_auth_token:
+        # Check if it's already in the database
+        db_token = get_persisted_device_auth_token()
+        if db_token != device_auth_token:
+            # Token not in database or different, sync it
+            try:
+                set_persisted_device_auth_token(device_auth_token, own_device_id)
+                result['device_auth_token_synced'] = True
+                logger.info(
+                    "Session data synced to database",
+                    component="persistence",
+                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+                )
+            except Exception as e:
+                result['errors'].append(f"Failed to sync device_auth_token: {str(e)}")
+                logger.warning(
+                    "Failed to sync session data to database",
+                    component="persistence",
+                    error=str(e)
+                )
+    
+    # Check if own_device_id needs to be synced
+    if own_device_id:
+        try:
+            from database import get_latest_own_device_id
+            db = get_database()
+            db_device_id = get_latest_own_device_id(db)
+            if db_device_id != own_device_id:
+                # Device ID not in database or different, update it
+                set_persisted_own_device_id(own_device_id)
+                result['own_device_id_synced'] = True
+                logger.debug(
+                    "Own device ID synced to database",
+                    component="persistence",
+                    device_id=own_device_id
+                )
+        except Exception as e:
+            result['errors'].append(f"Failed to sync own_device_id: {str(e)}")
+            logger.warning(
+                "Failed to sync own device ID to database",
+                component="persistence",
+                error=str(e)
+            )
+    
+    return result
+
+
+# ============================================================================
 # Module-level convenience variables
 # ============================================================================
 

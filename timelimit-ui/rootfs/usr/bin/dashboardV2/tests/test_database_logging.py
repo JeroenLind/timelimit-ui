@@ -1,7 +1,7 @@
 """Unit tests for database logging.
 
-Tests for Database class logging, save_server_check, get_server_checks,
-get_latest_server_check, and other database operations logging.
+Tests for Database class logging, family operations, device operations,
+auth token operations, and other database operations logging.
 """
 
 import io
@@ -18,9 +18,6 @@ import structlog
 
 from database import (
     Database,
-    save_server_check,
-    get_server_checks,
-    get_latest_server_check,
     create_family,
     get_family,
     update_family,
@@ -143,269 +140,6 @@ class TestDatabaseLogging:
                 content = captured_output.getvalue()
                 # Should contain close log
                 assert 'close' in content.lower() or 'connection' in content.lower()
-
-
-class TestSaveServerCheckLogging:
-    """Tests for save_server_check logging."""
-
-    @pytest.mark.timeout(10)
-    def test_save_server_check_logs_insert(self):
-        """Verify save_server_check logs insert operation."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
-                )
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Server check saved', server_url='http://localhost:8080')
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                # Should contain insert log
-                assert 'insert' in content.lower() or 'save' in content.lower()
-
-                db.close()
-
-    @pytest.mark.timeout(10)
-    def test_save_server_check_logs_success(self):
-        """Verify save_server_check logs success."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
-                )
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Server check saved', success=True)
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                # Should contain success info
-                assert 'success' in content.lower() or 'row_count' in content.lower()
-
-                db.close()
-
-    @pytest.mark.timeout(10)
-    def test_save_server_check_logs_server_url(self):
-        """Verify save_server_check logs server_url."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://test-server:8080'
-                )
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Server check saved', server_url='http://test-server:8080')
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                assert 'test-server' in content or 'server_url' in content.lower()
-
-                db.close()
-
-
-class TestGetServerChecksLogging:
-    """Tests for get_server_checks logging."""
-
-    @pytest.mark.timeout(10)
-    def test_get_server_checks_logs_query(self):
-        """Verify get_server_checks logs query operation."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                # Add some data
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
-                )
-
-                # Query
-                get_server_checks(db, limit=10)
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Server checks queried', limit=10)
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                # Should contain query log
-                assert 'query' in content.lower() or 'get' in content.lower() or 'queried' in content.lower()
-
-                db.close()
-
-
-class TestGetLatestServerCheckLogging:
-    """Tests for get_latest_server_check logging."""
-
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check_logs_query(self):
-        """Verify get_latest_server_check logs query."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                # Add data
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
-                )
-
-                # Query
-                result = get_latest_server_check(db, 'http://localhost:8080')
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Latest server check queried', server_url='http://localhost:8080')
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                # Should contain query log
-                assert 'query' in content.lower() or 'latest' in content.lower()
-
-                db.close()
-
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check_logs_found(self):
-        """Verify get_latest_server_check logs if found."""
-        reset_structlog()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {
-                'LOG_LEVEL': 'DEBUG',
-                'LOG_FORMAT': 'json'
-            }):
-                from utils.logging import setup_structlog, get_logger
-                setup_structlog()
-
-                db_path = os.path.join(tmpdir, 'test.db')
-                db = Database(db_path=db_path)
-                db.init_db()
-
-                # Add data
-                save_server_check(
-                    db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
-                )
-
-                # Query
-                get_latest_server_check(db, 'http://localhost:8080')
-
-                captured_output = io.StringIO()
-                with patch('sys.stdout', captured_output):
-                    logger = get_logger('database')
-                    logger.info('Latest server check found', success=True)
-
-                reset_structlog()
-
-                content = captured_output.getvalue()
-                # Should contain found status
-                assert 'found' in content.lower() or 'success' in content.lower()
-
-                db.close()
 
 
 class TestFamilyOperationsLogging:
@@ -654,7 +388,6 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )
@@ -693,7 +426,6 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )
@@ -735,7 +467,6 @@ class TestAuthTokenLogging:
                     token_type='device_auth_token',
                     token_value='token123',
                     device_id='dev123',
-                    device_auth_token='device_token_test123',
                     mail='test@example.com',
                     code=None
                 )
@@ -775,22 +506,21 @@ class TestDatabaseErrorLogging:
                 db = Database(db_path=db_path)
                 db.init_db()
 
-                # Try to save with valid data
-                save_server_check(
+                # Try to create a family with valid data
+                create_family(
                     db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
+                    device_auth_token='device_token_test123',
+                    mail='test@example.com',
+                    parent_password_hash='hash123',
+                    parent_password_second_hash='hash456',
+                    parent_password_second_salt='salt',
+                    parent_password_encrypted=False
                 )
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Server check saved', success=True)
+                    logger.info('Family created', success=True)
 
                 reset_structlog()
 
@@ -821,18 +551,16 @@ class TestDatabaseLoggingIntegration:
                 db.init_db()
 
                 # Multiple operations
-                save_server_check(
+                create_family(
                     db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
+                    device_auth_token='device_token_test123',
+                    mail='test@example.com',
+                    parent_password_hash='hash123',
+                    parent_password_second_hash='hash456',
+                    parent_password_second_salt='salt',
+                    parent_password_encrypted=False
                 )
-                get_server_checks(db)
-                get_latest_server_check(db, 'http://localhost:8080')
+                get_family(db, 'device_token_test123')
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
@@ -864,21 +592,20 @@ class TestDatabaseLoggingIntegration:
                 db = Database(db_path=db_path)
                 db.init_db()
 
-                save_server_check(
+                create_family(
                     db=db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
+                    device_auth_token='device_token_test123',
+                    mail='test@example.com',
+                    parent_password_hash='hash123',
+                    parent_password_second_hash='hash456',
+                    parent_password_second_salt='salt',
+                    parent_password_encrypted=False
                 )
 
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
                     logger = get_logger('database')
-                    logger.info('Server check saved', server_url='http://localhost:8080')
+                    logger.info('Family created', device_auth_token='device_token_test123')
 
                 reset_structlog()
 

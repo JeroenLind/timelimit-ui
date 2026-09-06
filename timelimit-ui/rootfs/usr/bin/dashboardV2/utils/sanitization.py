@@ -14,8 +14,7 @@ from typing import Any, Set
 
 # Set of sensitive keys that should be redacted in logs
 SENSITIVE_KEYS: Set[str] = {
-    # Authentication credentials
-    'password', 'password_hash', 'second_hash', 'second_salt',
+    # Authentication credentials (password-related keys are NOT sanitized for audit purposes)
     'token', 'access_token', 'refresh_token', 'device_auth_token',
     'mail_auth_token', 'mail_login_token',
     'parent_password_second_hash', 'parentpasswordsecondhash',

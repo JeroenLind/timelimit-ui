@@ -8,7 +8,7 @@ with all backend logic in Python and a thin Jinja2 template frontend. The new da
 - Server selection dropdown (3 options: Local, Official, Debug Server) matching the existing dashboard
 - Family creation flow (3-step: email → code → password hashes → create-family)
 - Child device login flow (parent creates add-device token → child registers via add-device)
-- Timechecker dashboard with APScheduler running ServerChecker.check() every 10 seconds
+- Timechecker dashboard with APScheduler running ServerChecker.check() every 60 seconds
 - SQLite database for storing timechecker results and dashboard state
 - Real-time status displays, historical data visualization, and alert notifications
 - Minimal JavaScript limited to essential interactions (form submissions, data refresh)
@@ -78,7 +78,7 @@ existing rootfs structure alongside `check_server.py`, `crypto_utils.py`, etc.
 timelimit-ui/rootfs/usr/bin/dashboardV2/
 ├── app.py              # Flask application - all routes and logic
 ├── config.py           # Configuration (debug-server URL, etc.)
-├── scheduler.py        # APScheduler for 10-second timechecker
+├── scheduler.py        # APScheduler for 60-second timechecker
 ├── database.py         # SQLite database setup and models
 ├── auth_client.py      # Standalone HTTP client for debug-server API calls (no shared code)
 ├── templates/          # Thin Jinja2 templates (server-rendered HTML)
@@ -166,7 +166,7 @@ The implementation follows this order:
 
 ### Phase 3: Timechecker Dashboard
 - [ ] Create `dashboardV2.html` based on `check_server.html` design
-- [ ] Implement APScheduler job: run `ServerChecker.check()` every 10 seconds
+- [ ] Implement APScheduler job: run `ServerChecker.check()` every 60 seconds
 - [ ] Store check results in SQLite database
 - [ ] Display real-time status, historical data table, and alert notifications
 - [ ] Implement data refresh endpoint (AJAX or server-side)

@@ -94,6 +94,17 @@
         text-align: center;
     }
     
+    .success-message {
+        background: rgba(76, 175, 80, 0.1);
+        border: 1px solid rgba(76, 175, 80, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 20px;
+        color: #4caf50;
+        font-size: 14px;
+        text-align: center;
+    }
+    
     .btn {
         width: 100%;
         padding: 14px;
@@ -136,6 +147,27 @@
     .back-link:hover {
         text-decoration: underline;
     }
+    
+    .password-section {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .password-section h3 {
+        color: #fff;
+        margin-bottom: 16px;
+        font-size: 16px;
+        font-weight: 600;
+        text-align: center;
+    }
+    
+    .password-section p {
+        color: #888;
+        font-size: 13px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
 </style>
 {% endblock %}
 
@@ -147,6 +179,12 @@
         {% if error %}
         <div class="error-message">
             {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if success %}
+        <div class="success-message">
+            {{ success }}
         </div>
         {% endif %}
         
@@ -210,13 +248,33 @@
                 <input type="text" id="deviceName" name="deviceName" placeholder="e.g., Parent's Phone" required>
             </div>
             
-            <div class="form-group">
-                <label for="parentPasswordSecondHash">Parent Password Hash (optional)</label>
-                <input type="text" id="parentPasswordSecondHash" name="parentPasswordSecondHash" placeholder="e.g., device or your second password hash">
-                <div class="password-hint">Enter your second password hash or "device" if password checks are disabled. This allows device removal without re-entering the hash.</div>
+            <button type="submit" class="btn">Login to Family</button>
+        </form>
+        
+        {% elif step == 4 %}
+        <!-- Step 4: Enter Password for Device Removal (Optional) -->
+        <form method="POST" action="/login-as-parent">
+            <input type="hidden" name="step" value="4">
+            
+            <div class="step-indicator">
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot active"></div>
             </div>
             
-            <button type="submit" class="btn">Login to Family</button>
+            <div class="password-section">
+                <h3>Enable Device Removal</h3>
+                <p>Enter your password to enable device removal functionality. This is optional - you can log in without it.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required autofocus autocomplete="current-password">
+                <div class="password-hint">Your family password for device removal operations</div>
+            </div>
+            
+            <button type="submit" class="btn">Save Password</button>
+            <button type="button" class="btn secondary" id="skipPassword">Skip for Now</button>
         </form>
         {% endif %}
         
@@ -248,6 +306,23 @@
                 if (btn) {
                     btn.classList.add('loading');
                     btn.textContent = 'Processing...';
+                }
+            });
+        }
+        
+        // Handle "Skip for Now" button in step 4
+        const skipButton = document.getElementById('skipPassword');
+        if (skipButton) {
+            skipButton.addEventListener('click', function() {
+                // Submit the form with empty password to skip
+                const form = document.querySelector('form[action="/login-as-parent"]');
+                if (form) {
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'password';
+                    hiddenInput.value = '';
+                    form.appendChild(hiddenInput);
+                    form.submit();
                 }
             });
         }

@@ -29,7 +29,8 @@ from database import (
     save_connected_devices, get_connected_devices,
     update_device_app_version,
     get_next_sequence_number, increment_sequence_number,
-    create_device, get_device, delete_auth_token
+    create_device, get_device, delete_auth_token,
+    update_family_salt
 )
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
@@ -275,6 +276,19 @@ class SyncManager:
                 device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(users)
             )
+            
+            # Update family record with salt from parent user (if available)
+            # The parent user's second_password_salt is needed for password hash regeneration
+            for user in users:
+                if user.get('type') == 'parent' and user.get('secondPasswordSalt'):
+                    salt = user.get('secondPasswordSalt')
+                    if update_family_salt(self.db, device_auth_token, salt):
+                        logger.debug(
+                            "Family salt updated from sync",
+                            request_id=request_id,
+                            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+                        )
+                    break
         
         # Store categories
         if 'categoryBase' in server_data:
@@ -712,8 +726,7 @@ def store_sync_credentials(
     store_auth_token(
         db=db,
         token_type='sync_device_auth_token',
-        token_value=device_auth_token,
-        device_auth_token=device_auth_token
+        token_value=device_auth_token
     )
     
     logger.info(

@@ -28,15 +28,13 @@ class TestSensitiveKeysConstant:
         """Verify SENSITIVE_KEYS is defined and contains expected keys."""
         assert SENSITIVE_KEYS is not None
         assert isinstance(SENSITIVE_KEYS, set)
-        assert 'password' in SENSITIVE_KEYS
+        # Note: 'password' is NOT in SENSITIVE_KEYS for audit logging purposes
         assert 'token' in SENSITIVE_KEYS
         assert 'secret_key' in SENSITIVE_KEYS
 
     def test_sensitive_keys_case_insensitive(self):
         """Verify SENSITIVE_KEYS matching is case-insensitive."""
         # Test various case variations
-        assert is_sensitive_key('PASSWORD')
-        assert is_sensitive_key('Password')
         assert is_sensitive_key('TOKEN')
         assert is_sensitive_key('Token')
         assert is_sensitive_key('SECRET_KEY')
@@ -45,19 +43,23 @@ class TestSensitiveKeysConstant:
     def test_sensitive_keys_contains_common_keys(self):
         """Verify SENSITIVE_KEYS contains common sensitive key patterns."""
         expected_keys = [
-            'password', 'token', 'secret_key', 'api_key',
+            'token', 'secret_key', 'api_key',
             'auth_token', 'private_key', 'session', 'session_id'
         ]
         for key in expected_keys:
             assert is_sensitive_key(key), f"Key '{key}' should be sensitive"
 
+    def test_password_not_sensitive(self):
+        """Verify 'password' is NOT in SENSITIVE_KEYS (for audit logging)."""
+        assert is_sensitive_key('password') is False
+        assert is_sensitive_key('PASSWORD') is False
+        assert is_sensitive_key('hash') is False
+        assert is_sensitive_key('secondHash') is False
+        assert is_sensitive_key('secondSalt') is False
+
 
 class TestIsSensitiveKey:
     """Tests for is_sensitive_key function."""
-
-    def test_password_is_sensitive(self):
-        """Verify 'password' is detected as sensitive."""
-        assert is_sensitive_key('password') is True
 
     def test_token_is_sensitive(self):
         """Verify 'token' is detected as sensitive."""
@@ -72,10 +74,11 @@ class TestIsSensitiveKey:
         assert is_sensitive_key('username') is False
         assert is_sensitive_key('email') is False
         assert is_sensitive_key('server_url') is False
+        assert is_sensitive_key('password') is False
+        assert is_sensitive_key('hash') is False
 
     def test_case_insensitive_matching(self):
         """Verify matching is case-insensitive."""
-        assert is_sensitive_key('PASSWORD') is True
         assert is_sensitive_key('Token') is True
         assert is_sensitive_key('SECRET_KEY') is True
 
@@ -83,11 +86,11 @@ class TestIsSensitiveKey:
 class TestSanitizeDict:
     """Tests for sanitize_dict function."""
 
-    def test_sanitize_dict_removes_password(self):
-        """Verify password is redacted."""
+    def test_sanitize_dict_preserves_password(self):
+        """Verify password is NOT redacted (for audit logging)."""
         data = {'password': 'mysecret123', 'username': 'testuser'}
         result = sanitize_dict(data)
-        assert result['password'] == '***REDACTED***'
+        assert result['password'] == 'mysecret123'
         assert result['username'] == 'testuser'
 
     def test_sanitize_dict_removes_token(self):
@@ -117,7 +120,8 @@ class TestSanitizeDict:
             }
         }
         result = sanitize_dict(data)
-        assert result['user']['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['user']['password'] == 'secret'
         assert result['user']['name'] == 'John'
         assert result['user']['details']['token'] == '***REDACTED***'
         assert result['user']['details']['email'] == 'test@example.com'
@@ -131,9 +135,10 @@ class TestSanitizeDict:
             ]
         }
         result = sanitize_dict(data)
-        assert result['items'][0]['password'] == '***REDACTED***'
+        # Passwords are preserved for audit logging
+        assert result['items'][0]['password'] == 'secret1'
         assert result['items'][0]['name'] == 'item1'
-        assert result['items'][1]['password'] == '***REDACTED***'
+        assert result['items'][1]['password'] == 'secret2'
         assert result['items'][1]['name'] == 'item2'
 
     def test_sanitize_dict_handles_list_of_lists(self):
@@ -145,9 +150,10 @@ class TestSanitizeDict:
             ]
         }
         result = sanitize_dict(data)
-        assert result['matrix'][0][0]['password'] == '***REDACTED***'
+        # Passwords are preserved for audit logging
+        assert result['matrix'][0][0]['password'] == 'secret1'
         assert result['matrix'][0][1]['token'] == '***REDACTED***'
-        assert result['matrix'][1][0]['password'] == '***REDACTED***'
+        assert result['matrix'][1][0]['password'] == 'secret2'
         assert result['matrix'][1][1]['token'] == '***REDACTED***'
 
     def test_sanitize_dict_truncates_long_strings(self):
@@ -212,7 +218,8 @@ class TestSanitizeDict:
         }
         result = sanitize_dict(data)
         assert result['users'][0]['name'] == 'Alice'
-        assert result['users'][0]['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['users'][0]['password'] == 'secret1'
         assert result['users'][1]['name'] == 'Bob'
         assert result['users'][1]['token'] == '***REDACTED***'
 
@@ -224,7 +231,8 @@ class TestSanitizeDict:
         }
         result = sanitize_dict(data)
         assert result['message'] == 'Hello! @#$%^&*()'
-        assert result['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['password'] == 'secret'
 
     def test_sanitize_dict_handles_unicode(self):
         """Verify unicode characters are preserved."""
@@ -234,17 +242,18 @@ class TestSanitizeDict:
         }
         result = sanitize_dict(data)
         assert result['name'] == '用户'
-        assert result['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['password'] == 'secret'
 
 
 class TestSanitizeProcessor:
     """Tests for sanitize_processor function."""
 
-    def test_sanitize_processor_redacts_password(self):
-        """Verify sanitize_processor redacts password in event dict."""
+    def test_sanitize_processor_preserves_password(self):
+        """Verify sanitize_processor preserves password in event dict (for audit logging)."""
         event_dict = {'event': 'login', 'password': 'secret'}
         result = sanitize_processor(None, None, event_dict)
-        assert result['password'] == '***REDACTED***'
+        assert result['password'] == 'secret'
 
     def test_sanitize_processor_redacts_token(self):
         """Verify sanitize_processor redacts token in event dict."""
@@ -268,7 +277,8 @@ class TestSanitizeProcessor:
             }
         }
         result = sanitize_processor(None, None, event_dict)
-        assert result['data']['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['data']['password'] == 'secret'
         assert result['data']['token'] == '***REDACTED***'
 
     def test_sanitize_processor_handles_list(self):
@@ -281,7 +291,8 @@ class TestSanitizeProcessor:
             ]
         }
         result = sanitize_processor(None, None, event_dict)
-        assert result['items'][0]['password'] == '***REDACTED***'
+        # Password is preserved for audit logging
+        assert result['items'][0]['password'] == 'secret1'
         assert result['items'][1]['token'] == '***REDACTED***'
 
     def test_sanitize_processor_truncates_long_strings(self):
@@ -350,8 +361,8 @@ class TestSanitizationIntegration:
                 # Parse the captured output as JSON
                 output = captured_output.getvalue().strip()
                 entry = json.loads(output)
-                # Password should be redacted
-                assert entry.get('password') == '***REDACTED***'
+                # Password is preserved for audit logging
+                assert entry.get('password') == 'secret'
 
     def test_sanitization_with_multiple_sensitive_fields(self):
         """Verify multiple sensitive fields are all redacted."""
@@ -385,7 +396,8 @@ class TestSanitizationIntegration:
                 # Parse the captured output as JSON
                 output = captured_output.getvalue().strip()
                 entry = json.loads(output)
-                assert entry.get('password') == '***REDACTED***'
+                # Password is preserved for audit logging
+                assert entry.get('password') == 'secret'
                 assert entry.get('token') == '***REDACTED***'
                 assert entry.get('api_key') == '***REDACTED***'
                 assert entry.get('username') == 'user'

@@ -16,7 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import Config
-from database import Database, get_database, save_server_check, get_auth_token
+from database import Database, get_database, get_auth_token
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
 
@@ -79,7 +79,7 @@ def check_server_callback() -> None:
     """Callback function to check server status.
     
     This function is called by the scheduler at regular intervals.
-    It checks the server status and stores the result in the database.
+    It checks the server status.
     """
     from auth_client import AuthClient, APIResponse
     
@@ -97,21 +97,6 @@ def check_server_callback() -> None:
         # Create auth client and check server
         client = AuthClient(base_url=server_url)
         response = client.check_server_connection()
-        
-        # Get database instance
-        db = get_database()
-        
-        # Save the result
-        save_server_check(
-            db=db,
-            success=response.success,
-            error_code=response.error_code,
-            user_message=response.error_message,
-            technical_detail=response.technical_detail,
-            server_time=response.data.get('ms') if response.success else None,
-            attempts=1,  # AuthClient doesn't expose attempts, default to 1
-            server_url=server_url
-        )
         
         if response.success:
             logger.info(
@@ -265,18 +250,6 @@ def add_server_check_job(
         try:
             client = AuthClient(base_url=server_url)
             response = client.check_server_connection()
-            
-            db = get_database()
-            save_server_check(
-                db=db,
-                success=response.success,
-                error_code=response.error_code,
-                user_message=response.error_message,
-                technical_detail=response.technical_detail,
-                server_time=response.data.get('ms') if response.success else None,
-                attempts=1,
-                server_url=server_url
-            )
             
             if response.success:
                 logger.info(

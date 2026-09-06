@@ -974,7 +974,6 @@ class TestAuthClientErrorHandling:
         
         assert response.success is False
         assert response.error_code == 'unreachable'
-    
     @pytest.mark.timeout(10)
     @patch('requests.Session')
     def test_invalid_json_response(self, mock_session_class):
@@ -993,6 +992,78 @@ class TestAuthClientErrorHandling:
         
         assert response.success is True
         assert response.data == b'Not JSON'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_html_error_response_409_conflict(self, mock_session_class):
+        """Test handling of HTML error response with 409 Conflict."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 409
+        mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
+        mock_response.content = b'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>ConflictError: Conflict<br> &nbsp; &nbsp;at /app/build/function/parent/create-family.js:41:19</pre>
+</body>
+</html>'''
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_family_rest(
+            mail_auth_token='mail_auth_token_123',
+            parent_password={
+                'hash': '$2b$12$hash1',
+                'secondHash': '$2b$12$hash2',
+                'secondSalt': '$2b$12$salt'
+            },
+            parent_device={'model': 'Pixel 7'},
+            device_name='Parent Device',
+            time_zone='Europe/Amsterdam',
+            parent_name='Parent User'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 409
+        assert response.error_code == 'conflict'
+        assert 'ConflictError' in response.error_message or 'Conflict' in response.error_message
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_html_error_response_401_unauthorized(self, mock_session_class):
+        """Test handling of HTML error response with 401 Unauthorized."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
+        mock_response.content = b'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>UnauthorizedError: Invalid or expired token</pre>
+</body>
+</html>'''
+        mock_session.get.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.get_server_time()
+        
+        assert response.success is False
+        assert response.status_code == 401
+        assert response.error_code == 'unauthorized'
+        assert 'Unauthorized' in response.error_message or 'unauthorized' in response.error_message.lower()
+
+
 
 
 class TestAuthClientRetry:

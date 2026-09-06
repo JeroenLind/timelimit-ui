@@ -56,15 +56,29 @@ class TestGetLoginAsParent:
         assert b'Device Model' in response.data or b'device' in response.data.lower()
 
     @pytest.mark.timeout(10)
-    def test_get_login_as_parent_redirects_when_authenticated(self, client):
-        """Test that GET /login-as-parent redirects to dashboard when device_auth_token in session."""
+    def test_get_login_as_parent_redirects_when_authenticated_with_password(self, client):
+        """Test that GET /login-as-parent redirects to dashboard when device_auth_token and password hash are in session."""
         with client.session_transaction() as sess:
             sess['device_auth_token'] = 'test-device-token'
+            sess['parent_password_second_hash'] = '$2a$12$testhash123'
         
         response = client.get('/login-as-parent')
         
         assert response.status_code == 302
         assert '/dashboardV2' in response.headers.get('Location', '')
+
+    @pytest.mark.timeout(10)
+    def test_get_login_as_parent_shows_password_step_when_authenticated_without_password(self, client):
+        """Test that GET /login-as-parent shows step 4 (password optional) when device_auth_token in session but no password hash."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = 'test-device-token'
+            # Note: parent_password_second_hash is NOT set
+        
+        response = client.get('/login-as-parent')
+        
+        assert response.status_code == 200
+        # Should show the password step
+        assert b'Enable Device Removal' in response.data or b'Password' in response.data
 
     @pytest.mark.timeout(10)
     def test_get_login_as_parent_shows_error_message(self, client):
@@ -601,7 +615,7 @@ class TestLoginAsParentPasswordHashPersistence:
             db = get_database()
             stored_hash = get_parent_password_hash(db, 'test-device-token')
             assert stored_hash == '$2b$12$testhash123'
-    
+
     @pytest.mark.timeout(10)
     def test_post_login_as_parent_step3_without_hash_still_works(self, client):
         """Test that step 3 works without parent_password_second_hash."""
@@ -640,7 +654,152 @@ class TestLoginAsParentPasswordHashPersistence:
             with client.session_transaction() as sess:
                 assert sess.get('device_auth_token') == 'test-device-token'
                 assert sess.get('own_device_id') == 'test-device-id'
-    
+
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_with_password_stores_all_hashes(self, client):
+        """Test that step 3 stores all three hash components when password is provided with existing salt."""
+        from database import get_database, get_family, get_family_by_mail, upsert_family_password_hash
+        import bcrypt
+        import uuid
+        
+        # Create a unique mail for this test
+        test_mail = f'test-password-{uuid.uuid4().hex[:8]}@example.com'
+        test_device_token = f'test-device-token-{uuid.uuid4().hex[:8]}'
+        
+        # Create a family with a known password and salt
+        password = 'testpassword123'
+        password_bytes = password.encode('utf-8')
+        existing_salt = bcrypt.gensalt(rounds=12, prefix=b'2a').decode('utf-8')
+        expected_second_hash = bcrypt.hashpw(password_bytes, existing_salt.encode('utf-8')).decode('utf-8')
+        
+        db = get_database()
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=test_device_token,
+            parent_password_hash='$2a$12$hash1',
+            parent_password_second_hash=expected_second_hash,
+            parent_password_second_salt=existing_salt,
+            mail=test_mail
+        )
+        
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+            sess['mail'] = test_mail  # Required for salt lookup by mail
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': test_device_token,
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'password': password
+            }, follow_redirects=True)
+            
+            # Should redirect to dashboard
+            assert response.status_code == 200
+            
+            # Verify device_auth_token was stored in session
+            with client.session_transaction() as sess:
+                assert sess.get('device_auth_token') == test_device_token
+                assert sess.get('own_device_id') == 'test-device-id'
+                # Verify second hash is stored in session
+                assert sess.get('parent_password_second_hash') is not None
+                assert sess.get('parent_password_second_hash').startswith('$2a$')
+            
+            # Verify all three hash components were stored in database
+            family = get_family(db, test_device_token)
+            assert family is not None
+            assert family.get('parent_password_hash') is not None
+            assert family.get('parent_password_hash').startswith('$2a$')
+            assert family.get('parent_password_second_hash') is not None
+            assert family.get('parent_password_second_hash').startswith('$2a$')
+            assert family.get('parent_password_second_salt') is not None
+            assert family.get('parent_password_second_salt').startswith('$2a$')
+
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_step3_password_takes_precedence_over_hash(self, client):
+        """Test that password takes precedence over parentPasswordSecondHash when both provided."""
+        from database import get_database, get_family, upsert_family_password_hash
+        import bcrypt
+        import uuid
+        
+        # Create a unique mail for this test
+        test_mail = f'test-prec-{uuid.uuid4().hex[:8]}@example.com'
+        test_device_token = f'test-device-token-{uuid.uuid4().hex[:8]}'
+        
+        # Create a family with a known password and salt
+        password = 'newpassword123'
+        password_bytes = password.encode('utf-8')
+        existing_salt = bcrypt.gensalt(rounds=12, prefix=b'2a').decode('utf-8')
+        expected_second_hash = bcrypt.hashpw(password_bytes, existing_salt.encode('utf-8')).decode('utf-8')
+        
+        db = get_database()
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=test_device_token,
+            parent_password_hash='$2a$12$hash1',
+            parent_password_second_hash=expected_second_hash,
+            parent_password_second_salt=existing_salt,
+            mail=test_mail
+        )
+        
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+            sess['mail'] = test_mail  # Required for salt lookup by mail
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': test_device_token,
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'password': password,
+                'parentPasswordSecondHash': '$2a$12$oldhash123'
+            }, follow_redirects=True)
+            
+            # Should redirect to dashboard
+            assert response.status_code == 200
+            
+            # Verify the password hash was used (not the direct hash input)
+            family = get_family(db, test_device_token)
+            assert family is not None
+            # The hash should be from the password, not the old hash
+            assert family.get('parent_password_second_hash') != '$2a$12$oldhash123'
+            # The hash should match the expected hash from the password
+            assert family.get('parent_password_second_hash') == expected_second_hash
+
     @pytest.mark.timeout(10)
     def test_post_login_as_parent_step3_hash_persists_across_restart(self, client):
         """Test that password hash persists across app restart (database storage)."""
@@ -679,7 +838,7 @@ class TestLoginAsParentPasswordHashPersistence:
         
         # Hash should still be in database after "restart"
         assert stored_hash == '$2b$12$testhash123'
-    
+
     @pytest.mark.timeout(10)
     def test_post_login_as_parent_step3_hash_format(self, client):
         """Test that stored hash has correct bcrypt format."""
@@ -718,3 +877,191 @@ class TestLoginAsParentPasswordHashPersistence:
         # Verify hash was stored correctly
         assert stored_hash is not None
         assert stored_hash == '$2b$12$testhash123'
+
+
+class TestPasswordHashRegeneration:
+    """Tests for password hash regeneration using existing salt."""
+
+    @pytest.mark.timeout(10)
+    def test_get_parent_password_second_salt_returns_salt(self, client):
+        """Test that get_parent_password_second_salt returns the salt when it exists."""
+        from database import get_parent_password_second_salt, get_database, upsert_family_password_hash
+        
+        db = get_database()
+        
+        # Use upsert to create a family with a salt
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token='test-family-token-salt',
+            parent_password_hash='$2a$12$hash1',
+            parent_password_second_hash='$2a$12$hash2',
+            parent_password_second_salt='$2a$12$salt123'
+        )
+        
+        # Get the salt
+        salt = get_parent_password_second_salt(db, 'test-family-token-salt')
+        
+        assert salt == '$2a$12$salt123'
+
+    @pytest.mark.timeout(10)
+    def test_get_parent_password_second_salt_returns_none_when_not_found(self, client):
+        """Test that get_parent_password_second_salt returns None when family not found."""
+        from database import get_parent_password_second_salt, get_database
+        
+        db = get_database()
+        
+        # Try to get salt for non-existent family
+        salt = get_parent_password_second_salt(db, 'non-existent-token-xyz')
+        
+        assert salt is None
+
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_regenerates_hash_with_existing_salt(self, client):
+        """Test that login-as-parent regenerates hash using existing salt."""
+        from database import get_database, get_family, get_parent_password_second_salt, upsert_family_password_hash
+        import bcrypt
+        
+        # First, create a family with a known password and salt
+        password = 'testpassword123'
+        password_bytes = password.encode('utf-8')
+        # Ensure salt is a valid bcrypt salt string
+        existing_salt = bcrypt.gensalt(rounds=12, prefix=b'2a').decode('utf-8')
+        expected_second_hash = bcrypt.hashpw(password_bytes, existing_salt.encode('utf-8')).decode('utf-8')
+        
+        db = get_database()
+        
+        import uuid
+        test_mail = f'test-regen-{uuid.uuid4().hex[:8]}@example.com'  # UUID-based unique mail
+        test_device_token = f'test-family-token-regen-{uuid.uuid4().hex[:8]}'  # UUID-based unique token
+        
+        # Use upsert to create a family with the existing salt
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=test_device_token,
+            parent_password_hash='$2a$12$hash1',
+            parent_password_second_hash=expected_second_hash,
+            parent_password_second_salt=existing_salt,
+            mail=test_mail
+        )
+        
+        # Verify the salt was stored
+        stored_salt = get_parent_password_second_salt(db, test_device_token)
+        assert stored_salt is not None
+        assert stored_salt == existing_salt
+        
+        # Verify family can be found by mail
+        family = get_family(db, test_device_token)
+        assert family is not None
+        assert family.get('mail') == test_mail
+        assert family.get('parent_password_second_salt') == existing_salt
+        
+        # Verify get_family_by_mail also works
+        from database import get_family_by_mail
+        family_by_mail = get_family_by_mail(db, test_mail)
+        assert family_by_mail is not None, "get_family_by_mail should find the family"
+        assert family_by_mail.get('device_auth_token') == test_device_token
+        assert family_by_mail.get('parent_password_second_salt') == existing_salt
+        
+        # Now simulate login-as-parent with the same password
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+            sess['mail'] = test_mail  # Required for salt lookup by mail
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                            'deviceAuthToken': test_device_token,
+                            'ownDeviceId': 'test-device-id'
+                        }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            # Login with the same password
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'password': password
+            }, follow_redirects=True)
+            
+            # Should succeed
+            assert response.status_code == 200
+            
+            # Verify the second hash in session matches the expected hash
+            with client.session_transaction() as sess:
+                stored_second_hash = sess.get('parent_password_second_hash')
+                assert stored_second_hash == expected_second_hash
+
+    @pytest.mark.timeout(10)
+    def test_post_login_as_parent_fails_when_no_salt_available(self, client):
+        """Test that login-as-parent redirects to Step 4 when password is provided in Step 3 but no salt exists.
+        
+        Per requirements: The sync should happen BEFORE the password is entered.
+        If a password is provided in Step 3 and no salt is available, the user should be
+        redirected to Step 4 to enter the password after the sync completes.
+        """
+        from database import get_database, get_family, upsert_family_password_hash
+        import uuid
+        
+        db = get_database()
+        
+        # Create a unique mail for this test
+        test_mail = f'test-no-salt-{uuid.uuid4().hex[:8]}@example.com'
+        test_device_token = f'test-device-token-no-salt-{uuid.uuid4().hex[:8]}'
+        
+        # Use upsert to create a family WITHOUT a salt (simulating a family created before salt was stored)
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=test_device_token,
+            parent_password_hash='$2a$12$hash1',
+            parent_password_second_hash='$2a$12$hash2',
+            parent_password_second_salt=None,  # No salt
+            mail=test_mail
+        )
+        
+        # Now simulate login-as-parent with a password
+        with client.session_transaction() as sess:
+            sess['mail_login_token'] = 'test-login-token'
+            sess['mail_auth_token'] = 'test-auth-token'
+            sess['mail'] = test_mail  # Required for salt lookup by mail
+        
+        with patch('app.AuthClient') as mock_auth_client_class, \
+             patch('app.create_sync_manager') as mock_create_sync_manager:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.success = True
+            mock_response.data = {
+                'deviceAuthToken': test_device_token,
+                'ownDeviceId': 'test-device-id'
+            }
+            mock_client.sign_in_into_family.return_value = mock_response
+            mock_auth_client_class.return_value = mock_client
+            
+            # Mock sync manager to return success
+            mock_sync_manager = MagicMock()
+            mock_sync_manager.do_sync.return_value = True
+            mock_create_sync_manager.return_value = mock_sync_manager
+            
+            # Login with a password - should redirect to Step 4 because no salt exists
+            response = client.post('/login-as-parent', data={
+                'step': '3',
+                'deviceModel': 'Pixel 7',
+                'deviceName': 'Parent Device',
+                'password': 'newpassword123'
+            }, follow_redirects=True)
+            
+            # Should show error message telling user to enter password in Step 4
+            assert b'step 4' in response.data.lower() or b'password' in response.data.lower() or b'not yet available' in response.data.lower()
+            
+            # Verify device_auth_token WAS stored in session (sign-in was successful)
+            with client.session_transaction() as sess:
+                assert sess.get('device_auth_token') == test_device_token

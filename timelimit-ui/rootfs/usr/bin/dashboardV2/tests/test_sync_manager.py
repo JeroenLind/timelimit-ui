@@ -610,7 +610,6 @@ class TestStoreSyncCredentials:
         assert token is not None
         assert token['token_type'] == 'sync_device_auth_token'
         assert token['token_value'] == 'device_token_abc123'
-        assert token['device_auth_token'] == 'device_token_abc123'
 
 
 class TestGetSyncCredentials:

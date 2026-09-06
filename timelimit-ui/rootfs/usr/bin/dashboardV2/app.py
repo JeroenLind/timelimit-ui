@@ -33,25 +33,36 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from auth_client import AuthClient, APIResponse
 from config import Config
 from database import (
-    Database, get_database, reset_database, save_server_check, get_server_checks, get_latest_server_check, store_auth_token,
+    Database, get_database, reset_database, store_auth_token,
     get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
-    get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_user_id, clear_all_tables
+    get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_password_second_salt, get_parent_user_id, clear_all_tables,
+    get_all_tables_data, clear_server_checks, get_family_by_mail, create_family_record, update_family_salt
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import (
     get_server_selection_store, is_ha_ingress, get_current_log_level, set_current_log_level,
     get_persisted_device_auth_token, set_persisted_device_auth_token,
     get_persisted_own_device_id, set_persisted_own_device_id, clear_persisted_auth_tokens,
-    backup_auth_tokens, restore_auth_tokens, clear_auth_token_backup, clear_server_selection
+    backup_auth_tokens, restore_auth_tokens, clear_auth_token_backup, clear_server_selection,
+    sync_session_to_database
 )
 from scheduler import start_scheduler, stop_scheduler, set_server_url
 from sync_manager import SyncManager, create_sync_manager, get_event_queue
 from utils.logging import setup_structlog, get_logger, set_log_level, get_log_level
 from utils.family_logging import log_family_creation, ensure_troubleshooting_section_exists
+from utils.audit_log import (
+    log_login_as_parent_hash_regeneration,
+    log_login_as_parent_hash_regeneration_failure,
+    log_login_as_parent_new_hash_generation,
+    log_login_as_parent_password_stored,
+    log_login_as_parent_direct_hash_stored,
+    log_login_as_parent_salt_validation_failure
+)
+from key_manager import get_or_create_signing_key
 
 # Add parent directory to sys.path for crypto_utils import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from crypto_utils import generate_family_hashes
+from crypto_utils import generate_family_hashes, regenerate_second_hash
 
 # Path to the legacy dashboard.html file (in parent directory)
 LEGACY_DASHBOARD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'dashboard.html')
@@ -122,6 +133,16 @@ def restore_session_from_persistence():
         
         if persisted_own_device_id:
             session['own_device_id'] = persisted_own_device_id
+        
+        # Sync session data to database if needed
+        # This ensures data is persisted after migrations or database resets
+        sync_result = sync_session_to_database()
+        if sync_result.get('device_auth_token_synced'):
+            logger.info(
+                "Session data synced to database during startup",
+                component="session",
+                device_auth_token=session.get('device_auth_token', '')[:8] + '...'
+            )
 
 
 # ============================================================================
@@ -185,6 +206,12 @@ def get_current_server_url() -> str:
         Server URL string.
     """
     # Check persistent storage first (survives container restarts)
+    # First check if server_url is directly stored
+    stored_server_url = persistence_store.get_selected_server_url()
+    if stored_server_url:
+        return stored_server_url
+    
+    # Then check if server_key is stored and look up URL from config
     server_key = persistence_store.get_selected_server_key()
     if server_key:
         server_url = Config.get_server_url(server_key)
@@ -679,6 +706,7 @@ def api_create_family():
     time_zone = data.get('timeZone', 'Europe/Amsterdam')
     parent_name = data.get('parentName', 'Parent')
     locale = data.get('locale')
+    email = data.get('mail')  # Optional email for audit logging
     
     if not mail_auth_token or not parent_password:
         logger.error(
@@ -706,7 +734,8 @@ def api_create_family():
         device_name=device_name,
         time_zone=time_zone,
         parent_name=parent_name,
-        locale=locale
+        locale=locale,
+        email=email
     )
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -775,6 +804,7 @@ def api_create_family_rest():
     time_zone = data.get('timeZone', 'Europe/Amsterdam')
     parent_name = data.get('parentName', 'Parent')
     locale = data.get('locale')
+    email = data.get('mail')  # Optional email for audit logging
     
     if not mail_auth_token or not parent_password:
         logger.error(
@@ -802,7 +832,8 @@ def api_create_family_rest():
         device_name=device_name,
         time_zone=time_zone,
         parent_name=parent_name,
-        locale=locale
+        locale=locale,
+        email=email
     )
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -914,6 +945,162 @@ def api_sign_in_into_family():
             'error_code': response.error_code,
             'error_message': response.error_message
         }), 401
+
+
+# ============================================================================
+# Password Hash Regeneration Endpoint
+# ============================================================================
+
+@app.route('/api/auth/regenerate-hash', methods=['POST'])
+def api_regenerate_hash():
+    """Regenerate password hash from password and existing salt.
+    
+    This endpoint allows users to set their password after login,
+    enabling device removal functionality.
+    
+    Expects JSON body with 'mail' and 'password' fields.
+    
+    Returns:
+        JSON response with the regenerated hash.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    data = request.get_json() or {}
+    mail = data.get('mail', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not mail or not password:
+        logger.error(
+            "Regenerate hash failed: missing required fields",
+            request_id=request_id,
+            error="Missing mail or password"
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'validation',
+            'error_message': 'Mail and password are required'
+        }), 400
+    
+    # Validate password length
+    if len(password) < 8:
+        logger.warning(
+            "Regenerate hash failed: password too short",
+            mail=mail,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'validation',
+            'error_message': 'Password must be at least 8 characters'
+        }), 400
+    
+    server_url = get_current_server_url()
+    device_auth_token = session.get('device_auth_token')
+    
+    if not device_auth_token:
+        logger.warning(
+            "Regenerate hash failed: not authenticated",
+            mail=mail,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Not authenticated'
+        }), 401
+    
+    db = get_database()
+    
+    # Look up family by mail to get existing salt
+    logger.info("Regenerate hash: looking up family", mail=mail, request_id=request_id)
+    family = get_family_by_mail(db, mail)
+    
+    if not family:
+        logger.error(
+            "Regenerate hash failed: family not found",
+            mail=mail,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'not_found',
+            'error_message': 'Family not found for this email'
+        }), 404
+    
+    existing_salt = family.get('parent_password_second_salt')
+    
+    if not existing_salt:
+        logger.error(
+            "Regenerate hash failed: salt missing",
+            mail=mail,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'validation',
+            'error_message': 'Password salt not available for this family'
+        }), 400
+    
+    # Regenerate the hash using the existing salt
+    try:
+        second_hash = regenerate_second_hash(password, existing_salt)
+        password_data = {
+            'hash': generate_family_hashes(password)['hash'],
+            'secondHash': second_hash,
+            'secondSalt': existing_salt
+        }
+        
+        # Store in database
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=device_auth_token,
+            parent_password_hash=password_data['hash'],
+            parent_password_second_hash=password_data['secondHash'],
+            parent_password_second_salt=password_data['secondSalt']
+        )
+        
+        # Store in session
+        session['parent_password_second_hash'] = password_data['secondHash']
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Regenerate hash successful",
+            mail=mail,
+            device_auth_token=device_auth_token[:8] + '...',
+            duration_ms=duration_ms,
+            request_id=request_id
+        )
+        
+        # Log to audit log
+        log_login_as_parent_password_stored(
+            mail=mail,
+            device_auth_token=device_auth_token,
+            password_data=password_data,
+            request_id=request_id,
+            server_url=server_url
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'secondHash': password_data['secondHash'],
+            'hash': password_data['hash'],
+            'secondSalt': password_data['secondSalt']
+        })
+        
+    except Exception as e:
+        logger.error(
+            "Regenerate hash failed: hash generation error",
+            mail=mail,
+            error=str(e),
+            error_type=type(e).__name__,
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error_code': 'server_error',
+            'error_message': 'Failed to generate password hash'
+        }), 500
 
 
 # ============================================================================
@@ -1148,7 +1335,8 @@ def post_create_family():
             device_name=device_name,
             time_zone=time_zone,
             parent_name=parent_name,
-            locale=locale if locale else None
+            locale=locale if locale else None,
+            email=mail
         )
         
         if response.success:
@@ -1177,21 +1365,52 @@ def post_create_family():
             
             # Trigger sync to fetch family data (users, devices, categories)
             # This matches the Android app's behavior of calling pullChanges after create/sign-in
+            # IMPORTANT: Sync must succeed to update lastConnectivity on the server,
+            # otherwise the cleanup worker may delete the family
             device_auth_token = response.data.get('deviceAuthToken')
+            own_device_id = response.data.get('ownDeviceId')
+            
             if device_auth_token:
                 db = get_database()
                 sync_manager = create_sync_manager(db)
-                sync_success = sync_manager.do_sync(device_auth_token, server_url)
-                if sync_success:
-                    logger.info("Sync completed after family creation", request_id=request_id)
-                else:
-                    logger.warning("Sync failed after family creation", request_id=request_id)
+                
+                # Retry sync up to 3 times with exponential backoff
+                max_retries = 3
+                retry_delay = 1
+                sync_success = False
+                
+                for attempt in range(max_retries):
+                    sync_success = sync_manager.do_sync(device_auth_token, server_url, own_device_id)
+                    if sync_success:
+                        # Small delay to ensure lastConnectivity is updated on server
+                        time.sleep(2)
+                        logger.info("Sync completed after family creation", request_id=request_id)
+                        break
+                    else:
+                        if attempt < max_retries - 1:
+                            logger.warning(
+                                "Sync failed after family creation, retrying...",
+                                request_id=request_id,
+                                attempt=attempt + 1
+                            )
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                
+                if not sync_success:
+                    logger.error(
+                        "Sync failed after family creation after all retries",
+                        request_id=request_id
+                    )
+                    session['create_family_error'] = 'Failed to sync with server. Please try again.'
+                    return redirect('/create-family')
                 
                 # Store password hash in database for session restoration
                 upsert_family_password_hash(
                     db=db,
                     device_auth_token=device_auth_token,
-                    parent_password_second_hash=password_data.get('secondHash')
+                    parent_password_hash=password_data.get('hash'),
+                    parent_password_second_hash=password_data.get('secondHash'),
+                    parent_password_second_salt=password_data.get('secondSalt')
                 )
                 logger.info("Password hash stored in database", request_id=request_id)
             
@@ -1257,17 +1476,27 @@ def get_login_as_parent():
     - No mail_login_token: Step 1 - Enter email
     - Has mail_login_token, no mail_auth_token: Step 2 - Enter verification code
     - Has mail_auth_token, no device_auth_token: Step 3 - Enter device info
-    - Has device_auth_token: Already authenticated, redirect to dashboard
+    - Has device_auth_token, no password: Step 4 - Enter password (optional)
+    - Has device_auth_token and password: Already authenticated, redirect to dashboard
     
     Returns:
         Rendered HTML template with the appropriate step.
     """
     request_id = get_request_id()
     
-    # Check if already authenticated
-    if session.get('device_auth_token'):
-        logger.info("User already authenticated, redirecting to dashboard", request_id=request_id)
+    # Check if already authenticated with password
+    if session.get('device_auth_token') and session.get('parent_password_second_hash'):
+        logger.info("User already authenticated with password, redirecting to dashboard", request_id=request_id)
         return redirect('/dashboardV2?message=already_authenticated')
+    
+    # Check if already authenticated (without password)
+    if session.get('device_auth_token'):
+        # User is logged in but hasn't set password yet - show step 4
+        step = 4
+        error = session.pop('login_as_parent_error', None)
+        success = session.pop('login_as_parent_success', None)
+        logger.info("Rendering login as parent step 4 (password optional)", request_id=request_id)
+        return render_template('login_as_parent.html', step=step, error=error, success=success)
     
     # Determine current step based on session state
     has_mail_login_token = session.get('mail_login_token') is not None
@@ -1297,10 +1526,11 @@ def get_login_as_parent():
 def post_login_as_parent():
     """Process login as parent form submission.
     
-    Handles all three steps of the login as parent flow:
+    Handles the 2-step login flow:
     - Step 1: Send mail login code
     - Step 2: Sign in by mail code
-    - Step 3: Sign in to family
+    - Step 3: Sign in to family (password optional)
+    - Step 4: Regenerate hash from password (optional)
     
     Returns:
         Redirect to next step or dashboard on success.
@@ -1335,6 +1565,7 @@ def post_login_as_parent():
         
         if response.success:
             session['mail_login_token'] = response.data.get('mailLoginToken')
+            session['mail'] = mail  # Store mail for later use in step 3
             logger.info("Login as parent step 1 successful", request_id=request_id)
             return redirect('/login-as-parent')
         else:
@@ -1382,10 +1613,11 @@ def post_login_as_parent():
             return redirect('/login-as-parent')
     
     elif step == '3':
-        # Step 3: Sign in to family
+        # Step 3: Sign in to family (password is optional)
         mail_auth_token = session.get('mail_auth_token')
         device_model = request.form.get('deviceModel', '').strip()
         device_name = request.form.get('deviceName', '').strip()
+        password = request.form.get('password', '').strip()
         parent_password_second_hash = request.form.get('parentPasswordSecondHash', '').strip()
         
         if not mail_auth_token:
@@ -1408,63 +1640,357 @@ def post_login_as_parent():
         client = AuthClient(base_url=server_url)
         response = client.sign_in_into_family(
             mail_auth_token=mail_auth_token,
+            parent_password_second_hash=parent_password_second_hash,
             device_name=device_name,
             device_model=device_model,
             client_level=7  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
         )
         
-        if response.success:
-            # Store device auth token in session
-            session['device_auth_token'] = response.data.get('deviceAuthToken')
-            session['own_device_id'] = response.data.get('ownDeviceId')
-            
-            # Store auth token in database for later lookup
-            if response.data.get('deviceAuthToken'):
-                db = get_database()
-                store_auth_token(
-                    db=db,
-                    token_type='device_auth_token',
-                    token_value=response.data.get('deviceAuthToken'),
-                    device_id=response.data.get('ownDeviceId')
-                )
-                logger.info("Auth token stored in database", request_id=request_id)
-                
-                # Persist auth token to file for session restoration after restart
-                set_persisted_device_auth_token(response.data.get('deviceAuthToken'))
-                set_persisted_own_device_id(response.data.get('ownDeviceId'))
-                
-                # Store password hash in database if provided
-                if parent_password_second_hash:
-                    upsert_family_password_hash(
-                        db=db,
-                        device_auth_token=response.data.get('deviceAuthToken'),
-                        parent_password_second_hash=parent_password_second_hash
-                    )
-                    session['parent_password_second_hash'] = parent_password_second_hash
-                    logger.info("Parent password hash stored in database", request_id=request_id)
-            
-            # Clear temporary session data
-            session.pop('mail_login_token', None)
-            session.pop('mail_auth_token', None)
-            
-            # Trigger sync to fetch family data (users, devices, categories)
-            # This matches the Android app's behavior of calling pullChanges after create/sign-in
-            device_auth_token = response.data.get('deviceAuthToken')
-            if device_auth_token:
-                db = get_database()
-                sync_manager = create_sync_manager(db)
-                sync_success = sync_manager.do_sync(device_auth_token, server_url)
-                if sync_success:
-                    logger.info("Sync completed after login", request_id=request_id)
-                else:
-                    logger.warning("Sync failed after login", request_id=request_id)
-            
-            duration_ms = int((time.time() - start_time) * 1000)
-            logger.info("Login as parent successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
-            return redirect('/dashboardV2')
-        else:
+        if not response.success:
             session['login_as_parent_error'] = response.error_message or 'Failed to sign in to family'
             logger.error("Login as parent step 3 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        # Store device auth token in session
+        session['device_auth_token'] = response.data.get('deviceAuthToken')
+        session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        # Store auth token in database for later lookup
+        device_auth_token = response.data.get('deviceAuthToken')
+        own_device_id = response.data.get('ownDeviceId')
+        
+        if device_auth_token:
+            db = get_database()
+            store_auth_token(
+                db=db,
+                token_type='device_auth_token',
+                token_value=device_auth_token,
+                device_id=own_device_id
+            )
+            logger.info("Auth token stored in database", request_id=request_id)
+            
+            # Persist auth token to file for session restoration after restart
+            set_persisted_device_auth_token(device_auth_token)
+            set_persisted_own_device_id(own_device_id)
+            
+            # Create family record with minimal data (device_auth_token and mail)
+            # This ensures the family record exists before password processing
+            mail = session.get('mail')
+            if mail:
+                family_created = create_family_record(db, device_auth_token, mail)
+                if family_created:
+                    logger.info("Family record created after sign-in", mail=mail, device_auth_token=device_auth_token[:8] + '...', request_id=request_id)
+        
+        # Now process password if provided
+        # Generate password hash using existing salt from family record (if available)
+        # STRICT SALT VALIDATION: Never generate a new random salt during login
+        # Only use the existing salt from the family record or fetch from server
+        password_hash_to_send = None
+        password_data_to_store = None
+        if password:
+            db = get_database()
+            mail = session.get('mail')
+            
+            if not mail:
+                # No mail in session - cannot look up family
+                error_msg = 'Session error: email not available for salt lookup'
+                logger.error(
+                    "Salt validation failed: no mail in session",
+                    mail=mail,
+                    request_id=request_id
+                )
+                log_login_as_parent_salt_validation_failure(
+                    mail=mail or 'unknown',
+                    error_type='session_error',
+                    error_message=error_msg,
+                    family_found=False,
+                    salt_available=False,
+                    request_id=request_id,
+                    server_url=server_url
+                )
+                session['login_as_parent_error'] = error_msg
+                return redirect('/login-as-parent')
+            
+            # Look up family by mail to get existing salt
+            logger.info("Looking up family by mail for salt validation", mail=mail, request_id=request_id)
+            family = get_family_by_mail(db, mail)
+            
+            if not family:
+                # Family not found - cannot validate salt
+                error_msg = 'Family not found for this email. Please verify you have an existing family.'
+                logger.error(
+                    "Salt validation failed: family not found",
+                    mail=mail,
+                    request_id=request_id
+                )
+                log_login_as_parent_salt_validation_failure(
+                    mail=mail,
+                    error_type='family_not_found',
+                    error_message=error_msg,
+                    family_found=False,
+                    salt_available=False,
+                    request_id=request_id,
+                    server_url=server_url
+                )
+                session['login_as_parent_error'] = error_msg
+                return redirect('/login-as-parent')
+            
+            existing_salt = family.get('parent_password_second_salt')
+            
+            if not existing_salt:
+                # Salt is missing from family record - this is expected if sync hasn't completed yet
+                # The salt will be fetched from the server during sync
+                logger.info("Salt not yet available in family record, will be fetched from server during sync", mail=mail, request_id=request_id)
+                # Generate a new hash for now - it will be updated after sync
+                # But we should NOT generate a new random salt - use a deterministic approach
+                # For now, we'll proceed without the salt and update it after sync
+                # This is a fallback for the case where the user provides a password in Step 3
+                # and the sync hasn't completed yet
+                error_msg = 'Password salt not yet available. Please enter your password in Step 4 after sync completes.'
+                logger.warning(
+                    "Salt not available in family record - user should use Step 4",
+                    mail=mail,
+                    request_id=request_id
+                )
+                session['login_as_parent_error'] = error_msg
+                return redirect('/login-as-parent')
+            
+            # Salt is available - regenerate the hash using the existing salt
+            logger.info("Salt validation successful - found existing salt", mail=mail, salt=existing_salt, request_id=request_id)
+            try:
+                second_hash = regenerate_second_hash(password, existing_salt)
+                password_hash_to_send = second_hash
+                password_data_to_store = {
+                    'hash': generate_family_hashes(password)['hash'],  # First hash can be new
+                    'secondHash': second_hash,
+                    'secondSalt': existing_salt
+                }
+                logger.info("Successfully regenerated hash using existing salt",
+                            mail=mail,
+                            salt=existing_salt,
+                            secondHash=second_hash,
+                            password_data=password_data_to_store,
+                            request_id=request_id)
+                # Log to audit log for complete visibility
+                log_login_as_parent_hash_regeneration(
+                    mail=mail,
+                    existing_salt=existing_salt,
+                    second_hash=second_hash,
+                    password_data=password_data_to_store,
+                    request_id=request_id,
+                    server_url=server_url
+                )
+            except Exception as e:
+                logger.error("Failed to regenerate hash with existing salt",
+                             mail=mail,
+                             salt=existing_salt,
+                             error=str(e),
+                             error_type=type(e).__name__,
+                             request_id=request_id)
+                # Log failure to audit log with error details
+                log_login_as_parent_hash_regeneration_failure(
+                    mail=mail,
+                    existing_salt=existing_salt,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    request_id=request_id,
+                    server_url=server_url
+                )
+                # Hash regeneration failed - cannot proceed
+                error_msg = 'Failed to regenerate password hash. Please try again.'
+                session['login_as_parent_error'] = error_msg
+                return redirect('/login-as-parent')
+        
+        # Store password hash in database if provided
+        if password_data_to_store:
+            upsert_family_password_hash(
+                db=db,
+                device_auth_token=response.data.get('deviceAuthToken'),
+                parent_password_hash=password_data_to_store['hash'],
+                parent_password_second_hash=password_data_to_store['secondHash'],
+                parent_password_second_salt=password_data_to_store['secondSalt']
+            )
+            session['parent_password_second_hash'] = password_data_to_store['secondHash']
+            logger.info(
+                "Parent password hash stored in database (from password)",
+                mail=session.get('mail'),
+                device_auth_token=response.data.get('deviceAuthToken')[:8] + '...',
+                password_data=password_data_to_store,
+                request_id=request_id
+            )
+            # Log to audit log for complete visibility
+            log_login_as_parent_password_stored(
+                mail=session.get('mail'),
+                device_auth_token=response.data.get('deviceAuthToken'),
+                password_data=password_data_to_store,
+                request_id=request_id,
+                server_url=server_url
+            )
+        elif parent_password_second_hash:
+            # Direct hash input - store only secondHash for backward compatibility
+            upsert_family_password_hash(
+                db=db,
+                device_auth_token=response.data.get('deviceAuthToken'),
+                parent_password_second_hash=parent_password_second_hash
+            )
+            session['parent_password_second_hash'] = parent_password_second_hash
+            logger.info(
+                "Parent password hash stored in database (from direct input)",
+                mail=session.get('mail'),
+                device_auth_token=response.data.get('deviceAuthToken')[:8] + '...',
+                parent_password_second_hash=parent_password_second_hash,
+                request_id=request_id
+            )
+            # Log to audit log for complete visibility
+            log_login_as_parent_direct_hash_stored(
+                mail=session.get('mail'),
+                device_auth_token=response.data.get('deviceAuthToken'),
+                parent_password_second_hash=parent_password_second_hash,
+                request_id=request_id,
+                server_url=server_url
+            )
+        
+        # Clear temporary session data
+        session.pop('mail_login_token', None)
+        session.pop('mail_auth_token', None)
+        
+        # Trigger sync to fetch family data (users, devices, categories)
+        # This matches the Android app's behavior of calling pullChanges after create/sign-in
+        # IMPORTANT: Sync must succeed to update lastConnectivity on the server,
+        # and pass own_device_id to add dashboard to connected devices
+        device_auth_token = response.data.get('deviceAuthToken')
+        own_device_id = response.data.get('ownDeviceId')
+        
+        if device_auth_token:
+            db = get_database()
+            sync_manager = create_sync_manager(db)
+            
+            # Retry sync up to 3 times with exponential backoff
+            max_retries = 3
+            retry_delay = 1
+            sync_success = False
+            
+            for attempt in range(max_retries):
+                sync_success = sync_manager.do_sync(device_auth_token, server_url, own_device_id)
+                if sync_success:
+                    # Small delay to ensure lastConnectivity is updated on server
+                    time.sleep(2)
+                    logger.info("Sync completed after login", request_id=request_id)
+                    break
+                else:
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            "Sync failed after login, retrying...",
+                            request_id=request_id,
+                            attempt=attempt + 1
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+            
+            if not sync_success:
+                logger.error(
+                    "Sync failed after login after all retries",
+                    request_id=request_id
+                )
+                session['login_as_parent_error'] = 'Failed to sync with server. Please try again.'
+                return redirect('/login-as-parent')
+        
+        # Check if password was provided - if so, redirect to dashboard
+        # If not, show step 4 to optionally set password
+        if password_data_to_store:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info("Login as parent successful with password", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
+            return redirect('/dashboardV2')
+        else:
+            # Password not provided - show step 4 to optionally set password
+            logger.info("Login as parent successful without password - showing password step", request_id=request_id)
+            return redirect('/login-as-parent')
+    
+    elif step == '4':
+        # Step 4: Regenerate hash from password (optional)
+        password = request.form.get('password', '').strip()
+        
+        if not password:
+            session['login_as_parent_error'] = 'Password is required'
+            logger.warning("Login as parent step 4 failed: missing password", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        db = get_database()
+        mail = session.get('mail')
+        device_auth_token = session.get('device_auth_token')
+        
+        if not mail:
+            session['login_as_parent_error'] = 'Session error: email not available for salt lookup'
+            logger.error("Step 4 failed: no mail in session", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        if not device_auth_token:
+            session['login_as_parent_error'] = 'Session error: device_auth_token not available'
+            logger.error("Step 4 failed: no device_auth_token in session", request_id=request_id)
+            return redirect('/login-as-parent')
+        
+        # Look up family by mail to get existing salt
+        logger.info("Step 4: looking up family for salt", mail=mail, request_id=request_id)
+        family = get_family_by_mail(db, mail)
+        
+        if not family:
+            error_msg = 'Family not found for this email'
+            logger.error("Step 4 failed: family not found", mail=mail, request_id=request_id)
+            session['login_as_parent_error'] = error_msg
+            return redirect('/login-as-parent')
+        
+        existing_salt = family.get('parent_password_second_salt')
+        
+        if not existing_salt:
+            error_msg = 'Password salt not available for this family. Please contact support.'
+            logger.error("Step 4 failed: salt missing", mail=mail, request_id=request_id)
+            session['login_as_parent_error'] = error_msg
+            return redirect('/login-as-parent')
+        
+        # Regenerate the hash using the existing salt
+        try:
+            second_hash = regenerate_second_hash(password, existing_salt)
+            password_data_to_store = {
+                'hash': generate_family_hashes(password)['hash'],
+                'secondHash': second_hash,
+                'secondSalt': existing_salt
+            }
+            
+            # Store in database
+            upsert_family_password_hash(
+                db=db,
+                device_auth_token=device_auth_token,
+                parent_password_hash=password_data_to_store['hash'],
+                parent_password_second_hash=password_data_to_store['secondHash'],
+                parent_password_second_salt=password_data_to_store['secondSalt']
+            )
+            session['parent_password_second_hash'] = password_data_to_store['secondHash']
+            
+            logger.info("Step 4: password hash regenerated and stored",
+                        mail=mail,
+                        device_auth_token=device_auth_token[:8] + '...',
+                        request_id=request_id)
+            
+            # Log to audit log
+            log_login_as_parent_password_stored(
+                mail=mail,
+                device_auth_token=device_auth_token,
+                password_data=password_data_to_store,
+                request_id=request_id,
+                server_url=server_url
+            )
+            
+            # Show success message
+            session['login_as_parent_success'] = 'Password saved successfully! You can now remove devices using your password.'
+            return redirect('/login-as-parent')
+            
+        except Exception as e:
+            logger.error("Step 4 failed: hash regeneration error",
+                         mail=mail,
+                         error=str(e),
+                         error_type=type(e).__name__,
+                         request_id=request_id)
+            session['login_as_parent_error'] = 'Failed to regenerate password hash. Please try again.'
             return redirect('/login-as-parent')
     
     else:
@@ -1490,6 +2016,228 @@ def cancel_login_as_parent():
     
     logger.info("Login as parent cancelled", request_id=request_id)
     return redirect('/dashboardV2')
+
+
+# ============================================================================
+# Recover Parent Password Routes (Server-Side Rendered)
+# ============================================================================
+
+@app.route('/recover-parent-password', methods=['GET'])
+def get_recover_parent_password():
+    """Render the recover parent password page with the appropriate step.
+    
+    The page shows different forms based on session state:
+    - No mail_login_token: Step 1 - Enter email
+    - Has mail_login_token, no mail_auth_token: Step 2 - Enter verification code
+    - Has mail_auth_token: Step 3 - Enter new password
+    - Already has device_auth_token: Redirect to dashboard
+    
+    Returns:
+        Rendered HTML template with the appropriate step.
+    """
+    request_id = get_request_id()
+    
+    # Check if already authenticated
+    if session.get('device_auth_token'):
+        logger.info("User already authenticated, cannot recover password", request_id=request_id)
+        # Show error on the recover password page instead of redirecting
+        error = "You are already logged in. Please sign out first if you need to recover your password."
+        return render_template('recover_parent_password.html', step=1, error=error)
+    
+    # Determine current step based on session state
+    has_mail_login_token = session.get('mail_login_token') is not None
+    has_mail_auth_token = session.get('mail_auth_token') is not None
+    
+    if not has_mail_login_token:
+        # Step 1: Enter email
+        step = 1
+        error = session.pop('recover_parent_password_error', None)
+        logger.info("Rendering recover parent password step 1 (email)", request_id=request_id)
+        return render_template('recover_parent_password.html', step=step, error=error)
+    elif not has_mail_auth_token:
+        # Step 2: Enter verification code
+        step = 2
+        error = session.pop('recover_parent_password_error', None)
+        logger.info("Rendering recover parent password step 2 (code)", request_id=request_id)
+        return render_template('recover_parent_password.html', step=step, error=error)
+    else:
+        # Step 3: Enter new password
+        step = 3
+        error = session.pop('recover_parent_password_error', None)
+        success = session.pop('recover_parent_password_success', None)
+        logger.info("Rendering recover parent password step 3 (password)", request_id=request_id)
+        return render_template('recover_parent_password.html', step=step, error=error, success=success)
+
+
+@app.route('/recover-parent-password', methods=['POST'])
+def post_recover_parent_password():
+    """Process recover parent password form submission.
+    
+    Handles all three steps of the recover parent password flow:
+    - Step 1: Send mail login code
+    - Step 2: Sign in by mail code
+    - Step 3: Recover parent password
+    
+    Returns:
+        Redirect to next step or dashboard on success.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    step = request.form.get('step', '1')
+    
+    server_url = get_current_server_url()
+    
+    if step == '1':
+        # Step 1: Send mail login code
+        mail = request.form.get('mail', '').strip()
+        
+        if not mail:
+            session['recover_parent_password_error'] = 'Email is required'
+            logger.warning("Recover parent password step 1 failed: missing email", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        # Validate email format
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, mail):
+            session['recover_parent_password_error'] = 'Invalid email format'
+            logger.warning("Recover parent password step 1 failed: invalid email", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        locale = 'en'  # Default locale
+        logger.info("Recover parent password step 1: sending mail login code", server_url=server_url, mail=mail, locale=locale, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.send_mail_login_code(mail=mail, locale=locale)
+        
+        if response.success:
+            session['mail_login_token'] = response.data.get('mailLoginToken')
+            logger.info("Recover parent password step 1 successful", request_id=request_id)
+            return redirect('/recover-parent-password')
+        else:
+            session['recover_parent_password_error'] = response.error_message or 'Failed to send verification code'
+            logger.error("Recover parent password step 1 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/recover-parent-password')
+    
+    elif step == '2':
+        # Step 2: Sign in by mail code
+        mail_login_token = session.get('mail_login_token')
+        received_code = request.form.get('receivedCode', '').strip()
+        
+        if not mail_login_token:
+            session['recover_parent_password_error'] = 'Session expired. Please start again.'
+            logger.warning("Recover parent password step 2 failed: missing mail_login_token", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        if not received_code:
+            session['recover_parent_password_error'] = 'Verification code is required'
+            logger.warning("Recover parent password step 2 failed: missing code", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        # Validate code format (3-word passphrase)
+        code_words = received_code.split()
+        if len(code_words) != 3:
+            session['recover_parent_password_error'] = 'Invalid verification code format (expected 3 words)'
+            logger.warning("Recover parent password step 2 failed: invalid code format", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        logger.info("Recover parent password step 2: verifying code", server_url=server_url, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.sign_in_by_mail_code(
+            mail_login_token=mail_login_token,
+            received_code=received_code
+        )
+        
+        if response.success:
+            session['mail_auth_token'] = response.data.get('mailAuthToken')
+            logger.info("Recover parent password step 2 successful", request_id=request_id)
+            return redirect('/recover-parent-password')
+        else:
+            session['recover_parent_password_error'] = response.error_message or 'Invalid verification code'
+            logger.error("Recover parent password step 2 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/recover-parent-password')
+    
+    elif step == '3':
+        # Step 3: Recover parent password
+        mail_auth_token = session.get('mail_auth_token')
+        new_password = request.form.get('newPassword', '').strip()
+        confirm_password = request.form.get('confirmPassword', '').strip()
+        
+        if not mail_auth_token:
+            session['recover_parent_password_error'] = 'Session expired. Please start again.'
+            logger.warning("Recover parent password step 3 failed: missing mail_auth_token", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        if not new_password:
+            session['recover_parent_password_error'] = 'New password is required'
+            logger.warning("Recover parent password step 3 failed: missing new password", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        if new_password != confirm_password:
+            session['recover_parent_password_error'] = 'Passwords do not match'
+            logger.warning("Recover parent password step 3 failed: password mismatch", request_id=request_id)
+            return redirect('/recover-parent-password')
+        
+        # Generate password hashes using bcrypt with $2a$ prefix
+        logger.info("Recover parent password step 3: generating password hashes", server_url=server_url, request_id=request_id)
+        
+        password_hashes = generate_family_hashes(new_password)
+        new_password_data = {
+            'hash': password_hashes['hash'],
+            'secondHash': password_hashes['secondHash'],
+            'secondSalt': password_hashes['secondSalt']
+        }
+        
+        # Call the API to recover password on the server
+        logger.info("Recover parent password step 3: calling server API", server_url=server_url, request_id=request_id)
+        
+        client = AuthClient(base_url=server_url)
+        response = client.recover_parent_password(
+            mail_auth_token=mail_auth_token,
+            new_password=new_password_data
+        )
+        
+        if response.success:
+            # Get device_auth_token from session if available
+            device_auth_token = session.get('device_auth_token')
+            
+            # Update local database with new password hash
+            if device_auth_token:
+                db = get_database()
+                upsert_family_password_hash(
+                    db=db,
+                    device_auth_token=device_auth_token,
+                    parent_password_hash=password_hashes['hash'],
+                    parent_password_second_hash=password_hashes['secondHash'],
+                    parent_password_second_salt=password_hashes['secondSalt']
+                )
+                session['parent_password_second_hash'] = password_hashes['secondHash']
+                logger.info("Recover parent password: password hash updated in database", request_id=request_id)
+            
+            # Clear temporary session data
+            session.pop('mail_login_token', None)
+            session.pop('mail_auth_token', None)
+            session.pop('mail', None)
+            
+            # Show success message
+            session['recover_parent_password_success'] = 'Password recovered successfully! You can now remove devices using your new password.'
+            
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info("Recover parent password successful", server_url=server_url, duration_ms=duration_ms, request_id=request_id)
+            
+            # Redirect to dashboard if authenticated, otherwise show success on recover page
+            if session.get('device_auth_token'):
+                return redirect('/dashboardV2?message=password_recovered')
+            else:
+                return redirect('/recover-parent-password')
+        else:
+            session['recover_parent_password_error'] = response.error_message or 'Failed to recover password'
+            logger.error("Recover parent password step 3 failed", server_url=server_url, error_code=response.error_code, request_id=request_id)
+            return redirect('/recover-parent-password')
+    
+    else:
+        session['recover_parent_password_error'] = 'Invalid step'
+        return redirect('/recover-parent-password')
 
 
 @app.route('/api/parent/create-add-device-token', methods=['POST'])
@@ -1690,7 +2438,7 @@ def api_get_status_by_mail_address():
 def api_recover_parent_password():
     """Proxy to debug-server /api/v1/parent/recover-parent-password endpoint.
     
-    Expects JSON body with 'mailAuthToken' and 'newPassword' fields.
+    Expects JSON body with 'mailAuthToken' and 'password' fields.
     
     Returns:
         JSON response with status.
@@ -1699,7 +2447,7 @@ def api_recover_parent_password():
     request_id = get_request_id()
     data = request.get_json() or {}
     mail_auth_token = data.get('mailAuthToken')
-    new_password = data.get('newPassword')
+    new_password = data.get('password')
     
     if not mail_auth_token or not new_password:
         logger.error(
@@ -1733,6 +2481,25 @@ def api_recover_parent_password():
             duration_ms=duration_ms,
             request_id=request_id
         )
+        
+        # Update local database with new password hash if device_auth_token is in session
+        device_auth_token = session.get('device_auth_token')
+        if device_auth_token and new_password:
+            db = get_database()
+            password_hash = new_password.get('hash')
+            second_hash = new_password.get('secondHash')
+            second_salt = new_password.get('secondSalt')
+            if password_hash and second_hash and second_salt:
+                upsert_family_password_hash(
+                    db=db,
+                    device_auth_token=device_auth_token,
+                    parent_password_hash=password_hash,
+                    parent_password_second_hash=second_hash,
+                    parent_password_second_salt=second_salt
+                )
+                session['parent_password_second_hash'] = second_hash
+                logger.info("Recover parent password: password hash updated in database", request_id=request_id)
+        
         return jsonify(response.data)
     else:
         logger.error(
@@ -1805,6 +2572,16 @@ def session_status():
             db = get_database()
             parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
     
+    # Check if signing key exists (by checking if the key file exists)
+    # The signing key is generated during sync operations
+    has_signing_key = False
+    try:
+        persistence_dir = config.PERSISTENCE_DIR
+        key_file_path = os.path.join(persistence_dir, 'dashboard_signing_key.json')
+        has_signing_key = os.path.exists(key_file_path)
+    except Exception as e:
+        logger.warning("Failed to check signing key status", error=str(e), request_id=request_id)
+    
     status = {
         'authenticated': 'device_auth_token' in session,
         'server_url': server_url,
@@ -1817,7 +2594,8 @@ def session_status():
         'login_error': session.get('login_error'),
         'configured_app_version': 226,
         'has_parent_password_second_hash': parent_password_second_hash is not None,
-        'parent_password_second_hash': parent_password_second_hash
+        'parent_password_second_hash': parent_password_second_hash,
+        'has_signing_key': has_signing_key
     }
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -2294,107 +3072,70 @@ def api_dashboard_stream():
 # ============================================================================
 # Timechecker Dashboard Routes
 # ============================================================================
-
 @app.route('/api/timechecker/status', methods=['GET'])
 def timechecker_status():
     """Get the current server check status.
     
     Returns:
-        JSON response with the latest server check result.
+        JSON response with the current server check result.
     """
     start_time = time.time()
     request_id = get_request_id()
     server_url = get_current_server_url()
-    force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
     
     logger.info(
         "Timechecker status request",
         server_url=server_url,
-        force_refresh=force_refresh,
         request_id=request_id
     )
     
-    # Get the latest server check from database (skip cache when force_refresh is True)
-    latest_check = None if force_refresh else get_latest_server_check(get_database(), server_url)
+    # Perform a server check
+    client = AuthClient(base_url=server_url)
+    response = client.check_server_connection()
+    client.close()
     
-    if latest_check:
-        duration_ms = int((time.time() - start_time) * 1000)
-        
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    if response.success:
         logger.info(
-            "Timechecker status retrieved from database",
+            "Timechecker status check successful",
             server_url=server_url,
-            success=bool(latest_check['success']),
+            success=True,
             duration_ms=duration_ms,
             request_id=request_id
         )
-        
-        return jsonify({
-            'success': bool(latest_check['success']),
-            'server_time': latest_check.get('server_time'),
-            'error_code': latest_check.get('error_code'),
-            'error_message': latest_check.get('user_message'),
-            'timestamp': latest_check['timestamp'],
-            'attempts': latest_check.get('attempts', 1)
-        })
     else:
-        # No check results yet, perform a new check
-        client = AuthClient(base_url=server_url)
-        response = client.check_server_connection()
-        
-        # Save the result
-        save_server_check(
-            db=get_database(),
-            success=response.success,
+        logger.error(
+            "Timechecker status check failed",
+            server_url=server_url,
+            success=False,
             error_code=response.error_code,
-            user_message=response.error_message,
-            technical_detail=response.technical_detail,
-            server_time=response.data.get('ms') if response.success else None,
-            attempts=1,
-            server_url=server_url
+            error_message=response.error_message,
+            duration_ms=duration_ms,
+            request_id=request_id
         )
-        
-        client.close()
-        
-        duration_ms = int((time.time() - start_time) * 1000)
-        
-        if response.success:
-            logger.info(
-                "Timechecker status check successful",
-                server_url=server_url,
-                success=True,
-                duration_ms=duration_ms,
-                request_id=request_id
-            )
-        else:
-            logger.error(
-                "Timechecker status check failed",
-                server_url=server_url,
-                success=False,
-                error_code=response.error_code,
-                error_message=response.error_message,
-                duration_ms=duration_ms,
-                request_id=request_id
-            )
-        
-        return jsonify({
-            'success': response.success,
-            'server_time': response.data.get('ms') if response.success else None,
-            'error_code': response.error_code,
-            'error_message': response.error_message,
-            'timestamp': int(datetime.now().timestamp() * 1000),
-            'attempts': 1
-        })
-
+    
+    return jsonify({
+        'success': response.success,
+        'server_time': response.data.get('ms') if response.success else None,
+        'error_code': response.error_code,
+        'error_message': response.error_message,
+        'timestamp': int(datetime.now().timestamp() * 1000),
+        'attempts': 1
+    })
 
 @app.route('/api/timechecker/history', methods=['GET'])
 def timechecker_history():
     """Get historical server check results.
     
+    Note: Server checks are no longer stored in the database.
+    This endpoint returns an empty list.
+    
     Query Parameters:
-        limit: Maximum number of results to return (default: 10)
+        limit: Maximum number of results to return (default: 10) - ignored
     
     Returns:
-        JSON response with historical check results.
+        JSON response with empty checks array.
     """
     start_time = time.time()
     request_id = get_request_id()
@@ -2408,26 +3149,25 @@ def timechecker_history():
         request_id=request_id
     )
     
-    # Get checks for the current server
-    checks = get_server_checks(get_database(), limit=limit)
-    
-    # Filter to only include checks for the current server
-    server_checks = [c for c in checks if c.get('server_url') == server_url]
+    # Server checks are no longer stored, return empty list
+    server_checks = []
     
     duration_ms = int((time.time() - start_time) * 1000)
     
     logger.info(
         "Timechecker history retrieved",
         server_url=server_url,
-        total_checks=len(server_checks),
+        total_checks=0,
         duration_ms=duration_ms,
         request_id=request_id
     )
     
     return jsonify({
         'checks': server_checks,
-        'total': len(server_checks)
+        'total': 0
     })
+
+
 
 
 # ============================================================================
@@ -2446,6 +3186,50 @@ def health():
     logger.info("Health check requested", request_id=request_id)
     
     return jsonify({'status': 'healthy'})
+
+
+# ============================================================================
+# Debug Database Viewer Route
+# ============================================================================
+
+@app.route('/debug/database')
+def debug_database():
+    """Render the database viewer page.
+    
+    This route renders the debug_database.html template which displays
+    all tables and their contents for debugging purposes.
+    
+    Returns:
+        Rendered HTML template with database contents.
+    """
+    request_id = get_request_id()
+    
+    logger.info("Debug database page requested", request_id=request_id)
+    
+    try:
+        db = get_database()
+        tables_data = get_all_tables_data(db)
+        
+        # Extract table names for the template
+        tables = list(tables_data.keys())
+        
+        logger.info(
+            "Database data retrieved for debug view",
+            request_id=request_id,
+            table_count=len(tables_data)
+        )
+        
+        return render_template('debug_database.html', tables=tables, table_data=tables_data)
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve database data for debug view",
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve database data'
+        }), 500
 
 
 # ============================================================================
@@ -2500,13 +3284,15 @@ def post_set_parent_password():
     
     # Determine which input was provided
     if parent_password_second_hash:
-        # Direct hash input - use as-is
+        # Direct hash input - use as-is (only secondHash is provided)
         hash_to_store = parent_password_second_hash
+        hash_to_store_full = None
     elif password:
         # Password provided - hash it using generate_family_hashes
         try:
             password_data = generate_family_hashes(password)
             hash_to_store = password_data['secondHash']
+            hash_to_store_full = password_data
         except Exception as e:
             session['set_parent_password_error'] = f'Failed to hash password: {str(e)}'
             logger.error("Failed to hash password", error=str(e), request_id=request_id)
@@ -2521,7 +3307,22 @@ def post_set_parent_password():
     
     # Store hash in database
     db = get_database()
-    upsert_family_password_hash(db, device_auth_token, hash_to_store)
+    if hash_to_store_full:
+        # Store all three hash components when password was provided
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=device_auth_token,
+            parent_password_second_hash=hash_to_store,
+            parent_password_hash=hash_to_store_full['hash'],
+            parent_password_second_salt=hash_to_store_full['secondSalt']
+        )
+    else:
+        # Store only secondHash when direct hash input was provided
+        upsert_family_password_hash(
+            db=db,
+            device_auth_token=device_auth_token,
+            parent_password_second_hash=hash_to_store
+        )
     
     duration_ms = int((time.time() - start_time) * 1000)
     
@@ -2584,6 +3385,47 @@ def api_clear_all():
         'status': 'ok',
         'tables_cleared': tables_cleared,
         'message': 'All data cleared successfully',
+        'duration_ms': duration_ms
+    })
+
+
+# ============================================================================
+# Clear Server Checks Endpoint
+# ============================================================================
+
+@app.route('/api/clear-server-checks', methods=['POST'])
+def api_clear_server_checks():
+    """Clear all server check records from the database.
+    
+    This endpoint removes all historical server check records from the
+    server_checks table. This is useful when the user wants to start fresh
+    without historical data.
+    
+    Returns:
+        JSON response with status and count of cleared records.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    logger.info("Clear server checks request", request_id=request_id)
+    
+    # Clear server checks from database
+    db = get_database()
+    count = clear_server_checks(db)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    logger.info(
+        "Clear server checks completed",
+        rows_deleted=count,
+        duration_ms=duration_ms,
+        request_id=request_id
+    )
+    
+    return jsonify({
+        'status': 'ok',
+        'rows_deleted': count,
+        'message': f'Server checks cleared successfully ({count} records removed)',
         'duration_ms': duration_ms
     })
 

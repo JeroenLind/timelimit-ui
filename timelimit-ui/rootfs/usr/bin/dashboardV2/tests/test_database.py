@@ -23,9 +23,6 @@ from database import (
     Database,
     get_database,
     reset_database,
-    save_server_check,
-    get_server_checks,
-    get_latest_server_check,
     create_family,
     get_family,
     get_family_by_mail,
@@ -197,114 +194,6 @@ class TestDatabaseInitialization:
         finally:
             os.close(db_fd)
             os.unlink(db_path)
-
-
-class TestServerChecks:
-    """Tests for server_checks table operations."""
-    
-    @pytest.fixture
-    def test_db(self):
-        """Create a test database."""
-        db_fd, db_path = tempfile.mkstemp(suffix='.db')
-        db = Database(db_path=db_path)
-        db.init_db()
-        yield db
-        db.close()
-        os.close(db_fd)
-        os.unlink(db_path)
-    
-    @pytest.mark.timeout(10)
-    def test_save_server_check_success(self, test_db):
-        """Test saving a successful server check."""
-        row_id = save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        assert row_id is not None
-        assert row_id > 0
-    
-    @pytest.mark.timeout(10)
-    def test_save_server_check_failure(self, test_db):
-        """Test saving a failed server check."""
-        row_id = save_server_check(
-            db=test_db,
-            success=False,
-            error_code='timeout',
-            user_message='Connection timeout',
-            technical_detail='Timeout after 10s',
-            server_time=None,
-            attempts=3,
-            server_url='http://localhost:8080'
-        )
-        
-        assert row_id is not None
-        assert row_id > 0
-    
-    @pytest.mark.timeout(10)
-    def test_get_server_checks(self, test_db):
-        """Test retrieving server checks."""
-        # Save multiple checks
-        save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        save_server_check(
-            db=test_db,
-            success=False,
-            error_code='unreachable',
-            user_message='Cannot connect',
-            technical_detail='Connection refused',
-            server_time=None,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        checks = get_server_checks(test_db, limit=10)
-        
-        assert len(checks) == 2
-        assert checks[0]['success'] == 0  # Most recent first
-        assert checks[1]['success'] == 1
-    
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check(self, test_db):
-        """Test retrieving the latest server check."""
-        save_server_check(
-            db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
-        latest = get_latest_server_check(test_db, 'http://localhost:8080')
-        
-        assert latest is not None
-        assert latest['success'] == 1
-        assert latest['server_time'] == 1704067200000
-    
-    @pytest.mark.timeout(10)
-    def test_get_latest_server_check_not_found(self, test_db):
-        """Test retrieving latest server check for non-existent server."""
-        latest = get_latest_server_check(test_db, 'http://nonexistent:8080')
-        
-        assert latest is None
 
 
 class TestFamilies:
@@ -779,7 +668,6 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='test_token_123',
             device_id='device_test123',
-            device_auth_token='device_token_test123',
             mail='test@example.com'
         )
         
@@ -803,8 +691,7 @@ class TestAuthTokens:
             db=test_db,
             token_type='device_auth_token',
             token_value='test_token_123',
-            device_id='device_test123',
-            device_auth_token='device_token_test123'
+            device_id='device_test123'
         )
         
         result = delete_auth_token(test_db, 'test_token_123')
@@ -828,7 +715,6 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='expired_token',
             device_id='device_test123',
-            device_auth_token='device_token_test123',
             expires_at=datetime.now(timezone.utc) - timedelta(hours=1)
         )
         
@@ -838,7 +724,6 @@ class TestAuthTokens:
             token_type='device_auth_token',
             token_value='valid_token',
             device_id='device_test123',
-            device_auth_token='device_token_test123',
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
         )
         
@@ -931,15 +816,14 @@ class TestDatabaseThreadSafety:
         
         def save_thread():
             try:
-                save_server_check(
+                create_family(
                     db=test_db,
-                    success=True,
-                    error_code=None,
-                    user_message=None,
-                    technical_detail=None,
-                    server_time=1704067200000,
-                    attempts=1,
-                    server_url='http://localhost:8080'
+                    device_auth_token='device_token_thread_test',
+                    mail='thread_test@example.com',
+                    parent_password_hash='$2b$12$hash1',
+                    parent_password_second_hash='$2b$12$hash2',
+                    parent_password_second_salt='$2b$12$salt',
+                    parent_password_encrypted=False
                 )
             except Exception as e:
                 errors.append(f"Save error: {e}")
@@ -949,9 +833,9 @@ class TestDatabaseThreadSafety:
                 # Give save thread time to complete
                 import time
                 time.sleep(0.1)
-                checks = get_server_checks(test_db, limit=10)
-                if len(checks) == 0:
-                    errors.append("No checks retrieved")
+                family = get_family(test_db, 'device_token_thread_test')
+                if family is None:
+                    errors.append("No family retrieved")
             except Exception as e:
                 errors.append(f"Retrieve error: {e}")
         
@@ -974,15 +858,14 @@ class TestDatabaseThreadSafety:
         This simulates multiple concurrent requests reading from the database.
         """
         # First, save some data
-        save_server_check(
+        create_family(
             db=test_db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
+            device_auth_token='device_token_concurrent_test',
+            mail='concurrent_test@example.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
         )
         
         results = []
@@ -990,8 +873,8 @@ class TestDatabaseThreadSafety:
         
         def read_thread():
             try:
-                checks = get_server_checks(test_db, limit=10)
-                results.append(len(checks))
+                family = get_family(test_db, 'device_token_concurrent_test')
+                results.append(1 if family is not None else 0)
             except Exception as e:
                 errors.append(str(e))
         
@@ -2186,18 +2069,6 @@ class TestClearAllTables:
         # Add sync state
         save_sync_state(db, device_auth_token, 'v1', 'v1')
         
-        # Add server check
-        save_server_check(
-            db=db,
-            success=True,
-            error_code=None,
-            user_message=None,
-            technical_detail=None,
-            server_time=1704067200000,
-            attempts=1,
-            server_url='http://localhost:8080'
-        )
-        
         # Add auth token
         store_auth_token(
             db=db,
@@ -2230,9 +2101,6 @@ class TestClearAllTables:
         sync_state = get_sync_state(test_db, 'test_device_token_123')
         assert sync_state is not None
         
-        checks = get_server_checks(test_db, limit=10)
-        assert len(checks) > 0
-        
         # Clear all tables
         results = clear_all_tables(test_db)
         
@@ -2251,9 +2119,6 @@ class TestClearAllTables:
         
         sync_state = get_sync_state(test_db, 'test_device_token_123')
         assert sync_state is None
-        
-        checks = get_server_checks(test_db, limit=10)
-        assert len(checks) == 0
     
     @pytest.mark.timeout(10)
     def test_clear_all_tables_returns_row_counts(self, test_db):

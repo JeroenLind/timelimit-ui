@@ -79,10 +79,10 @@ class TestPostSetParentPassword:
                 
                 # Verify upsert was called with correct parameters
                 mock_upsert.assert_called_once()
-                call_args = mock_upsert.call_args
-                assert call_args[0][0] == mock_db
-                assert call_args[0][1] == 'test-device-token'
-                assert call_args[0][2] == '$2b$12$testhash123'
+                call_kwargs = mock_upsert.call_args.kwargs
+                assert call_kwargs['db'] == mock_db
+                assert call_kwargs['device_auth_token'] == 'test-device-token'
+                assert call_kwargs['parent_password_second_hash'] == '$2b$12$testhash123'
                 
                 # Verify hash was stored in session
                 with client.session_transaction() as sess:
@@ -108,12 +108,12 @@ class TestPostSetParentPassword:
                 
                 # Verify upsert was called
                 mock_upsert.assert_called_once()
-                call_args = mock_upsert.call_args
-                assert call_args[0][0] == mock_db
-                assert call_args[0][1] == 'test-device-token'
+                call_kwargs = mock_upsert.call_args.kwargs
+                assert call_kwargs['db'] == mock_db
+                assert call_kwargs['device_auth_token'] == 'test-device-token'
                 
                 # Verify the hash is a valid bcrypt hash (starts with $2a$ to match family creation)
-                stored_hash = call_args[0][2]
+                stored_hash = call_kwargs['parent_password_second_hash']
                 assert stored_hash.startswith('$2a$')
                 
                 # Verify hash was stored in session

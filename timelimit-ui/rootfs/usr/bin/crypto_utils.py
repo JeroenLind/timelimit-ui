@@ -30,9 +30,8 @@ def generate_family_hashes(password):
     }
 
 def regenerate_second_hash(password, second_salt):
-    """Regenerate secondHash using an existing salt from the server."""
-    """
-    Regenerate secondHash using an existing salt.
+    """Regenerate secondHash using an existing salt from the server.
+    
     This is needed because the server returns only the salt, not the hash.
     
     Args:

@@ -147,20 +147,19 @@ class Database:
                 )
             ''')
             
-            # Create auth_tokens table - using device_auth_token as foreign key
+            # Create auth_tokens table - token_value stores the device auth token
+            # Note: device_auth_token column removed - token_value stores the actual token
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS auth_tokens (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     token_type TEXT NOT NULL,
                     token_value TEXT NOT NULL UNIQUE,
                     device_id TEXT,
-                    device_auth_token TEXT,
                     mail TEXT,
                     code TEXT,
                     created_at TEXT NOT NULL,
                     expires_at TEXT,
-                    FOREIGN KEY (device_id) REFERENCES devices(id),
-                    FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
+                    FOREIGN KEY (device_id) REFERENCES devices(id)
                 )
             ''')
             
@@ -371,6 +370,82 @@ class Database:
                     component="database",
                     db_path=self.db_path
                 )
+            
+            # Migration: Remove unused device_auth_token column from auth_tokens table
+            cursor.execute("PRAGMA table_info(auth_tokens)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'device_auth_token' in columns:
+                logger.info(
+                    "Running migration: removing unused device_auth_token column from auth_tokens",
+                    component="database",
+                    db_path=self.db_path
+                )
+                # SQLite doesn't support DROP COLUMN in older versions (< 3.35.0)
+                # We need to recreate the table without the column
+                try:
+                    # Try DROP COLUMN first (SQLite 3.35.0+)
+                    cursor.execute('ALTER TABLE auth_tokens DROP COLUMN device_auth_token')
+                    conn.commit()
+                    logger.info(
+                        "Migration completed: device_auth_token column removed from auth_tokens",
+                        component="database",
+                        db_path=self.db_path
+                    )
+                except sqlite3.OperationalError as e:
+                    # If DROP COLUMN is not supported, recreate the table
+                    if "unknown column" in str(e).lower() or "can't drop" in str(e).lower():
+                        logger.info(
+                            "DROP COLUMN not supported, recreating table without device_auth_token column",
+                            component="database",
+                            db_path=self.db_path
+                        )
+                        
+                        # Get current data (excluding the column to drop)
+                        cursor.execute('''
+                            SELECT id, token_type, token_value, device_id, mail, code, created_at, expires_at
+                            FROM auth_tokens
+                        ''')
+                        rows = cursor.fetchall()
+                        
+                        # Create new table without device_auth_token column
+                        cursor.execute('''
+                            CREATE TABLE auth_tokens_new (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                token_type TEXT NOT NULL,
+                                token_value TEXT NOT NULL UNIQUE,
+                                device_id TEXT,
+                                mail TEXT,
+                                code TEXT,
+                                created_at TEXT NOT NULL,
+                                expires_at TEXT,
+                                FOREIGN KEY (device_id) REFERENCES devices(id)
+                            )
+                        ''')
+                        
+                        # Copy data to new table
+                        cursor.executemany('''
+                            INSERT INTO auth_tokens_new (id, token_type, token_value, device_id, mail, code, created_at, expires_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', rows)
+                        
+                        # Drop old table and rename new table
+                        cursor.execute('DROP TABLE auth_tokens')
+                        cursor.execute('ALTER TABLE auth_tokens_new RENAME TO auth_tokens')
+                        conn.commit()
+                        
+                        logger.info(
+                            "Migration completed: table recreated without device_auth_token column",
+                            component="database",
+                            db_path=self.db_path
+                        )
+                    else:
+                        logger.warning(
+                            "Could not drop device_auth_token column",
+                            component="database",
+                            db_path=self.db_path,
+                            error=str(e)
+                        )
 
 
 # ============================================================================
@@ -518,6 +593,37 @@ def get_latest_server_check(
         return result
 
 
+def clear_server_checks(db: Database) -> int:
+    """Clear all server check records from the database.
+    
+    This function removes all historical server check records from the
+    server_checks table. This is useful when the user wants to start fresh
+    without historical data.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        Number of rows deleted.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM server_checks')
+        count = cursor.rowcount
+        conn.commit()
+        
+        logger.info(
+            "Server checks cleared",
+            component="database",
+            db_path=db.db_path,
+            table_name="server_checks",
+            row_count=count
+        )
+        return count
+
+
 # ============================================================================
 # Families Operations
 # ============================================================================
@@ -569,6 +675,100 @@ def create_family(
             table_name="families",
             device_auth_token=device_auth_token
         )
+
+
+def create_family_record(
+    db: Database,
+    device_auth_token: str,
+    mail: str
+) -> bool:
+    """Create a family record with minimal data (device_auth_token and mail).
+    
+    This is used after sign-in to create a family record before the salt
+    is available from the server sync.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Unique device auth token (primary key).
+        mail: Parent email address.
+        
+    Returns:
+        True if created, False if already exists.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Check if family already exists
+        cursor.execute('SELECT 1 FROM families WHERE device_auth_token = ?', (device_auth_token,))
+        if cursor.fetchone():
+            logger.debug(
+                "Family record already exists",
+                component="database",
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+            )
+            return False
+        
+        cursor.execute('''
+            INSERT INTO families
+            (device_auth_token, mail, created_at, parent_password_hash, parent_password_second_hash,
+             parent_password_second_salt, parent_password_encrypted)
+            VALUES (?, ?, ?, NULL, NULL, NULL, 0)
+        ''', (
+            device_auth_token,
+            mail,
+            datetime.now(timezone.utc).isoformat()
+        ))
+        
+        conn.commit()
+        logger.info(
+            "Family record created (minimal)",
+            component="database",
+            db_path=db.db_path,
+            table_name="families",
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            mail=mail
+        )
+        return True
+
+
+def update_family_salt(
+    db: Database,
+    device_auth_token: str,
+    parent_password_second_salt: str
+) -> bool:
+    """Update the salt in an existing family record.
+    
+    This is used after sync to update the family record with the salt
+    fetched from the server.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token (primary key).
+        parent_password_second_salt: The salt to update.
+        
+    Returns:
+        True if updated, False if family not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE families
+            SET parent_password_second_salt = ?
+            WHERE device_auth_token = ?
+        ''', (parent_password_second_salt, device_auth_token))
+        
+        if cursor.rowcount > 0:
+            conn.commit()
+            logger.info(
+                "Family salt updated",
+                component="database",
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+            )
+            return True
+        return False
 
 
 def get_family(db: Database, device_auth_token: str) -> Optional[Dict[str, Any]]:
@@ -864,7 +1064,6 @@ def store_auth_token(
     token_type: str,
     token_value: str,
     device_id: Optional[str] = None,
-    device_auth_token: Optional[str] = None,
     mail: Optional[str] = None,
     code: Optional[str] = None,
     expires_at: Optional[datetime] = None
@@ -876,7 +1075,6 @@ def store_auth_token(
         token_type: Type of token (mail_login_token, mail_auth_token, device_auth_token).
         token_value: The token string.
         device_id: Associated device ID.
-        device_auth_token: Associated device auth token.
         mail: Associated email.
         code: Verification code (for mail_login_token).
         expires_at: Expiration datetime.
@@ -888,13 +1086,12 @@ def store_auth_token(
         # Use INSERT OR REPLACE to handle existing tokens with the same value
         cursor.execute('''
             INSERT OR REPLACE INTO auth_tokens
-            (token_type, token_value, device_id, device_auth_token, mail, code, created_at, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (token_type, token_value, device_id, mail, code, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
             token_type,
             token_value,
             device_id,
-            device_auth_token,
             mail,
             code,
             datetime.now(timezone.utc).isoformat(),
@@ -1152,6 +1349,28 @@ def get_parent_password_hash(db: Database, device_auth_token: str) -> Optional[s
         return row['parent_password_second_hash'] if row else None
 
 
+def get_parent_password_second_salt(db: Database, device_auth_token: str) -> Optional[str]:
+    """Get the parent password second salt for a device auth token.
+    
+    This is used to regenerate the same second hash when logging in as parent,
+    ensuring the hash matches what was stored at family creation time.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Parent password second salt or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT parent_password_second_salt FROM families WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        return row['parent_password_second_salt'] if row else None
+
+
 def get_family_with_valid_hash(db: Database, device_auth_token: str) -> Optional[Dict[str, Any]]:
     """Get family record with validated parent password hash.
     
@@ -1236,6 +1455,8 @@ def upsert_family_password_hash(
     db: Database,
     device_auth_token: str,
     parent_password_second_hash: str,
+    parent_password_hash: Optional[str] = None,
+    parent_password_second_salt: Optional[str] = None,
     mail: Optional[str] = None
 ) -> bool:
     """Upsert the family's parent password hash.
@@ -1250,7 +1471,9 @@ def upsert_family_password_hash(
     Args:
         db: Database instance.
         device_auth_token: The device auth token (primary key).
-        parent_password_second_hash: The parent password hash to store.
+        parent_password_second_hash: The second bcrypt hash of the password (required).
+        parent_password_hash: The first bcrypt hash of the password (optional, for full recovery).
+        parent_password_second_salt: The salt used for the second hash (optional, for full recovery).
         mail: Optional email address (uses placeholder if not provided).
         
     Returns:
@@ -1262,8 +1485,10 @@ def upsert_family_password_hash(
         
         # Try UPDATE first
         cursor.execute('''
-            UPDATE families SET parent_password_second_hash = ? WHERE device_auth_token = ?
-        ''', (parent_password_second_hash, device_auth_token))
+            UPDATE families
+            SET parent_password_hash = ?, parent_password_second_hash = ?, parent_password_second_salt = ?
+            WHERE device_auth_token = ?
+        ''', (parent_password_hash, parent_password_second_hash, parent_password_second_salt, device_auth_token))
         
         if cursor.rowcount > 0:
             conn.commit()
@@ -1277,13 +1502,15 @@ def upsert_family_password_hash(
         # If no row was updated, try INSERT
         placeholder_mail = mail or "pending@unknown"
         cursor.execute('''
-            INSERT INTO families (device_auth_token, mail, created_at, parent_password_second_hash)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO families (device_auth_token, mail, created_at, parent_password_hash, parent_password_second_hash, parent_password_second_salt)
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', (
             device_auth_token,
             placeholder_mail,
             datetime.now(timezone.utc).isoformat(),
-            parent_password_second_hash
+            parent_password_hash,
+            parent_password_second_hash,
+            parent_password_second_salt
         ))
         
         conn.commit()
@@ -1803,3 +2030,91 @@ def clear_all_tables(db: Database) -> Dict[str, int]:
         Dictionary with table names as keys and row counts deleted as values.
     """
     return db.clear_all_tables()
+
+
+# ============================================================================
+# Database Viewer Functions
+# ============================================================================
+
+def get_all_tables(db: Database) -> List[str]:
+    """Get all table names in the database.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        List of table names.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = [row[0] for row in cursor.fetchall()]
+        return tables
+
+
+def get_table_data(db: Database, table_name: str) -> Dict[str, Any]:
+    """Get all data from a specific table.
+    
+    Args:
+        db: Database instance.
+        table_name: Name of the table to query.
+        
+    Returns:
+        Dictionary with 'columns' and 'rows' keys.
+        'columns' is a list of column names.
+        'rows' is a list of dictionaries (one per row).
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(f'SELECT * FROM {table_name}')
+            rows = cursor.fetchall()
+            
+            # Get column names from cursor description
+            columns = [description[0] for description in cursor.description] if cursor.description else []
+            
+            # Convert rows to list of dictionaries
+            row_dicts = [dict(row) for row in rows]
+            
+            return {
+                'columns': columns,
+                'rows': row_dicts,
+                'error': None
+            }
+        except Exception as e:
+            logger.error(
+                f"Failed to get data from table {table_name}",
+                component="database",
+                table=table_name,
+                error=str(e)
+            )
+            return {
+                'columns': [],
+                'rows': [],
+                'error': str(e)
+            }
+
+
+def get_all_tables_data(db: Database) -> Dict[str, Dict[str, Any]]:
+    """Get all data from all tables in the database.
+    
+    Args:
+        db: Database instance.
+        
+    Returns:
+        Dictionary with table names as keys, each containing:
+        - 'columns': List of column names
+        - 'rows': List of row dictionaries
+        - 'error': Error message if any
+    """
+    tables = get_all_tables(db)
+    result = {}
+    
+    for table in tables:
+        result[table] = get_table_data(db, table)
+    
+    return result

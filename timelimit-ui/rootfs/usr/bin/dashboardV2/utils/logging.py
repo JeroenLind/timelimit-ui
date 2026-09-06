@@ -33,7 +33,8 @@ from structlog.stdlib import (
 def _sanitize_dict(data: dict) -> dict:
     """Sanitize sensitive data from log records.
     
-    Removes or masks sensitive fields like passwords, tokens, and secrets.
+    Removes or masks sensitive fields like tokens, secrets, and keys.
+    Note: Password-related keys are NOT sanitized for audit logging purposes.
     
     Args:
         data: Dictionary potentially containing sensitive data.
@@ -42,7 +43,8 @@ def _sanitize_dict(data: dict) -> dict:
         Sanitized dictionary with sensitive data masked.
     """
     sensitive_keys = {
-        'password', 'password_hash', 'second_hash', 'second_salt',
+        # Password-related keys are NOT sanitized for audit logging purposes
+        # 'password', 'password_hash', 'second_hash', 'second_salt',
         'token', 'access_token', 'refresh_token', 'device_auth_token',
         'mail_auth_token', 'mail_login_token',
         'parent_password_second_hash', 'parentpasswordsecondhash',

@@ -1332,6 +1332,37 @@ class TestSessionStatus:
         # Session hash should take precedence
         assert data['has_parent_password_second_hash'] is True
         assert data['parent_password_second_hash'] == '$2a$12$hash_in_session'
+    
+    @pytest.mark.timeout(10)
+    def test_session_status_includes_has_signing_key(self, client):
+        """Test session status includes has_signing_key field."""
+        # Mock the pre-loaded tokens to simulate no persisted session
+        import app as app_module
+        app_module._preloaded_device_auth_token = None
+        app_module._preloaded_own_device_id = None
+        
+        response = client.get('/api/session/status')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # Verify has_signing_key field is present
+        assert 'has_signing_key' in data
+        # By default, should be False when no signing key file exists
+        assert isinstance(data['has_signing_key'], bool)
+    
+    @pytest.mark.timeout(10)
+    def test_session_status_has_signing_key_true_when_file_exists(self, client):
+        """Test session status shows has_signing_key=True when signing key file exists."""
+        # Mock the pre-loaded tokens to simulate no persisted session
+        import app as app_module
+        app_module._preloaded_device_auth_token = None
+        app_module._preloaded_own_device_id = None
+        
+        response = client.get('/api/session/status')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # When signing key file exists, should be True
+        # Note: The test environment has dashboard_signing_key.json present
+        assert data['has_signing_key'] is True
 
 
 
@@ -2111,3 +2142,115 @@ class TestApiDashboardDevicesRemove:
         data = json.loads(response.data)
         assert data['status'] == 'error'
         assert data['error'] == 'Parent user ID not found'
+
+
+class TestDebugDatabase:
+    """Tests for /debug/database endpoint."""
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_returns_html(self, client):
+        """Test that debug database returns HTML response."""
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        assert response.content_type == 'text/html; charset=utf-8'
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_contains_database_viewer(self, client):
+        """Test that debug database page contains database viewer elements."""
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Check for expected elements in the template
+        assert 'Database Viewer' in html
+        assert 'Back to Dashboard' in html
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_shows_tables(self, client):
+        """Test that debug database shows table names."""
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Check that at least some tables are shown
+        # The database should have tables like server_checks, families, devices, etc.
+        assert 'server_checks' in html or 'families' in html or 'devices' in html
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_shows_row_counts(self, client):
+        """Test that debug database shows row counts for tables."""
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Check for row count display
+        assert 'rows' in html.lower() or 'row' in html.lower()
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_handles_empty_database(self, client):
+        """Test that debug database handles empty database gracefully."""
+        # Clear all tables first
+        db = client.application.test_db
+        from database import clear_all_tables
+        clear_all_tables(db)
+
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Should still render the page, just with empty tables
+        assert 'Database Viewer' in html
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_shows_table_data(self, client):
+        """Test that debug database shows actual table data."""
+        # Add some test data
+        db = client.application.test_db
+        from database import create_family, store_auth_token
+
+        create_family(
+            db=db,
+            device_auth_token='test_device_token_for_debug',
+            mail='debug@test.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+
+        store_auth_token(
+            db=db,
+            token_type='device_auth_token',
+            token_value='test_device_token_for_debug',
+            device_id='test_device_id',
+            mail='debug@test.com'
+        )
+
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Check that the test data is visible
+        assert 'debug@test.com' in html or 'test_device_token_for_debug' in html
+
+    @pytest.mark.timeout(10)
+    def test_debug_database_shows_multiple_tables(self, client):
+        """Test that debug database shows multiple tables."""
+        response = client.get('/debug/database')
+
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        # Should show multiple tables
+        # Check for common table names that should exist
+        table_names = ['server_checks', 'families', 'devices', 'auth_tokens', 'users', 'sync_state', 'categories', 'connected_devices']
+        found_tables = [name for name in table_names if name in html]
+
+        # At least some tables should be present
+        assert len(found_tables) > 0
