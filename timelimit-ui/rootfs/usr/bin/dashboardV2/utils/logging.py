@@ -362,7 +362,3 @@ def get_log_level() -> str:
         The current log level string (DEBUG, INFO, WARNING, ERROR, CRITICAL).
     """
     return _current_log_level
-
-
-# Initialize logging when module is imported
-setup_structlog()

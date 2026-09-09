@@ -1002,6 +1002,64 @@ def delete_device(db: Database, device_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+def remove_stale_devices(
+    db: Database,
+    device_auth_token: str,
+    server_device_ids: List[str],
+    own_device_id: Optional[str] = None
+) -> tuple[int, List[str]]:
+    """Remove devices that exist locally but not on the server.
+    
+    This function identifies and removes stale device records from the local
+    database. A device is considered stale if it exists in the local database
+    for the given device_auth_token but is not present in the server's device list.
+    
+    The dashboard's own device is excluded from removal to prevent the dashboard
+    from removing itself from the connected devices list.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to match devices against.
+        server_device_ids: List of device IDs from the server.
+        own_device_id: Optional dashboard's own device ID to exclude from removal.
+        
+    Returns:
+        A tuple of (count of removed devices, list of removed device IDs).
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Get all local devices for this device_auth_token
+        cursor.execute(
+            'SELECT id FROM devices WHERE device_auth_token = ?',
+            (device_auth_token,)
+        )
+        local_device_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Find stale devices (exist locally but not on server)
+        server_device_set = set(server_device_ids)
+        stale_device_ids = [
+            device_id for device_id in local_device_ids
+            if device_id not in server_device_set
+        ]
+        
+        # Exclude own device from removal if provided
+        if own_device_id and own_device_id in stale_device_ids:
+            stale_device_ids.remove(own_device_id)
+        
+        # Delete stale devices
+        removed_count = 0
+        for device_id in stale_device_ids:
+            cursor.execute('DELETE FROM devices WHERE id = ?', (device_id,))
+            removed_count += 1
+        
+        if removed_count > 0:
+            conn.commit()
+        
+        return removed_count, stale_device_ids
+
+
 def get_user_by_id(db: Database, user_id: str) -> Optional[Dict[str, Any]]:
     """Get a user by their ID.
     

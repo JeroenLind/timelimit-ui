@@ -1017,3 +1017,46 @@ def log_login_as_parent_salt_validation_failure(
         request_id=request_id,
         server_url=server_url
     )
+
+
+# ============================================================================
+# Stale Device Removal Audit Logging
+# ============================================================================
+
+def log_stale_device_removal(
+    device_auth_token: str,
+    removed_device_ids: List[str],
+    own_device_id: Optional[str] = None,
+    request_id: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log stale device removal during sync operation.
+    
+    This function logs when devices are removed as stale during sync,
+    including the device auth token, list of removed device IDs, and
+    whether the dashboard's own device was excluded from removal.
+    
+    Args:
+        device_auth_token: The device auth token for the sync operation.
+        removed_device_ids: List of device IDs that were removed as stale.
+        own_device_id: The dashboard's own device ID (excluded from removal).
+        request_id: Optional request ID for correlation.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'stale_device_removal',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        removed_device_ids=removed_device_ids,
+        removed_count=len(removed_device_ids),
+        own_device_id=own_device_id,
+        own_device_excluded=own_device_id is not None and own_device_id not in removed_device_ids,
+        request_id=request_id
+    )

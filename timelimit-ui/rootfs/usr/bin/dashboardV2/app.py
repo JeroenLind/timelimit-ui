@@ -346,7 +346,8 @@ def dashboard_v2():
                 device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
             )
             sync_manager = create_sync_manager(db)
-            sync_success = sync_manager.do_sync(device_auth_token, server_url)
+            own_device_id = session.get("own_device_id")
+            sync_success = sync_manager.do_sync(device_auth_token, server_url, own_device_id)
             if sync_success:
                 logger.info("Sync completed on dashboard load", request_id=request_id)
             else:
@@ -2660,7 +2661,8 @@ def api_sync_pull():
     try:
         db = get_database()
         manager = create_sync_manager(db)
-        success = manager.do_sync(device_auth_token, server_url)
+        own_device_id = session.get('own_device_id')
+        success = manager.do_sync(device_auth_token, server_url, own_device_id)
         
         duration_ms = int((time.time() - start_time) * 1000)
         

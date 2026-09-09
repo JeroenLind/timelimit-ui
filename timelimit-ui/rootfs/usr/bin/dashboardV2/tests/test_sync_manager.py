@@ -112,13 +112,13 @@ class TestAddOwnDeviceToConnectedDevices:
     def test_add_own_device_uses_existing_device_record(self, test_db):
         """Test that adding own device updates existing device record with dashboard info.
         
-        The dashboard device should always have the correct platform info and name,
-        even if a previous record had different values.
+        The dashboard device should have the correct platform info and name,
+        preserving the name from the server if it exists.
         """
         from database import create_device, get_device
         from config import Config
         
-        # Create a device record with a custom name first (simulating old data)
+        # Create a device record with a custom name first (simulating data from server)
         create_device(
             db=test_db,
             device_id='dashboard_device_1',
@@ -135,9 +135,10 @@ class TestAddOwnDeviceToConnectedDevices:
         )
         
         # Verify the device record is updated with dashboard platform info
+        # but preserves the name from the server
         device = get_device(test_db, 'dashboard_device_1')
         assert device is not None
-        assert device['name'] == Config.DASHBOARD_DEVICE_NAME  # 'Dashboard'
+        assert device['name'] == 'Custom Dashboard Name'  # Preserved from server
         assert device['platform_type'] == 'dashboard'
         assert device['platform_level'] == 1
     
@@ -150,6 +151,8 @@ class TestAddOwnDeviceToConnectedDevices:
         current_app_version, highest_app_version, and public_key fields that were set
         by _save_device_from_server() and update_device_app_version() earlier in the
         do_sync() flow.
+        
+        The device name is also preserved from the server if it exists.
         """
         from database import create_device, get_device, update_device_app_version
         from config import Config
@@ -159,7 +162,7 @@ class TestAddOwnDeviceToConnectedDevices:
             db=test_db,
             device_id='dashboard_device_1',
             device_auth_token='device_token_123',
-            name='Old Name',
+            name='Living Room TV',
             model='Pixel 7',
             current_user_id='user123',
             current_protection_level=2,
@@ -180,7 +183,7 @@ class TestAddOwnDeviceToConnectedDevices:
         # Verify ALL existing fields are preserved
         device = get_device(test_db, 'dashboard_device_1')
         assert device is not None
-        assert device['name'] == Config.DASHBOARD_DEVICE_NAME  # 'Dashboard'
+        assert device['name'] == 'Living Room TV'  # Preserved from server
         assert device['platform_type'] == 'dashboard'
         assert device['platform_level'] == 1
         # These fields must be preserved from the existing record
@@ -289,6 +292,37 @@ class TestAddOwnDeviceToConnectedDevices:
         dashboard_device = next((d for d in devices if d.get('device_id') == 'dashboard_device_1'), None)
         assert dashboard_device is not None
         assert dashboard_device['name'] == Config.DASHBOARD_DEVICE_NAME
+    
+    def test_add_own_device_uses_default_name_when_no_name(self, test_db):
+        """Test that dashboard device gets default 'Dashboard' name when server provides no name.
+        
+        This tests the scenario where:
+        1. Device record exists but has no name (name is None or empty)
+        2. _add_own_device_to_connected_devices should use the default "Dashboard" name
+        """
+        from database import create_device, get_device
+        from config import Config
+        
+        # Create a device record with no name (simulating server response without name)
+        create_device(
+            db=test_db,
+            device_id='dashboard_device_1',
+            device_auth_token='device_token_123',
+            name=None  # No name from server
+        )
+        
+        manager = SyncManager(test_db)
+        
+        # Add the dashboard's own device (should use default name)
+        manager._add_own_device_to_connected_devices(
+            device_auth_token='device_token_123',
+            own_device_id='dashboard_device_1'
+        )
+        
+        # Verify the device record has the default name
+        device = get_device(test_db, 'dashboard_device_1')
+        assert device is not None
+        assert device['name'] == Config.DASHBOARD_DEVICE_NAME  # 'Dashboard'
 
 
 class TestSyncManagerInitialization:

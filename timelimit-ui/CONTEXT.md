@@ -164,6 +164,82 @@ UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken
    - Triggers sync to fetch family data
    - Redirects to dashboard or shows password step
 
+### Issue 14: Double Log File Creation on Startup
+
+**Root Cause:**
+When the dashboard starts, two log files are created with timestamps 1 second apart, and one is always empty. This was caused by double initialization of the logging system:
+
+1. **First call (implicit)**: When `utils.logging` module is imported, the module-level code at the bottom of `logging.py` (lines 367-368) calls `setup_structlog()` with default parameters:
+   ```python
+   # Initialize logging when module is imported
+   setup_structlog()
+   ```
+
+2. **Second call (explicit)**: In `app.py` (lines 70-79), there's an explicit call to `setup_structlog()` with configuration from `Config()`:
+   ```python
+   setup_structlog(
+       log_level=Config().LOG_LEVEL,
+       log_file_path=Config().LOG_FILE_PATH,
+       ...
+   )
+   ```
+
+When `setup_structlog()` is called with `rotate_on_start=True` (the default), it:
+1. Generates a unique timestamped filename using `generate_unique_log_path()`
+2. Creates a `RotatingFileHandler` pointing to that file
+3. Adds the handler to the root logger
+
+When `setup_structlog()` is called a second time:
+1. It generates a NEW unique timestamped filename (1 second later)
+2. It clears all existing handlers from the root logger
+3. It creates a NEW `RotatingFileHandler` pointing to the new file
+4. The first file is now orphaned - no handler is writing to it
+
+**Fix Applied:**
+Removed the module-level `setup_structlog()` call from `logging.py` (lines 367-368). The explicit call in `app.py` is the correct place to initialize logging with proper configuration.
+
+**File Modified:**
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/utils/logging.py` - Removed module-level `setup_structlog()` call
+
+### Issue 15: Device Name Overwritten with "Dashboard" During Family Login
+
+**Root Cause:**
+When a user enters a device name during family login (create_family or sign_in_into_family), the device name is sent to the server. However, during the sync process, the `_add_own_device_to_connected_devices()` method in `sync_manager.py` always overwrites the device name with `Config.DASHBOARD_DEVICE_NAME` (hardcoded as "Dashboard"), even when the server has already provided the user's chosen device name.
+
+The flow was:
+1. User enters device name during family login (e.g., "Living Room TV")
+2. Device name is sent to server during `create_family` or `sign_in_into_family`
+3. Server returns `deviceAuthToken` and `ownDeviceId`
+4. During sync, `_save_device_from_server()` saves the device with the correct name from server
+5. `_add_own_device_to_connected_devices()` **overwrites** the name with "Dashboard"
+
+**Fix Applied:**
+1. Modified `_add_own_device_to_connected_devices()` in `sync_manager.py` to preserve the device name from the server if it exists
+2. Only use `Config.DASHBOARD_DEVICE_NAME` as a fallback when the device has no name
+3. Added logic to check if `existing_device.get('name')` exists before overwriting
+4. Added `device_name` to the log message for debugging
+
+**Code Change in `sync_manager.py`:**
+```python
+# Use existing name from server if available, otherwise use default
+device_name = existing_device.get('name')
+if not device_name:
+    device_name = Config.DASHBOARD_DEVICE_NAME
+
+create_device(
+    db=self.db,
+    device_id=own_device_id,
+    device_auth_token=device_auth_token,
+    name=device_name,  # Preserved from server or default
+    ...
+)
+```
+
+**Tests Updated:**
+- Updated `test_add_own_device_uses_existing_device_record` to verify name is preserved
+- Updated `test_add_own_device_preserves_all_existing_fields` to verify name is preserved
+- Added `test_add_own_device_uses_default_name_when_no_name` to verify default name is used when server provides no name
+
 ## Files Modified
 
 ### 1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py`
@@ -222,6 +298,8 @@ UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken
 - Removed `device_auth_token` parameter from `store_auth_token()` call in `store_sync_credentials()`
 - **Added `update_family_salt` to imports from `database.py`**
 - **Updated `_apply_server_data_status()` to update family record with salt from parent user data**
+- **Updated `_add_own_device_to_connected_devices()` to preserve device name from server instead of always overwriting with "Dashboard"**
+- **Added `device_name` to log message for debugging device name preservation**
 
 ### 6. `timelimit-ui/rootfs/usr/bin/dashboardV2/scheduler.py`
 - Removed `save_server_check` from imports
@@ -256,6 +334,9 @@ UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken
 - **Added tests for password hash generation when no salt exists**
 - **Added 4 new tests in `TestPasswordHashRegeneration` class**
 - **Updated `test_post_login_as_parent_fails_when_no_salt_available` to verify redirect to Step 4 when salt is not available**
+
+### 12. `timelimit-ui/rootfs/usr/bin/dashboardV2/utils/logging.py`
+- **Removed module-level `setup_structlog()` call that caused double log file creation**
 
 ## Current Status
 - ✅ **Fix Applied**: Updated password hint text in login_as_parent.html to "Enter your password to log in as a parent"
@@ -303,7 +384,9 @@ UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken
 - ✅ **Fix Applied**: Create family record after sign-in to ensure family exists before password processing
 - ✅ **Fix Applied**: Update family salt from sync response to fetch salt from server
 - ✅ **Fix Applied**: Removed duplicate `sign_in_into_family()` call that caused 401 Unauthorized errors
-- ✅ **Tests Pass**: 978 tests pass (all tests passing)
+- ✅ **Fix Applied**: Removed module-level `setup_structlog()` call from logging.py to prevent double log file creation
+- ✅ **Fix Applied**: Updated `_add_own_device_to_connected_devices()` to preserve device name from server instead of overwriting with "Dashboard"
+- ✅ **Tests Pass**: 979 tests pass (all tests passing)
 
 ## Mail Auth Token Display Fix
 
@@ -536,6 +619,11 @@ Before attempting device removal, verify:
 - [x] Family record is created after sign-in to ensure family exists before password processing
 - [x] Family salt is updated from sync response to fetch salt from server
 - [x] Duplicate `sign_in_into_family()` call removed to prevent 401 Unauthorized errors
+
+### Double Log File Creation Fix Verification
+- [x] Removed module-level `setup_structlog()` call from `logging.py`
+- [x] Only one log file is created on startup
+- [x] Log file is not empty after startup
 
 All verification items are now satisfied after the fixes applied.
 

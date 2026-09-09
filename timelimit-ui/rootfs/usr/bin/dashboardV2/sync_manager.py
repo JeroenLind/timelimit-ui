@@ -30,10 +30,11 @@ from database import (
     update_device_app_version,
     get_next_sequence_number, increment_sequence_number,
     create_device, get_device, delete_auth_token,
-    update_family_salt
+    update_family_salt, remove_stale_devices
 )
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
+from utils.audit_log import log_stale_device_removal
 from key_manager import get_or_create_signing_key
 
 logger = get_logger(__name__)
@@ -146,7 +147,7 @@ class SyncManager:
                     )
             
             # Apply server data to database
-            self._apply_server_data_status(response.data, device_auth_token)
+            self._apply_server_data_status(response.data, device_auth_token, own_device_id)
             
             # Update sync state
             self._update_sync_state(response.data, device_auth_token)
@@ -244,13 +245,15 @@ class SyncManager:
     def _apply_server_data_status(
         self,
         server_data: Dict[str, Any],
-        device_auth_token: str
+        device_auth_token: str,
+        own_device_id: Optional[str] = None
     ) -> None:
         """Apply ServerDataStatus to local database.
         
         Args:
             server_data: ServerDataStatus from pull-status response.
             device_auth_token: Device auth token for the data.
+            own_device_id: Optional dashboard's own device ID to exclude from stale removal.
         """
         request_id = get_request_id()
         
@@ -264,6 +267,32 @@ class SyncManager:
                 request_id=request_id,
                 device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(devices)
+            )
+        
+        # Remove stale devices (devices that exist locally but not on server)
+        # Get the list of server device IDs
+        server_device_ids = []
+        if 'devices' in server_data and 'data' in server_data['devices']:
+            server_device_ids = [d.get('id') for d in server_data['devices']['data'] if d.get('id')]
+        
+        # Remove stale devices and log the removal
+        removed_count, removed_device_ids = remove_stale_devices(
+            self.db, device_auth_token, server_device_ids, own_device_id
+        )
+        if removed_count > 0:
+            logger.info(
+                "Removed stale devices during sync",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                removed_count=removed_count,
+                removed_device_ids=removed_device_ids
+            )
+            # Log to audit log for verification
+            log_stale_device_removal(
+                device_auth_token=device_auth_token,
+                removed_device_ids=removed_device_ids,
+                own_device_id=own_device_id,
+                request_id=request_id
             )
         
         # Store users
@@ -355,12 +384,22 @@ class SyncManager:
         # so we must pass existing values to avoid losing data that was set
         # by _save_device_from_server() and update_device_app_version() earlier
         # in the do_sync() flow (e.g., model, current_user_id, app version, etc.)
+        #
+        # IMPORTANT: Preserve the device name from the server if it exists.
+        # The name was set by _save_device_from_server() during sync and represents
+        # the user's chosen device name during family login. Only use the default
+        # "Dashboard" name if no name exists yet.
         if existing_device:
+            # Use existing name from server if available, otherwise use default
+            device_name = existing_device.get('name')
+            if not device_name:
+                device_name = Config.DASHBOARD_DEVICE_NAME
+            
             create_device(
                 db=self.db,
                 device_id=own_device_id,
                 device_auth_token=device_auth_token,
-                name=Config.DASHBOARD_DEVICE_NAME,
+                name=device_name,
                 model=existing_device.get('model'),
                 current_user_id=existing_device.get('current_user_id'),
                 current_protection_level=existing_device.get('current_protection_level', 0),
@@ -378,7 +417,8 @@ class SyncManager:
                 own_device_id=own_device_id,
                 platform_type='dashboard',
                 platform_level=1,
-                has_signing_key=bool(existing_device.get('public_key'))
+                has_signing_key=bool(existing_device.get('public_key')),
+                device_name=device_name
             )
         else:
             # No existing device record - create a new one with platform info

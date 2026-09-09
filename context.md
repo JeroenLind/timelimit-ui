@@ -582,6 +582,54 @@ The device removal request failed with 401 Unauthorized because:
 
 ---
 
+## Dashboard Device Not Showing in Family Devices Overview (2026-09-07) ✅ FIXED
+
+### Overview
+When starting the dashboard, it successfully logged in to the TimeLimit server, but the dashboard device didn't appear in the "family devices overview". This was caused by the `api_sync_pull()` function not passing the `own_device_id` to the `do_sync()` method.
+
+### Root Cause Analysis
+
+**Primary Issue:** The `api_sync_pull()` function in `app.py` (line 2664) called `manager.do_sync(device_auth_token, server_url)` without passing the `own_device_id` parameter.
+
+**Impact:** Without `own_device_id`, the `_add_own_device_to_connected_devices()` method was never called (line 180-184 in sync_manager.py), so the dashboard device was never added to the connected devices list.
+
+**Evidence from logs:**
+- Line 59 of dashboard log: `"has_own_device_id": false` - The sync was started WITHOUT an own_device_id
+- Line 33 of dashboard log: `"own_device_id": "L5Keyt"` - The session DID have the own_device_id
+- Line 87: `"devices_count": 0` - No devices were synced
+
+### Fix Applied
+
+Modified `app.py` line 2664 to pass the `own_device_id` from the session to the `do_sync()` method:
+
+```python
+# Before:
+success = manager.do_sync(device_auth_token, server_url)
+
+# After:
+own_device_id = session.get('own_device_id')
+success = manager.do_sync(device_auth_token, server_url, own_device_id)
+```
+
+### Verification
+
+- ✅ All 978 tests pass
+- ✅ All 31 sync_manager tests pass
+- ✅ All 4 dashboard API sync tests pass
+- ✅ The fix ensures the dashboard device is added to the connected devices list during sync
+
+### Related Code Flow
+
+1. User logs in via "Login as Parent" flow
+2. `own_device_id` is stored in session (app.py line 1657)
+3. Dashboard page loads and calls `/api/sync/pull`
+4. `api_sync_pull()` retrieves `own_device_id` from session
+5. `do_sync()` is called with `own_device_id`
+6. `_add_own_device_to_connected_devices()` is called to add dashboard to connected devices
+7. Dashboard appears in "family devices overview"
+
+---
+
 ## Next Steps
 
 - Investigate if password change occurred between 2026-09-05T10:41:55 and 2026-09-05T17:54:59
