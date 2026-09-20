@@ -1060,3 +1060,264 @@ def log_stale_device_removal(
         own_device_excluded=own_device_id is not None and own_device_id not in removed_device_ids,
         request_id=request_id
     )
+
+
+# ============================================================================
+# Time Limit Rule Audit Logging
+# ============================================================================
+
+def log_time_limit_rule_created(
+    device_auth_token: str,
+    rule_id: str,
+    user_id: str,
+    category_id: str,
+    rule_type: int,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    days: int = 127,
+    limit_minutes: int = 0,
+    version: Optional[str] = None,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log a time limit rule creation event.
+    
+    This function logs when a time limit rule is created, including all
+    rule parameters for audit purposes.
+    
+    Args:
+        device_auth_token: The device auth token for the rule.
+        rule_id: The unique rule identifier.
+        user_id: The user ID this rule applies to.
+        category_id: The category ID this rule applies to.
+        rule_type: Type of rule.
+        start_time: Start time for the rule.
+        end_time: End time for the rule.
+        days: Days of week bitmask.
+        limit_minutes: Time limit in minutes.
+        version: Optional version string.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'time_limit_rule_created',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        rule_id=rule_id,
+        user_id=user_id,
+        category_id=category_id,
+        rule_type=rule_type,
+        start_time=start_time,
+        end_time=end_time,
+        days=days,
+        limit_minutes=limit_minutes,
+        version=version,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+def log_time_limit_rule_updated(
+    device_auth_token: str,
+    rule_id: str,
+    updates: Dict[str, Any],
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log a time limit rule update event.
+    
+    This function logs when a time limit rule is updated, including
+    the fields that were changed.
+    
+    Args:
+        device_auth_token: The device auth token for the rule.
+        rule_id: The unique rule identifier.
+        updates: Dictionary of fields that were updated.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'time_limit_rule_updated',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        rule_id=rule_id,
+        updates=updates,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+def log_time_limit_rule_deleted(
+    device_auth_token: str,
+    rule_id: str,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log a time limit rule deletion event.
+    
+    This function logs when a time limit rule is deleted.
+    
+    Args:
+        device_auth_token: The device auth token for the rule.
+        rule_id: The unique rule identifier that was deleted.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'time_limit_rule_deleted',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        rule_id=rule_id,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+# ============================================================================
+# Add User to Family Audit Logging
+# ============================================================================
+
+def log_add_user_request(
+    device_auth_token: str,
+    parent_user_id: str,
+    user_name: str,
+    device_name: Optional[str] = None,
+    device_model: Optional[str] = None,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log an add user request with complete fidelity.
+    
+    This function logs all details of an add user request including
+    the complete payload, timestamps, and user identifiers. The log
+    preserves the original structure and encoding for forensic analysis.
+    
+    Args:
+        device_auth_token: The parent's device auth token.
+        parent_user_id: The parent's user ID.
+        user_name: The child's display name.
+        device_name: Optional device name for the child.
+        device_model: Optional device model for the child.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry with exact fidelity
+    logger.info(
+        'add_user_request',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        parent_user_id=parent_user_id,
+        user_name=user_name,
+        device_name=device_name,
+        device_model=device_model,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+def log_add_user_response(
+    device_auth_token: str,
+    parent_user_id: str,
+    user_id: Optional[str],
+    child_device_auth_token: Optional[str],
+    own_device_id: Optional[str],
+    request_id: Optional[str] = None,
+    success: bool = True,
+    status_code: Optional[int] = None,
+    response_data: Optional[Dict[str, Any]] = None,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log an add user response with complete fidelity.
+    
+    This function logs the response from the server after an add user
+    request, preserving all details for audit purposes.
+    
+    Args:
+        device_auth_token: The parent's device auth token.
+        parent_user_id: The parent's user ID.
+        user_id: The new child user's ID (if successful).
+        child_device_auth_token: The new child device's auth token (if successful).
+        own_device_id: The new child device's ID (if successful).
+        request_id: Optional request ID for correlation.
+        success: Whether the operation succeeded.
+        status_code: HTTP status code of the response.
+        response_data: The complete response data (will be logged as-is).
+        error_code: Error code if the request failed.
+        error_message: Error message if the request failed.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry with exact fidelity
+    if success:
+        logger.info(
+            'add_user_response',
+            timestamp=timestamp,
+            timestamp_unix_ms=int(time.time() * 1000),
+            device_auth_token=device_auth_token,
+            parent_user_id=parent_user_id,
+            user_id=user_id,
+            child_device_auth_token=child_device_auth_token,
+            own_device_id=own_device_id,
+            request_id=request_id,
+            success=success,
+            status_code=status_code,
+            response_data=response_data
+        )
+    else:
+        logger.warning(
+            'add_user_response',
+            timestamp=timestamp,
+            timestamp_unix_ms=int(time.time() * 1000),
+            device_auth_token=device_auth_token,
+            parent_user_id=parent_user_id,
+            user_id=user_id,
+            child_device_auth_token=child_device_auth_token,
+            own_device_id=own_device_id,
+            request_id=request_id,
+            success=success,
+            status_code=status_code,
+            response_data=response_data,
+            error_code=error_code,
+            error_message=error_message
+        )

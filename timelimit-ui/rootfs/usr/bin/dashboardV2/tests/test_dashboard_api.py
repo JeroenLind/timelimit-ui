@@ -31,7 +31,16 @@ from database import (
     get_categories_by_device_auth_token,
     get_connected_devices,
     get_device_auth_tokens,
-    _db_instance
+    _db_instance,
+    save_time_limit_rule,
+    get_time_limit_rules_by_device_auth_token,
+    get_time_limit_rule_by_id,
+    update_time_limit_rule,
+    delete_time_limit_rule,
+    get_parent_password_hash,
+    get_next_sequence_number,
+    increment_sequence_number,
+    update_family_parent_user_id
 )
 from database import get_database as db_get_database
 
@@ -1809,7 +1818,10 @@ class TestApiAuthRestore:
         if os.path.exists(backup_path):
             os.unlink(backup_path)
         
-        response = client.post('/api/auth/restore')
+        # Mock sync_session_to_database to prevent it from creating a backup file
+        # during the before_request handler
+        with patch('app.sync_session_to_database', return_value={'device_auth_token_synced': False, 'own_device_id_synced': False, 'errors': []}):
+            response = client.post('/api/auth/restore')
         
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -2254,3 +2266,925 @@ class TestDebugDatabase:
 
         # At least some tables should be present
         assert len(found_tables) > 0
+
+
+class TestApiTimeLimitRules:
+    """Tests for /api/dashboard/time-limit-rules endpoints."""
+    
+    @pytest.mark.timeout(10)
+    def test_time_limit_rules_unauthenticated(self, client):
+        """Test time limit rules GET without authentication."""
+        response = client.get('/api/dashboard/time-limit-rules')
+        
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+    
+    @pytest.mark.timeout(10)
+    def test_time_limit_rules_no_device_auth_token(self, client):
+        """Test time limit rules GET without device auth token in session."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+        
+        response = client.get('/api/dashboard/time-limit-rules')
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+    
+    @pytest.mark.timeout(10)
+    def test_time_limit_rules_success(self, auth_session):
+        """Test successful GET of time limit rules."""
+        db = auth_session.application.test_db
+        device_auth_token = 'device_token_test123_test_time_limit_rules_success'
+        
+        # Create user and category for the rule
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Create a time limit rule
+        save_time_limit_rule(
+            db=db,
+            rule_id='rule_test_1',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            rule_type=0,
+            start_time='08:00',
+            end_time='18:00',
+            days=127,
+            limit_minutes=60
+        )
+        
+        response = auth_session.get('/api/dashboard/time-limit-rules')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['count'] == 1
+        assert len(data['rules']) == 1
+        assert data['rules'][0]['id'] == 'rule_test_1'
+    
+    @pytest.mark.timeout(10)
+    def test_time_limit_rules_empty(self, auth_session):
+        """Test GET of time limit rules when none exist."""
+        response = auth_session.get('/api/dashboard/time-limit-rules')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['count'] == 0
+        assert len(data['rules']) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_unauthenticated(self, client):
+        """Test POST create time limit rule without authentication."""
+        response = client.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_no_device_auth_token(self, client):
+        """Test POST create time limit rule without device auth token."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+        
+        response = client.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_missing_user_id(self, client, auth_session):
+        """Test POST create time limit rule without userId."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Missing userId'
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_missing_category_id(self, client, auth_session):
+        """Test POST create time limit rule without categoryId."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'rule': {'type': 0, 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Missing categoryId'
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_missing_rule(self, client, auth_session):
+        """Test POST create time limit rule without rule data."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1'
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Missing rule'
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_invalid_start_time(self, client, auth_session):
+        """Test POST create time limit rule with invalid startTime format."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'startTime': '25:00', 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert 'Invalid startTime format' in data['error']
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_invalid_end_time(self, client, auth_session):
+        """Test POST create time limit rule with invalid endTime format."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'endTime': '25:00', 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert 'Invalid endTime format' in data['error']
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_invalid_days(self, client, auth_session):
+        """Test POST create time limit rule with invalid days value."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'days': 200, 'limitMinutes': 60}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert 'Invalid days value' in data['error']
+    
+    @pytest.mark.timeout(10)
+    def test_create_time_limit_rule_invalid_limit_minutes(self, client, auth_session):
+        """Test POST create time limit rule with invalid limitMinutes."""
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {'type': 0, 'limitMinutes': -10}
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert 'Invalid limitMinutes' in data['error']
+    
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    @patch('app.get_persisted_device_auth_token', return_value=None)
+    @patch('app.get_persisted_own_device_id', return_value=None)
+    def test_create_time_limit_rule_success(self, mock_persist_token, mock_persist_device, mock_auth_client_class, auth_session):
+        """Test successful POST create time limit rule."""
+        db = auth_session.application.test_db
+        device_auth_token = 'device_token_test123_test_create_time_limit_rule_success'
+        
+        # Create user and category for the rule
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Mock the AuthClient
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.success = True
+        mock_client.add_time_limit_rule.return_value = mock_response
+        mock_auth_client_class.return_value = mock_client
+        
+        response = auth_session.post('/api/dashboard/time-limit-rules',
+            data=json.dumps({
+                'userId': 'user_1',
+                'categoryId': 'cat_1',
+                'rule': {
+                    'type': 0,
+                    'startTime': '08:00',
+                    'endTime': '18:00',
+                    'days': 127,
+                    'limitMinutes': 60
+                }
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert 'ruleId' in data
+        assert data['ruleId'].startswith('rule_')
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_unauthenticated(self, client):
+        """Test PUT update time limit rule without authentication."""
+        response = client.put('/api/dashboard/time-limit-rules/rule_123',
+            data=json.dumps({'rule': {'limitMinutes': 60}}),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_no_device_auth_token(self, client):
+        """Test PUT update time limit rule without device auth token."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+        
+        response = client.put('/api/dashboard/time-limit-rules/rule_123',
+            data=json.dumps({'rule': {'limitMinutes': 60}}),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_not_found(self, client, auth_session):
+        """Test PUT update time limit rule that doesn't exist."""
+        response = auth_session.put('/api/dashboard/time-limit-rules/nonexistent_rule',
+            data=json.dumps({'rule': {'limitMinutes': 60}}),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Rule not found'
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_no_updates(self, client, auth_session):
+        """Test PUT update time limit rule with no updates provided."""
+        db = auth_session.application.test_db
+        device_auth_token = 'device_token_test123_test_update_time_limit_rule_no_updates'
+        
+        # Create user and category for the rule
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Create a time limit rule
+        save_time_limit_rule(
+            db=db,
+            rule_id='rule_update_test',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=30
+        )
+        
+        response = auth_session.put('/api/dashboard/time-limit-rules/rule_update_test',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No updates provided'
+    
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    @patch('app.get_persisted_device_auth_token', return_value=None)
+    @patch('app.get_persisted_own_device_id', return_value=None)
+    def test_update_time_limit_rule_success(self, mock_persist_token, mock_persist_device, mock_auth_client_class, auth_session):
+        """Test successful PUT update time limit rule."""
+        db = auth_session.application.test_db
+        device_auth_token = 'device_token_test123_test_update_time_limit_rule_success'
+        
+        # Create user and category for the rule
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Create a time limit rule
+        save_time_limit_rule(
+            db=db,
+            rule_id='rule_update_success',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=30
+        )
+        
+        # Mock the AuthClient
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.success = True
+        mock_client.add_time_limit_rule.return_value = mock_response
+        mock_auth_client_class.return_value = mock_client
+        
+        response = auth_session.put('/api/dashboard/time-limit-rules/rule_update_success',
+            data=json.dumps({
+                'rule': {
+                    'type': 0,
+                    'startTime': '09:00',
+                    'endTime': '17:00',
+                    'days': 63,
+                    'limitMinutes': 120
+                }
+            }),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['message'] == 'Rule updated successfully'
+    
+    @pytest.mark.timeout(10)
+    def test_delete_time_limit_rule_unauthenticated(self, client):
+        """Test DELETE time limit rule without authentication."""
+        response = client.delete('/api/dashboard/time-limit-rules/rule_123')
+        
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+    
+    @pytest.mark.timeout(10)
+    def test_delete_time_limit_rule_no_device_auth_token(self, client):
+        """Test DELETE time limit rule without device auth token."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+        
+        response = client.delete('/api/dashboard/time-limit-rules/rule_123')
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+    
+    @pytest.mark.timeout(10)
+    def test_delete_time_limit_rule_not_found(self, client, auth_session):
+        """Test DELETE time limit rule that doesn't exist."""
+        response = auth_session.delete('/api/dashboard/time-limit-rules/nonexistent_rule')
+        
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Rule not found'
+    
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    @patch('app.get_persisted_device_auth_token', return_value=None)
+    @patch('app.get_persisted_own_device_id', return_value=None)
+    def test_delete_time_limit_rule_success(self, mock_persist_token, mock_persist_device, mock_auth_client_class, auth_session):
+        """Test successful DELETE time limit rule."""
+        db = auth_session.application.test_db
+        device_auth_token = 'device_token_test123_test_delete_time_limit_rule_success'
+        
+        # Create user and category for the rule
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Create a time limit rule
+        save_time_limit_rule(
+            db=db,
+            rule_id='rule_delete_test',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=60
+        )
+        
+        # Verify it exists
+        rule = get_time_limit_rule_by_id(db, 'rule_delete_test')
+        assert rule is not None
+        
+        # Mock the AuthClient
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.success = True
+        mock_client.remove_time_limit_rule.return_value = mock_response
+        mock_auth_client_class.return_value = mock_client
+        
+        response = auth_session.delete('/api/dashboard/time-limit-rules/rule_delete_test')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['message'] == 'Rule deleted successfully'
+        
+        # Verify it's deleted
+        rule = get_time_limit_rule_by_id(db, 'rule_delete_test')
+        assert rule is None
+
+
+class TestApiAddUserToFamily:
+    """Tests for /api/dashboard/users/add endpoint."""
+
+    @pytest.mark.timeout(10)
+    def test_add_user_unauthenticated(self, client):
+        """Test adding user without authentication."""
+        response = client.post('/api/dashboard/users/add',
+                               json={'name': 'Test Child'})
+
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+
+    @pytest.mark.timeout(10)
+    def test_add_user_no_device_auth_token(self, client):
+        """Test adding user without device auth token in session."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+
+        response = client.post('/api/dashboard/users/add',
+                               json={'name': 'Test Child'})
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+
+    @pytest.mark.timeout(10)
+    def test_add_user_no_parent_password_second_hash(self, client, auth_session):
+        """Test adding user without parent password hash in session."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            # Ensure parent_password_second_hash is not set
+            sess.pop('parent_password_second_hash', None)
+
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={'name': 'Test Child'})
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Missing parent_password_second_hash'
+
+    @pytest.mark.timeout(10)
+    def test_add_user_missing_user_name(self, client, auth_session):
+        """Test adding user without user name in request."""
+        # Set parent password hash in session
+        with auth_session.session_transaction() as sess:
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={})
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Missing user name'
+
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    def test_add_user_success(self, mock_auth_client_class, auth_session):
+        """Test successful user addition with mocked auth client."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+
+        # Set parent_user_id in database (required for the endpoint)
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_123'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+
+        # Mock the AuthClient and its methods
+        mock_client = Mock()
+
+        # Mock create_add_device_token response
+        token_response = Mock()
+        token_response.success = True
+        token_response.data = {
+            'token': 'test_register_token',
+            'deviceId': 'device_test_123'
+        }
+        mock_client.create_add_device_token.return_value = token_response
+
+        # Mock add_device response
+        add_device_response = Mock()
+        add_device_response.success = True
+        add_device_response.data = {
+            'deviceAuthToken': 'child_device_auth_token',
+            'ownDeviceId': 'child_device_id'
+        }
+        mock_client.add_device.return_value = add_device_response
+
+        # Mock pull_status response
+        pull_status_response = Mock()
+        pull_status_response.success = True
+        pull_status_response.data = {
+            'users': {
+                'data': [
+                    {
+                        'id': 'user_child_456',
+                        'name': 'Test Child',
+                        'type': 'child',
+                        'mail': 'child@test.com',
+                        'timeZone': 'Europe/Amsterdam'
+                    }
+                ]
+            }
+        }
+        mock_client.pull_status.return_value = pull_status_response
+
+        mock_auth_client_class.return_value = mock_client
+
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={'name': 'Test Child'})
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert data['userId'] == 'user_child_456'
+        assert data['deviceAuthToken'] == 'child_device_auth_token'
+        assert data['ownDeviceId'] == 'child_device_id'
+
+        # Verify the client was called with correct parameters
+        mock_client.create_add_device_token.assert_called_once()
+        call_kwargs = mock_client.create_add_device_token.call_args[1]
+        assert call_kwargs['device_auth_token'] == device_auth_token
+        assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
+
+        mock_client.add_device.assert_called_once()
+        add_device_kwargs = mock_client.add_device.call_args[1]
+        assert add_device_kwargs['register_token'] == 'test_register_token'
+        assert add_device_kwargs['device_name'] is None
+        assert add_device_kwargs['device_model'] is None
+        assert add_device_kwargs['client_level'] == 7
+
+        mock_client.pull_status.assert_called_once()
+        pull_status_kwargs = mock_client.pull_status.call_args[1]
+        assert pull_status_kwargs['device_auth_token'] == 'child_device_auth_token'
+
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    def test_add_user_auth_client_failure(self, mock_auth_client_class, auth_session):
+        """Test adding user when auth client call fails."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+
+        # Set parent_user_id in database (required for the endpoint)
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_123'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+
+        # Mock the AuthClient
+        mock_client = Mock()
+
+        # Mock create_add_device_token to return failure
+        token_response = Mock()
+        token_response.success = False
+        token_response.error_code = 'unauthorized'
+        token_response.error_message = 'Unauthorized'
+        token_response.status_code = 401
+        mock_client.create_add_device_token.return_value = token_response
+
+        mock_auth_client_class.return_value = mock_client
+
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={'name': 'Test Child'})
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error_code'] == 'unauthorized'
+        assert data['error'] == 'Unauthorized'
+
+    @pytest.mark.timeout(10)
+    @patch('app.AuthClient')
+    def test_add_user_sync_failure(self, mock_auth_client_class, auth_session):
+        """Test adding user when sync fails."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+
+        # Set parent_user_id in database (required for the endpoint)
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_123'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+
+        # Mock the AuthClient
+        mock_client = Mock()
+
+        # Mock create_add_device_token response
+        token_response = Mock()
+        token_response.success = True
+        token_response.data = {
+            'token': 'test_register_token',
+            'deviceId': 'device_test_123'
+        }
+        mock_client.create_add_device_token.return_value = token_response
+
+        # Mock add_device response
+        add_device_response = Mock()
+        add_device_response.success = True
+        add_device_response.data = {
+            'deviceAuthToken': 'child_device_auth_token',
+            'ownDeviceId': 'child_device_id'
+        }
+        mock_client.add_device.return_value = add_device_response
+
+        # Mock pull_status to return failure
+        pull_status_response = Mock()
+        pull_status_response.success = False
+        pull_status_response.error_code = 'sync_failed'
+        pull_status_response.error_message = 'Sync failed'
+        pull_status_response.status_code = 500
+        mock_client.pull_status.return_value = pull_status_response
+
+        mock_auth_client_class.return_value = mock_client
+
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={'name': 'Test Child'})
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error_code'] == 'sync_failed'
+        assert data['error'] == 'Sync failed'
+
+
+class TestApiDashboardFamilyOverview:
+    """Tests for /api/dashboard/family-overview endpoint."""
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_unauthenticated(self, client):
+        """Test family overview without authentication."""
+        response = client.get('/api/dashboard/family-overview')
+
+        # When session is cleared, Flask session may have default values
+        assert response.status_code in [400, 401]
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_no_device_auth_token(self, client):
+        """Test family overview without device auth token in session."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+
+        response = client.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_success(self, auth_session):
+        """Test successful family overview retrieval."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+
+        response = auth_session.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert 'family_email' in data
+        assert 'devices_count' in data
+        assert 'users_count' in data
+        assert 'last_sync' in data
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_returns_email_from_database(self, auth_session):
+        """Test that family overview returns email from database when available."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+
+        # The auth_session fixture creates a family with mail='test@example.com'
+        response = auth_session.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # Email should be from the database (auth_session fixture uses test@example.com)
+        assert data['family_email'] == 'test@example.com'
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_falls_back_to_session_mail_when_pending_unknown(self, client):
+        """Test that family overview falls back to session mail when database has pending@unknown."""
+        # Create a test device auth token
+        device_auth_token = 'device_token_pending_mail_test'
+        own_device_id = 'device_pending_mail_test'
+        test_email = 'pietje@test.nl'
+
+        db = client.application.test_db
+
+        # Create a family with pending@unknown email (simulating the bug scenario)
+        from database import create_family, store_auth_token, create_device
+        create_family(
+            db=db,
+            device_auth_token=device_auth_token,
+            mail='pending@unknown',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+
+        # Create a device
+        create_device(
+            db=db,
+            device_id='device1',
+            device_auth_token=device_auth_token,
+            name='Test Device'
+        )
+
+        # Store auth token
+        store_auth_token(
+            db=db,
+            token_type='device_auth_token',
+            token_value=device_auth_token,
+            device_id=own_device_id,
+            mail=test_email
+        )
+
+        # Set up session with device_auth_token and mail in session
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = device_auth_token
+            sess['own_device_id'] = own_device_id
+            sess['mail'] = test_email  # This is the key: mail is in session
+
+        response = client.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # The fix should return the email from session, not pending@unknown
+        assert data['family_email'] == test_email
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_uses_database_mail_when_not_pending(self, client):
+        """Test that family overview uses database mail when it's not pending@unknown."""
+        # Create a test device auth token
+        device_auth_token = 'device_token_db_mail_test'
+        own_device_id = 'device_db_mail_test'
+        db_email = 'db@example.com'
+
+        db = client.application.test_db
+
+        # Create a family with a real email in database
+        from database import create_family, store_auth_token, create_device
+        create_family(
+            db=db,
+            device_auth_token=device_auth_token,
+            mail=db_email,
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+
+        # Create a device
+        create_device(
+            db=db,
+            device_id='device1',
+            device_auth_token=device_auth_token,
+            name='Test Device'
+        )
+
+        # Store auth token
+        store_auth_token(
+            db=db,
+            token_type='device_auth_token',
+            token_value=device_auth_token,
+            device_id=own_device_id,
+            mail=db_email
+        )
+
+        # Set up session with device_auth_token but different mail in session
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = device_auth_token
+            sess['own_device_id'] = own_device_id
+            sess['mail'] = 'different@example.com'  # Different from database
+
+        response = client.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # Should use database mail, not session mail (since database mail is not pending@unknown)
+        assert data['family_email'] == db_email
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_returns_none_when_no_family(self, client):
+        """Test that family overview returns None for family_email when no family exists."""
+        # Create a test device auth token without creating a family
+        device_auth_token = 'device_token_no_family_test'
+        own_device_id = 'device_no_family_test'
+
+        db = client.application.test_db
+
+        # Store auth token without creating a family
+        from database import store_auth_token, create_device
+        store_auth_token(
+            db=db,
+            token_type='device_auth_token',
+            token_value=device_auth_token,
+            device_id=own_device_id,
+            mail='test@example.com'
+        )
+
+        # Create a device
+        create_device(
+            db=db,
+            device_id='device1',
+            device_auth_token=device_auth_token,
+            name='Test Device'
+        )
+
+        # Set up session
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = device_auth_token
+            sess['own_device_id'] = own_device_id
+
+        response = client.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # family_email should be None when no family exists
+        assert data['family_email'] is None

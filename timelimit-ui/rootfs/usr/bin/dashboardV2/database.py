@@ -234,6 +234,25 @@ class Database:
                 )
             ''')
             
+            # Create time_limit_rules table - using device_auth_token as foreign key
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS time_limit_rules (
+                    id TEXT PRIMARY KEY,
+                    device_auth_token TEXT NOT NULL,
+                    user_id TEXT,
+                    category_id TEXT,
+                    rule_type INTEGER DEFAULT 0,
+                    start_time TEXT,
+                    end_time TEXT,
+                    days INTEGER DEFAULT 127,
+                    limit_minutes INTEGER DEFAULT 0,
+                    version TEXT,
+                    created_at TEXT,
+                    last_updated INTEGER,
+                    FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
+                )
+            ''')
+            
             conn.commit()
             logger.info(
                 "Database initialized",
@@ -250,6 +269,7 @@ class Database:
             conn = self.get_connection()
             cursor = conn.cursor()
             
+            cursor.execute('DROP TABLE IF EXISTS time_limit_rules')
             cursor.execute('DROP TABLE IF EXISTS connected_devices')
             cursor.execute('DROP TABLE IF EXISTS categories')
             cursor.execute('DROP TABLE IF EXISTS sync_state')
@@ -283,6 +303,7 @@ class Database:
             
             # Delete in reverse dependency order to avoid foreign key constraints
             tables = [
+                'time_limit_rules',
                 'connected_devices',
                 'categories',
                 'sync_state',
@@ -446,7 +467,38 @@ class Database:
                             db_path=self.db_path,
                             error=str(e)
                         )
-
+            
+            # Migration: Create time_limit_rules table if it doesn't exist
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='time_limit_rules'")
+            if cursor.fetchone() is None:
+                logger.info(
+                    "Running migration: creating time_limit_rules table",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('''
+                    CREATE TABLE time_limit_rules (
+                        id TEXT PRIMARY KEY,
+                        device_auth_token TEXT NOT NULL,
+                        user_id TEXT,
+                        category_id TEXT,
+                        rule_type INTEGER DEFAULT 0,
+                        start_time TEXT,
+                        end_time TEXT,
+                        days INTEGER DEFAULT 127,
+                        limit_minutes INTEGER DEFAULT 0,
+                        version TEXT,
+                        created_at TEXT,
+                        last_updated INTEGER,
+                        FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
+                    )
+                ''')
+                conn.commit()
+                logger.info(
+                    "Migration completed: time_limit_rules table created",
+                    component="database",
+                    db_path=self.db_path
+                )
 
 # ============================================================================
 # Server Checks Operations
@@ -1541,12 +1593,19 @@ def upsert_family_password_hash(
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        # Try UPDATE first
-        cursor.execute('''
-            UPDATE families
-            SET parent_password_hash = ?, parent_password_second_hash = ?, parent_password_second_salt = ?
-            WHERE device_auth_token = ?
-        ''', (parent_password_hash, parent_password_second_hash, parent_password_second_salt, device_auth_token))
+        # Try UPDATE first - include mail in update if provided
+        if mail is not None:
+            cursor.execute('''
+                UPDATE families
+                SET parent_password_hash = ?, parent_password_second_hash = ?, parent_password_second_salt = ?, mail = ?
+                WHERE device_auth_token = ?
+            ''', (parent_password_hash, parent_password_second_hash, parent_password_second_salt, mail, device_auth_token))
+        else:
+            cursor.execute('''
+                UPDATE families
+                SET parent_password_hash = ?, parent_password_second_hash = ?, parent_password_second_salt = ?
+                WHERE device_auth_token = ?
+            ''', (parent_password_hash, parent_password_second_hash, parent_password_second_salt, device_auth_token))
         
         if cursor.rowcount > 0:
             conn.commit()
@@ -1979,6 +2038,38 @@ def get_latest_device_auth_token(db: Database) -> Optional[str]:
         return None
 
 
+def get_latest_device_auth_token_with_mail(db: Database) -> Optional[Dict[str, Any]]:
+    """Get the most recent device_auth_token with associated mail from the database.
+    
+    Used for session persistence - retrieves the most recent device auth token
+    with its associated mail address that can be restored to the session on
+    application startup.
+    
+    Returns:
+        Dictionary with 'token' and 'mail' keys, or None if no tokens exist.
+        Example: {'token': 'abc123...', 'mail': 'user@example.com'}
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT token_value, mail
+            FROM auth_tokens
+            WHERE token_type = 'device_auth_token'
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        
+        if row:
+            return {
+                'token': row[0],
+                'mail': row[1]
+            }
+        return None
+
+
 def get_latest_own_device_id(db: Database) -> Optional[str]:
     """Get the most recent device ID from the devices table.
     
@@ -2035,6 +2126,233 @@ def delete_all_device_auth_tokens(db: Database) -> int:
             row_count=count
         )
         return count
+
+
+# ============================================================================
+# Time Limit Rules Operations
+# ============================================================================
+
+def save_time_limit_rule(
+    db: Database,
+    rule_id: str,
+    device_auth_token: str,
+    user_id: str,
+    category_id: str,
+    rule_type: int = 0,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    days: int = 127,
+    limit_minutes: int = 0,
+    version: Optional[str] = None
+) -> None:
+    """Save a time limit rule to the database.
+    
+    Args:
+        db: Database instance.
+        rule_id: Unique rule identifier.
+        device_auth_token: Device auth token this rule belongs to.
+        user_id: User ID this rule applies to.
+        category_id: Category ID this rule applies to.
+        rule_type: Type of rule (0 = limit, 1 = block, etc.).
+        start_time: Start time (HH:MM format).
+        end_time: End time (HH:MM format).
+        days: Days of week as bitmask (127 = all days).
+        limit_minutes: Time limit in minutes.
+        version: Rule version string.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO time_limit_rules
+            (id, device_auth_token, user_id, category_id, rule_type, start_time, end_time,
+             days, limit_minutes, version, created_at, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            rule_id,
+            device_auth_token,
+            user_id,
+            category_id,
+            rule_type,
+            start_time,
+            end_time,
+            days,
+            limit_minutes,
+            version,
+            current_time,
+            current_time
+        ))
+        
+        conn.commit()
+        logger.debug(
+            "Time limit rule saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="time_limit_rules",
+            rule_id=rule_id
+        )
+
+
+def get_time_limit_rules_by_device_auth_token(
+    db: Database,
+    device_auth_token: str
+) -> List[Dict[str, Any]]:
+    """Get all time limit rules for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        List of time limit rule records.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT * FROM time_limit_rules WHERE device_auth_token = ?',
+            (device_auth_token,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_time_limit_rule_by_id(
+    db: Database,
+    rule_id: str
+) -> Optional[Dict[str, Any]]:
+    """Get a single time limit rule by ID.
+    
+    Args:
+        db: Database instance.
+        rule_id: The rule ID to look up.
+        
+    Returns:
+        Rule record or None if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM time_limit_rules WHERE id = ?', (rule_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def update_time_limit_rule(
+    db: Database,
+    rule_id: str,
+    updates: Dict[str, Any]
+) -> bool:
+    """Update a time limit rule.
+    
+    Args:
+        db: Database instance.
+        rule_id: The rule ID to update.
+        updates: Dictionary of fields to update.
+        
+    Returns:
+        True if updated, False if rule not found or no updates provided.
+    """
+    if not updates:
+        return False
+    
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [rule_id]
+        
+        cursor.execute(f'''
+            UPDATE time_limit_rules SET {set_clause} WHERE id = ?
+        ''', values)
+        
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_time_limit_rule(
+    db: Database,
+    rule_id: str
+) -> bool:
+    """Delete a time limit rule.
+    
+    Args:
+        db: Database instance.
+        rule_id: The rule ID to delete.
+        
+    Returns:
+        True if deleted, False if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM time_limit_rules WHERE id = ?', (rule_id,))
+        conn.commit()
+        
+        return cursor.rowcount > 0
+
+
+def get_unified_view_data(
+    db: Database,
+    device_auth_token: str
+) -> Dict[str, Any]:
+    """Get unified view data with users, their rules, and associated devices.
+    
+    This function joins users with their associated time limit rules and devices
+    to provide a unified view for the dashboard.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Dictionary with users list, each containing their rules and devices.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Get all users for this device auth token
+        cursor.execute('SELECT * FROM users WHERE device_auth_token = ?', (device_auth_token,))
+        users = [dict(row) for row in cursor.fetchall()]
+        
+        # Get all rules for this device auth token
+        cursor.execute('SELECT * FROM time_limit_rules WHERE device_auth_token = ?', (device_auth_token,))
+        rules = [dict(row) for row in cursor.fetchall()]
+        
+        # Get all devices for this device auth token
+        cursor.execute('SELECT * FROM devices WHERE device_auth_token = ?', (device_auth_token,))
+        devices = [dict(row) for row in cursor.fetchall()]
+        
+        # Build unified view
+        result = {
+            'users': [],
+            'devices': devices,
+            'rules': rules
+        }
+        
+        # Group rules by user_id
+        rules_by_user: Dict[str, List[Dict[str, Any]]] = {}
+        for rule in rules:
+            user_id = rule.get('user_id')
+            if user_id:
+                if user_id not in rules_by_user:
+                    rules_by_user[user_id] = []
+                rules_by_user[user_id].append(rule)
+        
+        # Build user list with their rules
+        for user in users:
+            user_data = dict(user)
+            user_data['rules'] = rules_by_user.get(user['id'], [])
+            result['users'].append(user_data)
+        
+        return result
 
 
 # ============================================================================

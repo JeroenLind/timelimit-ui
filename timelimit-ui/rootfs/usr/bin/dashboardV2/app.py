@@ -36,7 +36,8 @@ from database import (
     Database, get_database, reset_database, store_auth_token,
     get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
     get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_password_second_salt, get_parent_user_id, clear_all_tables,
-    get_all_tables_data, clear_server_checks, get_family_by_mail, create_family_record, update_family_salt
+    get_all_tables_data, clear_server_checks, get_family_by_mail, create_family_record, update_family_salt,
+    save_users, get_sync_state, get_family, update_family_parent_user_id
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import (
@@ -56,7 +57,9 @@ from utils.audit_log import (
     log_login_as_parent_new_hash_generation,
     log_login_as_parent_password_stored,
     log_login_as_parent_direct_hash_stored,
-    log_login_as_parent_salt_validation_failure
+    log_login_as_parent_salt_validation_failure,
+    log_add_user_request,
+    log_add_user_response
 )
 from key_manager import get_or_create_signing_key
 
@@ -124,12 +127,19 @@ def restore_session_from_persistence():
         persisted_own_device_id = get_persisted_own_device_id()
         
         if persisted_device_auth_token:
-            session['device_auth_token'] = persisted_device_auth_token
-            logger.debug(
-                "Session restored from persistence",
-                component="session",
-                token_restored=True
-            )
+            # Extract token from the dict returned by get_persisted_device_auth_token()
+            token = persisted_device_auth_token.get('token') if isinstance(persisted_device_auth_token, dict) else persisted_device_auth_token
+            if token:
+                session['device_auth_token'] = token
+                # Also store mail if available
+                mail = persisted_device_auth_token.get('mail') if isinstance(persisted_device_auth_token, dict) else None
+                if mail:
+                    session['mail'] = mail
+                logger.debug(
+                    "Session restored from persistence",
+                    component="session",
+                    token_restored=True
+                )
         
         if persisted_own_device_id:
             session['own_device_id'] = persisted_own_device_id
@@ -3069,6 +3079,853 @@ def api_dashboard_stream():
     )
     
     return Response(event_stream(), mimetype='text/event-stream')
+
+
+# ============================================================================
+# Unified View API Route
+# ============================================================================
+@app.route('/api/dashboard/unified-view', methods=['GET'])
+def api_dashboard_unified_view():
+    """Get unified view data with users, rules, and devices.
+    
+    Returns:
+        JSON response with unified view data including:
+        - users: List of users with their associated rules and devices
+        - categories: Dictionary mapping category_id to category title
+        - own_device_id: The current device ID (for highlighting)
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Unified view request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Unified view request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Unified view request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+    )
+    
+    try:
+        from database import get_unified_view_data
+        db = get_database()
+        unified_data = get_unified_view_data(db, device_auth_token)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Unified view retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            users_count=len(unified_data.get('users', [])),
+            categories_count=len(unified_data.get('categories', {}))
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'users': unified_data.get('users', []),
+            'categories': unified_data.get('categories', {}),
+            'own_device_id': unified_data.get('own_device_id')
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Unified view request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve unified view data'
+        }), 500
+
+
+# ============================================================================
+# Time Limit Rules API Routes
+# ============================================================================
+@app.route('/api/dashboard/time-limit-rules', methods=['GET'])
+def api_dashboard_time_limit_rules():
+    """Get all time limit rules for the current device auth token.
+    
+    Returns:
+        JSON response with list of rules.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Time limit rules request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Time limit rules request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Time limit rules request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+    )
+    
+    try:
+        from database import get_time_limit_rules_by_device_auth_token
+        db = get_database()
+        rules = get_time_limit_rules_by_device_auth_token(db, device_auth_token)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Time limit rules retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            count=len(rules)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'count': len(rules),
+            'rules': rules
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Time limit rules request error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve time limit rules'
+        }), 500
+
+
+@app.route('/api/dashboard/time-limit-rules', methods=['POST'])
+def api_create_time_limit_rule():
+    """Create a new time limit rule.
+    
+    Request Body:
+        userId: User ID the rule applies to
+        categoryId: Category ID the rule applies to
+        rule: Rule object with type, startTime, endTime, days, limitMinutes
+    
+    Returns:
+        JSON response with the created rule ID.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Create time limit rule request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Create time limit rule request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    data = request.get_json() or {}
+    
+    # Validate required fields
+    user_id = data.get('userId')
+    if not user_id:
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing userId'
+        }), 400
+    
+    category_id = data.get('categoryId')
+    if not category_id:
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing categoryId'
+        }), 400
+    
+    rule = data.get('rule')
+    if not rule:
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing rule'
+        }), 400
+    
+    # Validate rule fields
+    start_time_str = rule.get('startTime')
+    if start_time_str:
+        import re
+        if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', start_time_str):
+            return jsonify({
+                'status': 'error',
+                'error': 'Invalid startTime format'
+            }), 400
+    
+    end_time_str = rule.get('endTime')
+    if end_time_str:
+        import re
+        if not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', end_time_str):
+            return jsonify({
+                'status': 'error',
+                'error': 'Invalid endTime format'
+            }), 400
+    
+    days = rule.get('days', 127)
+    if days is not None and (days < 0 or days > 127):
+        return jsonify({
+            'status': 'error',
+            'error': 'Invalid days value'
+        }), 400
+    
+    limit_minutes = rule.get('limitMinutes', 0)
+    if limit_minutes is not None and limit_minutes < 0:
+        return jsonify({
+            'status': 'error',
+            'error': 'Invalid limitMinutes'
+        }), 400
+    
+    logger.info(
+        "Create time limit rule request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        user_id=user_id,
+        category_id=category_id
+    )
+    
+    try:
+        from database import save_time_limit_rule, get_database
+        db = get_database()
+        
+        # Generate rule ID
+        import secrets
+        rule_id = f'rule_{secrets.token_hex(8)}'
+        
+        save_time_limit_rule(
+            db=db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id=user_id,
+            category_id=category_id,
+            rule_type=rule.get('type', 0),
+            start_time=start_time_str,
+            end_time=end_time_str,
+            days=days,
+            limit_minutes=limit_minutes,
+            version=rule.get('version')
+        )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Time limit rule created",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            rule_id=rule_id
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'ruleId': rule_id
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Create time limit rule error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to create time limit rule'
+        }), 500
+
+
+@app.route('/api/dashboard/time-limit-rules/<rule_id>', methods=['PUT'])
+def api_update_time_limit_rule(rule_id):
+    """Update an existing time limit rule.
+    
+    Args:
+        rule_id: The rule ID to update.
+    
+    Request Body:
+        rule: Rule object with fields to update
+    
+    Returns:
+        JSON response indicating success or failure.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Update time limit rule request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Update time limit rule request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    data = request.get_json() or {}
+    rule_updates = data.get('rule', {})
+    
+    if not rule_updates:
+        return jsonify({
+            'status': 'error',
+            'error': 'No updates provided'
+        }), 400
+    
+    # Map JSON field names to database column names
+    field_mapping = {
+        'type': 'rule_type',
+        'startTime': 'start_time',
+        'endTime': 'end_time',
+        'limitMinutes': 'limit_minutes',
+        'userId': 'user_id',
+        'categoryId': 'category_id',
+        'version': 'version',
+        'days': 'days'
+    }
+    
+    mapped_updates = {}
+    for json_key, value in rule_updates.items():
+        if json_key in field_mapping:
+            mapped_updates[field_mapping[json_key]] = value
+        else:
+            mapped_updates[json_key] = value
+    
+    logger.info(
+        "Update time limit rule request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        rule_id=rule_id
+    )
+    
+    try:
+        from database import get_time_limit_rule_by_id, update_time_limit_rule, get_database
+        db = get_database()
+        
+        # Check if rule exists
+        rule = get_time_limit_rule_by_id(db, rule_id)
+        if not rule:
+            return jsonify({
+                'status': 'error',
+                'error': 'Rule not found'
+            }), 404
+        
+        # Update the rule
+        result = update_time_limit_rule(db, rule_id, mapped_updates)
+        
+        if not result:
+            return jsonify({
+                'status': 'error',
+                'error': 'No updates applied'
+            }), 400
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Time limit rule updated",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            rule_id=rule_id
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'message': 'Rule updated successfully'
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Update time limit rule error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to update time limit rule'
+        }), 500
+
+
+@app.route('/api/dashboard/time-limit-rules/<rule_id>', methods=['DELETE'])
+def api_delete_time_limit_rule(rule_id):
+    """Delete a time limit rule.
+    
+    Args:
+        rule_id: The rule ID to delete.
+    
+    Returns:
+        JSON response indicating success or failure.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Delete time limit rule request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Delete time limit rule request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Delete time limit rule request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        rule_id=rule_id
+    )
+    
+    try:
+        from database import delete_time_limit_rule, get_database
+        db = get_database()
+        
+        result = delete_time_limit_rule(db, rule_id)
+        
+        if not result:
+            return jsonify({
+                'status': 'error',
+                'error': 'Rule not found'
+            }), 404
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Time limit rule deleted",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            rule_id=rule_id
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'message': 'Rule deleted successfully'
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Delete time limit rule error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to delete time limit rule'
+        }), 500
+
+
+# ============================================================================
+# Add User to Family API Route
+# ============================================================================
+@app.route('/api/dashboard/users/add', methods=['POST'])
+def api_add_user_to_family():
+    """Add a new user (child) to the family.
+    
+    This endpoint implements the add-device flow:
+    1. Create add-device token on the server
+    2. Register the child device
+    3. Sync users from the server
+    4. Save users to the database
+    
+    Request Body:
+        name: The child's display name (required)
+        deviceName: Optional device name
+        deviceModel: Optional device model
+    
+    Returns:
+        JSON response with userId, deviceAuthToken, and ownDeviceId on success.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Add user request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Add user request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    # Check for parent password second hash
+    parent_password_second_hash = session.get('parent_password_second_hash')
+    if not parent_password_second_hash:
+        logger.warning(
+            "Add user request without parent_password_second_hash",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing parent_password_second_hash'
+        }), 400
+    
+    data = request.get_json() or {}
+    user_name = data.get('name')
+    if not user_name:
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing user name'
+        }), 400
+    
+    device_name = data.get('deviceName')
+    device_model = data.get('deviceModel')
+    
+    # Get parent user ID from database
+    db = get_database()
+    parent_user_id = get_parent_user_id(db, device_auth_token)
+    if not parent_user_id:
+        logger.error(
+            "Parent user ID not found for device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Parent user ID not found'
+        }), 500
+    
+    logger.info(
+        "Add user request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...',
+        parent_user_id=parent_user_id,
+        user_name=user_name
+    )
+    
+    # Log the request
+    log_add_user_request(
+        device_auth_token=device_auth_token,
+        parent_user_id=parent_user_id,
+        user_name=user_name,
+        device_name=device_name,
+        device_model=device_model,
+        request_id=request_id,
+        server_url=get_current_server_url()
+    )
+    
+    try:
+        # Create AuthClient
+        server_url = get_current_server_url()
+        client = AuthClient(base_url=server_url)
+        
+        # Step 1: Create add-device token
+        token_response = client.create_add_device_token(
+            device_auth_token=device_auth_token,
+            parent_password_second_hash=parent_password_second_hash
+        )
+        
+        if not token_response.success:
+            log_add_user_response(
+                device_auth_token=device_auth_token,
+                parent_user_id=parent_user_id,
+                user_id=None,
+                child_device_auth_token=None,
+                own_device_id=None,
+                success=False,
+                error_code=token_response.error_code,
+                error_message=token_response.error_message,
+                request_id=request_id
+            )
+            return jsonify({
+                'status': 'error',
+                'error_code': token_response.error_code,
+                'error': token_response.error_message
+            }), 500
+        
+        register_token = token_response.data.get('token')
+        
+        # Step 2: Add device (register child)
+        add_device_response = client.add_device(
+            register_token=register_token,
+            device_name=device_name,
+            device_model=device_model,
+            client_level=7  # Default client level
+        )
+        
+        if not add_device_response.success:
+            log_add_user_response(
+                device_auth_token=device_auth_token,
+                parent_user_id=parent_user_id,
+                user_id=None,
+                child_device_auth_token=None,
+                own_device_id=None,
+                success=False,
+                error_code=add_device_response.error_code,
+                error_message=add_device_response.error_message,
+                request_id=request_id
+            )
+            return jsonify({
+                'status': 'error',
+                'error_code': add_device_response.error_code,
+                'error': add_device_response.error_message
+            }), 500
+        
+        child_device_auth_token = add_device_response.data.get('deviceAuthToken')
+        own_device_id = add_device_response.data.get('ownDeviceId')
+        
+        # Step 3: Pull status to get users
+        pull_response = client.pull_status(device_auth_token=child_device_auth_token)
+        
+        if not pull_response.success:
+            log_add_user_response(
+                device_auth_token=device_auth_token,
+                parent_user_id=parent_user_id,
+                user_id=None,
+                child_device_auth_token=None,
+                own_device_id=None,
+                success=False,
+                error_code=pull_response.error_code,
+                error_message=pull_response.error_message,
+                request_id=request_id
+            )
+            return jsonify({
+                'status': 'error',
+                'error_code': pull_response.error_code,
+                'error': pull_response.error_message
+            }), 500
+        
+        # Step 4: Save users to database
+        # Users are saved with the child's device_auth_token
+        users_data = pull_response.data.get('users', {}).get('data', [])
+        if users_data:
+            save_users(db=db, device_auth_token=child_device_auth_token, users_data=users_data)
+        
+        # Find the new user
+        new_user = None
+        for user in users_data:
+            if user.get('name') == user_name:
+                new_user = user
+                break
+        
+        user_id = new_user.get('id') if new_user else None
+        
+        client.close()
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        log_add_user_response(
+            device_auth_token=device_auth_token,
+            parent_user_id=parent_user_id,
+            user_id=user_id,
+            child_device_auth_token=child_device_auth_token,
+            own_device_id=own_device_id,
+            success=True,
+            status_code=200,
+            request_id=request_id
+        )
+        
+        logger.info(
+            "Add user successful",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            user_id=user_id
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'userId': user_id,
+            'deviceAuthToken': child_device_auth_token,
+            'ownDeviceId': own_device_id
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Add user error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+
+# ============================================================================
+# Family Overview API Route
+# ============================================================================
+@app.route('/api/dashboard/family-overview', methods=['GET'])
+def api_dashboard_family_overview():
+    """Get family overview data.
+    
+    Returns:
+        JSON response with family_email, devices_count, users_count, last_sync.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Family overview request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Family overview request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Family overview request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+    )
+    
+    try:
+        db = get_database()
+        # Get family record
+        family = get_family(db, device_auth_token)
+        family_email = family.get('mail') if family else None
+        
+        # Fall back to session mail if database has pending@unknown
+        session_mail = session.get('mail')
+        if family_email == 'pending@unknown' and session_mail:
+            family_email = session_mail
+        
+        # Get devices count
+        devices = get_devices_by_device_auth_token(db, device_auth_token)
+        devices_count = len(devices) if devices else 0
+        
+        # Get users count
+        users = get_users_by_device_auth_token(db, device_auth_token)
+        users_count = len(users) if users else 0
+        
+        # Get last sync timestamp
+        sync_state = get_sync_state(db, device_auth_token)
+        last_sync = sync_state.get('last_sync') if sync_state else None
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Family overview retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            devices_count=devices_count,
+            users_count=users_count
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'family_email': family_email,
+            'devices_count': devices_count,
+            'users_count': users_count,
+            'last_sync': last_sync
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Family overview error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to retrieve family overview'
+        }), 500
 
 
 # ============================================================================

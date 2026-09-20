@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 # Note: This import is done at module level to allow database operations
 # The database module handles its own initialization
 try:
-    from database import get_database, get_latest_device_auth_token, get_latest_own_device_id, delete_all_device_auth_tokens
+    from database import get_database, get_latest_device_auth_token, get_latest_device_auth_token_with_mail, get_latest_own_device_id, delete_all_device_auth_tokens
     _db_available = True
 except ImportError:
     _db_available = False
@@ -507,27 +507,40 @@ def clear_server_selection() -> None:
 # Uses SQLite database as primary storage with JSON file fallback
 # ============================================================================
 
-def get_persisted_device_auth_token() -> Optional[str]:
-    """Get the persisted device_auth_token from persistent storage.
+def get_persisted_device_auth_token() -> Optional[Dict[str, Any]]:
+    """Get the persisted device_auth_token and associated mail from persistent storage.
     
     This is used to restore the session on application startup.
     Uses SQLite database as primary storage, with JSON file as fallback.
     
     Returns:
-        The device_auth_token string or None if not set.
+        Dictionary with 'token' and 'mail' keys, or None if not set.
+        Example: {'token': 'abc123...', 'mail': 'user@example.com'}
     """
+    logger.debug(
+        "session_restore_check",
+        component="persistence"
+    )
+    
     # Try database first (primary storage)
     if _db_available:
         try:
             db = get_database()
-            token = get_latest_device_auth_token(db)
-            if token:
+            result = get_latest_device_auth_token_with_mail(db)
+            if result:
                 logger.debug(
-                    "Retrieved device_auth_token from database",
+                    "Retrieved device_auth_token and mail from database",
                     component="persistence",
-                    token_found=True
+                    token_found=True,
+                    token_preview=result['token'][:8] + '...' if len(result['token']) > 8 else result['token'],
+                    mail_found=bool(result.get('mail'))
                 )
-                return token
+                return result
+            else:
+                logger.debug(
+                    "token_not_found_in_db",
+                    component="persistence"
+                )
         except Exception as e:
             logger.warning(
                 "Failed to retrieve device_auth_token from database, falling back to JSON file",
@@ -541,16 +554,26 @@ def get_persisted_device_auth_token() -> Optional[str]:
     with store._lock:
         data = store._read()
         token = data.get('device_auth_token')
-        logger.debug(
-            "Retrieved device_auth_token from JSON file (fallback)",
-            component="persistence",
-            file_path=store.file_path,
-            token_found=token is not None
-        )
-        return token
+        mail = data.get('mail')
+        if token:
+            logger.debug(
+                "Retrieved device_auth_token from JSON file (fallback)",
+                component="persistence",
+                file_path=store.file_path,
+                token_found=True,
+                token_preview=token[:8] + '...' if len(token) > 8 else token,
+                mail_found=bool(mail)
+            )
+        else:
+            logger.debug(
+                "token_not_found_in_json",
+                component="persistence",
+                file_path=store.file_path
+            )
+        return {'token': token, 'mail': mail} if token else None
 
 
-def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = None) -> None:
+def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = None, mail: Optional[str] = None) -> None:
     """Save the device_auth_token to persistent storage.
     
     This allows session restoration on application restart.
@@ -560,6 +583,7 @@ def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = N
     Args:
         token: The device_auth_token to save.
         own_device_id: Optional own_device_id to also save.
+        mail: Optional email address to save (for family email display).
     """
     # Save to database (primary storage)
     if _db_available:
@@ -570,11 +594,13 @@ def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = N
                 db=db,
                 token_type='device_auth_token',
                 token_value=token,
-                device_id=own_device_id
+                device_id=own_device_id,
+                mail=mail
             )
             logger.debug(
                 "Device auth token saved to database",
-                component="persistence"
+                component="persistence",
+                mail_saved=bool(mail)
             )
         except Exception as e:
             logger.warning(
@@ -591,13 +617,16 @@ def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = N
         data['device_auth_token'] = token
         if own_device_id:
             data['own_device_id'] = own_device_id
+        if mail:
+            data['mail'] = mail
         data['updated_at'] = int(datetime.now(timezone.utc).timestamp() * 1000)
         store._write(data)
         logger.info(
             "Device auth token persisted to JSON file",
             component="persistence",
             file_path=store.file_path,
-            updated_at=data['updated_at']
+            updated_at=data['updated_at'],
+            mail_saved=bool(mail)
         )
     
     # Create backup file for recovery
@@ -606,6 +635,7 @@ def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = N
             'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000),
             'device_auth_token': token,
             'own_device_id': own_device_id,
+            'mail': mail,
             'backup_successful': True,
             'error': None
         }
@@ -618,7 +648,8 @@ def set_persisted_device_auth_token(token: str, own_device_id: Optional[str] = N
         logger.info(
             "Auth token backup created",
             component="persistence",
-            backup_path=backup_path
+            backup_path=backup_path,
+            mail_saved=bool(mail)
         )
     except Exception as e:
         logger.warning(
@@ -637,6 +668,11 @@ def get_persisted_own_device_id() -> Optional[str]:
     Returns:
         The own_device_id string or None if not set.
     """
+    logger.debug(
+        "device_id_restore_check",
+        component="persistence"
+    )
+    
     # Try database first (primary storage)
     if _db_available:
         try:
@@ -646,9 +682,15 @@ def get_persisted_own_device_id() -> Optional[str]:
                 logger.debug(
                     "Retrieved own_device_id from database",
                     component="persistence",
-                    device_id_found=True
+                    device_id_found=True,
+                    device_id=device_id
                 )
                 return device_id
+            else:
+                logger.debug(
+                    "device_id_not_found_in_db",
+                    component="persistence"
+                )
         except Exception as e:
             logger.warning(
                 "Failed to retrieve own_device_id from database, falling back to JSON file",
@@ -662,12 +704,20 @@ def get_persisted_own_device_id() -> Optional[str]:
     with store._lock:
         data = store._read()
         device_id = data.get('own_device_id')
-        logger.debug(
-            "Retrieved own_device_id from JSON file (fallback)",
-            component="persistence",
-            file_path=store.file_path,
-            device_id_found=device_id is not None
-        )
+        if device_id:
+            logger.debug(
+                "Retrieved own_device_id from JSON file (fallback)",
+                component="persistence",
+                file_path=store.file_path,
+                device_id_found=True,
+                device_id=device_id
+            )
+        else:
+            logger.debug(
+                "device_id_not_found_in_json",
+                component="persistence",
+                file_path=store.file_path
+            )
         return device_id
 
 
@@ -701,14 +751,37 @@ def clear_persisted_auth_tokens() -> None:
     Called when user logs out or session is cleared.
     Clears from both SQLite database, JSON file, and backup file.
     """
+    logger.info(
+        "sign_out_start",
+        component="persistence"
+    )
+    
     # Clear from database (primary storage)
     if _db_available:
         try:
             db = get_database()
-            delete_all_device_auth_tokens(db)
+            # Check what tokens exist before clearing
+            from database import get_auth_token
+            cursor = db.get_connection().cursor()
+            cursor.execute("SELECT COUNT(*) FROM auth_tokens WHERE token_type = 'device_auth_token'")
+            count_before = cursor.fetchone()[0]
             logger.debug(
+                "Auth tokens in database before clearing",
+                component="persistence",
+                count=count_before
+            )
+            
+            delete_all_device_auth_tokens(db)
+            
+            # Verify tokens were cleared
+            cursor.execute("SELECT COUNT(*) FROM auth_tokens WHERE token_type = 'device_auth_token'")
+            count_after = cursor.fetchone()[0]
+            logger.info(
                 "Auth tokens cleared from database",
-                component="persistence"
+                component="persistence",
+                count_before=count_before,
+                count_after=count_after,
+                tokens_deleted=count_before - count_after
             )
         except Exception as e:
             logger.warning(
@@ -717,19 +790,30 @@ def clear_persisted_auth_tokens() -> None:
                 error=str(e),
                 error_type=type(e).__name__
             )
+    else:
+        logger.warning(
+            "Database not available for clearing auth tokens",
+            component="persistence"
+        )
     
     # Also clear from JSON file (fallback)
     store = get_server_selection_store()
     with store._lock:
         data = store._read()
+        token_before = data.get('device_auth_token')
+        device_id_before = data.get('own_device_id')
+        
         data.pop('device_auth_token', None)
         data.pop('own_device_id', None)
         data['updated_at'] = int(datetime.now(timezone.utc).timestamp() * 1000)
         store._write(data)
+        
         logger.info(
             "Auth tokens cleared from JSON file",
             component="persistence",
-            file_path=store.file_path
+            file_path=store.file_path,
+            token_cleared=(token_before is not None),
+            device_id_cleared=(device_id_before is not None)
         )
     
     # Also clear the backup file
@@ -742,6 +826,12 @@ def clear_persisted_auth_tokens() -> None:
                 component="persistence",
                 backup_path=backup_path
             )
+        else:
+            logger.debug(
+                "Auth token backup file does not exist",
+                component="persistence",
+                backup_path=backup_path
+            )
     except Exception as e:
         logger.warning(
             "Failed to clear auth token backup",
@@ -749,6 +839,11 @@ def clear_persisted_auth_tokens() -> None:
             error=str(e),
             error_type=type(e).__name__
         )
+    
+    logger.info(
+        "sign_out_complete",
+        component="persistence"
+    )
 
 
 # ============================================================================
@@ -994,7 +1089,8 @@ def sync_session_to_database() -> Dict[str, Any]:
     # Check if device_auth_token needs to be synced to database
     if device_auth_token:
         # Check if it's already in the database
-        db_token = get_persisted_device_auth_token()
+        db_token_result = get_persisted_device_auth_token()
+        db_token = db_token_result.get('token') if db_token_result else None
         if db_token != device_auth_token:
             # Token not in database or different, sync it
             try:

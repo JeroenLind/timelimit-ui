@@ -8,9 +8,12 @@ This module tests the end-to-end create family flow:
 5. Family is created, user redirected to dashboard
 """
 
+import json
 import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call, Mock
 import time
+
+from database import update_family_parent_user_id, get_users_by_device_auth_token
 
 
 class TestCreateFamilyIntegration:
@@ -562,3 +565,518 @@ class TestCreateFamilySessionManagement:
         # Get the page again - error should be cleared (popped)
         response = client.get('/create-family')
         assert b'Test error message' not in response.data
+
+
+# ============================================================================
+# Add User to Family Integration Tests
+# ============================================================================
+
+class TestAddUserToFamilyIntegration:
+    """Integration tests for the complete add user to family flow.
+    
+    This module tests the end-to-end add user flow:
+    1. Parent is authenticated with device_auth_token and parent_password_second_hash
+    2. Parent calls POST /api/dashboard/users/add with user name
+    3. Server creates add-device token via create_add_device_token
+    4. Server registers child device via add_device
+    5. Server syncs users via pull_status
+    6. Server saves users to database via save_users
+    7. Response includes userId, deviceAuthToken, and ownDeviceId
+    """
+
+    @pytest.mark.timeout(30)
+    def test_add_user_complete_flow(self, auth_session):
+        """Test complete flow from API to database.
+        
+        This test verifies:
+        1. API call is made with correct parameters
+        2. AuthClient.create_add_device_token is called
+        3. AuthClient.add_device is called
+        4. AuthClient.pull_status is called
+        5. Users are saved to database
+        6. Response contains correct data
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database (required for the endpoint)
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_123'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient and its methods
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token',
+                'deviceId': 'device_test_123'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device response
+            add_device_response = MagicMock()
+            add_device_response.success = True
+            add_device_response.data = {
+                'deviceAuthToken': 'child_device_auth_token',
+                'ownDeviceId': 'child_device_id'
+            }
+            mock_client.add_device.return_value = add_device_response
+            
+            # Mock pull_status response
+            pull_status_response = MagicMock()
+            pull_status_response.success = True
+            pull_status_response.data = {
+                'users': {
+                    'data': [
+                        {
+                            'id': 'user_child_456',
+                            'name': 'Test Child',
+                            'type': 'child',
+                            'mail': 'child@test.com',
+                            'timeZone': 'Europe/Amsterdam'
+                        }
+                    ]
+                }
+            }
+            mock_client.pull_status.return_value = pull_status_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert data['status'] == 'ok'
+            assert data['userId'] == 'user_child_456'
+            assert data['deviceAuthToken'] == 'child_device_auth_token'
+            assert data['ownDeviceId'] == 'child_device_id'
+            
+            # Verify the client was called with correct parameters
+            mock_client.create_add_device_token.assert_called_once()
+            call_kwargs = mock_client.create_add_device_token.call_args[1]
+            assert call_kwargs['device_auth_token'] == device_auth_token
+            assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
+            
+            mock_client.add_device.assert_called_once()
+            add_device_kwargs = mock_client.add_device.call_args[1]
+            assert add_device_kwargs['register_token'] == 'test_register_token'
+            assert add_device_kwargs['device_name'] is None
+            assert add_device_kwargs['device_model'] is None
+            assert add_device_kwargs['client_level'] == 7
+            
+            mock_client.pull_status.assert_called_once()
+            pull_status_kwargs = mock_client.pull_status.call_args[1]
+            assert pull_status_kwargs['device_auth_token'] == 'child_device_auth_token'
+            
+            # Verify users were saved to database
+            users = get_users_by_device_auth_token(db, 'child_device_auth_token')
+            assert len(users) == 1
+            assert users[0]['name'] == 'Test Child'
+            assert users[0]['type'] == 'child'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_with_device_info(self, auth_session):
+        """Test adding user with device name and model.
+        
+        This test verifies that device info is correctly passed through
+        the add-device flow.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_456'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token_with_device',
+                'deviceId': 'device_test_456'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device response
+            add_device_response = MagicMock()
+            add_device_response.success = True
+            add_device_response.data = {
+                'deviceAuthToken': 'child_device_auth_token_with_device',
+                'ownDeviceId': 'child_device_id_with_device'
+            }
+            mock_client.add_device.return_value = add_device_response
+            
+            # Mock pull_status response
+            pull_status_response = MagicMock()
+            pull_status_response.success = True
+            pull_status_response.data = {
+                'users': {
+                    'data': [
+                        {
+                            'id': 'user_child_789',
+                            'name': 'Child With Device',
+                            'type': 'child',
+                            'mail': 'child_with_device@test.com',
+                            'timeZone': 'Europe/Amsterdam'
+                        }
+                    ]
+                }
+            }
+            mock_client.pull_status.return_value = pull_status_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call with device info
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={
+                                             'name': 'Child With Device',
+                                             'deviceName': 'My Child Device',
+                                             'deviceModel': 'Pixel 7'
+                                         })
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert data['status'] == 'ok'
+            
+            # Verify add_device was called with device info
+            add_device_kwargs = mock_client.add_device.call_args[1]
+            assert add_device_kwargs['device_name'] == 'My Child Device'
+            assert add_device_kwargs['device_model'] == 'Pixel 7'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_error_handling(self, auth_session):
+        """Test error handling in complete flow.
+        
+        This test verifies that errors at each step are properly handled
+        and appropriate error responses are returned.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_789'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient with token creation failure
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token to return failure
+            token_response = MagicMock()
+            token_response.success = False
+            token_response.error_code = 'unauthorized'
+            token_response.error_message = 'Unauthorized'
+            token_response.status_code = 401
+            mock_client.create_add_device_token.return_value = token_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+            
+            assert response.status_code == 500
+            data = json.loads(response.data)
+            assert data['status'] == 'error'
+            assert data['error_code'] == 'unauthorized'
+            assert data['error'] == 'Unauthorized'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_edge_cases(self, auth_session):
+        """Test edge cases in add user flow.
+        
+        This test verifies:
+        1. User name with special characters
+        2. Empty device name and model (should be None)
+        3. User name with spaces
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_edge'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token_edge',
+                'deviceId': 'device_test_edge'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device response
+            add_device_response = MagicMock()
+            add_device_response.success = True
+            add_device_response.data = {
+                'deviceAuthToken': 'child_device_auth_token_edge',
+                'ownDeviceId': 'child_device_id_edge'
+            }
+            mock_client.add_device.return_value = add_device_response
+            
+            # Mock pull_status response
+            pull_status_response = MagicMock()
+            pull_status_response.success = True
+            pull_status_response.data = {
+                'users': {
+                    'data': [
+                        {
+                            'id': 'user_child_edge',
+                            'name': 'Child with Special Chars! @#',
+                            'type': 'child',
+                            'mail': 'child_edge@test.com',
+                            'timeZone': 'Europe/Amsterdam'
+                        }
+                    ]
+                }
+            }
+            mock_client.pull_status.return_value = pull_status_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Test with user name containing special characters and spaces
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={
+                                             'name': 'Child with Special Chars! @#',
+                                             'deviceName': '',  # Empty string
+                                             'deviceModel': ''  # Empty string
+                                         })
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert data['status'] == 'ok'
+            
+            # Verify add_device was called with None for empty device info
+            add_device_kwargs = mock_client.add_device.call_args[1]
+            assert add_device_kwargs['device_name'] is None
+            assert add_device_kwargs['device_model'] is None
+
+    @pytest.mark.timeout(30)
+    def test_add_user_sync_failure(self, auth_session):
+        """Test adding user when sync fails.
+        
+        This test verifies that when pull_status fails,
+        the error is properly returned.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_sync_fail'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token_sync',
+                'deviceId': 'device_test_sync'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device response
+            add_device_response = MagicMock()
+            add_device_response.success = True
+            add_device_response.data = {
+                'deviceAuthToken': 'child_device_auth_token_sync',
+                'ownDeviceId': 'child_device_id_sync'
+            }
+            mock_client.add_device.return_value = add_device_response
+            
+            # Mock pull_status to return failure
+            pull_status_response = MagicMock()
+            pull_status_response.success = False
+            pull_status_response.error_code = 'sync_failed'
+            pull_status_response.error_message = 'Sync failed'
+            pull_status_response.status_code = 500
+            mock_client.pull_status.return_value = pull_status_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+            
+            assert response.status_code == 500
+            data = json.loads(response.data)
+            assert data['status'] == 'error'
+            assert data['error_code'] == 'sync_failed'
+            assert data['error'] == 'Sync failed'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_device_addition_failure(self, auth_session):
+        """Test adding user when device addition fails.
+        
+        This test verifies that when add_device fails,
+        the error is properly returned.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_device_fail'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token_device',
+                'deviceId': 'device_test_device'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device to return failure
+            add_device_response = MagicMock()
+            add_device_response.success = False
+            add_device_response.error_code = 'device_registration_failed'
+            add_device_response.error_message = 'Device registration failed'
+            add_device_response.status_code = 400
+            mock_client.add_device.return_value = add_device_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+            
+            assert response.status_code == 500
+            data = json.loads(response.data)
+            assert data['status'] == 'error'
+            assert data['error_code'] == 'device_registration_failed'
+            assert data['error'] == 'Device registration failed'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_parent_user_id_not_found(self, auth_session):
+        """Test adding user when parent user ID is not found.
+        
+        This test verifies that when the parent user ID cannot be
+        retrieved from the database, an appropriate error is returned.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Do NOT set parent_user_id in database - this should cause the error
+        
+        # Make the API call
+        response = auth_session.post('/api/dashboard/users/add',
+                                     json={'name': 'Test Child'})
+        
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error_code'] == 'server_error'
+        assert data['error'] == 'Parent user ID not found'
+
+    @pytest.mark.timeout(30)
+    def test_add_user_user_not_in_sync_response(self, auth_session):
+        """Test adding user when the user is not in the sync response.
+        
+        This test verifies that when the newly added user is not found
+        in the pull_status response, userId is None but the operation
+        still succeeds.
+        """
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+            sess['parent_password_second_hash'] = '$2b$12$test_hash'
+        
+        # Set parent_user_id in database
+        db = auth_session.application.test_db
+        parent_user_id = 'user_parent_not_found'
+        update_family_parent_user_id(db, device_auth_token, parent_user_id)
+        
+        # Mock the AuthClient
+        with patch('app.AuthClient') as mock_auth_client_class:
+            mock_client = MagicMock()
+            
+            # Mock create_add_device_token response
+            token_response = MagicMock()
+            token_response.success = True
+            token_response.data = {
+                'token': 'test_register_token_not_found',
+                'deviceId': 'device_test_not_found'
+            }
+            mock_client.create_add_device_token.return_value = token_response
+            
+            # Mock add_device response
+            add_device_response = MagicMock()
+            add_device_response.success = True
+            add_device_response.data = {
+                'deviceAuthToken': 'child_device_auth_token_not_found',
+                'ownDeviceId': 'child_device_id_not_found'
+            }
+            mock_client.add_device.return_value = add_device_response
+            
+            # Mock pull_status response with different user
+            pull_status_response = MagicMock()
+            pull_status_response.success = True
+            pull_status_response.data = {
+                'users': {
+                    'data': [
+                        {
+                            'id': 'user_other',
+                            'name': 'Other User',
+                            'type': 'child',
+                            'mail': 'other@test.com',
+                            'timeZone': 'Europe/Amsterdam'
+                        }
+                    ]
+                }
+            }
+            mock_client.pull_status.return_value = pull_status_response
+            
+            mock_auth_client_class.return_value = mock_client
+            
+            # Make the API call
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert data['status'] == 'ok'
+            # userId should be None since the user wasn't in the response
+            assert data['userId'] is None
+            assert data['deviceAuthToken'] == 'child_device_auth_token_not_found'

@@ -1122,6 +1122,7 @@ class AuthClient:
             'POST',
             '/sync/pull-status',
             data,
+            token=device_auth_token,
             gzip_compress=True
         )
         
@@ -1417,6 +1418,199 @@ class AuthClient:
                 "Failed to push device removal action",
                 request_id=request_id,
                 device_id=device_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    # ========================================================================
+    # Time Limit Rules Endpoints
+    # ========================================================================
+    
+    def add_time_limit_rule(
+        self,
+        device_auth_token: str,
+        user_id: str,
+        category_id: str,
+        rule: Dict[str, Any],
+        sequence_number: int,
+        parent_password_second_hash: str
+    ) -> APIResponse:
+        """Add a time limit rule via the sync protocol.
+        
+        This method sends an AddTimeLimitRuleAction via the sync protocol,
+        which is the correct way to add time limit rules according to the server's
+        expected behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            user_id: ID of the user the rule applies to.
+            category_id: ID of the category the rule applies to.
+            rule: Rule data with type, startTime, endTime, days, limitMinutes.
+            sequence_number: The sequence number for this action.
+            parent_password_second_hash: Parent's second password hash for integrity.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag on success.
+        """
+        import json
+        from crypto_utils import calculate_hmac_sha256_binary
+        
+        request_id = get_request_id()
+        
+        # Build the encoded action (no spaces after colons to match server schema)
+        encoded_action = json.dumps({
+            "type": "AddTimeLimitRuleAction",
+            "categoryId": category_id,
+            "userId": user_id,
+            "rule": rule
+        }, separators=(',', ':'))
+        
+        # Calculate the integrity hash
+        # For time limit rules, we use a placeholder device_id for the integrity calculation
+        # The server validates the integrity using the parent's second hash
+        integrity = calculate_hmac_sha256_binary(
+            parent_password_second_hash,
+            sequence_number,
+            user_id,  # Use user_id as the identifier for integrity calculation
+            encoded_action
+        )
+        
+        # Build the action
+        action = {
+            "encodedAction": encoded_action,
+            "sequenceNumber": sequence_number,
+            "integrity": integrity,
+            "type": "appLogic",
+            "userId": user_id
+        }
+        
+        # Sanitize for logging (remove sensitive fields)
+        sanitized_action = {
+            'type': action.get('type'),
+            'userId': action.get('userId'),
+            'sequenceNumber': action.get('sequenceNumber')
+        }
+        
+        logger.info(
+            "Pushing add time limit rule action",
+            request_id=request_id,
+            user_id=user_id,
+            category_id=category_id,
+            sequence_number=sequence_number,
+            action_preview=sanitized_action
+        )
+        
+        # Push the action via sync protocol
+        response = self.push_actions(device_auth_token, [action])
+        
+        if response.success:
+            logger.info(
+                "Add time limit rule action pushed successfully",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                sequence_number=sequence_number
+            )
+        else:
+            logger.warning(
+                "Failed to push add time limit rule action",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    def remove_time_limit_rule(
+        self,
+        device_auth_token: str,
+        user_id: str,
+        rule_id: str,
+        sequence_number: int,
+        parent_password_second_hash: str
+    ) -> APIResponse:
+        """Remove a time limit rule via the sync protocol.
+        
+        This method sends a RemoveTimeLimitRuleAction via the sync protocol,
+        which is the correct way to remove time limit rules according to the server's
+        expected behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            user_id: ID of the user the rule applies to.
+            rule_id: ID of the rule to remove.
+            sequence_number: The sequence number for this action.
+            parent_password_second_hash: Parent's second password hash for integrity.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag on success.
+        """
+        import json
+        from crypto_utils import calculate_hmac_sha256_binary
+        
+        request_id = get_request_id()
+        
+        # Build the encoded action (no spaces after colons to match server schema)
+        encoded_action = json.dumps({
+            "type": "RemoveTimeLimitRuleAction",
+            "userId": user_id,
+            "ruleId": rule_id
+        }, separators=(',', ':'))
+        
+        # Calculate the integrity hash
+        integrity = calculate_hmac_sha256_binary(
+            parent_password_second_hash,
+            sequence_number,
+            user_id,  # Use user_id as the identifier for integrity calculation
+            encoded_action
+        )
+        
+        # Build the action
+        action = {
+            "encodedAction": encoded_action,
+            "sequenceNumber": sequence_number,
+            "integrity": integrity,
+            "type": "appLogic",
+            "userId": user_id
+        }
+        
+        # Sanitize for logging (remove sensitive fields)
+        sanitized_action = {
+            'type': action.get('type'),
+            'userId': action.get('userId'),
+            'sequenceNumber': action.get('sequenceNumber')
+        }
+        
+        logger.info(
+            "Pushing remove time limit rule action",
+            request_id=request_id,
+            user_id=user_id,
+            rule_id=rule_id,
+            sequence_number=sequence_number,
+            action_preview=sanitized_action
+        )
+        
+        # Push the action via sync protocol
+        response = self.push_actions(device_auth_token, [action])
+        
+        if response.success:
+            logger.info(
+                "Remove time limit rule action pushed successfully",
+                request_id=request_id,
+                user_id=user_id,
+                rule_id=rule_id,
+                sequence_number=sequence_number
+            )
+        else:
+            logger.warning(
+                "Failed to push remove time limit rule action",
+                request_id=request_id,
+                user_id=user_id,
+                rule_id=rule_id,
                 error_code=response.error_code,
                 error_message=response.error_message
             )

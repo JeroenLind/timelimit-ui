@@ -1,0 +1,656 @@
+{% extends "base.html" %}
+
+{% block title %}TimeLimit Dashboard v2 - v1.0.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    .version-badge {
+        background: rgba(102, 126, 234, 0.2);
+        color: #667eea;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: monospace;
+        margin-left: 10px;
+    }
+    
+    .dashboard-content {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .status-section {
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .server-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .server-label {
+        color: #aaa;
+        font-weight: 500;
+    }
+    
+    .server-url {
+        color: #fff;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-success {
+        background: #4caf50;
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    
+    .status-error {
+        background: #f44336;
+        box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    }
+    
+    .status-warning {
+        background: #ff9800;
+        box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    h2 {
+        color: #fff;
+        margin-bottom: 15px;
+        font-size: 18px;
+    }
+    
+    #status-content {
+        color: #ccc;
+    }
+    
+    .content h2 {
+        color: #fff;
+        margin-bottom: 15px;
+    }
+    
+    .content p {
+        color: #aaa;
+        line-height: 1.6;
+    }
+    
+    /* Historical data table styles */
+    .historical-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        overflow-x: auto;
+    }
+    
+    .historical-table th,
+    .historical-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .historical-table th {
+        background: rgba(255, 255, 255, 0.05);
+        color: #aaa;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .historical-table tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .time-cell {
+        font-family: monospace;
+        font-size: 12px;
+        color: #888;
+    }
+    
+    .success-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .success-badge.success {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+    
+    .success-badge.error {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+    
+    /* Alert notifications */
+    .alert-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+    }
+    
+    .alert {
+        padding: 15px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease-out;
+        border-left: 4px solid;
+        color: #333;
+    }
+    
+    .alert.error {
+        border-left-color: #f44336;
+    }
+    
+    .alert.success {
+        border-left-color: #4caf50;
+    }
+    
+    .alert.warning {
+        border-left-color: #ff9800;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .alert-close {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #888;
+    }
+    
+    .alert-close:hover {
+        color: #fff;
+    }
+    
+    /* Refresh button */
+    .refresh-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .refresh-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    .refresh-btn.loading {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .last-update {
+        color: #666;
+        font-size: 12px;
+        margin-top: 10px;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .server-info {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .historical-table {
+            display: block;
+            overflow-x: auto;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .alert-container {
+            max-width: 90vw;
+            right: 5px;
+            left: 5px;
+        }
+        
+        .historical-table th,
+        .historical-table td {
+            padding: 8px;
+            font-size: 11px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="status-section">
+    <h2><span class="status-indicator status-warning" id="status-indicator"></span>Server Status</h2>
+    <div id="status-content">
+        <div class="server-info">
+            <span class="server-label">Checking server...</span>
+        </div>
+    </div>
+    <div id="error-message" style="display: none; margin-top: 10px; padding: 10px; background: rgba(244, 67, 54, 0.1); border-radius: 8px; color: #ff4444;"></div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Dashboard Content <span class="version-badge">v1.0.0</span></h2>
+    <p>Welcome to the new TimeLimit Dashboard v2.</p>
+    <p>This dashboard provides server status checking and will eventually include family management features.</p>
+    
+    <div style="margin-top: 15px;">
+        <button class="refresh-btn" id="refresh-btn" onclick="refreshServerStatus()">
+            <span id="refresh-icon">🔄</span>
+            <span id="refresh-text">Refresh Status</span>
+        </button>
+        <div class="last-update" id="last-update">Last update: Never</div>
+    </div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Historical Data</h2>
+    <p style="color: #aaa; margin-bottom: 10px;">Recent server check results (last 10 checks)</p>
+    
+    <table class="historical-table" id="historical-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Server Time</th>
+                <th>Attempts</th>
+            </tr>
+        </thead>
+        <tbody id="historical-body">
+            <tr>
+                <td colspan="4" style="text-align: center; color: #666;">Loading historical data...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Session Information</h2>
+    
+    <!-- Session Status Overview -->
+    <div id="session-overview" style="margin-bottom: 20px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="server-status-indicator" class="status-indicator status-warning"></span>
+                <span id="server-status-text">Server: Not selected</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="auth-status-indicator" class="status-indicator status-warning"></span>
+                <span id="auth-status-text">Auth: Not authenticated</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="family-status-indicator" class="status-indicator status-warning"></span>
+                <span id="family-status-text">Family: Not selected</span>
+            </div>
+        </div>
+        
+        <!-- Detailed Session Fields -->
+        <div style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="color: #aaa;">Field</span>
+                <span style="color: #aaa;">Status</span>
+            </div>
+            
+            <div id="session-fields-container">
+                <!-- Server URL -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Server URL</span>
+                        <span id="field-server-url" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="server-url-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not configured</div>
+                </div>
+                
+                <!-- Device Auth Token -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Device Auth Token</span>
+                        <span id="field-device-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="device-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Own Device ID -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Own Device ID</span>
+                        <span id="field-device-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="device-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Family ID -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Family ID</span>
+                        <span id="field-family-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="family-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+                
+                <!-- Mail Auth Token -->
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #aaa;">Mail Auth Token</span>
+                        <span id="field-mail-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                    </div>
+                    <div id="mail-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Links (shown when not fully authenticated) -->
+                <div id="session-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div id="create-family-link" style="margin-bottom: 10px;">
+                        <a href="/create-family" class="refresh-btn" style="display: inline-block; text-decoration: none; margin-right: 10px;">
+                            Create New Family
+                        </a>
+                    </div>
+                    <div id="login-existing-family-link">
+                        <a href="/login-as-parent" class="refresh-btn" style="display: inline-block; text-decoration: none;">
+                            Login to Existing Family
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Sign Out Button (shown when authenticated) -->
+                <div id="signout-link" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <button class="refresh-btn" id="signout-btn" onclick="clearSession()" style="display: inline-block; text-decoration: none; background: rgba(244, 67, 54, 0.2); border: 1px solid rgba(244, 67, 54, 0.5); color: #f44336;">
+                        Sign Out
+                    </button>
+                </div>
+    </div>
+</div>
+
+<div class="dashboard-content">
+    <h2>Family Users <span class="version-badge">v1.0.0</span></h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-users-btn" onclick="refreshUsers()">
+            <span>🔄</span> Refresh Users
+        </button>
+    </div>
+    <table class="historical-table" id="users-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Email</th>
+                <th>Current Device</th>
+                <th>Time Zone</th>
+                <th>Limits Disabled</th>
+            </tr>
+        </thead>
+        <tbody id="users-body">
+            <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Family Devices</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-devices-btn" onclick="refreshDevices()">
+            <span>🔄</span> Refresh Devices
+        </button>
+    </div>
+    <table class="historical-table" id="devices-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Model</th>
+                <th>Current User</th>
+                <th>Protection Level</th>
+                <th>App Version</th>
+                <th>Platform</th>
+                <th>Added At</th>
+            </tr>
+        </thead>
+        <tbody id="devices-body">
+            <tr><td colspan="7" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="dashboard-content">
+    <h2>Connected Devices</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-connected-btn" onclick="refreshConnectedDevices()">
+            <span>🔄</span> Refresh Connected Devices
+        </button>
+    </div>
+    <table class="historical-table" id="connected-devices-table">
+        <thead>
+            <tr>
+                <th>Device ID</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+        <tbody id="connected-devices-body">
+            <tr><td colspan="2" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Alert container for notifications -->
+<div class="alert-container" id="alert-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/dashboardV2.js"></script>
+<script>
+    // Server status and historical data functions
+    function fetchSessionStatus() {
+            const serverUrlElement = document.getElementById('current-server');
+            const authStatusElement = document.getElementById('auth-status');
+            
+            fetch('/api/session/status', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.server_url) {
+                    serverUrlElement.textContent = data.server_url;
+                }
+                if (data.authenticated) {
+                    authStatusElement.textContent = 'Authenticated';
+                    authStatusElement.style.color = '#4caf50';
+                }
+                // Update the detailed session overview
+                if (typeof updateSessionOverview === 'function') {
+                    updateSessionOverview(data);
+                }
+            })
+            .catch(error => {
+                console.log('Could not fetch session status');
+            });
+        }
+    
+    function refreshServerStatus() {
+        const btn = document.getElementById('refresh-btn');
+        const icon = document.getElementById('refresh-icon');
+        const text = document.getElementById('refresh-text');
+        
+        btn.classList.add('loading');
+        icon.textContent = '⏳';
+        text.textContent = 'Refreshing...';
+        
+        fetch('/api/timechecker/status?force_refresh=true', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateStatusDisplay(data);
+            loadHistoricalData();
+            showAlert('Server status updated successfully', 'success');
+        })
+        .catch(error => {
+            showAlert('Failed to refresh server status: ' + error.message, 'error');
+        })
+        .finally(() => {
+            btn.classList.remove('loading');
+            icon.textContent = '🔄';
+            text.textContent = 'Refresh Status';
+        });
+    }
+    
+    function updateStatusDisplay(data) {
+        const statusContent = document.getElementById('status-content');
+        const statusIndicator = document.getElementById('status-indicator');
+        const errorMessage = document.getElementById('error-message');
+        
+        if (data.success) {
+            const serverTime = new Date(data.server_time).toLocaleTimeString();
+            statusContent.innerHTML = `
+                <div class="server-info">
+                    <span class="status-indicator status-success"></span>
+                    <span class="server-label">Server is reachable</span>
+                </div>
+                <div style="margin-top: 10px; color: #aaa; font-size: 14px;">
+                    Server time: <strong style="color: #00ff88;">${serverTime}</strong>
+                </div>
+            `;
+            errorMessage.style.display = 'none';
+        } else {
+            statusContent.innerHTML = `
+                <div class="server-info">
+                    <span class="status-indicator status-error"></span>
+                    <span class="server-label">Server unreachable</span>
+                </div>
+            `;
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = data.error_message || 'Connection failed';
+        }
+        
+        // Update last update time
+        document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+    }
+    
+    function loadHistoricalData() {
+        const tbody = document.getElementById('historical-body');
+        
+        fetch('/api/timechecker/history?limit=10', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.checks && data.checks.length > 0) {
+                tbody.innerHTML = data.checks.map(check => {
+                    const time = new Date(check.timestamp).toLocaleTimeString();
+                    const statusClass = check.success ? 'success' : 'error';
+                    const statusText = check.success ? 'Success' : 'Failed';
+                    const serverTime = check.server_time ? new Date(check.server_time).toLocaleTimeString() : 'N/A';
+                    
+                    return `
+                        <tr>
+                            <td class="time-cell">${time}</td>
+                            <td><span class="success-badge ${statusClass}">${statusText}</span></td>
+                            <td class="time-cell">${serverTime}</td>
+                            <td class="time-cell">${check.attempts}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No historical data available</td></tr>';
+            }
+        })
+        .catch(error => {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Failed to load historical data</td></tr>';
+        });
+    }
+    
+    function showAlert(message, type) {
+        const container = document.getElementById('alert-container');
+        const alert = document.createElement('div');
+        alert.className = 'alert ' + type;
+        alert.innerHTML = `
+            ${message}
+            <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+        `;
+        
+        container.appendChild(alert);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alert.parentElement) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+    
+    // Check for redirect message from login-as-parent
+    function checkRedirectMessage() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        
+        if (message === 'already_authenticated') {
+            showAlert('Already logged in - skipping login', 'warning');
+            // Clean up the URL by removing the message parameter
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete('message');
+            window.history.replaceState({}, '', newUrl);
+        }
+    }
+    
+    // Automatically refresh server status and session info when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        checkRedirectMessage();
+        refreshServerStatus();
+        fetchSessionStatus();
+    });
+</script>
+{% endblock %}

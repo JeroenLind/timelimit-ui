@@ -53,18 +53,17 @@
     
     /**
      * Check if user is authenticated
-     * @returns {Promise<boolean>} True if authenticated
+     * @returns {Promise<Object>} Session status data
      */
     async function checkAuthentication() {
         try {
             const response = await fetch('/api/session/status');
             const data = await response.json();
             isAuthenticated = data.authenticated || false;
-            return isAuthenticated;
+            return data;
         } catch (error) {
-            console.error('Failed to check authentication status:', error);
             isAuthenticated = false;
-            return false;
+            return { authenticated: false };
         }
     }
     
@@ -103,7 +102,9 @@
         const indicator = document.getElementById('login-banner-indicator');
         const message = document.getElementById('login-banner-message');
         
-        if (!banner || !indicator || !message) return;
+        if (!banner || !indicator || !message) {
+            return;
+        }
         
         if (data.login_error) {
             banner.style.display = 'block';
@@ -131,6 +132,32 @@
         if (!data) {
             console.error('updateSessionOverview: No data provided');
             return;
+        }
+        
+        // Update top Server Status section
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusContent = document.getElementById('status-content');
+        const errorMessage = document.getElementById('error-message');
+        if (statusIndicator && statusContent) {
+            if (data.server_url) {
+                statusIndicator.className = 'status-indicator status-success';
+                statusContent.innerHTML = '<div class="server-info">' +
+                    '<span class="server-label">Server:</span>' +
+                    '<span class="server-url" style="color: #00ff88; font-family: monospace; font-size: 12px;"> ' + escapeHtml(data.server_url) + '</span>' +
+                    '</div>';
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            } else {
+                statusIndicator.className = 'status-indicator status-warning';
+                statusContent.innerHTML = '<div class="server-info">' +
+                    '<span class="server-label">Server:</span>' +
+                    '<span class="server-url" style="color: #ff9800; font-family: monospace; font-size: 12px;"> Not available</span>' +
+                    '</div>';
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            }
         }
         
         // Update server status indicator and text
@@ -331,19 +358,32 @@
         // Show/hide action links based on authentication status
         const createFamilyLink = document.getElementById('create-family-link');
         const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
+        const recoverPasswordLink = document.getElementById('recover-password-link');
         const signoutLink = document.getElementById('signout-link');
-        if (createFamilyLink && loginExistingFamilyLink) {
+        const signInSection = document.getElementById('sign-in-section');
+        
+        if (createFamilyLink && loginExistingFamilyLink && recoverPasswordLink) {
             if (data.authenticated) {
                 createFamilyLink.style.display = 'none';
                 loginExistingFamilyLink.style.display = 'none';
+                recoverPasswordLink.style.display = 'none';
                 if (signoutLink) {
                     signoutLink.style.display = 'block';
+                }
+                // Hide the prominent sign-in section when authenticated
+                if (signInSection) {
+                    signInSection.style.display = 'none';
                 }
             } else {
                 createFamilyLink.style.display = 'block';
                 loginExistingFamilyLink.style.display = 'block';
+                recoverPasswordLink.style.display = 'block';
                 if (signoutLink) {
                     signoutLink.style.display = 'none';
+                }
+                // Show the prominent sign-in section when not authenticated
+                if (signInSection) {
+                    signInSection.style.display = 'block';
                 }
             }
         }
@@ -369,8 +409,7 @@
      */
     async function refreshData() {
         try {
-            const response = await apiRequest('/time', 'POST', {});
-            console.log('Server time:', response);
+            await apiRequest('/time', 'POST', {});
         } catch (error) {
             console.error('Failed to refresh data:', error);
         }
@@ -381,12 +420,30 @@
      */
     async function clearSession() {
         try {
-            await apiRequest('/session/clear', 'POST');
-            // Clear stored password hash
-            parentPasswordHash = null;
-            location.reload();
+            const response = await apiRequest('/session/clear', 'POST');
+            
+            // Check if the response indicates success
+            if (response && response.status === 'ok') {
+                // Clear stored password hash
+                parentPasswordHash = null;
+                
+                // Update authentication status
+                isAuthenticated = false;
+                
+                // Update login status banner and session overview
+                const sessionData = { authenticated: false };
+                updateLoginStatusBanner(sessionData);
+                updateSessionOverview(sessionData);
+                
+                // Show success message
+                showAlert('Signed out successfully. Please sign in to continue.', 'success');
+                
+                // Stay on dashboard page - do NOT redirect to landing page
+                // The user can manually navigate away if needed
+            } else {
+                showAlert('Failed to clear session: ' + (response?.error || 'Unknown error'), 'error');
+            }
         } catch (error) {
-            console.error('Failed to clear session:', error);
             showAlert('Failed to clear session: ' + error.message, 'error');
         }
     }
@@ -483,66 +540,164 @@
      * Load users from the API
      */
     async function loadUsers() {
-        const tbody = document.getElementById('users-body');
-        if (!tbody) return;
+        const container = document.getElementById('unified-view-container');
+        if (!container) {
+            return;
+        }
         
         // Check authentication first
         if (!isAuthenticated) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">Please log in to view users</td></tr>';
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ccc;">Please log in to view users</div>';
             return;
         }
         
         try {
-            const response = await fetch('/api/dashboard/users');
+            const response = await fetch('/api/dashboard/unified-view');
             const data = await response.json();
             
             if (data.status === 'ok') {
-                renderUsersTable(data.users);
+                renderUnifiedView(data.users);
             } else if (data.error) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #f44336;">' + escapeHtml(data.error) + '</td></tr>';
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #f44336;">' + escapeHtml(data.error) + '</div>';
             } else {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #f44336;">Failed to load users - API endpoint not available</td></tr>';
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #f44336;">Failed to load users - API endpoint not available</div>';
             }
         } catch (error) {
             console.error('Failed to load users:', error);
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #f44336;">Error loading users: ' + escapeHtml(error.message) + '</td></tr>';
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #f44336;">Error loading users: ' + escapeHtml(error.message) + '</div>';
         }
     }
     
     /**
-     * Render users table
-     * @param {Array} users - Array of user objects
+     * Toggle collapsible section expand/collapse
+     * @param {string} sectionId - The ID of the collapsible section to toggle
      */
-    function renderUsersTable(users) {
-        const tbody = document.getElementById('users-body');
-        if (!tbody) return;
+    function toggleCollapsible(sectionId) {
+        const header = document.getElementById(sectionId + '-header');
+        const content = document.getElementById(sectionId + '-content');
+        const toggle = document.getElementById(sectionId + '-toggle');
+        
+        if (!content) return;
+        
+        const isExpanded = !content.classList.contains('hidden');
+        
+        if (isExpanded) {
+            content.classList.add('hidden');
+            if (toggle) toggle.classList.remove('active');
+        } else {
+            content.classList.remove('hidden');
+            if (toggle) toggle.classList.add('active');
+        }
+    }
+    
+    /**
+     * Render unified view with user cards
+     * @param {Array} users - Array of user objects with associated rules and devices
+     */
+    function renderUnifiedView(users) {
+        const container = document.getElementById('unified-view-container');
+        if (!container) return;
         
         if (!users || users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No users found</td></tr>';
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ccc;">No users found</div>';
             return;
         }
         
-        tbody.innerHTML = users.map(user => {
-            const typeLabel = user.type === 'parent' ? '👤 Parent' : '👶 Child';
-            const limitsDisabled = user.disable_limits_until && user.disable_limits_until > 0 ? 'Yes' : 'No';
+        container.innerHTML = users.map(user => {
+            const typeLabel = user.type === 'parent' ? 'Parent' : 'Child';
+            const typeBadgeClass = user.type === 'parent' ? 'parent' : 'child';
+            const limitsDisabled = user.disable_limits_until && user.disable_limits_until > 0;
+            
+            // Get associated rules for this user
+            const userRules = user.rules || [];
+            const userDevices = user.devices || [];
+            
+            // Check if current device is assigned to this user
+            const currentDeviceId = user.current_device_id;
+            const hasCurrentDevice = currentDeviceId && userDevices.some(d => d.id === currentDeviceId);
             
             return `
-                <tr>
-                    <td>${escapeHtml(user.name)}</td>
-                    <td>${typeLabel}</td>
-                    <td>${escapeHtml(user.mail)}</td>
-                    <td>${escapeHtml(user.current_device)}</td>
-                    <td>${escapeHtml(user.time_zone)}</td>
-                    <td>${limitsDisabled}</td>
-                </tr>
+                <div class="user-card" id="user-card-${user.id}">
+                    <div class="user-card-header">
+                        <h3>
+                            ${escapeHtml(user.name)}
+                            <span class="user-type-badge ${typeBadgeClass}">${typeLabel}</span>
+                            ${hasCurrentDevice ? '<span class="current-device-badge"><span class="check-icon">✓</span> Current Device</span>' : ''}
+                        </h3>
+                        <button class="collapsible-toggle" id="section-${user.id}-toggle" onclick="window.dashboardV2.toggleCollapsible('section-${user.id}')" aria-label="Toggle section">
+                            <span>▶</span>
+                        </button>
+                    </div>
+                    <div class="user-card-body">
+                        <div class="user-info">
+                            <div class="user-name">${escapeHtml(user.name)}</div>
+                            <div class="user-email">${escapeHtml(user.mail)}</div>
+                            <div class="user-status">
+                                <span>🕒 Time Zone: ${escapeHtml(user.time_zone || 'N/A')}</span>
+                                ${limitsDisabled ? '<span style="color: #ffc107; font-weight: 500;">Limits Disabled</span>' : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="collapsible-section">
+                            <div class="collapsible-header" id="section-${user.id}-header" onclick="window.dashboardV2.toggleCollapsible('section-${user.id}')">
+                                <h4 style="margin: 0; font-size: 14px; color: var(--color-text-primary);">
+                                    📋 Rules (${userRules.length})
+                                </h4>
+                                <span class="collapsible-toggle" id="section-${user.id}-toggle"></span>
+                            </div>
+                            <div class="collapsible-content hidden" id="section-${user.id}-content">
+                                ${userRules.length > 0 ? userRules.map(rule => `
+                                    <div class="rule-item">
+                                        <div class="rule-item-header">
+                                            <span class="rule-category">${escapeHtml(rule.category_name || 'Unknown')}</span>
+                                            <span class="rule-duration">${rule.limit_minutes} min</span>
+                                        </div>
+                                        <div class="rule-time-range">
+                                            ${rule.days_of_week ? rule.days_of_week.join(', ') : 'All days'}
+                                        </div>
+                                        <div class="rule-days">
+                                            ${rule.days_of_week ? rule.days_of_week.map(day => `<span class="rule-day">${day.substring(0, 3)}</span>`).join('') : ''}
+                                        </div>
+                                        <div class="rule-actions">
+                                            <button class="rule-edit-btn" onclick="window.dashboardV2.editUserRule('${user.id}', '${rule.id}')">✏️</button>
+                                            <button class="rule-delete-btn" onclick="window.dashboardV2.deleteUserRule('${user.id}', '${rule.id}')">🗑️</button>
+                                        </div>
+                                    </div>
+                                `).join('') : '<div style="text-align: center; color: #6c757d; padding: 10px;">No rules assigned</div>'}
+                            </div>
+                        </div>
+                        
+                        <div class="collapsible-section">
+                            <div class="collapsible-header" id="section-${user.id + '-devices'}-header" onclick="window.dashboardV2.toggleCollapsible('section-${user.id + '-devices'}')">
+                                <h4 style="margin: 0; font-size: 14px; color: var(--color-text-primary);">
+                                    📱 Devices (${userDevices.length})
+                                </h4>
+                                <span class="collapsible-toggle" id="section-${user.id + '-devices'}-toggle"></span>
+                            </div>
+                            <div class="collapsible-content hidden" id="section-${user.id + '-devices'}-content">
+                                ${userDevices.length > 0 ? userDevices.map(device => `
+                                    <div class="device-item">
+                                        <div class="device-info">
+                                            <div class="device-name">${escapeHtml(device.name)}</div>
+                                            <div class="device-model">${escapeHtml(device.model || 'Unknown')}</div>
+                                        </div>
+                                        <div class="device-actions">
+                                            ${device.id === currentDeviceId ? '<span style="color: #28a745; font-weight: 500;">(Current)</span>' : ''}
+                                        </div>
+                                    </div>
+                                `).join('') : '<div style="text-align: center; color: #6c757d; padding: 10px;">No devices assigned</div>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             `;
         }).join('');
     }
     
     /**
-     * Refresh users data
+     * Refresh unified view data
      */
-    async function refreshUsers() {
+    async function refreshUnifiedView() {
         const btn = document.getElementById('refresh-users-btn');
         if (btn) {
             btn.classList.add('loading');
@@ -558,6 +713,14 @@
     }
     
     /**
+     * Refresh users data (alias for refreshUnifiedView)
+     * This function exists for backward compatibility and API consistency
+     */
+    async function refreshUsers() {
+        await refreshUnifiedView();
+    }
+    
+    /**
      * Load devices from the API
      */
     async function loadDevices() {
@@ -566,7 +729,7 @@
         
         // Check authentication first
         if (!isAuthenticated) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #666;">Please log in to view devices</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #ccc;">Please log in to view devices</td></tr>';
             return;
         }
         
@@ -598,7 +761,7 @@
         if (!tbody) return;
         
         if (!devices || devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #666;">No devices found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #ccc;">No devices found</td></tr>';
             return;
         }
         
@@ -631,11 +794,11 @@
             // Show tooltip or disabled state if parent password hash is not set
             let deleteButton;
             if (!hasParentPasswordHash) {
-                deleteButton = '<span style="color: #666; cursor: not-allowed;" title="Set parent password hash first to enable device removal">🗑️</span>';
+                deleteButton = '<span style="color: #ccc; cursor: not-allowed;" title="Set parent password hash first to enable device removal">🗑️</span>';
             } else if (canDelete) {
                 deleteButton = `<button class="delete-btn" onclick="confirmRemoveDevice('${device.id}', '${escapeHtml(device.name)}')">🗑️</button>`;
             } else {
-                deleteButton = '<span style="color: #666;">-</span>';
+                deleteButton = '<span style="color: #ccc;">-</span>';
             }
             
             return `
@@ -683,7 +846,7 @@
         
         // Check authentication first
         if (!isAuthenticated) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #666;">Please log in to view connected devices</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #ccc;">Please log in to view connected devices</td></tr>';
             return;
         }
         
@@ -713,7 +876,7 @@
         if (!tbody) return;
         
         if (!devices || devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #666;">No connected devices</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #ccc;">No connected devices</td></tr>';
             return;
         }
         
@@ -754,7 +917,6 @@
     async function triggerSync() {
         // Check authentication first
         if (!isAuthenticated) {
-            console.error('Cannot sync: not authenticated');
             showAlert('Cannot sync: You are not authenticated. Please log in first.', 'error');
             return;
         }
@@ -767,7 +929,6 @@
             const data = await response.json();
             
             if (data.status === 'ok') {
-                console.log('Sync completed:', data);
                 showAlert('Sync completed successfully', 'success');
                 // Reload all data after sync
                 await Promise.all([
@@ -776,11 +937,9 @@
                     loadConnectedDevices()
                 ]);
             } else {
-                console.error('Sync failed:', data);
                 showAlert('Sync failed: ' + (data.error || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('Failed to trigger sync:', error);
             showAlert('Failed to trigger sync: ' + error.message, 'error');
         }
     }
@@ -791,14 +950,12 @@
     function connectSSE() {
         // Only connect SSE if authenticated
         if (!isAuthenticated) {
-            console.log('SSE connection skipped: not authenticated');
             return;
         }
         
         const eventSource = new EventSource('/api/dashboard/stream');
         
         eventSource.addEventListener('sync_complete', function(event) {
-            console.log('Sync complete event received:', event.data);
             // Reload data after sync
             loadUsers();
             loadDevices();
@@ -806,7 +963,6 @@
         });
         
         eventSource.addEventListener('error', function(event) {
-            console.error('SSE error:', event);
             // Try to reconnect after a delay
             setTimeout(() => {
                 connectSSE();
@@ -839,6 +995,233 @@
             })
         });
         return await response.json();
+    }
+    
+    /**
+     * Hide the add user modal
+     */
+    function hideAddUserModal() {
+        const modal = document.getElementById('add-user-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Show the add user modal
+     */
+    function showAddUserModal() {
+        const modal = document.getElementById('add-user-modal');
+        if (modal) {
+            modal.style.display = 'block';
+            modal.style.opacity = '1';
+        }
+    }
+    
+    /**
+     * Submit the add user form
+     */
+    async function submitAddUserForm() {
+        const form = document.getElementById('add-user-form');
+        const nameInput = document.getElementById('add-user-name');
+        const deviceNameInput = document.getElementById('add-user-device-name');
+        const deviceModelInput = document.getElementById('add-user-device-model');
+        const errorDiv = document.getElementById('add-user-name-error');
+        
+        // Validate user name
+        const userName = nameInput.value.trim();
+        if (!userName) {
+            if (errorDiv) {
+                errorDiv.textContent = 'User name is required';
+                errorDiv.style.display = 'block';
+            }
+            return;
+        }
+        
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+        
+        // Show loading state
+        const submitBtn = document.getElementById('add-user-submit-btn');
+        if (submitBtn) {
+            submitBtn.classList.add('loading');
+        }
+        
+        try {
+            const response = await fetch('/api/dashboard/users/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: userName,
+                    device_name: deviceNameInput.value.trim() || null,
+                    device_model: deviceModelInput.value.trim() || null
+                })
+            });
+            const data = await response.json();
+            
+            if (data.status === 'ok') {
+                showAlert('User added successfully', 'success');
+                hideAddUserModal();
+                // Refresh the unified view
+                await refreshUnifiedView();
+            } else {
+                showAlert('Failed to add user: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showAlert('Failed to add user: ' + error.message, 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.classList.remove('loading');
+            }
+        }
+    }
+    
+    /**
+     * Hide the rule form modal
+     */
+    function hideRuleForm() {
+        const modal = document.getElementById('rule-form-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.style.opacity = '0';
+        }
+    }
+    
+    /**
+     * Show the rule form modal
+     * @param {string} userId - User ID to create rule for (optional)
+     */
+    function showRuleForm(userId = null) {
+        const modal = document.getElementById('rule-form-modal');
+        const title = document.getElementById('rule-form-title');
+        
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+        }
+        
+        if (title) {
+            title.textContent = userId ? 'Edit Time Limit Rule' : 'Add Time Limit Rule';
+        }
+        
+        // Populate user select if userId is provided
+        if (userId) {
+            const userSelect = document.getElementById('rule-user-select');
+            if (userSelect) {
+                // Find and select the user
+                const option = userSelect.querySelector(`option[value="${userId}"]`);
+                if (option) {
+                    option.selected = true;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Submit the rule form
+     */
+    async function submitRuleForm() {
+        const form = document.getElementById('rule-form');
+        const userSelect = document.getElementById('rule-user-select');
+        const categorySelect = document.getElementById('rule-category-select');
+        const limitMinutesInput = document.getElementById('rule-limit-minutes');
+        const startTimeInput = document.getElementById('rule-start-time');
+        const endTimeInput = document.getElementById('rule-end-time');
+        
+        // Get selected days
+        const daysOfWeek = [];
+        const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        dayNames.forEach((day, index) => {
+            const checkbox = document.getElementById(`rule-day-${day}`);
+            if (checkbox && checkbox.checked) {
+                daysOfWeek.push(day.charAt(0).toUpperCase() + day.slice(1));
+            }
+        });
+        
+        // Validate form
+        if (!userSelect.value || !categorySelect.value) {
+            showAlert('Please select both user and category', 'error');
+            return;
+        }
+        
+        // Show loading state
+        const saveBtn = document.getElementById('save-rule-btn');
+        if (saveBtn) {
+            saveBtn.classList.add('loading');
+        }
+        
+        try {
+            const response = await fetch('/api/dashboard/time-limit-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userSelect.value,
+                    category_id: categorySelect.value,
+                    limit_minutes: parseInt(limitMinutesInput.value),
+                    days_of_week: daysOfWeek,
+                    start_time: startTimeInput.value,
+                    end_time: endTimeInput.value
+                })
+            });
+            const data = await response.json();
+            
+            if (data.status === 'ok') {
+                showAlert('Rule saved successfully', 'success');
+                hideRuleForm();
+                // Refresh the unified view
+                await refreshUnifiedView();
+            } else {
+                showAlert('Failed to save rule: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showAlert('Failed to save rule: ' + error.message, 'error');
+        } finally {
+            if (saveBtn) {
+                saveBtn.classList.remove('loading');
+            }
+        }
+    }
+    
+    /**
+     * Edit a user rule
+     * @param {string} userId - User ID
+     * @param {string} ruleId - Rule ID to edit
+     */
+    async function editUserRule(userId, ruleId) {
+        // Show the rule form with the user pre-selected
+        showRuleForm(userId);
+        // Note: For editing, we would need to fetch the existing rule data
+        // and populate the form. This is a simplified implementation.
+    }
+    
+    /**
+     * Delete a user rule
+     * @param {string} userId - User ID
+     * @param {string} ruleId - Rule ID to delete
+     */
+    async function deleteUserRule(userId, ruleId) {
+        if (!confirm('Are you sure you want to delete this rule?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/dashboard/time-limit-rules/${ruleId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.status === 'ok') {
+                showAlert('Rule deleted successfully', 'success');
+                // Refresh the unified view
+                await refreshUnifiedView();
+            } else {
+                showAlert('Failed to delete rule: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showAlert('Failed to delete rule: ' + error.message, 'error');
+        }
     }
     
     /**
@@ -997,11 +1380,183 @@
     }
     
     /**
+     * Toggle hamburger menu sidebar
+     */
+    function toggleMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const menuToggle = document.getElementById('menu-toggle');
+        
+        if (!sidebar || !overlay || !menuToggle) {
+            return;
+        }
+        
+        const isOpen = sidebar.classList.contains('active');
+        
+        if (isOpen) {
+            closeMenu();
+        } else {
+            sidebar.classList.add('active');
+            sidebar.setAttribute('aria-hidden', 'false');
+            overlay.classList.add('active');
+            overlay.removeAttribute('aria-hidden');
+            menuToggle.setAttribute('aria-expanded', 'true');
+            
+            // Focus first menu item
+            const firstMenuItem = sidebar.querySelector('[role="menuitem"]');
+            if (firstMenuItem) {
+                firstMenuItem.focus();
+            }
+        }
+    }
+    
+    /**
+     * Close hamburger menu sidebar
+     */
+    function closeMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const menuToggle = document.getElementById('menu-toggle');
+        
+        if (!sidebar || !overlay || !menuToggle) return;
+        
+        sidebar.classList.remove('active');
+        sidebar.setAttribute('aria-hidden', 'true');
+        overlay.classList.remove('active');
+        overlay.setAttribute('aria-hidden', 'true');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        
+        // Refocus the menu toggle button
+        menuToggle.focus();
+    }
+    
+    /**
+     * Check if user has admin privileges (has parent password hash)
+     * @returns {Promise<boolean>} True if user is admin
+     */
+    async function checkAdminVisibility() {
+        try {
+            const response = await fetch('/api/session/status');
+            const data = await response.json();
+            
+            // User is admin if they have parent password hash set
+            const isAdmin = data.has_parent_password_second_hash === true;
+            
+            // Update admin section visibility
+            updateAdminSectionVisibility(isAdmin);
+            
+            // Update admin-only elements visibility
+            updateAdminOnlyElements(isAdmin);
+            
+            return isAdmin;
+        } catch (error) {
+            console.error('Failed to check admin visibility:', error);
+            // On error, hide admin section for security
+            updateAdminSectionVisibility(false);
+            updateAdminOnlyElements(false);
+            return false;
+        }
+    }
+    
+    /**
+     * Update admin section visibility based on admin status
+     * @param {boolean} isAdmin - Whether user has admin privileges
+     */
+    function updateAdminSectionVisibility(isAdmin) {
+        const adminSection = document.getElementById('admin-section');
+        if (!adminSection) return;
+        
+        if (isAdmin) {
+            adminSection.classList.add('visible');
+        } else {
+            adminSection.classList.remove('visible');
+        }
+    }
+    
+    /**
+     * Update visibility of admin-only elements throughout the dashboard
+     * @param {boolean} isAdmin - Whether user has admin privileges
+     */
+    function updateAdminOnlyElements(isAdmin) {
+        // Select all elements with admin-only class
+        const adminOnlyElements = document.querySelectorAll('.admin-only');
+        
+        adminOnlyElements.forEach(function(element) {
+            if (isAdmin) {
+                element.classList.remove('hidden');
+            } else {
+                element.classList.add('hidden');
+            }
+        });
+    }
+    
+    /**
+         * Load family overview data from API
+         */
+        async function loadFamilyOverview() {
+            try {
+                const response = await fetch('/api/dashboard/family-overview');
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    renderFamilyOverview(data);
+                } else {
+                    console.error('Failed to load family overview:', data.error);
+                }
+            } catch (error) {
+                console.error('Error loading family overview:', error);
+            }
+        }
+    
+        /**
+         * Render the Family Overview card
+         * @param {Object} data - Family overview data
+         * @param {string} data.family_email - Family email address
+         * @param {number} data.devices_count - Number of devices in the family
+         * @param {number} data.users_count - Number of users in the family
+         * @param {string} data.last_sync - Last sync timestamp (ISO string)
+         */
+        function renderFamilyOverview(data) {
+            if (!data) {
+                console.error('renderFamilyOverview: No data provided');
+                return;
+            }
+    
+            // Update family email display with truncation
+            const emailDisplay = document.getElementById('family-email-display');
+            if (emailDisplay) {
+                const email = data.family_email || 'No family email';
+                const truncatedEmail = email.length > 40 ? email.substring(0, 37) + '...' : email;
+                emailDisplay.innerHTML = '<span class="email-text ellipsis" title="' + escapeHtml(email) + '">' + escapeHtml(truncatedEmail) + '</span>';
+            }
+    
+            // Update devices count
+            const devicesCount = document.getElementById('devices-count');
+            if (devicesCount) {
+                devicesCount.textContent = data.devices_count !== undefined ? data.devices_count : 0;
+            }
+    
+            // Update users count
+            const usersCount = document.getElementById('users-count');
+            if (usersCount) {
+                usersCount.textContent = data.users_count !== undefined ? data.users_count : 0;
+            }
+    
+            // Update last sync timestamp
+            const lastSync = document.getElementById('last-sync-timestamp');
+            if (lastSync && data.last_sync) {
+                const syncDate = new Date(data.last_sync);
+                const syncTime = syncDate.toLocaleString();
+                lastSync.textContent = 'Last sync: ' + syncTime;
+            }
+        }
+    
+    /**
      * Show device removal confirmation dialog
      * @param {string} deviceId - Device ID to remove
      * @param {string} deviceName - Device name for display
      */
-    async function confirmRemoveDevice(deviceId, deviceName) {
+     async function confirmRemoveDevice(deviceId, deviceName) {
         // Check if parent password hash is set before allowing removal
         if (!hasParentPasswordHash) {
             showAlert('Parent password hash is required. Please set it in the session settings first.', 'warning');
@@ -1069,7 +1624,25 @@
     window.createBackup = createBackup;
     window.restoreBackup = restoreBackup;
     window.clearBackup = clearBackup;
-
+    window.toggleMenu = toggleMenu;
+    window.closeMenu = closeMenu;
+    window.checkAdminVisibility = checkAdminVisibility;
+    window.updateAdminOnlyElements = updateAdminOnlyElements;
+    window.updateAdminSectionVisibility = updateAdminSectionVisibility;
+    window.renderFamilyOverview = renderFamilyOverview;
+    window.loadFamilyOverview = loadFamilyOverview;
+    window.toggleCollapsible = toggleCollapsible;
+    window.renderUnifiedView = renderUnifiedView;
+    window.refreshUnifiedView = refreshUnifiedView;
+    window.showAddUserModal = showAddUserModal;
+    window.submitAddUserForm = submitAddUserForm;
+    window.hideAddUserModal = hideAddUserModal;
+    window.showRuleForm = showRuleForm;
+    window.submitRuleForm = submitRuleForm;
+    window.hideRuleForm = hideRuleForm;
+    window.editUserRule = editUserRule;
+    window.deleteUserRule = deleteUserRule;
+    
     // Also expose on dashboardV2 object for programmatic access
     window.dashboardV2 = {
         selectServer: selectServer,
@@ -1082,6 +1655,7 @@
         loadUsers: loadUsers,
         loadDevices: loadDevices,
         loadConnectedDevices: loadConnectedDevices,
+        loadFamilyOverview: loadFamilyOverview,
         refreshUsers: refreshUsers,
         refreshDevices: refreshDevices,
         refreshConnectedDevices: refreshConnectedDevices,
@@ -1096,17 +1670,72 @@
         confirmRemoveDevice: confirmRemoveDevice,
         createBackup: createBackup,
         restoreBackup: restoreBackup,
-        clearBackup: clearBackup
+        clearBackup: clearBackup,
+        toggleMenu: toggleMenu,
+        closeMenu: closeMenu,
+        checkAdminVisibility: checkAdminVisibility,
+        updateAdminOnlyElements: updateAdminOnlyElements,
+        updateAdminSectionVisibility: updateAdminSectionVisibility,
+        renderFamilyOverview: renderFamilyOverview,
+        toggleCollapsible: toggleCollapsible,
+        renderUnifiedView: renderUnifiedView,
+        refreshUnifiedView: refreshUnifiedView,
+        showAddUserModal: showAddUserModal,
+        submitAddUserForm: submitAddUserForm,
+        hideAddUserModal: hideAddUserModal,
+        showRuleForm: showRuleForm,
+        submitRuleForm: submitRuleForm,
+        hideRuleForm: hideRuleForm,
+        editUserRule: editUserRule,
+        deleteUserRule: deleteUserRule
     };
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            // Close sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('active')) {
+                closeMenu();
+                return;
+            }
+            
+            // Close add user modal
+            const addUserModal = document.getElementById('add-user-modal');
+            if (addUserModal && addUserModal.style.display === 'block') {
+                hideAddUserModal();
+            }
+            
+            // Close rule form modal
+            const ruleFormModal = document.getElementById('rule-form-modal');
+            if (ruleFormModal && ruleFormModal.style.display === 'block') {
+                hideRuleForm();
+            }
+        }
+    });
 
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', async function() {
-        console.log('DashboardV2 initialized');
+        // Check if we're on the dashboard page by verifying required elements exist
+        // The landing page doesn't have these elements, so we skip dashboard initialization
+        const dashboardContainer = document.getElementById('unified-view-container');
+        const statusIndicator = document.getElementById('status-indicator');
         
-        // Check authentication status first
-        await checkAuthentication();
+        if (!dashboardContainer && !statusIndicator) {
+            return;
+        }
+        
+        // Check authentication status first and get session data
+        const sessionData = await checkAuthentication();
+        
+        // Update login status banner and session overview with session data
+        updateLoginStatusBanner(sessionData);
+        updateSessionOverview(sessionData);
         
         if (isAuthenticated) {
+            // Load family overview data
+            loadFamilyOverview();
+            
             // Load initial data only if authenticated
             loadUsers();
             loadDevices();
@@ -1114,8 +1743,6 @@
             
             // Connect to SSE for real-time updates
             connectSSE();
-        } else {
-            console.log('User not authenticated - dashboard data will not be loaded');
         }
     });
 

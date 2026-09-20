@@ -30,7 +30,8 @@ from database import (
     update_device_app_version,
     get_next_sequence_number, increment_sequence_number,
     create_device, get_device, delete_auth_token,
-    update_family_salt, remove_stale_devices
+    update_family_salt, remove_stale_devices,
+    update_family, get_family
 )
 from middleware.request_logging import get_request_id
 from utils.logging import get_logger
@@ -317,6 +318,26 @@ class SyncManager:
                             request_id=request_id,
                             device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
                         )
+                    break
+            
+            # Update family record with email from parent user (if available)
+            # This ensures the family record has the correct email even when
+            # the user logs in via device auth token (session restoration)
+            for user in users:
+                if user.get('type') == 'parent' and user.get('mail'):
+                    parent_mail = user.get('mail')
+                    family = get_family(self.db, device_auth_token)
+                    if family:
+                        current_mail = family.get('mail')
+                        if current_mail != parent_mail:
+                            if update_family(self.db, device_auth_token, {'mail': parent_mail}):
+                                logger.debug(
+                                    "Family email updated from sync",
+                                    request_id=request_id,
+                                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                                    old_mail=current_mail,
+                                    new_mail=parent_mail
+                                )
                     break
         
         # Store categories

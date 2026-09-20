@@ -283,6 +283,168 @@ grep '"duration_ms":' logs/dashboardV2.log | awk -F: '$NF > 1000 {print}'
 2. Race condition in token generation
 3. Database corruption
 
+## Audit Log Events
+
+The audit log provides detailed tracking of sensitive operations for security analysis, compliance audits, and forensic investigations. Audit logs are written to a separate file (`logs/audit.log`) and preserve complete request payloads and headers without sanitization.
+
+### Add User to Family Events
+
+The "Add User to Family" feature logs two types of events: request and response.
+
+#### log_add_user_request()
+
+Logs when a parent requests to add a new user (child) to their family.
+
+**Function Signature**:
+```python
+def log_add_user_request(
+    device_auth_token: str,
+    parent_user_id: str,
+    user_name: str,
+    device_name: Optional[str] = None,
+    device_model: Optional[str] = None,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+```
+
+**Log Format Example**:
+```json
+{
+  "timestamp": "2026-08-13T16:30:00.123456Z",
+  "timestamp_unix_ms": 1755114600123,
+  "event": "add_user_request",
+  "device_auth_token": "parent_device_token_abc123",
+  "parent_user_id": "user_456",
+  "user_name": "Child User",
+  "device_name": "iPhone 15",
+  "device_model": "iPhone15,2",
+  "request_id": "a1b2c3d4",
+  "server_url": "https://api.timelimit.io"
+}
+```
+
+#### log_add_user_response()
+
+Logs the server response after an add user request, including success status and any error details.
+
+**Function Signature**:
+```python
+def log_add_user_response(
+    device_auth_token: str,
+    parent_user_id: str,
+    user_id: Optional[str],
+    child_device_auth_token: Optional[str],
+    own_device_id: Optional[str],
+    request_id: Optional[str] = None,
+    success: bool = True,
+    status_code: Optional[int] = None,
+    response_data: Optional[Dict[str, Any]] = None,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+```
+
+**Log Format Example (Success)**:
+```json
+{
+  "timestamp": "2026-08-13T16:30:00.123456Z",
+  "timestamp_unix_ms": 1755114600123,
+  "event": "add_user_response",
+  "device_auth_token": "parent_device_token_abc123",
+  "parent_user_id": "user_456",
+  "user_id": "child_user_789",
+  "child_device_auth_token": "child_device_token_xyz789",
+  "own_device_id": "device_789",
+  "request_id": "a1b2c3d4",
+  "success": true,
+  "status_code": 200,
+  "response_data": {
+    "ok": true,
+    "message": "User added successfully",
+    "userId": "child_user_789",
+    "deviceAuthToken": "child_device_token_xyz789",
+    "deviceId": "device_789"
+  }
+}
+```
+
+**Log Format Example (Failure)**:
+```json
+{
+  "timestamp": "2026-08-13T16:30:00.123456Z",
+  "timestamp_unix_ms": 1755114600123,
+  "event": "add_user_response",
+  "device_auth_token": "parent_device_token_abc123",
+  "parent_user_id": "user_456",
+  "user_id": null,
+  "child_device_auth_token": null,
+  "own_device_id": null,
+  "request_id": "a1b2c3d4",
+  "success": false,
+  "status_code": 400,
+  "error_code": "user_exists",
+  "error_message": "User already exists in this family"
+}
+```
+
+### Log Fields
+
+The following fields are logged for Add User to Family events:
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `timestamp` | ISO 8601 UTC timestamp with microsecond precision | Yes |
+| `timestamp_unix_ms` | Unix timestamp in milliseconds | Yes |
+| `event` | Event type (`add_user_request` or `add_user_response`) | Yes |
+| `device_auth_token` | The parent's device authentication token | Yes |
+| `parent_user_id` | The parent user's unique identifier | Yes |
+| `user_name` | The child's display name (request only) | Request only |
+| `device_name` | The child's device name (request only) | Optional |
+| `device_model` | The child's device model (request only) | Optional |
+| `user_id` | The new child user's ID (response only) | Response only |
+| `child_device_auth_token` | The new child device's auth token (response only) | Response only |
+| `own_device_id` | The new child device's ID (response only) | Response only |
+| `request_id` | UUID-based correlation ID for request tracing | Optional |
+| `server_url` | The server URL being contacted | Optional |
+| `success` | Whether the operation succeeded | Response only |
+| `status_code` | HTTP status code of the response | Response only |
+| `response_data` | The complete response data from the server | Response only |
+| `error_code` | Error code if the request failed | Failure only |
+| `error_message` | Error message if the request failed | Failure only |
+
+### Log Format
+
+Audit log entries follow the same structured JSON format as regular logs, with the following characteristics:
+
+1. **One JSON object per line** - Each log entry is a single line of JSON
+2. **No sanitization** - Sensitive data (tokens, hashes) are logged as-is for forensic analysis
+3. **Timestamp precision** - Microsecond precision timestamps for accurate event ordering
+4. **Request correlation** - Request IDs enable tracing requests through the entire system
+
+### Analyzing Audit Logs
+
+Use the following commands to analyze audit logs:
+
+```bash
+# Find all add user requests
+grep '"event": "add_user_request"' logs/audit.log
+
+# Find all add user responses
+grep '"event": "add_user_response"' logs/audit.log
+
+# Trace a specific request
+grep '"request_id": "a1b2c3d4"' logs/audit.log
+
+# Find failed add user operations
+grep '"event": "add_user_response"' logs/audit.log | grep '"success": false'
+
+# Find add user operations for a specific parent
+grep '"parent_user_id": "user_456"' logs/audit.log
+```
+
 ## Environment Variables
 
 Configure logging behavior via environment variables:
@@ -309,9 +471,14 @@ The logging system automatically redacts sensitive data:
 
 Redacted values appear as `***REDACTED***` in logs.
 
-### Log File Permissions
+### Audit Log Security
 
-Log files are created with restrictive permissions (0600) to prevent unauthorized access.
+Audit logs contain sensitive data and should be protected:
+
+- Audit log files are created with restrictive permissions (0600)
+- Access should be restricted to authorized administrators only
+- Audit logs should not be committed to version control
+- Handle audit logs in accordance with data protection regulations
 
 ## Troubleshooting
 
@@ -348,3 +515,5 @@ Logging adds minimal overhead (<1ms per request in production). If experiencing 
 - `dashboardV2/utils/sanitization.py` - Sensitive data sanitization
 - `dashboardV2/middleware/request_logging.py` - Request/response logging middleware
 - `dashboardV2/scripts/analyze_logs.py` - Log analysis script
+- `dashboardV2/utils/audit_log.py` - Audit logging functions
+- `dashboardV2/utils/family_logging.py` - Family creation logging

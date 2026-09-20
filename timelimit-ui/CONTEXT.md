@@ -29,632 +29,520 @@ TimeLimit UI is a dashboard application for managing TimeLimit family accounts a
 - Password hash regeneration during login-as-parent not using existing salt - **RESOLVED**
 - Salt validation missing in login-as-parent flow - **RESOLVED**
 - Family record not created after sign-in causing "Family not found" error when entering password - **RESOLVED**
+- Family overview showing "pending@unknown" instead of actual email address - **RESOLVED**
+- "Failed to sync: loadUsers is not defined" error on refresh button - **RESOLVED**
 
-## 2-Step Login Flow Implementation
+## Family Email Display Fix (2026-09-18)
 
-### Overview
-The login-as-parent flow has been redesigned as a 2-step flow with an optional password step:
+### Problem
+The family overview section showed "pending@unknown" instead of the actual email address (e.g., pietje@test.nl) that the user entered during family creation/login.
 
-**Step 1: Email & Verification Code**
-- User enters their email address
-- Server sends a 3-word verification code (e.g., "Pferd Miete abwenden")
-- User enters the verification code
+### Root Cause Analysis
+The issue had two aspects:
 
-**Step 2: Device Info & Login**
-- User enters device model and device name
-- User is logged in to the family
-- Sync is triggered to fetch users, devices, and categories
+1. **Primary Issue**: The `upsert_family_password_hash()` function in `database.py` was correctly designed to accept and update the `mail` parameter, but the call in `post_create_family()` (app.py line 1485) was NOT passing the `mail` parameter. This caused the family record's mail field to remain as "pending@unknown" even when a valid email was provided during family creation.
 
-**Step 4 (Optional): Password for Device Removal**
-- After successful login, user can optionally enter their password
-- This enables device removal functionality
-- User can skip this step and enter password later
+2. **Secondary Issue**: The `/api/dashboard/family-overview` endpoint reads the email from the database via `get_family(db, device_auth_token)`. When the database still has "pending@unknown" (due to the primary issue or sync timing), the endpoint should check the session for the mail value as a fallback.
 
-### Key Changes
+### Files Fixed
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Fixed `post_create_family()` to pass `mail` parameter to `upsert_family_password_hash()`
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Fixed `api_create_family_rest()` to store mail in session and persist it with auth token
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Fixed `api_dashboard_family_overview()` to check session for mail value when database has "pending@unknown"
 
-#### 1. Template (`login_as_parent.html`)
-- Updated to show 4 steps with proper step indicators
-- Step 4 shows "Enable Device Removal" with optional password field
-- "Skip for Now" button allows users to skip password entry
+### Changes Applied
 
-#### 2. Routes (`app.py`)
-- `GET /login-as-parent`: Shows appropriate step based on session state
-  - No tokens → Step 1 (email)
-  - Has mail_login_token → Step 2 (code)
-  - Has mail_auth_token → Step 3 (device info)
-  - Has device_auth_token, no password → Step 4 (optional password)
-  - Has device_auth_token and password → Redirect to dashboard
+#### 1. app.py - Fixed post_create_family() to pass mail parameter
+Added `mail=mail` parameter to the `upsert_family_password_hash()` call:
 
-- `POST /login-as-parent`: Processes all 4 steps
-  - Step 1: Send mail login code
-  - Step 2: Verify code and get mail auth token
-  - Step 3: Sign in to family (password optional)
-  - Step 4: Regenerate hash from password
-
-#### 3. Password Hash Regeneration
-- When password is provided in Step 3, the system:
-  1. Looks up the family by email to get existing `parent_password_second_salt`
-  2. Uses `regenerate_second_hash(password, existing_salt)` to produce matching hash
-  3. Stores all three hash components (hash, secondHash, secondSalt) in database
-  4. Never generates a new random salt during login
-
-- When password is provided in Step 4:
-  1. Looks up the family by email to get existing salt
-  2. Regenerates the hash using the existing salt
-  3. Stores in database and session
-
-#### 4. Session Status API
-- Returns `has_parent_password_second_hash` and `parent_password_second_hash` fields
-- Allows frontend to show password status and enable/disable device removal
-
-### Files Modified
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/login_as_parent.html` - 4-step flow
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py` - Updated routes and logic
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_login_as_parent.py` - Comprehensive tests
-
-### Test Results
-- All 41 login_as_parent tests pass
-- All 978 tests in full suite pass
-
-## Root Causes Identified and Fixed
-
-### Issue 11: Salt Validation Missing in Login-as-Parent Flow
-When a password is provided during login-as-parent, the dashboard should validate that the salt exists before attempting to regenerate the hash. Without strict validation, the dashboard could generate a new random salt during login, which would cause hash mismatches with the server.
-
-**Root Cause:**
-1. The `post_login_as_parent()` function would fall back to generating a new hash when no salt was found
-2. This could happen if the family record was not found by mail or if the salt was missing
-3. Generating a new salt during login would cause the hash to not match what the server expects
-4. This could lead to 401 Unauthorized errors during device removal operations
-
-**Fix Applied:**
-1. Added strict salt validation in `post_login_as_parent()` function in `app.py`:
-   - Check if family exists (found by mail)
-   - Check if `parent_password_second_salt` is available in the family record
-   - If salt is missing → Show error message telling user to enter password in Step 4
-   - If salt is available → Use `regenerate_second_hash()` to regenerate the hash
-2. Never generate a new random salt during login - only use the existing salt from the family record
-3. Added comprehensive logging for salt validation failures using the new `log_login_as_parent_salt_validation_failure()` function
-4. Added new audit log function `log_login_as_parent_salt_validation_failure()` in `utils/audit_log.py`
-5. Added tests for the new salt validation behavior:
-   - `test_post_login_as_parent_fails_when_no_salt_available` - verifies error when salt is missing
-   - Updated existing tests to set up families with salts before testing password login
-
-### Issue 12: Family Record Not Created After Sign-In Causing "Family Not Found" Error
-
-**Root Cause:**
-1. In Step 3, when a password is provided, the code tries to look up the family by mail to get the salt
-2. But the family record doesn't exist in the local database because:
-   - The user is signing in to an existing family
-   - The family was created on the server, not locally
-   - The sync hasn't happened yet to pull the family data
-3. In Step 4, when the user enters a password, `get_family_by_mail()` fails because no family record exists locally
-4. This causes the "Family not found for this email" error seen in audit.log
-
-**Fix Applied:**
-1. Added `create_family_record()` function in `database.py` to create a family record with just device_auth_token and mail (minimal data)
-2. Added `update_family_salt()` function in `database.py` to update the salt in an existing family record
-3. Updated `post_login_as_parent()` in `app.py` to:
-   - Create a family record immediately after successful sign-in (before password processing)
-   - The family record includes device_auth_token and mail from the sign-in response
-4. Updated `_apply_server_data_status()` in `sync_manager.py` to:
-   - Update the family record with the salt from the parent user data after sync
-   - The salt is fetched from the server during sync and stored in the users table
-5. Added `update_family_salt` to imports in `sync_manager.py`
-6. When a password is provided in Step 3 but no salt is available, the user is redirected to Step 4 with an error message to enter the password after sync completes
-
-### Issue 13: Double Sign-In Call Bug in Login-as-Parent Flow
-
-**Root Cause:**
-In the `post_login_as_parent()` function, the `sign_in_into_family()` API call was being made twice:
-1. First call at line 1641 - succeeds with HTTP 200
-2. Second call at line 1805 - fails with HTTP 401 Unauthorized because the mail_auth_token was already consumed
-
-This caused the 401 Unauthorized error seen in audit.log:
-```
-UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken
-```
-
-**Fix Applied:**
-1. Removed the duplicate `sign_in_into_family()` call at lines 1804-1821
-2. The code now:
-   - Calls `sign_in_into_family()` once at line 1641
-   - Processes password hash regeneration after the successful sign-in
-   - Stores auth tokens and password data
-   - Triggers sync to fetch family data
-   - Redirects to dashboard or shows password step
-
-### Issue 14: Double Log File Creation on Startup
-
-**Root Cause:**
-When the dashboard starts, two log files are created with timestamps 1 second apart, and one is always empty. This was caused by double initialization of the logging system:
-
-1. **First call (implicit)**: When `utils.logging` module is imported, the module-level code at the bottom of `logging.py` (lines 367-368) calls `setup_structlog()` with default parameters:
-   ```python
-   # Initialize logging when module is imported
-   setup_structlog()
-   ```
-
-2. **Second call (explicit)**: In `app.py` (lines 70-79), there's an explicit call to `setup_structlog()` with configuration from `Config()`:
-   ```python
-   setup_structlog(
-       log_level=Config().LOG_LEVEL,
-       log_file_path=Config().LOG_FILE_PATH,
-       ...
-   )
-   ```
-
-When `setup_structlog()` is called with `rotate_on_start=True` (the default), it:
-1. Generates a unique timestamped filename using `generate_unique_log_path()`
-2. Creates a `RotatingFileHandler` pointing to that file
-3. Adds the handler to the root logger
-
-When `setup_structlog()` is called a second time:
-1. It generates a NEW unique timestamped filename (1 second later)
-2. It clears all existing handlers from the root logger
-3. It creates a NEW `RotatingFileHandler` pointing to the new file
-4. The first file is now orphaned - no handler is writing to it
-
-**Fix Applied:**
-Removed the module-level `setup_structlog()` call from `logging.py` (lines 367-368). The explicit call in `app.py` is the correct place to initialize logging with proper configuration.
-
-**File Modified:**
-- `timelimit-ui/rootfs/usr/bin/dashboardV2/utils/logging.py` - Removed module-level `setup_structlog()` call
-
-### Issue 15: Device Name Overwritten with "Dashboard" During Family Login
-
-**Root Cause:**
-When a user enters a device name during family login (create_family or sign_in_into_family), the device name is sent to the server. However, during the sync process, the `_add_own_device_to_connected_devices()` method in `sync_manager.py` always overwrites the device name with `Config.DASHBOARD_DEVICE_NAME` (hardcoded as "Dashboard"), even when the server has already provided the user's chosen device name.
-
-The flow was:
-1. User enters device name during family login (e.g., "Living Room TV")
-2. Device name is sent to server during `create_family` or `sign_in_into_family`
-3. Server returns `deviceAuthToken` and `ownDeviceId`
-4. During sync, `_save_device_from_server()` saves the device with the correct name from server
-5. `_add_own_device_to_connected_devices()` **overwrites** the name with "Dashboard"
-
-**Fix Applied:**
-1. Modified `_add_own_device_to_connected_devices()` in `sync_manager.py` to preserve the device name from the server if it exists
-2. Only use `Config.DASHBOARD_DEVICE_NAME` as a fallback when the device has no name
-3. Added logic to check if `existing_device.get('name')` exists before overwriting
-4. Added `device_name` to the log message for debugging
-
-**Code Change in `sync_manager.py`:**
 ```python
-# Use existing name from server if available, otherwise use default
-device_name = existing_device.get('name')
-if not device_name:
-    device_name = Config.DASHBOARD_DEVICE_NAME
-
-create_device(
-    db=self.db,
-    device_id=own_device_id,
+# Store password hash in database for session restoration
+upsert_family_password_hash(
+    db=db,
     device_auth_token=device_auth_token,
-    name=device_name,  # Preserved from server or default
-    ...
+    parent_password_hash=password_data.get('hash'),
+    parent_password_second_hash=password_data.get('secondHash'),
+    parent_password_second_salt=password_data.get('secondSalt'),
+    mail=mail  # Added this parameter
 )
 ```
 
-**Tests Updated:**
-- Updated `test_add_own_device_uses_existing_device_record` to verify name is preserved
-- Updated `test_add_own_device_preserves_all_existing_fields` to verify name is preserved
-- Added `test_add_own_device_uses_default_name_when_no_name` to verify default name is used when server provides no name
+#### 2. app.py - Fixed api_create_family_rest() to store mail
+Added mail to session and passed it to `set_persisted_device_auth_token()`:
 
-## Files Modified
+```python
+# Store device auth token in session
+session['device_auth_token'] = response.data.get('deviceAuthToken')
+session['own_device_id'] = response.data.get('ownDeviceId')
+session['mail'] = email  # Store mail in session for family email display
 
-### 1. `timelimit-ui/rootfs/usr/bin/dashboardV2/app.py`
-- Updated `post_set_parent_password()` to use `generate_family_hashes()` for password hashing
-- This ensures `$2a$` prefix hashes are generated, matching server expectations
-- Updated `session_status()` to include password hash status fields
-- Updated `api_dashboard_devices()` to include `has_parent_password_second_hash` in response
-- Added `get_parent_user_id` to imports from `database.py` (fixes NameError in device removal)
-- Added `get_parent_password_second_salt` to imports from `database.py`
-- Added `regenerate_second_hash` to imports from `crypto_utils`
-- Added `create_family_record` and `update_family_salt` to imports from `database.py`
-- Removed `save_server_check`, `get_server_checks`, `get_latest_server_check` from imports
-- Modified `timechecker_status()` to not save server checks
-- Modified `timechecker_history()` to return empty list
-- Added new endpoint `/api/clear-server-checks` to clear existing server check records
-- **Updated `get_current_server_url()` to check `server_url` directly in persistent storage first**
-- **Added `has_signing_key` field to session status response to show signing key availability**
-- **Added sync retry logic after family creation to prevent cleanup worker from deleting families**
-- **Pass `own_device_id` to `do_sync()` in login-as-parent flow to ensure dashboard is added to connected devices**
-- **Added retry logic with exponential backoff for sync after login-as-parent**
-- **Added 2-second delay after successful sync to ensure `lastConnectivity` is updated on server**
-- **Handle sync failure by showing error message to user instead of silently failing**
-- **Updated login-as-parent flow to use existing salt for password hash regeneration**
-- **Create family record after sign-in to ensure family exists before password processing**
-- **Removed duplicate `sign_in_into_family()` call that caused 401 Unauthorized errors**
+# Persist auth token to file for session restoration after restart (with mail)
+if response.data.get('deviceAuthToken'):
+    set_persisted_device_auth_token(
+        response.data.get('deviceAuthToken'),
+        response.data.get('ownDeviceId'),
+        email
+    )
+```
 
-### 2. `timelimit-ui/rootfs/usr/bin/dashboardV2/auth_client.py`
-- Removed `token` parameter from `remove_device()` method
-- Token is now only sent in request body as `deviceAuthToken`
-- Added imports for sync audit logging functions
-- Updated `pull_status()` to log requests/responses to audit.log
-- Updated `push_actions()` to log requests/responses to audit.log
-- **Added audit logging for family creation requests and responses**
-- **Updated `create_family()` and `create_family_rest()` to accept email parameter and log to audit.log**
-- **Updated `_make_request()` to handle HTML error responses by extracting error messages from HTML content**
-- **Added HTML error code mapping: 409→conflict, 401→unauthorized, 400→validation, 500+→server_error**
+#### 3. app.py - Fixed api_dashboard_family_overview() to check session for mail
+Added logic to check session for mail value when database has "pending@unknown":
 
-### 3. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_auth_client.py`
-- **Added test `test_html_error_response_409_conflict` for 409 Conflict HTML error handling**
-- **Added test `test_html_error_response_401_unauthorized` for 401 Unauthorized HTML error handling**
+```python
+# If family email is still pending@unknown, check session for mail value
+# This handles the case where sync hasn't completed yet or user just logged in
+if family_email == 'pending@unknown':
+    session_mail = session.get('mail')
+    if session_mail and session_mail != 'pending@unknown':
+        family_email = session_mail
+        logger.debug(
+            "Family email retrieved from session",
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            mail=session_mail
+        )
+```
 
-### 4. `timelimit-ui/rootfs/usr/bin/dashboardV2/database.py`
-- Added `parent_user_id` column to `families` table schema
-- Added migration to add `parent_user_id` column to existing databases
-- Added `update_family_parent_user_id()` function
-- Updated `get_parent_user_id()` to check `families` table first
-- Added `clear_server_checks()` function to delete all server check records
-- **Added `get_parent_password_second_salt()` function to retrieve existing salt**
-- **Added `create_family_record()` function to create family record with minimal data**
-- **Added `update_family_salt()` function to update salt in family record**
-- **Removed `device_auth_token` column from `auth_tokens` table schema**
-- **Added migration to drop `device_auth_token` column from existing databases**
-- **Removed `device_auth_token` parameter from `store_auth_token()` function**
+### Test Results
+- **117 tests passed** (7 new tests added for family overview endpoint)
+- Family overview now correctly displays the user's email address
+- New tests verify:
+  - Session mail fallback when database has "pending@unknown"
+  - Database mail is used when it's not "pending@unknown"
+  - Proper handling of unauthenticated requests
+  - Proper handling of missing device auth token
+  - Proper handling of missing family record
 
-### 5. `timelimit-ui/rootfs/usr/bin/dashboardV2/sync_manager.py`
-- Removed `device_auth_token` parameter from `store_auth_token()` call in `store_sync_credentials()`
-- **Added `update_family_salt` to imports from `database.py`**
-- **Updated `_apply_server_data_status()` to update family record with salt from parent user data**
-- **Updated `_add_own_device_to_connected_devices()` to preserve device name from server instead of always overwriting with "Dashboard"**
-- **Added `device_name` to log message for debugging device name preservation**
+## Input Field Contrast Fix (2026-09-18)
 
-### 6. `timelimit-ui/rootfs/usr/bin/dashboardV2/scheduler.py`
-- Removed `save_server_check` from imports
-- Removed `save_server_check()` calls from `check_server_callback()` function
-- Removed `save_server_check()` calls from `add_server_check_job()` function's inner `check_with_url()` function
+### Problem
+Input fields in modal dialogs had light white text (`color: #fff`) on a very light background (`rgba(255, 255, 255, 0.05)`), making text barely visible. This affected 4 modal templates used for family creation and authentication flows.
 
-### 7. `timelimit-ui/rootfs/usr/bin/dashboardV2/utils/audit_log.py`
-- Added `List` to imports
-- Added `log_sync_pull_request()` function for sync pull request logging
-- Added `log_sync_pull_response()` function for sync pull response logging
-- Added `log_sync_push_request()` function for sync push request logging
-- Added `log_sync_push_response()` function for sync push response logging
-- **Added `log_family_creation_request()` function for family creation request logging**
-- **Added `log_family_creation_response()` function for family creation response logging**
-- **Added `log_family_creation_failure()` function for family creation failure logging**
-- **Added `log_login_as_parent_salt_validation_failure()` function for salt validation failure logging**
+### Files Fixed
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/create_family.html`
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/login_as_parent.html`
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/set_parent_password.html`
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/recover_parent_password.html`
 
-### 8. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html`
-- Updated refresh button `onclick` handler from `refreshServerStatus()` to `triggerSync()`
-- `triggerSync()` calls `/api/sync/pull` which performs actual sync of users/devices
-- The `refreshServerStatus()` function was never defined in JavaScript, causing button to do nothing
+### CSS Changes Applied
+Changed input field text color from `#fff` (white) to `#212529` (dark gray) for proper WCAG 2.1 AA contrast compliance:
 
-### 9. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_timechecker.py`
-- Updated test to check for `/api/sync/pull` endpoint in JavaScript
+```css
+.form-group input,
+.form-group select {
+    color: #212529;  /* Changed from #fff to #212529 */
+}
 
-### 10. `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/login_as_parent.html`
-- Updated password hint text from "Enter your password to enable device removal. If not provided, you can enter the second password hash directly." to "Enter your password to log in as a parent"
+.form-group input::placeholder,
+.form-group select::placeholder {
+    color: #6c757d;  /* Changed from #666 to #6c757d */
+}
 
-### 11. `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_login_as_parent.py`
-- **Added tests for `get_parent_password_second_salt()` function**
-- **Added tests for password hash regeneration with existing salt**
-- **Added tests for password hash generation when no salt exists**
-- **Added 4 new tests in `TestPasswordHashRegeneration` class**
-- **Updated `test_post_login_as_parent_fails_when_no_salt_available` to verify redirect to Step 4 when salt is not available**
+.form-group option {
+    color: #212529;  /* Added for select elements */
+}
+```
 
-### 12. `timelimit-ui/rootfs/usr/bin/dashboardV2/utils/logging.py`
-- **Removed module-level `setup_structlog()` call that caused double log file creation**
+### Test Results
+- All tests for the modified templates pass
+- 1165 tests passed overall
 
-## Current Status
-- ✅ **Fix Applied**: Updated password hint text in login_as_parent.html to "Enter your password to log in as a parent"
-- ✅ **Fix Applied**: Added Mail Auth Token display in dashboardV2.js `updateSessionOverview()` function
-- ✅ **Fix Applied**: Removed `token` parameter from `remove_device()` method
-- ✅ **Fix Applied**: Changed `post_set_parent_password()` to use `generate_family_hashes()`
-- ✅ **Fix Applied**: Added `parent_user_id` persistence to database during family creation/sign-in
-- ✅ **Fix Applied**: Fixed frontend JavaScript parameter shadowing in `renderDevicesTable()`
-- ✅ **Fix Applied**: Implemented structured logging for family creation events in `KeyFamilyData.md`
-- ✅ **Fix Applied**: Updated `session_status()` to include password hash status fields
-- ✅ **Fix Applied**: Updated `api_dashboard_devices()` to include `has_parent_password_second_hash` in response
-- ✅ **Fix Applied**: Added missing `get_parent_user_id` import in `app.py` (fixes NameError in device removal)
-- ✅ **Fix Applied**: Added `get_parent_password_second_salt()` function to database.py
-- ✅ **Fix Applied**: Updated login-as-parent flow to use existing salt for password hash regeneration
-- ✅ **Fix Applied**: Added `regenerate_second_hash` import from crypto_utils
-- ✅ **Fix Applied**: Added tests for password hash regeneration functionality
-- ✅ **Fix Applied**: Added `clear_server_checks()` function to database.py
-- ✅ **Fix Applied**: Removed server check storage from scheduler.py and app.py
-- ✅ **Fix Applied**: Added `/api/clear-server-checks` endpoint to clear existing records
-- ✅ **Fix Applied**: Updated all related tests for server check removal
-- ✅ **Fix Applied**: Implemented recover parent password flow (UI template, routes, API endpoint)
-- ✅ **Fix Applied**: Added comprehensive unit tests for recover parent password (34 tests)
-- ✅ **Fix Applied**: Fixed redirect loop issue - after successful recovery, redirects to dashboard if authenticated
-- ✅ **Fix Applied**: Fixed API field name mismatch - changed `newPassword` to `password` in auth_client.py and app.py
-- ✅ **Fix Applied**: Removed password-related keys from SENSITIVE_KEYS in sanitization.py (password, hash, secondHash, secondSalt)
-- ✅ **Fix Applied**: Added audit logging functions for password recovery in audit_log.py
-- ✅ **Fix Applied**: Updated auth_client.py to log password recovery requests/responses to audit.log
-- ✅ **Fix Applied**: Updated `post_login_as_parent()` to store all three hash components (hash, secondHash, secondSalt) when password is provided
-- ✅ **Fix Applied**: Added password field to login_as_parent.html template for full hash storage
-- ✅ **Fix Applied**: Updated tests for login_as_parent.py to verify all three hash components are stored
-- ✅ **Fix Applied**: Removed unused `device_auth_token` column from `auth_tokens` table
-- ✅ **Fix Applied**: Added migration to drop column from existing databases
-- ✅ **Fix Applied**: Fixed refresh button to call `/api/sync/pull` instead of `/api/timechecker/status`
-- ✅ **Fix Applied**: Added audit logging for sync operations (pull_status, push_actions)
-- ✅ **Fix Applied**: Fixed recover password flow - shows error message on page instead of redirecting when already authenticated
-- ✅ **Fix Applied**: Added comprehensive audit logging for family creation flow (email, password, deviceId, passwordhash, salt, secondhash)
-- ✅ **Fix Applied**: Updated `_make_request()` to handle HTML error responses with proper error message extraction
-- ✅ **Fix Applied**: Added HTML error response tests for 409 Conflict and 401 Unauthorized
-- ✅ **Fix Applied**: Added `has_signing_key` field to session status API response
-- ✅ **Fix Applied**: Added tests for `has_signing_key` field in session status
-- ✅ **Fix Applied**: Added sync retry logic after family creation with exponential backoff (up to 3 retries)
-- ✅ **Fix Applied**: Pass `own_device_id` to `do_sync()` to ensure dashboard is added to connected devices
-- ✅ **Fix Applied**: Added 2-second delay after successful sync to ensure `lastConnectivity` is updated on server
-- ✅ **Fix Applied**: Handle sync failure by showing error message to user instead of silently failing
-- ✅ **Fix Applied**: Create family record after sign-in to ensure family exists before password processing
-- ✅ **Fix Applied**: Update family salt from sync response to fetch salt from server
-- ✅ **Fix Applied**: Removed duplicate `sign_in_into_family()` call that caused 401 Unauthorized errors
-- ✅ **Fix Applied**: Removed module-level `setup_structlog()` call from logging.py to prevent double log file creation
-- ✅ **Fix Applied**: Updated `_add_own_device_to_connected_devices()` to preserve device name from server instead of overwriting with "Dashboard"
-- ✅ **Tests Pass**: 979 tests pass (all tests passing)
+## Server Status Display Fix (2026-09-18)
 
-## Mail Auth Token Display Fix
-
-### Issue
-After creating a new family, the dashboard's "Mail Auth Token" field was showing "Not available" even when the token was present in the session. This was because the JavaScript function `updateSessionOverview()` in `dashboardV2.js` was missing the code to populate this field.
+### Problem
+When the dashboard was not signed in, the "Server Status" section at the top of the dashboard showed "Checking server..." instead of the actual server URL. This was confusing because users need to know the server status even when not logged in (to understand why they can't sign in).
 
 ### Root Cause
-The `/api/session/status` endpoint correctly returns `has_mail_auth_token` and `mail_auth_token` fields, but the frontend JavaScript was not updating the Mail Auth Token field in the session overview.
+The top "Server Status" section (lines 1576-1584 in `dashboardV2.html`) had a `status-content` div that displayed "Checking server..." but was never updated by JavaScript. The JavaScript code only updated the Session Overview section's server status indicators (`server-status-indicator` and `server-status-text`), but not the top section's `status-indicator` and `status-content` elements.
 
 ### Fix Applied
-Added the following code to `updateSessionOverview()` function in `dashboardV2.js` (lines 227-242):
+Updated the `updateSessionOverview()` function in `dashboardV2/static/js/dashboardV2.js` to also update the top "Server Status" section:
 
 ```javascript
-// Update Mail Auth Token field
-const mailTokenField = document.getElementById('field-mail-token');
-const mailTokenStatus = document.getElementById('mail-token-status');
-if (mailTokenField && mailTokenStatus) {
-    if (data.has_mail_auth_token && data.mail_auth_token) {
-        mailTokenField.textContent = data.mail_auth_token;
-        mailTokenField.style.color = '#00ff88';
-        mailTokenStatus.textContent = 'Valid - Mail authentication token available';
-        mailTokenStatus.style.color = '#4caf50';
+// Update top Server Status section
+const statusIndicator = document.getElementById('status-indicator');
+const statusContent = document.getElementById('status-content');
+const errorMessage = document.getElementById('error-message');
+if (statusIndicator && statusContent) {
+    if (data.server_url) {
+        statusIndicator.className = 'status-indicator status-success';
+        statusContent.innerHTML = '<div class="server-info">' +
+            '<span class="server-label">Server:</span>' +
+            '<span class="server-url" style="color: #00ff88; font-family: monospace; font-size: 12px;"> ' + escapeHtml(data.server_url) + '</span>' +
+            '</div>';
+        if (errorMessage) {
+            errorMessage.style.display = 'none';
+        }
     } else {
-        mailTokenField.textContent = '-';
-        mailTokenField.style.color = '#888';
-        mailTokenStatus.textContent = 'Not available - Token cleared after family creation';
-        mailTokenStatus.style.color = '#666';
+        statusIndicator.className = 'status-indicator status-warning';
+        statusContent.innerHTML = '<div class="server-info">' +
+            '<span class="server-label">Server:</span>' +
+            '<span class="server-url" style="color: #ff9800; font-family: monospace; font-size: 12px;"> Not available</span>' +
+            '</div>';
+        if (errorMessage) {
+            errorMessage.style.display = 'none';
+        }
     }
 }
 ```
 
-### Note
-The mail auth token is intentionally cleared after family creation (one-time use token). The fix displays the token when available and shows an appropriate message when it's not (after family creation is complete).
+### Problem
+User reported that after pressing sign-out:
+1. They are redirected to the landing page (not staying on dashboard)
+2. The dashboard still thinks they are logged in
+3. Login buttons don't appear after sign-out
 
-## Audit Log Format
+### Root Cause
+Multiple issues in `dashboardV2.js`:
+1. `clearSession()` just reloaded the page instead of properly updating the UI
+2. `checkAuthentication()` returned a boolean instead of full session data
+3. `updateSessionOverview()` did NOT handle `recover-password-link` element
+4. DOMContentLoaded handler didn't call `updateLoginStatusBanner()` or `updateSessionOverview()` after checking authentication
+5. The prominent `sign-in-section` in HTML was not being toggled properly
 
-All sync operations are logged to `logs/audit.log` with the following format:
+### Fixes Applied
 
-### Sync Pull Request
-```json
-{
-  "event": "sync_pull_request",
-  "timestamp": "2026-09-04T15:26:00.000000Z",
-  "timestamp_unix_ms": 1725468360000,
-  "device_auth_token": "<token>",
-  "client_data_status": {
-    "clientLevel": 7,
-    "devices": "",
-    "users": "",
-    "apps": {},
-    "categories": {}
-  },
-  "request_id": "<uuid>",
-  "server_url": "<server_url>"
+#### 1. Fixed `checkAuthentication()` to return full session data
+```javascript
+async function checkAuthentication() {
+    console.log('[DEBUG] checkAuthentication() called');
+    try {
+        console.log('[DEBUG] Fetching session status from /api/session/status');
+        const response = await fetch('/api/session/status');
+        console.log('[DEBUG] Response status:', response.status);
+        const data = await response.json();
+        console.log('[DEBUG] Session status data:', JSON.stringify(data));
+        isAuthenticated = data.authenticated || false;
+        console.log('[DEBUG] isAuthenticated set to:', isAuthenticated);
+        return data;
+    } catch (error) {
+        console.error('[DEBUG] Failed to check authentication status:', error);
+        isAuthenticated = false;
+        return { authenticated: false };
+    }
 }
 ```
 
-### Sync Pull Response
-```json
-{
-  "event": "sync_pull_response",
-  "timestamp": "2026-09-04T15:26:00.100000Z",
-  "timestamp_unix_ms": 1725468360100,
-  "device_auth_token": "<token>",
-  "success": true,
-  "status_code": 200,
-  "response_data": { ... },
-  "request_id": "<uuid>"
+#### 2. Fixed `clearSession()` to properly update the UI
+```javascript
+async function clearSession() {
+    console.log('[DEBUG] clearSession() called');
+    try {
+        console.log('[DEBUG] Making API request to /session/clear');
+        const response = await apiRequest('/session/clear', 'POST');
+        console.log('[DEBUG] Response received:', response);
+        
+        if (response && response.status === 'ok') {
+            console.log('[DEBUG] Session cleared successfully');
+            parentPasswordHash = null;
+            isAuthenticated = false;
+            
+            const sessionData = { authenticated: false };
+            updateLoginStatusBanner(sessionData);
+            updateSessionOverview(sessionData);
+            
+            showAlert('Signed out successfully. Please sign in to continue.', 'success');
+        } else {
+            console.error('[DEBUG] Failed to clear session:', response);
+            showAlert('Failed to clear session: ' + (response?.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('[DEBUG] Failed to clear session:', error);
+        showAlert('Failed to clear session: ' + error.message, 'error');
+    }
 }
 ```
 
-### Sync Push Request
-```json
-{
-  "event": "sync_push_request",
-  "timestamp": "2026-09-04T15:26:00.000000Z",
-  "timestamp_unix_ms": 1725468360000,
-  "device_auth_token": "<token>",
-  "actions": [ ... ],
-  "request_id": "<uuid>",
-  "server_url": "<server_url>"
+#### 3. Fixed `updateSessionOverview()` to handle `recover-password-link` and `sign-in-section`
+```javascript
+// Show/hide action links based on authentication status
+const createFamilyLink = document.getElementById('create-family-link');
+const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
+const recoverPasswordLink = document.getElementById('recover-password-link');
+const signoutLink = document.getElementById('signout-link');
+const signInSection = document.getElementById('sign-in-section');
+
+console.log('[DEBUG] Authentication status:', data.authenticated);
+console.log('[DEBUG] createFamilyLink exists:', !!createFamilyLink);
+console.log('[DEBUG] loginExistingFamilyLink exists:', !!loginExistingFamilyLink);
+console.log('[DEBUG] recoverPasswordLink exists:', !!recoverPasswordLink);
+console.log('[DEBUG] signoutLink exists:', !!signoutLink);
+console.log('[DEBUG] signInSection exists:', !!signInSection);
+
+if (createFamilyLink && loginExistingFamilyLink && recoverPasswordLink) {
+    if (data.authenticated) {
+        console.log('[DEBUG] Hiding login links, showing signout');
+        createFamilyLink.style.display = 'none';
+        loginExistingFamilyLink.style.display = 'none';
+        recoverPasswordLink.style.display = 'none';
+        if (signoutLink) {
+            signoutLink.style.display = 'block';
+        }
+        if (signInSection) {
+            signInSection.style.display = 'none';
+        }
+    } else {
+        console.log('[DEBUG] Showing login links, hiding signout');
+        createFamilyLink.style.display = 'block';
+        loginExistingFamilyLink.style.display = 'block';
+        recoverPasswordLink.style.display = 'block';
+        if (signoutLink) {
+            signoutLink.style.display = 'none';
+        }
+        if (signInSection) {
+            signInSection.style.display = 'block';
+        }
+    }
 }
 ```
 
-### Sync Push Response
-```json
-{
-  "event": "sync_push_response",
-  "timestamp": "2026-09-04T15:26:00.100000Z",
-  "timestamp_unix_ms": 1725468360100,
-  "device_auth_token": "<token>",
-  "success": true,
-  "status_code": 200,
-  "response_data": { ... },
-  "request_id": "<uuid>"
+#### 4. Updated DOMContentLoaded handler to call update functions
+```javascript
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('DashboardV2 initialized');
+    
+    const sessionData = await checkAuthentication();
+    
+    updateLoginStatusBanner(sessionData);
+    updateSessionOverview(sessionData);
+    
+    if (isAuthenticated) {
+        loadUsers();
+        loadDevices();
+        loadConnectedDevices();
+        connectSSE();
+    } else {
+        console.log('User not authenticated - dashboard data will not be loaded');
+    }
+});
+```
+
+#### 5. Added missing JavaScript functions
+- `toggleMenu()` - Hamburger menu toggle function
+- `closeMenu()` - Hamburger menu close function
+- `checkAdminVisibility()` - Admin visibility check function
+- `updateAdminOnlyElements()` - Admin-only elements visibility function
+- `updateAdminSectionVisibility()` - Admin section visibility function
+- `renderFamilyOverview()` - Family overview rendering function
+- Escape key handler for closing modals
+
+### HTML Changes
+The HTML template already had a prominent `sign-in-section` (lines 1592-1609 in `dashboardV2.html`) with:
+- Gradient background
+- "Create New Family" button
+- "Login to Existing Family" button
+- "Recover Parent Password" link
+
+### Test Results
+- **1165 tests passed**
+- All sign-out functionality tests pass
+
+## Dashboard V2 HTML Structure Changes (2026-09-19)
+
+### Changes Made
+1. **Removed "Historical Data" section** - The historical data table and related JavaScript function `loadHistoricalData()` were removed from the dashboard as server checks are no longer persisted.
+
+2. **Moved "Session Information" section** - The Session Information section was moved to appear after the "Connected Devices" section (previously it was before Family Users).
+
+### Files Modified
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html` - HTML structure updated
+- `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_visual_responsive.py` - Fixed `test_family_overview_card_exists` to check for `family-overview-card` class without requiring exact `class="family-overview-card"` string match (since it's a multi-class attribute)
+
+### Dashboard V2 Sections (Current Order)
+1. **Server Status** - Shows server connectivity status with status indicator
+2. **Login Status Banner** - Prominent banner showing login status (hidden by default)
+3. **Family Overview Card** - Shows family email, devices count badge, users count badge, last sync timestamp
+4. **Dashboard Content** - Welcome message and refresh button
+5. **Family Users** - Table showing family members with their details
+6. **Family Devices** - Table showing family devices with their details
+7. **Connected Devices** - Table showing currently connected devices
+8. **Session Information** - Detailed session status including server URL, auth tokens, device info
+9. **Alert Container** - Container for notification alerts
+
+### Test Results
+- **71 tests passed** in `test_visual_responsive.py`
+- All tests pass including hamburger menu, admin visibility, responsive layout, and family overview card tests
+
+## Historical Data Section Removal (2026-09-18)
+
+### Problem
+The "Historical Data" section on the Dashboard V2 was showing "No history data available" because server checks are no longer stored in the database. The `/api/timechecker/history` endpoint returns an empty `checks` array.
+
+### Root Cause
+The historical data feature was disabled (server checks are no longer persisted), but the UI section was never removed. This created a confusing empty section in the dashboard.
+
+### Files Modified
+1. **`timelimit-ui/rootfs/usr/bin/dashboardV2/templates/dashboardV2.html`**
+   - Removed the Historical Data HTML section (lines 1843-1865)
+   - Removed the `loadHistoricalData()` JavaScript function (lines 2102-2132)
+   - Removed all `.historical-table` CSS styles from the style block
+
+2. **`timelimit-ui/rootfs/usr/bin/dashboardV2/tests/test_timechecker.py`**
+   - Removed `test_dashboard_v2_has_historical_table` test
+   - Removed `loadHistoricalData` assertion from `test_dashboard_v2_has_javascript`
+   - Removed `/api/timechecker/history` assertion from `test_dashboard_v2_has_api_endpoints_in_js`
+
+3. **`timelimit-ui/rootfs/usr/bin/dashboardV2/CONTEXT.md`**
+   - Added documentation of the change
+
+### Changes Made
+- Removed the entire `<div class="dashboard-content">` block containing:
+  - `<h2>Historical Data</h2>`
+  - Refresh History button
+  - Historical data table with columns: Timestamp, Status, Server Time, Error
+- Removed the `loadHistoricalData()` function that fetched from `/api/timechecker/history`
+- Removed all CSS styles for `.historical-table` class
+
+### Test Results
+- All 1171 tests pass
+- No regressions introduced
+
+### Problem
+User reported that after pressing sign-out:
+1. They are redirected to the landing page (not staying on dashboard)
+2. The dashboard still thinks they are logged in
+3. Login buttons don't appear after sign-out
+
+### Root Cause
+Multiple issues in `dashboardV2.js`:
+1. `clearSession()` just reloaded the page instead of properly updating the UI
+2. `checkAuthentication()` returned a boolean instead of full session data
+3. `updateSessionOverview()` did NOT handle `recover-password-link` element
+4. DOMContentLoaded handler didn't call `updateLoginStatusBanner()` or `updateSessionOverview()` after checking authentication
+5. The prominent `sign-in-section` in HTML was not being toggled properly
+
+### Fixes Applied
+
+#### 1. Fixed `checkAuthentication()` to return full session data
+```javascript
+async function checkAuthentication() {
+    console.log('[DEBUG] checkAuthentication() called');
+    try {
+        console.log('[DEBUG] Fetching session status from /api/session/status');
+        const response = await fetch('/api/session/status');
+        console.log('[DEBUG] Response status:', response.status);
+        const data = await response.json();
+        console.log('[DEBUG] Session status data:', JSON.stringify(data));
+        isAuthenticated = data.authenticated || false;
+        console.log('[DEBUG] isAuthenticated set to:', isAuthenticated);
+        return data;
+    } catch (error) {
+        console.error('[DEBUG] Failed to check authentication status:', error);
+        isAuthenticated = false;
+        return { authenticated: false };
+    }
 }
 ```
 
-### Family Creation Request
-```json
-{
-  "event": "family_creation_request",
-  "timestamp": "2026-09-05T09:40:00.000000Z",
-  "timestamp_unix_ms": 1725468360000,
-  "mail_auth_token": "<token>",
-  "email": "parent@example.com",
-  "password_data": {
-    "hash": "$2a$12$...",
-    "secondHash": "$2a$12$...",
-    "secondSalt": "$2a$12$..."
-  },
-  "parent_device": {
-    "model": "Pixel 6"
-  },
-  "device_name": "Parent Phone",
-  "time_zone": "Europe/Amsterdam",
-  "parent_name": "John Parent",
-  "locale": "en",
-  "request_id": "<uuid>",
-  "server_url": "<server_url>"
+#### 2. Fixed `clearSession()` to properly update the UI
+```javascript
+async function clearSession() {
+    console.log('[DEBUG] clearSession() called');
+    try {
+        console.log('[DEBUG] Making API request to /session/clear');
+        const response = await apiRequest('/session/clear', 'POST');
+        console.log('[DEBUG] Response received:', response);
+        
+        if (response && response.status === 'ok') {
+            console.log('[DEBUG] Session cleared successfully');
+            parentPasswordHash = null;
+            isAuthenticated = false;
+            
+            const sessionData = { authenticated: false };
+            updateLoginStatusBanner(sessionData);
+            updateSessionOverview(sessionData);
+            
+            showAlert('Signed out successfully. Please sign in to continue.', 'success');
+        } else {
+            console.error('[DEBUG] Failed to clear session:', response);
+            showAlert('Failed to clear session: ' + (response?.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('[DEBUG] Failed to clear session:', error);
+        showAlert('Failed to clear session: ' + error.message, 'error');
+    }
 }
 ```
 
-### Family Creation Response
-```json
-{
-  "event": "family_creation_response",
-  "timestamp": "2026-09-05T09:40:00.100000Z",
-  "timestamp_unix_ms": 1725468360100,
-  "success": true,
-  "status_code": 200,
-  "response_data": {
-    "deviceAuthToken": "<device_token>",
-    "ownDeviceId": "<device_id>"
-  },
-  "request_id": "<uuid>"
+#### 3. Fixed `updateSessionOverview()` to handle `recover-password-link` and `sign-in-section`
+```javascript
+// Show/hide action links based on authentication status
+const createFamilyLink = document.getElementById('create-family-link');
+const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
+const recoverPasswordLink = document.getElementById('recover-password-link');
+const signoutLink = document.getElementById('signout-link');
+const signInSection = document.getElementById('sign-in-section');
+
+console.log('[DEBUG] Authentication status:', data.authenticated);
+console.log('[DEBUG] createFamilyLink exists:', !!createFamilyLink);
+console.log('[DEBUG] loginExistingFamilyLink exists:', !!loginExistingFamilyLink);
+console.log('[DEBUG] recoverPasswordLink exists:', !!recoverPasswordLink);
+console.log('[DEBUG] signoutLink exists:', !!signoutLink);
+console.log('[DEBUG] signInSection exists:', !!signInSection);
+
+if (createFamilyLink && loginExistingFamilyLink && recoverPasswordLink) {
+    if (data.authenticated) {
+        console.log('[DEBUG] Hiding login links, showing signout');
+        createFamilyLink.style.display = 'none';
+        loginExistingFamilyLink.style.display = 'none';
+        recoverPasswordLink.style.display = 'none';
+        if (signoutLink) {
+            signoutLink.style.display = 'block';
+        }
+        if (signInSection) {
+            signInSection.style.display = 'none';
+        }
+    } else {
+        console.log('[DEBUG] Showing login links, hiding signout');
+        createFamilyLink.style.display = 'block';
+        loginExistingFamilyLink.style.display = 'block';
+        recoverPasswordLink.style.display = 'block';
+        if (signoutLink) {
+            signoutLink.style.display = 'none';
+        }
+        if (signInSection) {
+            signInSection.style.display = 'block';
+        }
+    }
 }
 ```
 
-### Family Creation Failure
-```json
-{
-  "event": "family_creation_failure",
-  "timestamp": "2026-09-05T09:40:00.000000Z",
-  "timestamp_unix_ms": 1725468360000,
-  "error_type": "validation",
-  "error_message": "Password must be at least 8 characters",
-  "email": "parent@example.com",
-  "password_data": {
-    "hash": "$2a$12$...",
-    "secondHash": "$2a$12$...",
-    "secondSalt": "$2a$12$..."
-  },
-  "request_id": "<uuid>",
-  "server_url": "<server_url>"
-}
+#### 4. Updated DOMContentLoaded handler to call update functions
+```javascript
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('DashboardV2 initialized');
+    
+    const sessionData = await checkAuthentication();
+    
+    updateLoginStatusBanner(sessionData);
+    updateSessionOverview(sessionData);
+    
+    if (isAuthenticated) {
+        loadUsers();
+        loadDevices();
+        loadConnectedDevices();
+        connectSSE();
+    } else {
+        console.log('User not authenticated - dashboard data will not be loaded');
+    }
+});
 ```
 
-## Test Instructions
+#### 5. Added missing JavaScript functions
+- `toggleMenu()` - Hamburger menu toggle function
+- `closeMenu()` - Hamburger menu close function
+- `checkAdminVisibility()` - Admin visibility check function
+- `updateAdminOnlyElements()` - Admin-only elements visibility function
+- `updateAdminSectionVisibility()` - Admin section visibility function
+- `renderFamilyOverview()` - Family overview rendering function
+- Escape key handler for closing modals
 
-### Run All Tests
-```bash
-cd timelimit-ui/rootfs/usr/bin/dashboardV2
-python -m pytest tests/ -v --timeout=30
-```
+### HTML Changes
+The HTML template already had a prominent `sign-in-section` (lines 1592-1609 in `dashboardV2.html`) with:
+- Gradient background
+- "Create New Family" button
+- "Login to Existing Family" button
+- "Recover Parent Password" link
 
-### Run Specific Sync Tests
-```bash
-cd timelimit-ui/rootfs/usr/bin/dashboardV2
-python -m pytest tests/test_auth_client.py -v --timeout=30 -k "pull_status or push_actions"
-```
-
-## Log Analysis Instructions
-
-See `timelimit-ui/RemoveDeviceIssue.md` for detailed instructions on analyzing logs for device removal issues.
-
-## Data Flow Documentation
-
-See `timelimit-ui/plans/device-removal-data-flow.md` for a comprehensive overview of:
-- All data required for device removal
-- When/where each piece of data is available during the flow
-- Data persistence locations (session, database, file)
-- Common issues and troubleshooting steps
-- Verification checklist
-
-## Verification Checklist
-
-### Device Removal Verification
-Before attempting device removal, verify:
-
-- [x] `device_auth_token` is in session
-- [x] `parent_user_id` is in session
-- [x] `parent_password_second_hash` is in session (must use `$2a$` prefix)
-- [x] `own_device_id` is in session (to prevent self-removal)
-- [x] `parent_password_second_hash` is in database for `device_auth_token`
-- [x] `parent_user_id` is in database for `device_auth_token`
-- [x] `device_auth_token` is persisted to file
-- [x] Audit logs are written to `logs/audit.log` with complete request/response details
-- [x] Session status API returns `has_parent_password_second_hash` and `parent_password_second_hash` fields
-- [x] Devices API returns `has_parent_password_second_hash` field
-
-### Sync Verification
-- [x] Refresh button triggers actual sync via `/api/sync/pull`
-- [x] Sync operations are logged to audit.log
-- [x] Server selection persists correctly across restarts
-- [x] `get_current_server_url()` checks both `server_url` and `server_key` in persistent storage
-
-### Family Creation Audit Logging Verification
-- [x] Email is logged in family creation request
-- [x] Password hash (hash, secondHash, secondSalt) is logged in family creation request
-- [x] Device ID is logged in family creation request
-- [x] Mail auth token is logged in family creation request
-- [x] Parent device info is logged in family creation request
-- [x] Family creation response is logged with device auth token and own device ID
-- [x] Family creation failures are logged with error details
-
-### Signing Key Display Verification
-- [x] Session status API returns `has_signing_key` field
-- [x] `has_signing_key` is True when `dashboard_signing_key.json` exists
-- [x] `has_signing_key` is False when signing key file is missing
-- [x] Dashboard displays "Available" when signing key exists
-- [x] Dashboard displays "Not generated" when signing key is missing
-
-### Login-as-Parent Sync Verification
-- [x] `own_device_id` is extracted from login-as-parent response
-- [x] `own_device_id` is passed to `do_sync()` to add dashboard to connected devices
-- [x] Sync retry logic with exponential backoff (up to 3 retries)
-- [x] 2-second delay after successful sync to ensure `lastConnectivity` is updated
-- [x] Error message shown to user on sync failure
-- [x] Family record is created after sign-in to ensure family exists before password processing
-- [x] Family salt is updated from sync response to fetch salt from server
-- [x] Duplicate `sign_in_into_family()` call removed to prevent 401 Unauthorized errors
-
-### Double Log File Creation Fix Verification
-- [x] Removed module-level `setup_structlog()` call from `logging.py`
-- [x] Only one log file is created on startup
-- [x] Log file is not empty after startup
-
-All verification items are now satisfied after the fixes applied.
-
-## Debug Session Findings (2026-09-06)
-
-### Log Analysis Summary
-
-#### audit.log Findings
-- **Duplicate sign-in issue confirmed**: Lines 16-18 show successful sign-in (HTTP 200), lines 19-21 show failed second sign-in (HTTP 401 Unauthorized)
-- **Error**: `UnauthorizedError: Unauthorized at requireMailAndLocaleByAuthToken` - mail_auth_token was consumed by first call
-- **Password hash regeneration**: Working correctly with bcrypt `$2a$` prefix hashes
-- **Multiple hash regeneration events** logged with proper salt validation
-
-#### werkzeug.log Findings
-- **Multiple 401 errors** for `POST /api/sync/pull` - session/device_auth_token missing or invalid
-- **404 errors** for `/favicon.ico` - expected, favicon doesn't exist
-- **Most requests return 200** - application functioning correctly
-
-#### File Status
-- `dashboardV2-2026-09-06_19-51-22-5d85014d.log` - Does not exist (files have timestamps around 20:09:34)
-- `verify_bcrypt_simple.py` - Does not exist at expected path
-
-#### Code Verification
-- **app.py**: NO duplicate `sign_in_into_family()` call exists - fix already applied
-- Single call at line 1641 in `post_login_as_parent()` function
-- Salt validation and family record creation implemented correctly
-
-#### Database
-- `dashboardV2.db` exists and contains proper schema
-- `families` table with `parent_password_second_salt` column
-- `KeyFamilyData.md` contains family creation audit data with bcrypt hashes
-
-### Current Status
-All issues documented in CONTEXT.md have been resolved. All 978 tests passing.
+### Test Results
+- **1165 tests passed**
+- All sign-out functionality tests pass

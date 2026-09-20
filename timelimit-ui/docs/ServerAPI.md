@@ -681,6 +681,325 @@ interface Category {
 
 ---
 
+## Time Limit Rules API Endpoints
+
+The Time Limit Rules API allows parents to configure time limits for child users. These endpoints manage time-based restrictions on app usage for specific users and categories.
+
+### Authentication
+
+All Time Limit Rules API endpoints require authentication via the session's `device_auth_token`. The dashboard must be logged in to a family before these endpoints can be used.
+
+---
+
+### GET /api/dashboard/time-limit-rules
+
+Retrieve all time limit rules for the authenticated family.
+
+**Request:**
+```http
+GET /api/dashboard/time-limit-rules
+Authorization: Bearer <device_auth_token>
+```
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "count": 2,
+    "rules": [
+        {
+            "id": "rule_abc123def456",
+            "device_auth_token": "device_token_xyz789",
+            "user_id": "user_child_123",
+            "category_id": "cat_games_456",
+            "rule_type": 0,
+            "start_time": "09:00",
+            "end_time": "17:00",
+            "days": 127,
+            "limit_minutes": 120,
+            "version": "v1",
+            "created_at": "2026-09-10T10:30:00.000000Z",
+            "last_updated": 1758000000000
+        }
+    ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Response status ("ok" or "error") |
+| `count` | integer | Number of rules returned |
+| `rules` | array | Array of time limit rule objects |
+
+**Rule Object Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique rule identifier |
+| `device_auth_token` | string | Device auth token this rule belongs to |
+| `user_id` | string | ID of the user the rule applies to |
+| `category_id` | string | ID of the category the rule applies to |
+| `rule_type` | integer | Type of rule (0 = TIME_LIMIT, 1 = TIME_LIMIT_EXCEPTIONS) |
+| `start_time` | string | Start time in HH:MM format (24-hour) |
+| `end_time` | string | End time in HH:MM format (24-hour) |
+| `days` | integer | Days bitmask (bit 0=Monday, bit 6=Sunday, 127 = all days) |
+| `limit_minutes` | integer | Time limit duration in minutes |
+| `version` | string | Optional version string |
+| `created_at` | string | ISO 8601 timestamp when rule was created |
+| `last_updated` | integer | Unix timestamp in milliseconds when rule was last updated |
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 400 | `{"status": "error", "error": "No device auth token"}` |
+| 500 | `{"status": "error", "error": "Failed to retrieve time limit rules"}` |
+
+---
+
+### POST /api/dashboard/time-limit-rules
+
+Create a new time limit rule.
+
+**Request:**
+```http
+POST /api/dashboard/time-limit-rules
+Authorization: Bearer <device_auth_token>
+Content-Type: application/json
+
+{
+    "userId": "user_child_123",
+    "categoryId": "cat_games_456",
+    "rule": {
+        "type": 0,
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "days": 127,
+        "limitMinutes": 120
+    }
+}
+```
+
+**Request Body Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userId` | string | Yes | ID of the user the rule applies to |
+| `categoryId` | string | Yes | ID of the category the rule applies to |
+| `rule` | object | Yes | Rule configuration object |
+| `rule.type` | integer | No | Rule type (0 = TIME_LIMIT, default: 0) |
+| `rule.startTime` | string | No | Start time in HH:MM format (24-hour) |
+| `rule.endTime` | string | No | End time in HH:MM format (24-hour) |
+| `rule.days` | integer | No | Days bitmask (0-127, default: 127) |
+| `rule.limitMinutes` | integer | No | Time limit in minutes (default: 0) |
+| `rule.version` | string | No | Optional version string |
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "ruleId": "rule_abc123def456"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Response status ("ok" or "error") |
+| `ruleId` | string | ID of the newly created rule |
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 400 | `{"status": "error", "error": "No device auth token"}` |
+| 400 | `{"status": "error", "error": "Missing userId"}` |
+| 400 | `{"status": "error", "error": "Missing categoryId"}` |
+| 400 | `{"status": "error", "error": "Missing rule"}` |
+| 400 | `{"status": "error", "error": "Invalid startTime format. Use HH:MM (24-hour format)"}` |
+| 400 | `{"status": "error", "error": "Invalid endTime format. Use HH:MM (24-hour format)"}` |
+| 400 | `{"status": "error", "error": "Invalid days value. Must be an integer between 0 and 127"}` |
+| 400 | `{"status": "error", "error": "Invalid limitMinutes. Must be a non-negative integer"}` |
+| 500 | `{"status": "error", "error": "Failed to create time limit rule"}` |
+
+---
+
+### PUT /api/dashboard/time-limit-rules/{ruleId}
+
+Update an existing time limit rule.
+
+**Request:**
+```http
+PUT /api/dashboard/time-limit-rules/rule_abc123def456
+Authorization: Bearer <device_auth_token>
+Content-Type: application/json
+
+{
+    "rule": {
+        "type": 0,
+        "startTime": "08:00",
+        "endTime": "18:00",
+        "days": 63,
+        "limitMinutes": 180
+    }
+}
+```
+
+**Request Body Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userId` | string | No | ID of the user the rule applies to |
+| `categoryId` | string | No | ID of the category the rule applies to |
+| `rule` | object | No | Rule configuration object (any field can be updated) |
+| `rule.type` | integer | No | Rule type |
+| `rule.startTime` | string | No | Start time in HH:MM format |
+| `rule.endTime` | string | No | End time in HH:MM format |
+| `rule.days` | integer | No | Days bitmask (0-127) |
+| `rule.limitMinutes` | integer | No | Time limit in minutes |
+| `rule.version` | string | No | Version string |
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "message": "Rule updated successfully"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Response status ("ok" or "error") |
+| `message` | string | Success message |
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 400 | `{"status": "error", "error": "No device auth token"}` |
+| 404 | `{"status": "error", "error": "Rule not found"}` |
+| 400 | `{"status": "error", "error": "No updates provided"}` |
+| 400 | `{"status": "error", "error": "Invalid startTime format. Use HH:MM (24-hour format)"}` |
+| 400 | `{"status": "error", "error": "Invalid endTime format. Use HH:MM (24-hour format)"}` |
+| 400 | `{"status": "error", "error": "Invalid days value. Must be an integer between 0 and 127"}` |
+| 400 | `{"status": "error", "error": "Invalid limitMinutes. Must be a non-negative integer"}` |
+| 500 | `{"status": "error", "error": "Failed to update time limit rule"}` |
+
+---
+
+### DELETE /api/dashboard/time-limit-rules/{ruleId}
+
+Delete a time limit rule.
+
+**Request:**
+```http
+DELETE /api/dashboard/time-limit-rules/rule_abc123def456
+Authorization: Bearer <device_auth_token>
+```
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "message": "Rule deleted successfully"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Response status ("ok" or "error") |
+| `message` | string | Success message |
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 400 | `{"status": "error", "error": "No device auth token"}` |
+| 404 | `{"status": "error", "error": "Rule not found"}` |
+| 500 | `{"status": "error", "error": "Failed to delete time limit rule"}` |
+
+---
+
+### Rule Types
+
+| Type Value | Type Name | Description |
+|------------|-----------|-------------|
+| 0 | TIME_LIMIT | Standard time limit rule |
+| 1 | TIME_LIMIT_EXCEPTIONS | Time limit exception rule |
+
+### Days Bitmask
+
+The `days` field uses a bitmask to specify which days the rule applies to:
+
+| Bit | Day | Value |
+|-----|-----|-------|
+| 0 | Monday | 1 |
+| 1 | Tuesday | 2 |
+| 2 | Wednesday | 4 |
+| 3 | Thursday | 8 |
+| 4 | Friday | 16 |
+| 5 | Saturday | 32 |
+| 6 | Sunday | 64 |
+
+Common values:
+- `127` (0x7F) = All days (1+2+4+8+16+32+64)
+- `63` (0x3F) = Weekdays only (Mon-Fri)
+- `96` (0x60) = Weekends only (Sat+Sun)
+
+### Time Format
+
+Times are specified in 24-hour format as `HH:MM`:
+- Valid range: `00:00` to `23:59`
+- Examples: `09:00`, `17:30`, `23:59`
+
+---
+
+### Rate Limiting
+
+The Time Limit Rules API endpoints are subject to the following rate limits:
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| GET /api/dashboard/time-limit-rules | 60 requests | per minute |
+| POST /api/dashboard/time-limit-rules | 30 requests | per minute |
+| PUT /api/dashboard/time-limit-rules/{ruleId} | 30 requests | per minute |
+| DELETE /api/dashboard/time-limit-rules/{ruleId} | 30 requests | per minute |
+
+Rate limit responses return HTTP 429 with:
+```json
+{
+    "status": "error",
+    "error": "Rate limit exceeded",
+    "retry_after": 60
+}
+```
+
+---
+
+### Sync Protocol Integration
+
+When a rule is created or deleted, the dashboard automatically syncs the change to the TimeLimit server using the sync protocol:
+
+1. The rule is saved to the local database
+2. An `AddTimeLimitRuleAction` or `RemoveTimeLimitRuleAction` is generated
+3. The action is signed with HMAC-SHA256 using the parent's second password hash
+4. The action is pushed to the server via `/sync/push-actions`
+
+If the parent password hash is not set, the rule is still saved locally but not synced to the server.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
@@ -690,6 +1009,7 @@ interface Category {
 | 1.2.0 | 2026-09-03 | Added Recover Parent Password endpoint documentation, fixed Sign In Into Family request format, added sequence diagrams |
 | 1.3.1 | 2026-09-04 | Fixed Recover Parent Password API field name: changed `newPassword` to `password` to match server validator |
 | 1.3.0 | 2026-09-03 | Added Recover Parent Password server-side rendered flow (GET/POST /recover-parent-password), added dashboard internal endpoints section |
+| 1.4.0 | 2026-09-10 | Added Time Limit Rules API endpoints documentation (GET/POST/PUT/DELETE /api/dashboard/time-limit-rules) |
 
 ---
 

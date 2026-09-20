@@ -40,6 +40,8 @@ from database import (
     cleanup_expired_tokens,
     save_users,
     get_users_by_device_auth_token,
+    get_user_by_id,
+    get_parent_user_id,
     save_sync_state,
     get_sync_state,
     save_categories,
@@ -58,7 +60,12 @@ from database import (
     get_family_with_valid_hash,
     clear_family_password_hash,
     has_parent_password_hash,
-    clear_all_tables
+    clear_all_tables,
+    save_time_limit_rule,
+    get_time_limit_rules_by_device_auth_token,
+    get_time_limit_rule_by_id,
+    update_time_limit_rule,
+    delete_time_limit_rule
 )
 
 
@@ -1994,7 +2001,7 @@ class TestUpsertFamilyPasswordHashWithMail:
     
     @pytest.mark.timeout(10)
     def test_upsert_updates_existing_family_with_mail(self, test_db):
-        """Test that upsert updates existing family and preserves mail."""
+        """Test that upsert updates existing family and updates mail when provided."""
         # First create a family
         create_family(
             db=test_db,
@@ -2016,11 +2023,11 @@ class TestUpsertFamilyPasswordHashWithMail:
         
         assert result is True
         
-        # Verify hash was updated but mail was preserved (UPDATE doesn't change mail)
+        # Verify hash was updated and mail was updated (when mail is provided)
         family = get_family(test_db, 'device_token_test123')
         assert family['parent_password_second_hash'] == '$2b$12$newhash'
-        # Note: UPDATE doesn't change mail, so it should still be original
-        assert family['mail'] == 'original@example.com'
+        # When mail is provided, it should be updated
+        assert family['mail'] == 'new@example.com'
 
 
 class TestClearAllTables:
@@ -2202,3 +2209,899 @@ class TestClearAllTables:
         # Verify auth tokens are cleared
         tokens = get_device_auth_tokens(test_db)
         assert len(tokens) == 0
+
+
+class TestTimeLimitRules:
+    """Tests for time_limit_rules table operations."""
+    
+    @pytest.fixture
+    def test_db(self):
+        """Create a test database with required data for time limit rules."""
+        db_fd, db_path = tempfile.mkstemp(suffix='.db')
+        
+        db = Database(db_path=db_path)
+        db.init_db()
+        
+        # Create required family and user for foreign key constraints
+        device_auth_token = 'test_device_token_123'
+        
+        create_family(
+            db=db,
+            device_auth_token=device_auth_token,
+            mail='test@example.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+        
+        # Create a user
+        save_users(db, device_auth_token, [
+            {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
+        ])
+        
+        # Create a category
+        save_categories(db, device_auth_token, [
+            {'id': 'cat_1', 'title': 'Test Category'}
+        ])
+        
+        # Store auth token
+        store_auth_token(
+            db=db,
+            token_type='device_auth_token',
+            token_value=device_auth_token,
+            device_id='device_1',
+            mail='test@example.com'
+        )
+        
+        yield db
+        db.close()
+        os.close(db_fd)
+        os.unlink(db_path)
+    
+    @pytest.mark.timeout(10)
+    def test_save_time_limit_rule(self, test_db):
+        """Test saving a time limit rule to the database."""
+        rule_id = 'rule_1234567890abcdef'
+        device_auth_token = 'test_device_token_123'
+        user_id = 'user_1'
+        category_id = 'cat_1'
+        
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id=user_id,
+            category_id=category_id,
+            rule_type=0,
+            start_time='08:00',
+            end_time='18:00',
+            days=127,
+            limit_minutes=60,
+            version='1.0'
+        )
+        
+        # Verify the rule was saved
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        assert rule is not None
+        assert rule['id'] == rule_id
+        assert rule['device_auth_token'] == device_auth_token
+        assert rule['user_id'] == user_id
+        assert rule['category_id'] == category_id
+        assert rule['rule_type'] == 0
+        assert rule['start_time'] == '08:00'
+        assert rule['end_time'] == '18:00'
+        assert rule['days'] == 127
+        assert rule['limit_minutes'] == 60
+        assert rule['version'] == '1.0'
+        assert rule['created_at'] is not None
+        assert rule['last_updated'] is not None
+    
+    @pytest.mark.timeout(10)
+    def test_save_time_limit_rule_updates_existing(self, test_db):
+        """Test that saving a rule with existing ID updates it."""
+        rule_id = 'rule_update_test'
+        device_auth_token = 'test_device_token_123'
+        user_id = 'user_1'
+        category_id = 'cat_1'
+        
+        # Save initial rule
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id=user_id,
+            category_id=category_id,
+            limit_minutes=30
+        )
+        
+        # Update the rule
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id=user_id,
+            category_id=category_id,
+            limit_minutes=90
+        )
+        
+        # Verify the rule was updated
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        assert rule['limit_minutes'] == 90
+    
+    @pytest.mark.timeout(10)
+    def test_get_time_limit_rules_by_device_auth_token(self, test_db):
+        """Test getting all time limit rules for a device auth token."""
+        device_auth_token = 'test_device_token_123'
+        
+        # Save multiple rules
+        save_time_limit_rule(
+            db=test_db,
+            rule_id='rule_1',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=60
+        )
+        
+        save_time_limit_rule(
+            db=test_db,
+            rule_id='rule_2',
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_2',
+            limit_minutes=120
+        )
+        
+        # Get rules
+        rules = get_time_limit_rules_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(rules) == 2
+        rule_ids = [r['id'] for r in rules]
+        assert 'rule_1' in rule_ids
+        assert 'rule_2' in rule_ids
+    
+    @pytest.mark.timeout(10)
+    def test_get_time_limit_rules_by_device_auth_token_empty(self, test_db):
+        """Test getting rules for a device with no rules."""
+        rules = get_time_limit_rules_by_device_auth_token(test_db, 'nonexistent_token')
+        
+        assert len(rules) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_get_time_limit_rule_by_id(self, test_db):
+        """Test getting a single time limit rule by ID."""
+        rule_id = 'rule_get_by_id_test'
+        device_auth_token = 'test_device_token_123'
+        
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=45
+        )
+        
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        
+        assert rule is not None
+        assert rule['id'] == rule_id
+        assert rule['limit_minutes'] == 45
+    
+    @pytest.mark.timeout(10)
+    def test_get_time_limit_rule_by_id_not_found(self, test_db):
+        """Test getting a non-existent rule by ID."""
+        rule = get_time_limit_rule_by_id(test_db, 'nonexistent_rule_id')
+        
+        assert rule is None
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule(self, test_db):
+        """Test updating a time limit rule."""
+        rule_id = 'rule_update_test'
+        device_auth_token = 'test_device_token_123'
+        
+        # Create rule first
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1',
+            limit_minutes=30
+        )
+        
+        # Update the rule
+        updates = {
+            'limit_minutes': 120,
+            'start_time': '09:00',
+            'end_time': '17:00'
+        }
+        
+        result = update_time_limit_rule(test_db, rule_id, updates)
+        
+        assert result is True
+        
+        # Verify the update
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        assert rule['limit_minutes'] == 120
+        assert rule['start_time'] == '09:00'
+        assert rule['end_time'] == '17:00'
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_not_found(self, test_db):
+        """Test updating a non-existent rule."""
+        updates = {'limit_minutes': 60}
+        
+        result = update_time_limit_rule(test_db, 'nonexistent_rule_id', updates)
+        
+        assert result is False
+    
+    @pytest.mark.timeout(10)
+    def test_update_time_limit_rule_empty_updates(self, test_db):
+        """Test updating a rule with empty updates dict."""
+        rule_id = 'rule_empty_update_test'
+        device_auth_token = 'test_device_token_123'
+        
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1'
+        )
+        
+        result = update_time_limit_rule(test_db, rule_id, {})
+        
+        assert result is False
+    
+    @pytest.mark.timeout(10)
+    def test_delete_time_limit_rule(self, test_db):
+        """Test deleting a time limit rule."""
+        rule_id = 'rule_delete_test'
+        device_auth_token = 'test_device_token_123'
+        
+        # Create rule first
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1'
+        )
+        
+        # Verify it exists
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        assert rule is not None
+        
+        # Delete the rule
+        result = delete_time_limit_rule(test_db, rule_id)
+        
+        assert result is True
+        
+        # Verify it's deleted
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        assert rule is None
+    
+    @pytest.mark.timeout(10)
+    def test_delete_time_limit_rule_not_found(self, test_db):
+        """Test deleting a non-existent rule."""
+        result = delete_time_limit_rule(test_db, 'nonexistent_rule_id')
+        
+        assert result is False
+    
+    @pytest.mark.timeout(10)
+    def test_time_limit_rule_default_values(self, test_db):
+        """Test that default values are applied correctly."""
+        rule_id = 'rule_defaults_test'
+        device_auth_token = 'test_device_token_123'
+        
+        save_time_limit_rule(
+            db=test_db,
+            rule_id=rule_id,
+            device_auth_token=device_auth_token,
+            user_id='user_1',
+            category_id='cat_1'
+        )
+        
+        rule = get_time_limit_rule_by_id(test_db, rule_id)
+        
+        assert rule['rule_type'] == 0  # default
+        assert rule['days'] == 127  # default
+        assert rule['limit_minutes'] == 0  # default
+        assert rule['version'] is None  # default
+
+
+class TestAddUserToFamily:
+    """Tests for the 'Add User to Family' feature.
+    
+    These tests verify the database functions work correctly with user data
+    when adding a new child user to a family via the sync mechanism.
+    """
+    
+    @pytest.fixture
+    def test_db(self):
+        """Create a test database with required family and device data."""
+        db_fd, db_path = tempfile.mkstemp(suffix='.db')
+        db = Database(db_path=db_path)
+        db.init_db()
+        
+        # Create a family record (simulating parent's device)
+        device_auth_token = 'parent_device_token_test'
+        create_family(
+            db=db,
+            device_auth_token=device_auth_token,
+            mail='parent@example.com',
+            parent_password_hash='$2b$12$parent_hash_test',
+            parent_password_second_hash='$2b$12$parent_second_hash_test',
+            parent_password_second_salt='$2b$12$salt_test',
+            parent_password_encrypted=False
+        )
+        
+        # Create a device for the family
+        create_device(
+            db=db,
+            device_id='parent_device_123',
+            device_auth_token=device_auth_token,
+            name='Parent Phone',
+            model='Pixel 7'
+        )
+        
+        yield db
+        db.close()
+        os.close(db_fd)
+        os.unlink(db_path)
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_stores_new_child_user(self, test_db):
+        """Test that save_users() correctly stores a new child user."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a new child user
+        child_user_data = [
+            {
+                'id': 'child_user_1',
+                'name': 'Child User',
+                'type': 'child',
+                'mail': 'child@example.com',
+                'timeZone': 'Europe/Amsterdam'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, child_user_data)
+        
+        # Verify the user was stored
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        assert users[0]['id'] == 'child_user_1'
+        assert users[0]['name'] == 'Child User'
+        assert users[0]['type'] == 'child'
+        assert users[0]['mail'] == 'child@example.com'
+        assert users[0]['time_zone'] == 'Europe/Amsterdam'
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_updates_existing_user(self, test_db):
+        """Test that save_users() correctly updates an existing user."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create initial user
+        user_data = [
+            {
+                'id': 'user_1',
+                'name': 'Original Name',
+                'type': 'child',
+                'mail': 'original@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, user_data)
+        
+        # Update the user
+        updated_user_data = [
+            {
+                'id': 'user_1',
+                'name': 'Updated Name',
+                'type': 'child',
+                'mail': 'updated@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, updated_user_data)
+        
+        # Verify the update
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        assert users[0]['name'] == 'Updated Name'
+        assert users[0]['mail'] == 'updated@example.com'
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_parent_type_validation(self, test_db):
+        """Test that save_users() correctly stores a parent user."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a parent user
+        parent_user_data = [
+            {
+                'id': 'parent_user_1',
+                'name': 'Parent User',
+                'type': 'parent',
+                'mail': 'parent@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, parent_user_data)
+        
+        # Verify the user was stored with correct type
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        assert users[0]['type'] == 'parent'
+        assert users[0]['name'] == 'Parent User'
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_child_type_validation(self, test_db):
+        """Test that save_users() correctly stores a child user."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a child user
+        child_user_data = [
+            {
+                'id': 'child_user_1',
+                'name': 'Child User',
+                'type': 'child',
+                'mail': 'child@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, child_user_data)
+        
+        # Verify the user was stored with correct type
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        assert users[0]['type'] == 'child'
+        assert users[0]['name'] == 'Child User'
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_multiple_users_with_different_types(self, test_db):
+        """Test that save_users() correctly stores multiple users with different types."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create multiple users with different types
+        users_data = [
+            {
+                'id': 'parent_user_1',
+                'name': 'Parent User',
+                'type': 'parent',
+                'mail': 'parent@example.com'
+            },
+            {
+                'id': 'child_user_1',
+                'name': 'Child User 1',
+                'type': 'child',
+                'mail': 'child1@example.com'
+            },
+            {
+                'id': 'child_user_2',
+                'name': 'Child User 2',
+                'type': 'child',
+                'mail': 'child2@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, users_data)
+        
+        # Verify all users were stored
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 3
+        
+        # Verify parent user
+        parent_users = [u for u in users if u['type'] == 'parent']
+        assert len(parent_users) == 1
+        assert parent_users[0]['id'] == 'parent_user_1'
+        
+        # Verify child users
+        child_users = [u for u in users if u['type'] == 'child']
+        assert len(child_users) == 2
+        child_ids = [u['id'] for u in child_users]
+        assert 'child_user_1' in child_ids
+        assert 'child_user_2' in child_ids
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_device_association(self, test_db):
+        """Test that users are correctly associated with device_auth_token."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a user
+        user_data = [
+            {
+                'id': 'user_1',
+                'name': 'Test User',
+                'type': 'child',
+                'mail': 'test@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, user_data)
+        
+        # Verify user is associated with correct device
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        assert users[0]['device_auth_token'] == device_auth_token
+        
+        # Verify user is not associated with other device tokens
+        other_users = get_users_by_device_auth_token(test_db, 'other_device_token')
+        assert len(other_users) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_get_users_by_device_auth_token_returns_correct_users(self, test_db):
+        """Test that get_users_by_device_auth_token() returns correct users."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create multiple users
+        users_data = [
+            {
+                'id': 'user_1',
+                'name': 'User 1',
+                'type': 'parent',
+                'mail': 'user1@example.com'
+            },
+            {
+                'id': 'user_2',
+                'name': 'User 2',
+                'type': 'child',
+                'mail': 'user2@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, users_data)
+        
+        # Retrieve users
+        retrieved_users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(retrieved_users) == 2
+        
+        # Verify all expected fields are present
+        for user in retrieved_users:
+            assert 'id' in user
+            assert 'name' in user
+            assert 'type' in user
+            assert 'mail' in user
+            assert 'device_auth_token' in user
+    
+    @pytest.mark.timeout(10)
+    def test_get_users_by_device_auth_token_empty_result(self, test_db):
+        """Test that get_users_by_device_auth_token() returns empty list for non-existent device."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Don't save any users
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_get_users_by_device_auth_token_different_devices(self, test_db):
+        """Test that get_users_by_device_auth_token() returns correct users for different devices."""
+        device_auth_token_1 = 'device_token_1'
+        device_auth_token_2 = 'device_token_2'
+        
+        # Create a family for device 2
+        create_family(
+            db=test_db,
+            device_auth_token=device_auth_token_2,
+            mail='device2@example.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+        
+        # Create users for device 1
+        save_users(test_db, device_auth_token_1, [
+            {'id': 'user_1', 'name': 'User 1', 'type': 'child', 'mail': 'user1@example.com'}
+        ])
+        
+        # Create users for device 2
+        save_users(test_db, device_auth_token_2, [
+            {'id': 'user_2', 'name': 'User 2', 'type': 'child', 'mail': 'user2@example.com'}
+        ])
+        
+        # Verify correct users for each device
+        users_1 = get_users_by_device_auth_token(test_db, device_auth_token_1)
+        assert len(users_1) == 1
+        assert users_1[0]['id'] == 'user_1'
+        
+        users_2 = get_users_by_device_auth_token(test_db, device_auth_token_2)
+        assert len(users_2) == 1
+        assert users_2[0]['id'] == 'user_2'
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_returns_correct_parent(self, test_db):
+        """Test that get_parent_user_id() returns correct parent user ID."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a parent user
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'parent_user_123',
+                'name': 'Parent User',
+                'type': 'parent',
+                'mail': 'parent@example.com'
+            }
+        ])
+        
+        # Get parent user ID
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        assert parent_user_id == 'parent_user_123'
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_returns_none_when_no_parent(self, test_db):
+        """Test that get_parent_user_id() returns None when no parent user exists."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create only child users
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'child_user_1',
+                'name': 'Child User',
+                'type': 'child',
+                'mail': 'child@example.com'
+            }
+        ])
+        
+        # Get parent user ID - should be None
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        assert parent_user_id is None
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_returns_none_when_no_users(self, test_db):
+        """Test that get_parent_user_id() returns None when no users exist."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Don't create any users
+        
+        # Get parent user ID - should be None
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        assert parent_user_id is None
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_falls_back_to_users_table(self, test_db):
+        """Test that get_parent_user_id() falls back to users table when families table has no parent_user_id."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a parent user (but don't set parent_user_id in families table)
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'parent_user_456',
+                'name': 'Parent User',
+                'type': 'parent',
+                'mail': 'parent@example.com'
+            }
+        ])
+        
+        # Get parent user ID - should find it in users table
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        assert parent_user_id == 'parent_user_456'
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_prioritizes_families_table(self, test_db):
+        """Test that get_parent_user_id() prioritizes families table over users table."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a parent user in users table
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'parent_user_from_users',
+                'name': 'Parent User',
+                'type': 'parent',
+                'mail': 'parent@example.com'
+            }
+        ])
+        
+        # Set parent_user_id in families table
+        from database import update_family_parent_user_id
+        update_family_parent_user_id(test_db, device_auth_token, 'parent_user_from_families')
+        
+        # Get parent user ID - should return from families table
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        assert parent_user_id == 'parent_user_from_families'
+    
+    @pytest.mark.timeout(10)
+    def test_get_user_by_id_returns_correct_user(self, test_db):
+        """Test that get_user_by_id() returns the correct user."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a user
+        user_data = [
+            {
+                'id': 'user_123',
+                'name': 'Test User',
+                'type': 'child',
+                'mail': 'test@example.com'
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, user_data)
+        
+        # Get user by ID
+        user = get_user_by_id(test_db, 'user_123')
+        
+        assert user is not None
+        assert user['id'] == 'user_123'
+        assert user['name'] == 'Test User'
+        assert user['type'] == 'child'
+    
+    @pytest.mark.timeout(10)
+    def test_get_user_by_id_returns_none_for_nonexistent_user(self, test_db):
+        """Test that get_user_by_id() returns None for non-existent user."""
+        user = get_user_by_id(test_db, 'nonexistent_user')
+        
+        assert user is None
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_with_all_fields(self, test_db):
+        """Test that save_users() correctly stores user with all available fields."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create a user with all fields
+        user_data = [
+            {
+                'id': 'user_full',
+                'name': 'Full User',
+                'type': 'child',
+                'mail': 'full@example.com',
+                'timeZone': 'Europe/Amsterdam',
+                'password': 'hashed_password',
+                'secondPasswordSalt': 'salt_value',
+                'disableLimitsUntil': 1234567890000,
+                'currentDevice': 'device_123',
+                'categoryForNotAssignedApps': 'cat_456',
+                'relaxPrimaryDevice': 1,
+                'flags': 2,
+                'limitLoginCategory': 'cat_789',
+                'preBlockDuration': 30
+            }
+        ]
+        
+        save_users(test_db, device_auth_token, user_data)
+        
+        # Verify all fields were stored
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 1
+        user = users[0]
+        assert user['id'] == 'user_full'
+        assert user['name'] == 'Full User'
+        assert user['type'] == 'child'
+        assert user['mail'] == 'full@example.com'
+        assert user['time_zone'] == 'Europe/Amsterdam'
+        assert user['password'] == 'hashed_password'
+        assert user['second_password_salt'] == 'salt_value'
+        assert user['disable_limits_until'] == 1234567890000
+        assert user['current_device'] == 'device_123'
+        assert user['category_for_not_assigned_apps'] == 'cat_456'
+        assert user['relax_primary_device'] == 1
+        assert user['flags'] == 2
+        assert user['limit_login_category'] == 'cat_789'
+        assert user['pre_block_duration'] == 30
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_overwrites_existing_user(self, test_db):
+        """Test that save_users() overwrites an existing user with same ID."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create initial user
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'user_1',
+                'name': 'Old Name',
+                'type': 'child',
+                'mail': 'old@example.com',
+                'password': 'old_password'
+            }
+        ])
+        
+        # Overwrite with new data
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'user_1',
+                'name': 'New Name',
+                'type': 'child',
+                'mail': 'new@example.com',
+                'password': 'new_password'
+            }
+        ])
+        
+        # Verify user was overwritten
+        user = get_user_by_id(test_db, 'user_1')
+        
+        assert user['name'] == 'New Name'
+        assert user['mail'] == 'new@example.com'
+        assert user['password'] == 'new_password'
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_empty_list(self, test_db):
+        """Test that save_users() handles empty list gracefully."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Save empty list
+        save_users(test_db, device_auth_token, [])
+        
+        # Verify no users exist
+        users = get_users_by_device_auth_token(test_db, device_auth_token)
+        
+        assert len(users) == 0
+    
+    @pytest.mark.timeout(10)
+    def test_save_users_multiple_device_auth_tokens(self, test_db):
+        """Test that save_users() correctly handles multiple device auth tokens."""
+        device_auth_token_1 = 'device_token_1'
+        device_auth_token_2 = 'device_token_2'
+        
+        # Create a family for device 2
+        create_family(
+            db=test_db,
+            device_auth_token=device_auth_token_2,
+            mail='device2@example.com',
+            parent_password_hash='$2b$12$hash1',
+            parent_password_second_hash='$2b$12$hash2',
+            parent_password_second_salt='$2b$12$salt',
+            parent_password_encrypted=False
+        )
+        
+        # Create users for device 1
+        save_users(test_db, device_auth_token_1, [
+            {'id': 'user_1', 'name': 'User 1', 'type': 'child', 'mail': 'user1@example.com'}
+        ])
+        
+        # Create users for device 2
+        save_users(test_db, device_auth_token_2, [
+            {'id': 'user_2', 'name': 'User 2', 'type': 'child', 'mail': 'user2@example.com'}
+        ])
+        
+        # Verify users are isolated by device auth token
+        users_1 = get_users_by_device_auth_token(test_db, device_auth_token_1)
+        users_2 = get_users_by_device_auth_token(test_db, device_auth_token_2)
+        
+        assert len(users_1) == 1
+        assert users_1[0]['id'] == 'user_1'
+        
+        assert len(users_2) == 1
+        assert users_2[0]['id'] == 'user_2'
+    
+    @pytest.mark.timeout(10)
+    def test_get_parent_user_id_with_multiple_parents(self, test_db):
+        """Test that get_parent_user_id() returns the first parent when multiple exist."""
+        device_auth_token = 'parent_device_token_test'
+        
+        # Create multiple parent users
+        save_users(test_db, device_auth_token, [
+            {
+                'id': 'parent_1',
+                'name': 'Parent 1',
+                'type': 'parent',
+                'mail': 'parent1@example.com'
+            },
+            {
+                'id': 'parent_2',
+                'name': 'Parent 2',
+                'type': 'parent',
+                'mail': 'parent2@example.com'
+            }
+        ])
+        
+        # Get parent user ID
+        parent_user_id = get_parent_user_id(test_db, device_auth_token)
+        
+        # Should return one of the parent IDs
+        assert parent_user_id in ['parent_1', 'parent_2']

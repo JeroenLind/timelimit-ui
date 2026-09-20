@@ -434,7 +434,7 @@ class TestAuthTokenPersistence:
                 set_persisted_device_auth_token(test_token)
                 
                 result = get_persisted_device_auth_token()
-                assert result == test_token
+                assert result == {'token': test_token, 'mail': None}
     
     @pytest.mark.timeout(10)
     def test_get_device_auth_token_returns_none_when_not_set(self, temp_file):
@@ -522,7 +522,7 @@ class TestAuthTokenPersistence:
                 mock_instance2 = FileServerSelectionStore(temp_file)
                 mock_store.return_value = mock_instance2
                 
-                assert get_persisted_device_auth_token() == "test_token_123"
+                assert get_persisted_device_auth_token() == {'token': 'test_token_123', 'mail': None}
                 assert get_persisted_own_device_id() == "device_id_456"
     
     @pytest.mark.timeout(10)
@@ -591,7 +591,7 @@ class TestAuthTokenPersistenceDatabase:
             mock_get_db.return_value = test_db
             
             result = get_persisted_device_auth_token()
-            assert result == 'db_token_123'
+            assert result == {'token': 'db_token_123', 'mail': None}
     
     @pytest.mark.timeout(10)
     def test_get_persisted_device_auth_token_returns_none_when_no_database_tokens(self, test_db, temp_file):
@@ -704,7 +704,7 @@ class TestAuthTokenPersistenceDatabase:
                 
                 result = get_persisted_device_auth_token()
                 # Database token should take precedence
-                assert result == 'db_token_priority'
+                assert result == {'token': 'db_token_priority', 'mail': None}
 
 
 class TestAuthTokenBackupRestore:

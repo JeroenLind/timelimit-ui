@@ -915,6 +915,201 @@ class TestAuthClientChildDevice:
         
         assert response.success is True
         assert response.data['token'] == 'register_token_123'
+        assert response.data['deviceId'] == 'device_child123'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_returns_token(self, mock_session_class):
+        """Test that create_add_device_token returns token in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'token': 'register_token_abc123',
+            'deviceId': 'device_child456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert 'token' in response.data
+        assert response.data['token'] == 'register_token_abc123'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_returns_device_id(self, mock_session_class):
+        """Test that create_add_device_token returns deviceId in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'token': 'register_token_xyz',
+            'deviceId': 'device_child789'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert 'deviceId' in response.data
+        assert response.data['deviceId'] == 'device_child789'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_401_unauthorized(self, mock_session_class):
+        """Test create_add_device_token fails with 401 unauthorized."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Invalid or expired token'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_add_device_token(
+            device_auth_token='invalid_device_token',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+        assert response.error_code == 'unauthorized'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_wrong_password(self, mock_session_class):
+        """Test create_add_device_token fails with wrong parent password."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Invalid parent password'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='wrong_hash'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_request_endpoint(self, mock_session_class):
+        """Test that create_add_device_token calls correct endpoint."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'token': 'register_token_123',
+            'deviceId': 'device_child123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify POST was called
+        assert mock_session.post.called
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        
+        # Verify the URL contains the correct endpoint
+        url = call_args.args[0]
+        assert '/parent/create-add-device-token' in url
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_request_headers(self, mock_session_class):
+        """Test that create_add_device_token sends correct headers with Bearer token."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'token': 'register_token_123',
+            'deviceId': 'device_child123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify headers include Authorization Bearer token
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs.get('headers', {})
+        assert 'Authorization' in headers
+        assert headers['Authorization'] == 'Bearer device_token_123'
+        assert headers['Content-Type'] == 'application/json'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_create_add_device_token_request_body(self, mock_session_class):
+        """Test that create_add_device_token sends correct request body."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'token': 'register_token_123',
+            'deviceId': 'device_child123'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.create_add_device_token(
+            device_auth_token='device_token_123',
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify request body
+        call_args = mock_session.post.call_args
+        request_data = call_args.kwargs.get('json', {})
+        
+        assert 'deviceAuthToken' in request_data
+        assert request_data['deviceAuthToken'] == 'device_token_123'
+        assert 'parentPasswordSecondHash' in request_data
+        assert request_data['parentPasswordSecondHash'] == '$2b$12$hash2'
     
     @pytest.mark.timeout(10)
     @patch('requests.Session')
@@ -941,6 +1136,265 @@ class TestAuthClientChildDevice:
         
         assert response.success is True
         assert response.data['deviceAuthToken'] == 'child_device_token'
+        assert response.data['ownDeviceId'] == 'device_child456'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_returns_device_auth_token(self, mock_session_class):
+        """Test that add_device returns deviceAuthToken in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token_abc',
+            'ownDeviceId': 'device_child_xyz'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        assert response.success is True
+        assert 'deviceAuthToken' in response.data
+        assert response.data['deviceAuthToken'] == 'child_device_token_abc'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_returns_own_device_id(self, mock_session_class):
+        """Test that add_device returns ownDeviceId in response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token_abc',
+            'ownDeviceId': 'device_child_xyz'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        assert response.success is True
+        assert 'ownDeviceId' in response.data
+        assert response.data['ownDeviceId'] == 'device_child_xyz'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_401_unauthorized(self, mock_session_class):
+        """Test add_device fails with 401 unauthorized for invalid token."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Invalid or expired token'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='invalid_register_token',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+        assert response.error_code == 'unauthorized'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_expired_token(self, mock_session_class):
+        """Test add_device fails with expired register token."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error_code': 'unauthorized',
+            'error_message': 'Token has expired'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='expired_token_xyz',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_request_endpoint(self, mock_session_class):
+        """Test that add_device calls correct endpoint."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token',
+            'ownDeviceId': 'device_child456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        # Verify POST was called
+        assert mock_session.post.called
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        
+        # Verify the URL contains the correct endpoint
+        url = call_args.args[0]
+        assert '/child/add-device' in url
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_request_headers(self, mock_session_class):
+        """Test that add_device sends correct headers."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token',
+            'ownDeviceId': 'device_child456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        # Verify headers
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs.get('headers', {})
+        assert 'Content-Type' in headers
+        assert headers['Content-Type'] == 'application/json'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_request_body(self, mock_session_class):
+        """Test that add_device sends correct request body."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token',
+            'ownDeviceId': 'device_child456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7'
+        )
+        
+        # Verify request body
+        call_args = mock_session.post.call_args
+        request_data = call_args.kwargs.get('json', {})
+        
+        assert 'registerToken' in request_data
+        assert request_data['registerToken'] == 'register_token_123'
+        assert 'deviceName' in request_data
+        assert request_data['deviceName'] == 'Child Device'
+        assert 'deviceModel' in request_data
+        assert request_data['deviceModel'] == 'Pixel 7'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_minimal_params(self, mock_session_class):
+        """Test add_device with minimal parameters (only register token)."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token_minimal',
+            'ownDeviceId': 'device_child_minimal'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='register_token_123'
+        )
+        
+        assert response.success is True
+        assert response.data['deviceAuthToken'] == 'child_device_token_minimal'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_device_with_client_level(self, mock_session_class):
+        """Test add_device with client_level parameter."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'deviceAuthToken': 'child_device_token',
+            'ownDeviceId': 'device_child456'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_device(
+            register_token='register_token_123',
+            device_name='Child Device',
+            device_model='Pixel 7',
+            client_level=7
+        )
+        
+        assert response.success is True
+        
+        # Verify clientLevel was included in request
+        call_args = mock_session.post.call_args
+        request_data = call_args.kwargs.get('json', {})
+        assert 'clientLevel' in request_data
+        assert request_data['clientLevel'] == 7
 
 
 class TestAuthClientErrorHandling:
@@ -974,6 +1428,7 @@ class TestAuthClientErrorHandling:
         
         assert response.success is False
         assert response.error_code == 'unreachable'
+    
     @pytest.mark.timeout(10)
     @patch('requests.Session')
     def test_invalid_json_response(self, mock_session_class):
@@ -1033,6 +1488,7 @@ class TestAuthClientErrorHandling:
         assert response.status_code == 409
         assert response.error_code == 'conflict'
         assert 'ConflictError' in response.error_message or 'Conflict' in response.error_message
+    
     @pytest.mark.timeout(10)
     @patch('requests.Session')
     def test_html_error_response_401_unauthorized(self, mock_session_class):
@@ -1062,8 +1518,6 @@ class TestAuthClientErrorHandling:
         assert response.status_code == 401
         assert response.error_code == 'unauthorized'
         assert 'Unauthorized' in response.error_message or 'unauthorized' in response.error_message.lower()
-
-
 
 
 class TestAuthClientRetry:
@@ -1226,6 +1680,7 @@ class TestAuthClientRequestMethods:
             client._make_request('DELETE', '/test')
 
 
+class TestAuthClientIntegration:
     """Integration tests for AuthClient."""
     
     @pytest.mark.timeout(10)
@@ -1297,6 +1752,357 @@ class TestAuthClientRequestMethods:
         )
         assert response3.success is True
         assert response3.data['deviceAuthToken'] == 'device_token_123'
+
+
+class TestAuthClientTimeLimitRules:
+    """Tests for time limit rule endpoints."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_time_limit_rule_success(self, mock_session_class):
+        """Test successful add time limit rule request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            category_id='cat_1',
+            rule={
+                'type': 0,
+                'startTime': '08:00',
+                'endTime': '18:00',
+                'days': 127,
+                'limitMinutes': 60
+            },
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_time_limit_rule_failure(self, mock_session_class):
+        """Test failed add time limit rule request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            category_id='cat_1',
+            rule={'type': 0, 'limitMinutes': 60},
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_time_limit_rule_with_version(self, mock_session_class):
+        """Test add time limit rule with version parameter."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            category_id='cat_1',
+            rule={
+                'type': 0,
+                'startTime': '08:00',
+                'endTime': '18:00',
+                'days': 127,
+                'limitMinutes': 60,
+                'version': '1.0.0'
+            },
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        
+        # Verify the POST was called
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_time_limit_rule_success(self, mock_session_class):
+        """Test successful remove time limit rule request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            rule_id='rule_1234567890',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_time_limit_rule_failure(self, mock_session_class):
+        """Test failed remove time limit rule request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            rule_id='rule_1234567890',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_time_limit_rule_action_format(self, mock_session_class):
+        """Test that add_time_limit_rule sends correct action format."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.add_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            category_id='cat_1',
+            rule={
+                'type': 0,
+                'startTime': '08:00',
+                'endTime': '18:00',
+                'days': 127,
+                'limitMinutes': 60
+            },
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify the action was built correctly
+        call_args = mock_session.post.call_args
+        request_data = call_args.kwargs['data']
+        
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        encoded_action = json.loads(action['actions'][0]['encodedAction'])
+        assert encoded_action['type'] == 'AddTimeLimitRuleAction'
+        assert encoded_action['categoryId'] == 'cat_1'
+        assert encoded_action['userId'] == 'user_1'
+        assert 'rule' in encoded_action
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_time_limit_rule_action_format(self, mock_session_class):
+        """Test that remove_time_limit_rule sends correct action format."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.remove_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            rule_id='rule_1234567890',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify the action was built correctly
+        call_args = mock_session.post.call_args
+        request_data = call_args.kwargs['data']
+        
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        encoded_action = json.loads(action['actions'][0]['encodedAction'])
+        assert encoded_action['type'] == 'RemoveTimeLimitRuleAction'
+        assert encoded_action['userId'] == 'user_1'
+        assert encoded_action['ruleId'] == 'rule_1234567890'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_time_limit_rule_uses_gzip(self, mock_session_class):
+        """Test that add_time_limit_rule uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.add_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            category_id='cat_1',
+            rule={'type': 0, 'limitMinutes': 60},
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_time_limit_rule_uses_gzip(self, mock_session_class):
+        """Test that remove_time_limit_rule uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        client.remove_time_limit_rule(
+            device_auth_token='device_token_123',
+            user_id='user_1',
+            rule_id='rule_1234567890',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
 
 
 class TestAuthClientSync:
@@ -1486,7 +2292,34 @@ class TestAuthClientSync:
         call_args = mock_session.post.call_args
         assert 'Content-Encoding' in call_args.kwargs['headers']
         assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
-    
+
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_pull_status_sends_authorization_header(self, mock_session_class):
+        """Test that pull_status sends Authorization Bearer header."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'devices': {'version': 'v1', 'data': []},
+            'users': {'version': 'v1', 'data': []},
+            'categoryBase': []
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.pull_status(device_auth_token='device_token_123')
+        
+        assert response.success is True
+        # Verify Authorization Bearer header is sent
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs.get('headers', {})
+        assert 'Authorization' in headers
+        assert headers['Authorization'] == 'Bearer device_token_123'
+
     @pytest.mark.timeout(10)
     @patch('requests.Session')
     def test_push_actions_success(self, mock_session_class):
@@ -1555,74 +2388,3 @@ class TestAuthClientSync:
         call_args = mock_session.post.call_args
         assert 'Content-Encoding' in call_args.kwargs['headers']
         assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
-    """Integration tests for AuthClient."""
-    
-    @pytest.mark.timeout(10)
-    @patch('requests.Session')
-    def test_complete_auth_flow(self, mock_session_class):
-        """Test complete authentication flow."""
-        # Mock responses for each step
-        mock_session = Mock()
-        
-        mock_send_code = Mock()
-        mock_send_code.ok = True
-        mock_send_code.status_code = 200
-        mock_send_code.json.return_value = {
-            'status': 'ok',
-            'mailLoginToken': 'login_token_123'
-        }
-        
-        mock_sign_in = Mock()
-        mock_sign_in.ok = True
-        mock_sign_in.status_code = 200
-        mock_sign_in.json.return_value = {
-            'status': 'ok',
-            'mailAuthToken': 'mail_auth_123'
-        }
-        
-        mock_create_family = Mock()
-        mock_create_family.ok = True
-        mock_create_family.status_code = 200
-        mock_create_family.json.return_value = {
-            'status': 'ok',
-            'deviceAuthToken': 'device_token_123',
-            'ownDeviceId': 'device_abc'
-        }
-        
-        mock_session.post.side_effect = [
-            mock_send_code,
-            mock_sign_in,
-            mock_create_family
-        ]
-        mock_session_class.return_value = mock_session
-        
-        client = AuthClient()
-        
-        # Step 1: Send mail login code
-        response1 = client.send_mail_login_code(mail='test@example.com', locale='en')
-        assert response1.success is True
-        assert response1.data['mailLoginToken'] == 'login_token_123'
-        
-        # Step 2: Sign in by mail code
-        response2 = client.sign_in_by_mail_code(
-            mail_login_token='login_token_123',
-            received_code='123456'
-        )
-        assert response2.success is True
-        assert response2.data['mailAuthToken'] == 'mail_auth_123'
-        
-        # Step 3: Create family
-        response3 = client.create_family(
-            mail_auth_token='mail_auth_123',
-            parent_password={
-                'hash': '$2b$12$hash1',
-                'secondHash': '$2b$12$hash2',
-                'secondSalt': '$2b$12$salt'
-            },
-            parent_device={'model': 'Pixel 7'},
-            device_name='Parent Device',
-            time_zone='Europe/Amsterdam',
-            parent_name='Parent User'
-        )
-        assert response3.success is True
-        assert response3.data['deviceAuthToken'] == 'device_token_123'

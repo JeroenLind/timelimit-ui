@@ -1,29 +1,45 @@
 # Dashboard V2 Implementation
 
-This document describes the current implementation level of the Dashboard V2 Flask-based authentication system.
+This document describes the current implementation status of the Dashboard V2 Flask-based authentication system.
 
 ## Overview
 
-Dashboard V2 is a Flask-based web application that provides authentication and server status checking functionality. It serves as a modern replacement for the legacy dashboard, implementing a proper authentication flow with the debug-server API.
+Dashboard V2 is a Flask-based web application that provides authentication, server status checking, and device management functionality. It serves as a modern replacement for the legacy dashboard, implementing a proper authentication flow with the debug-server API.
 
 ## Architecture
 
 ```
 dashboardV2/
-├── app.py           # Flask application with routes and session management
-├── config.py        # Configuration with environment variables
-├── database.py      # SQLite database operations
-├── auth_client.py   # HTTP client for debug-server API
-├── scheduler.py     # APScheduler for background tasks
+├── app.py                    # Flask application with routes and session management
+├── config.py                 # Configuration with environment variables
+├── database.py               # SQLite database operations
+├── auth_client.py            # HTTP client for debug-server API
+├── scheduler.py              # APScheduler for background tasks
+├── sync_manager.py           # Sync protocol management
+├── key_manager.py            # Signing key management
+├── persistence.py            # Persistence abstraction for server selection
+├── middleware/
+│   └── request_logging.py    # Request logging middleware
+├── utils/
+│   ├── audit_log.py          # Audit logging for API requests
+│   ├── family_logging.py     # Family-specific logging
+│   ├── log_rotation.py       # Log file rotation
+│   ├── logging.py            # Logging configuration
+│   └── sanitization.py       # Input sanitization utilities
 ├── static/
 │   ├── css/
 │   │   └── dashboardV2.css
 │   └── js/
 │       └── dashboardV2.js
 ├── templates/
-│   ├── base.html    # Base template with nav/toggle
-│   ├── landing.html # Landing page: toggle legacy/new dashboard
-│   └── dashboardV2.html  # New dashboard
+│   ├── base.html             # Base template with nav/toggle
+│   ├── landing.html          # Landing page: toggle legacy/new dashboard
+│   ├── dashboardV2.html      # Main dashboard
+│   ├── create_family.html    # Create family flow (3 steps)
+│   ├── login_as_parent.html  # Login as parent flow (4 steps)
+│   ├── recover_parent_password.html  # Password recovery flow (3 steps)
+│   ├── set_parent_password.html      # Set parent password flow
+│   └── debug_database.html   # Database viewer for debugging
 └── tests/
     ├── conftest.py
     ├── pytest.ini
@@ -32,7 +48,18 @@ dashboardV2/
     ├── test_auth_client.py
     ├── test_landing.py
     ├── test_timechecker.py
-    └── test_scheduler.py
+    ├── test_scheduler.py
+    ├── test_create_family.py
+    ├── test_login_as_parent.py
+    ├── test_recover_parent_password.py
+    ├── test_set_parent_password.py
+    ├── test_sync_manager.py
+    ├── test_persistence.py
+    ├── test_key_manager.py
+    ├── test_dashboard_api.py
+    ├── test_audit_log.py
+    ├── test_logging.py
+    └── ... (many more test files)
 ```
 
 ## Components
@@ -49,15 +76,17 @@ Configuration class with environment variable support for cross-platform compati
 | `DATABASE_PATH` | `dashboardV2.db` | SQLite database path |
 | `SCHEDULER_INTERVAL` | `60` | Timechecker interval (seconds) |
 | `SECRET_KEY` | `dev-secret-key-change-in-production` | Session signing key |
+| `PERSISTENCE_DIR` | Platform-specific | Directory for persistence files |
+| `APP_VERSION` | Auto-detected | Application version |
 
 Server options:
-- `local`: `http://192.168.68.30:8080`
-- `official`: `https://api.timelimit.io`
-- `debug`: `http://localhost:8080`
+- `local`: `http://192.168.68.30:8080` (pre-configured local server)
+- `official`: `https://api.timelimit.io` (production server)
+- `debug`: `http://localhost:8080` (development server)
 
 ### 2. Database (`database.py`)
 
-SQLite database with four tables:
+SQLite database with **8 tables**:
 
 #### server_checks
 | Column | Type | Description |
@@ -75,19 +104,20 @@ SQLite database with four tables:
 #### families
 | Column | Type | Description |
 |--------|------|-------------|
-| id | TEXT | Family ID |
+| device_auth_token | TEXT | **Primary key** - Family authentication token |
 | mail | TEXT | Parent email |
 | created_at | TEXT | ISO timestamp |
-| parent_password_hash | TEXT | Bcrypt hash |
-| parent_password_second_hash | TEXT | Second hash |
+| parent_password_hash | TEXT | Bcrypt hash ($2a$ prefix) |
+| parent_password_second_hash | TEXT | Second hash for password verification |
 | parent_password_second_salt | TEXT | Salt for second hash |
 | parent_password_encrypted | INTEGER | DH-encrypted flag |
+| parent_user_id | TEXT | Parent user ID |
 
 #### devices
 | Column | Type | Description |
 |--------|------|-------------|
 | id | TEXT | Device ID |
-| family_id | TEXT | Foreign key to families |
+| device_auth_token | TEXT | Foreign key to families |
 | name | TEXT | Device name |
 | model | TEXT | Device model |
 | created_at | TEXT | ISO timestamp |
@@ -107,11 +137,84 @@ SQLite database with four tables:
 | token_type | TEXT | Token type |
 | token_value | TEXT | Token string |
 | device_id | TEXT | Associated device |
-| family_id | TEXT | Associated family |
 | mail | TEXT | Associated email |
 | code | TEXT | Verification code |
 | created_at | TEXT | ISO timestamp |
 | expires_at | TEXT | Expiration timestamp |
+
+#### users
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | User ID |
+| device_auth_token | TEXT | Foreign key to families |
+| name | TEXT | User name |
+| password | TEXT | User password hash |
+| second_password_salt | TEXT | Salt for second password |
+| type | TEXT | parent/child |
+| time_zone | TEXT | User time zone |
+| disable_limits_until | INTEGER | Timestamp to disable limits |
+| mail | TEXT | User email |
+| current_device | TEXT | Current device name |
+| category_for_not_assigned_apps | TEXT | Default category |
+| relax_primary_device | INTEGER | Relax primary device flag |
+| flags | INTEGER | User flags |
+| limit_login_category | TEXT | Category for limit login |
+| pre_block_duration | INTEGER | Pre-block duration |
+| last_updated | INTEGER | Last update timestamp |
+
+#### sync_state
+| Column | Type | Description |
+|--------|------|-------------|
+| device_auth_token | TEXT | Primary key |
+| device_list_version | TEXT | Device list version |
+| user_list_version | TEXT | User list version |
+| last_sync_timestamp | INTEGER | Last sync timestamp |
+| last_sync_success | INTEGER | 1 if last sync succeeded |
+| next_sequence_number | INTEGER | Next sequence number |
+
+#### categories
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | Category ID |
+| device_auth_token | TEXT | Foreign key to families |
+| child_id | TEXT | Child user ID |
+| title | TEXT | Category title |
+| blocked_times | TEXT | Blocked time periods |
+| extra_time | INTEGER | Extra time in minutes |
+| extra_time_day | INTEGER | Extra time for the day |
+| temp_blocked | INTEGER | Temporary blocked flag |
+| temp_block_time | INTEGER | Temporary block time |
+| version | TEXT | Category version |
+| parent_category_id | TEXT | Parent category ID |
+| block_all_notifications | INTEGER | Block all notifications flag |
+| time_warnings | INTEGER | Time warnings flag |
+| sort_order | INTEGER | Sort order |
+| flags | INTEGER | Category flags |
+| last_updated | INTEGER | Last update timestamp |
+
+#### connected_devices
+| Column | Type | Description |
+|--------|------|-------------|
+| device_auth_token | TEXT | Foreign key to families |
+| device_id | TEXT | Device ID |
+| last_seen | INTEGER | Last seen timestamp |
+| name | TEXT | Device name |
+
+#### time_limit_rules
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | Unique rule ID |
+| device_auth_token | TEXT | Foreign key to families |
+| user_id | TEXT | Foreign key to users |
+| category_id | TEXT | Foreign key to categories |
+| rule_type | INTEGER | Type of rule |
+| start_time | TEXT | Start time (HH:MM) |
+| end_time | TEXT | End time (HH:MM) |
+| days | INTEGER | Days bitmask (0-127) |
+| limit_minutes | INTEGER | Time limit in minutes |
+| version | TEXT | Rule version |
+| created_at | TEXT | Creation timestamp |
+| last_updated | INTEGER | Last update timestamp |
 
 ### 3. Auth Client (`auth_client.py`)
 
@@ -124,10 +227,15 @@ Standalone HTTP client for debug-server API communication:
 | `sign_in_by_mail_code(mail_login_token, received_code)` | POST `/auth/sign-in-by-mail-code` | Sign in with code |
 | `get_status_by_mail_address(mail_auth_token)` | POST `/parent/get-status-by-mail-address` | Get family status |
 | `create_family(mail_auth_token, parent_password, locale, device_name, device_model)` | POST `/parent/create-family` | Create family |
+| `create_family_rest(mail_auth_token, parent_password, locale, device_name, device_model)` | POST `/parent/create-family-rest` | Create family (REST API) |
 | `sign_in_into_family(mail_auth_token, parent_password_second_hash, locale, device_name, device_model)` | POST `/parent/sign-in-into-family` | Sign in to family |
 | `create_add_device_token(device_auth_token, parent_password_second_hash)` | POST `/parent/create-add-device-token` | Create add-device token |
 | `add_device(register_token, device_name, device_model, client_level)` | POST `/child/add-device` | Register child device |
 | `recover_parent_password(mail_auth_token, new_password)` | POST `/parent/recover-parent-password` | Recover password |
+| `pull_status(device_auth_token, sync_state)` | POST `/sync/pull` | Pull sync data |
+| `push_actions(device_auth_token, actions)` | POST `/sync/push` | Push sync actions |
+| `remove_device(device_auth_token, device_id)` | POST `/sync/remove-device` | Remove device from server |
+| `check_server_connection()` | GET `/health` | Check server connectivity |
 
 ### 4. Scheduler (`scheduler.py`)
 
@@ -135,26 +243,127 @@ APScheduler BackgroundScheduler with:
 - 60-second interval timechecker job
 - Server connection checking via `check_server_connection()`
 - Automatic server status updates
+- Sync job for periodic data synchronization
 - Server URL management for session-based server selection
 
-### 5. Flask Application (`app.py`)
+### 5. Persistence (`persistence.py`)
 
-Routes:
-- `/` - Landing page
-- `/legacy-dashboard` - Redirect to original dashboard
-- `/dashboardV2` - Main dashboard
-- `/select-server` - Server selection
-- `/api/time` - Time endpoint proxy
-- `/api/auth/*` - Auth endpoint proxies
-- `/api/session/*` - Session management endpoints
-- `/api/timechecker/status` - Timechecker status endpoint
-- `/api/timechecker/history` - Historical data endpoint
-- `/health` - Health check endpoint
+Persistence abstraction for server selection and auth token storage:
 
-Session management:
-- Flask session with secret key
-- Server selection persistence
-- Token storage for authentication
+| Function | Description |
+|----------|-------------|
+| `get_server_selection_store()` | Get the persistence store instance |
+| `get_current_server_key()` | Get the last selected server key |
+| `set_current_server_key(key)` | Save the selected server key |
+| `get_current_server_url()` | Get the last selected server URL |
+| `set_current_server_url(url)` | Save the selected server URL |
+| `get_persisted_device_auth_token()` | Get persisted device auth token |
+| `set_persisted_device_auth_token(token)` | Save device auth token |
+| `get_persisted_own_device_id()` | Get persisted own device ID |
+| `set_persisted_own_device_id(device_id)` | Save own device ID |
+| `backup_auth_tokens()` | Create backup of auth tokens |
+| `restore_auth_tokens()` | Restore auth tokens from backup |
+| `clear_auth_token_backup()` | Clear the backup file |
+| `sync_session_to_database()` | Sync session data to database |
+
+### 6. Sync Manager (`sync_manager.py`)
+
+Sync protocol management for device data synchronization:
+- Pull status from server
+- Push actions to server
+- Handle device removal
+- Manage sync state versioning
+
+### 7. Key Manager (`key_manager.py`)
+
+Signing key management for secure operations:
+- Load signing key from JSON file
+- Validate key integrity
+- Handle key rotation
+
+### 8. Middleware (`middleware/request_logging.py`)
+
+Request logging middleware for audit trails:
+- Logs all incoming requests
+- Captures request/response data
+- Integrates with audit logging
+
+### 9. Utils
+
+#### audit_log.py
+Structured audit logging for API requests with format:
+- Sync Pull Request/Response
+- Sync Push Request/Response
+- Family Creation Request/Response
+- Device Removal Request/Response
+
+#### sanitization.py
+Input sanitization utilities for security:
+- Email validation
+- Password validation
+- Device ID sanitization
+
+## Routes
+
+### Page Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/` | GET | Landing page with dashboard toggle |
+| `/legacy-dashboard` | GET | Redirect to original dashboard |
+| `/dashboardV2` | GET | Main dashboard (requires server selection) |
+| `/select-server` | POST | Select server (local/official/debug) |
+| `/create-family` | GET | Create family flow (renders appropriate step) |
+| `/create-family` | POST | Create family flow (processes all steps) |
+| `/create-family/cancel` | POST | Cancel create family flow |
+| `/login-as-parent` | GET | Login as parent flow (renders appropriate step) |
+| `/login-as-parent` | POST | Login as parent flow (processes all steps) |
+| `/login-as-parent/cancel` | POST | Cancel login as parent flow |
+| `/recover-parent-password` | GET | Password recovery flow (renders appropriate step) |
+| `/recover-parent-password` | POST | Password recovery flow (processes all steps) |
+| `/set-parent-password` | GET | Set parent password page |
+| `/set-parent-password` | POST | Set parent password action |
+| `/debug/database` | GET | Database viewer for debugging |
+
+### API Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/time` | POST | Time endpoint proxy |
+| `/api/log-level` | POST | Set log level |
+| `/api/server-selection` | GET | Get server selection |
+| `/api/auth/send-mail-login-code` | POST | Send mail login code |
+| `/api/auth/sign-in-by-mail-code` | POST | Sign in by mail code |
+| `/api/auth/create-family` | POST | Create family |
+| `/api/families` | POST | Create family (REST) |
+| `/api/auth/sign-in-into-family` | POST | Sign in into family |
+| `/api/auth/regenerate-hash` | POST | Regenerate password hash |
+| `/api/parent/create-add-device-token` | POST | Create add device token |
+| `/api/child/add-device` | POST | Add child device |
+| `/api/auth/get-status-by-mail-address` | POST | Get status by mail address |
+| `/api/auth/recover-parent-password` | POST | Recover parent password |
+| `/api/session/clear` | POST | Clear session |
+| `/api/session/status` | GET | Get session status |
+| `/api/sync/pull` | POST | Pull sync data |
+| `/api/dashboard/users` | GET | Get users for dashboard |
+| `/api/dashboard/devices` | GET | Get devices for dashboard |
+| `/api/dashboard/categories` | GET | Get categories for dashboard |
+| `/api/dashboard/connected-devices` | GET | Get connected devices |
+| `/api/dashboard/stream` | GET | SSE endpoint for real-time updates |
+| `/api/timechecker/status` | GET | Timechecker status |
+| `/api/timechecker/history` | GET | Timechecker history |
+| `/api/clear-all` | POST | Clear all data |
+| `/api/clear-server-checks` | POST | Clear server checks |
+| `/api/auth/backup` | POST | Backup auth tokens |
+| `/api/auth/restore` | POST | Restore auth tokens |
+| `/api/auth/clear-backup` | POST | Clear auth token backup |
+| `/api/dashboard/devices/remove` | POST | Remove device from dashboard |
+| `/api/dashboard/users/add` | POST | Add user to family |
+| `/api/dashboard/time-limit-rules` | GET | Get time limit rules |
+| `/api/dashboard/time-limit-rules` | POST | Create time limit rule |
+| `/api/dashboard/time-limit-rules/{ruleId}` | PUT | Update time limit rule |
+| `/api/dashboard/time-limit-rules/{ruleId}` | DELETE | Delete time limit rule |
+| `/health` | GET | Health check endpoint |
 
 ## Templates
 
@@ -180,53 +389,71 @@ Main dashboard template with:
 - Historical data table (last 10 checks)
 - Alert notifications (toast-style)
 - Session information
+- Users table with parent/child users
+- Devices table with device details
+- Categories table
+- Connected devices table
 - Refresh button for manual status update
+- SSE stream endpoint for real-time updates
 - Responsive design for mobile and desktop
 
-## Test Coverage
+### create_family.html
+Server-rendered template for the create family flow (3 steps):
+1. Email entry
+2. Code verification
+3. Password + device info
 
-All tests use `pytest` with `FlaskClient` and include timeout mechanisms.
+### login_as_parent.html
+Server-rendered template for the login as parent flow (4 steps):
+1. Email entry
+2. Code verification
+3. Password entry (optional - can skip)
+4. Set password (if skipped in step 3)
 
-| Test File | Tests | Description |
-|-----------|-------|-------------|
-| `test_database.py` | 26 | Database operations |
-| `test_config.py` | 28 | Configuration management |
-| `test_auth_client.py` | 35 | HTTP client functionality |
-| `test_landing.py` | 42 | Landing page, server selection, and app configuration |
-| `test_timechecker.py` | 29 | Timechecker dashboard and status endpoints |
-| `test_scheduler.py` | 24 | Scheduler creation, lifecycle, and callbacks |
+### recover_parent_password.html
+Server-rendered template for password recovery flow (3 steps):
+1. Email entry
+2. Code verification
+3. New password setup
 
-**Total: 178 unit tests**
+### set_parent_password.html
+Template for setting parent password after login.
 
-**Note:** The `/dashboardV2` route is now accessible without authentication. The authentication flow (Phase 4) will be implemented separately. Users can navigate to the new dashboard directly from the landing page.
+### debug_database.html
+Database viewer page for debugging purposes.
 
-### App Configuration Tests
+## Authentication Flows
 
-The `TestAppConfiguration` class in `test_landing.py` includes tests that verify:
-- Flask app creates successfully without TypeError
-- SECRET_KEY is a valid string for session signing
-- Session configuration is valid
+### 1. Create New Family Flow (3 steps)
 
-These tests catch issues where Config properties are accessed incorrectly (e.g., `Config.SECRET_KEY` instead of `config.SECRET_KEY`).
+1. **Email Entry** → User enters email address
+2. **Code Verification** → User receives and enters verification code
+3. **Password + Device Info** → User enters password and device info
 
-### Test Infrastructure
+Routes: `/create-family` (GET/POST), `/create-family/cancel` (POST)
 
-- pytest with timeout markers (`@pytest.mark.timeout(10)`)
-- Fixtures for app, client, test_db, test_config
-- Mock-based testing for HTTP requests
+### 2. Login as Parent Flow (4 steps)
 
-## Authentication Flow
+1. **Email Entry** → User enters email address
+2. **Code Verification** → User receives and enters verification code
+3. **Password Entry** → User enters password (optional - can skip)
+4. **Set Password** → User sets password if skipped in step 3
 
-### Parent Flow (3 steps)
+Routes: `/login-as-parent` (GET/POST), `/login-as-parent/cancel` (POST)
 
-1. **Email Entry**: User enters email address
-2. **Code Verification**: User receives and enters verification code
-3. **Password Setup**: User provides password hashes, family is created
+### 3. Recover Parent Password Flow (3 steps)
 
-### Child Login Flow (2 steps)
+1. **Email Entry** → User enters email address
+2. **Code Verification** → User receives and enters verification code
+3. **New Password Setup** → User sets new password
 
-1. **Token Creation**: Parent creates add-device token
-2. **Device Registration**: Child registers using the token
+Routes: `/recover-parent-password` (GET/POST)
+
+### 4. Set Parent Password Flow
+
+Single step to set parent password after login.
+
+Routes: `/set-parent-password` (GET/POST)
 
 ## Server Selection
 
@@ -235,247 +462,66 @@ Three server options available:
 - **Official**: `https://api.timelimit.io` (production server)
 - **Debug**: `http://localhost:8080` (development server)
 
-Server selection is stored in Flask session via `/select-server` route.
+Server selection is stored in Flask session via `/select-server` route and persisted to JSON file.
 
 ## Database Initialization
 
-Database is created on first access with all required tables. The `init_db()` method creates tables if they don't exist.
+Database is created on first access with all required tables. The `init_db()` method creates tables if they don't exist. Schema migrations are handled automatically.
+
+## Session Management
+
+- Flask session with secret key
+- Server selection persistence (JSON file)
+- Auth tokens stored in database and JSON backup
+- Session restoration from persistence on startup
+- Device auth token as primary session identifier
 
 ## Cross-Platform Compatibility
 
 - All file paths use `os.path` for Windows/Home Assistant compatibility
 - Configuration via environment variables
 - SQLite for simple, portable storage
+- JSON files for persistence
 
 ## Current Implementation Status
 
-**Phase 1 COMPLETE** - Core components implemented and tested:
-- [x] Flask application structure
-- [x] SQLite database with all tables
-- [x] APScheduler configuration
-- [x] Auth client module
-- [x] Test infrastructure
-- [x] Unit tests (89 tests passing)
+**All phases COMPLETE** - Full implementation with 1028 tests passing:
 
-**Phase 2 COMPLETE** - Landing page and navigation implemented:
-- [x] Base template with Jinja2 structure (`base.html`)
-- [x] Landing page route (`/`) with dashboard toggle
-- [x] Legacy dashboard redirect (`/legacy-dashboard`)
-- [x] New dashboard route (`/dashboardV2`)
-- [x] Server selection dropdown (3 options: Local, Official, Debug Server)
-- [x] Server selection stored in Flask session via `/select-server` route
-- [x] Unit tests for landing page and server selection (24 tests)
-- [x] CSS styles for responsive design
-- [x] JavaScript for essential interactions
+- [x] Flask application structure with 50+ routes
+- [x] SQLite database with 8 tables
+- [x] APScheduler configuration with background jobs
+- [x] Auth client module with full API coverage
+- [x] Test infrastructure with 1028 passing tests
+- [x] All authentication flows implemented
+- [x] Server selection persistence
+- [x] Sync protocol implementation
+- [x] Device management (add/remove)
+- [x] Time limit rules (add/update/delete)
+- [x] Audit logging
+- [x] SSE real-time updates
+- [x] Debug database viewer
+- [x] Password recovery flow
+- [x] Session status API
 
-**Phase 3 COMPLETE** - Timechecker dashboard implemented:
-- [x] `dashboardV2.html` template with real-time status display
-- [x] APScheduler job running every 60 seconds
-- [x] Server check results stored in SQLite database
-- [x] Real-time status display with visual indicators
-- [x] Historical data table showing last 10 checks
-- [x] Alert notifications (toast-style)
-- [x] Data refresh endpoint (`/api/timechecker/status`)
-- [x] Historical data endpoint (`/api/timechecker/history`)
-- [x] Unit tests for timechecker dashboard (27 tests)
-- [x] Unit tests for scheduler (24 tests)
+### Key Features Implemented
 
-**Phase 4+** - Not implemented (per user request to cease after Phase 3)
-
-## Usage
-
-### Running Tests
-
-```bash
-cd timelimit-ui/rootfs/usr/bin/dashboardV2/tests
-py -3 -m pytest test_database.py test_config.py test_auth_client.py test_landing.py test_timechecker.py test_scheduler.py -v --timeout=30
-```
-
-### Starting the Application
-
-#### Windows (PowerShell)
-
-```powershell
-cd timelimit-ui\rootfs\usr\bin\dashboardV2
-py -3 app.py
-```
-
-#### Windows (Command Prompt)
-
-```cmd
-cd timelimit-ui\rootfs\usr\bin\dashboardV2
-py -3 app.py
-```
-
-#### Linux/macOS
-
-```bash
-cd timelimit-ui/rootfs/usr/bin/dashboardV2
-python3 app.py
-```
-
-### Configuration via Environment Variables
-
-#### Windows (PowerShell)
-
-```powershell
-$env:DEBUG_SERVER_URL="http://localhost:8080"
-$env:FLASK_HOST="0.0.0.0"
-$env:FLASK_PORT="8099"
-$env:DATABASE_PATH="dashboardV2.db"
-$env:SCHEDULER_INTERVAL="60"
-$env:SECRET_KEY="your-secret-key"
-py -3 app.py
-```
-
-#### Windows (Command Prompt)
-
-```cmd
-set DEBUG_SERVER_URL=http://localhost:8080
-set FLASK_HOST=0.0.0.0
-set FLASK_PORT=8099
-set DATABASE_PATH=dashboardV2.db
-set SCHEDULER_INTERVAL=60
-set SECRET_KEY=your-secret-key
-py -3 app.py
-```
-
-#### Linux/macOS
-
-```bash
-export DEBUG_SERVER_URL="http://localhost:8080"
-export FLASK_HOST="0.0.0.0"
-export FLASK_PORT="8099"
-export DATABASE_PATH="dashboardV2.db"
-export SCHEDULER_INTERVAL="60"
-export SECRET_KEY="your-secret-key"
-python3 app.py
-```
-
-### Accessing the Dashboard
-
-Once the application is running, open your web browser and navigate to:
-
-```
-http://localhost:8099
-```
-
-### Dashboard Pages
-
-1. **Landing Page** (`/`) - Shows dashboard version toggle and server selection
-2. **Dashboard V2** (`/dashboardV2`) - Main dashboard (requires server selection)
-3. **Legacy Dashboard** (`/legacy-dashboard`) - Redirects to original dashboard
-
-### Testing Server Selection
-
-You can test the server selection API directly:
-
-```bash
-# Select local server
-curl -X POST http://localhost:8099/select-server \
-  -H "Content-Type: application/json" \
-  -d '{"server_key": "local"}'
-
-# Select official server
-curl -X POST http://localhost:8099/select-server \
-  -H "Content-Type: application/json" \
-  -d '{"server_key": "official"}'
-
-# Select debug server
-curl -X POST http://localhost:8099/select-server \
-  -H "Content-Type: application/json" \
-  -d '{"server_key": "debug"}'
-```
-
-### Testing Timechecker Endpoints
-
-```bash
-# Get current server status
-curl http://localhost:8099/api/timechecker/status
-
-# Get historical data (last 10 checks)
-curl http://localhost:8099/api/timechecker/history
-
-# Get historical data with custom limit
-curl "http://localhost:8099/api/timechecker/history?limit=20"
-```
-
-### Health Check
-
-Verify the server is running:
-
-```bash
-curl http://localhost:8099/health
-```
-
-Expected response:
-```json
-{"status": "healthy"}
-```
-
-## Create New Family Flow
-
-The createNewFamily flow allows users to create a new TimeLimit family (parent account + device) from the dashboardV2 web UI. This is a server-side rendered flow that maximizes Python backend logic and minimizes JavaScript.
-
-### Flow Overview
-
-The flow consists of 3 steps:
-
-1. **Email Entry** → User enters their email → `AuthClient.send_mail_login_code()` → returns `mailLoginToken` (stored in Flask session)
-2. **Code Verification** → User enters verification code → `AuthClient.sign_in_by_mail_code()` → returns `mailAuthToken` (stored in Flask session)
-3. **Password + Device Info** → User enters password and device info → `crypto_utils.generate_family_hashes()` → `AuthClient.create_family_rest()` → returns `deviceAuthToken` + `ownDeviceId` (stored in Flask session)
-
-### Routes
-
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/create-family` | GET | Renders the appropriate step based on session state |
-| `/create-family` | POST | Processes form submissions for all 3 steps |
-| `/create-family/cancel` | POST | Clears session and redirects to dashboard |
-
-### Templates
-
-| Template | Purpose |
-|----------|---------|
-| `create_family.html` | Server-rendered template for all 3 steps of the create-family flow |
-
-### Session Keys
-
-| Key | Purpose |
-|-----|---------|
-| `mail_login_token` | Token for step 1 → step 2 transition |
-| `mail_auth_token` | Token for step 2 → step 3 transition |
-| `device_auth_token` | Final authentication token for accessing the dashboard |
-| `own_device_id` | The newly created device ID |
-| `create_family_error` | Error message to display (popped after display) |
-
-### Testing
-
-Run the create family tests:
-
-```bash
-# Unit tests for routes and validation
-py -3 -m pytest tests/test_create_family.py -v --timeout=30
-
-# Unit tests for password hash generation
-py -3 -m pytest tests/test_crypto_utils.py -v --timeout=30
-
-# Integration tests for full flow
-py -3 -m pytest tests/test_create_family_integration.py -v --timeout=30
-
-# All tests together
-py -3 -m pytest tests/test_create_family.py tests/test_crypto_utils.py tests/test_create_family_integration.py -v --timeout=30
-```
-
-### Design Principles
-
-- **Server-side rendering**: Flask templates render each step's form
-- **Standard HTML forms**: `method="POST"` with `action="/create-family"` — no AJAX
-- **Server-side validation**: All validation in Python (email regex, code format, password rules)
-- **Inline password hashing**: `crypto_utils.generate_family_hashes()` called directly in the route handler
-- **Zero JavaScript**: No new JavaScript functions added
+1. **Server Status Checking**: Timechecker runs every 60 seconds, stores results in database
+2. **Authentication Flows**: Create family, login as parent, password recovery, set password
+3. **Device Management**: Add devices, remove devices, view device list
+4. **User Management**: Add users to family
+5. **Time Limit Rules**: Create, update, delete time limit rules
+6. **Sync Protocol**: Pull/push data synchronization with server
+7. **Session Persistence**: Server selection and auth tokens persist across restarts
+8. **Audit Logging**: All API requests logged with structured format
+9. **Real-time Updates**: SSE endpoint for dashboard streaming
+10. **Debug Tools**: Database viewer for troubleshooting
 
 ## References
 
-- Plan: `plans/create-new-family-interaction-plan.md`
-- Original Dashboard: `timelimit-ui/rootfs/usr/bin/dashboard.html`
+- [API Reference](api/api-reference.md)
+- [Data Models](architecture/data-models.md)
+- [Design Overview](architecture/design.md)
+- [Testing Guide](development/testing-guide.md)
+- [UI Patterns](development/ui-patterns.md)
+- [Add User to Family Plan](plans/add-user-to-family/)
+- [Time Limit Rules Plan](plans/time-limit-rules/)

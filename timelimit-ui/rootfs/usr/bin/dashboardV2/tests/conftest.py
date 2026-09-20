@@ -18,7 +18,7 @@ os.environ['SKIP_PORT_CHECK'] = 'true'
 
 from app import app as flask_app
 from config import Config
-from database import Database, reset_database
+from database import Database, reset_database, create_family, store_auth_token
 
 
 @pytest.fixture
@@ -45,6 +45,34 @@ def client(app, request):
     Returns:
         Flask test client instance.
     """
+    # Use a unique database path for each test
+    test_name = request.node.name
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f'test_client_{test_name}.db'))
+    
+    # Reset the database singleton first
+    reset_database()
+    
+    # Delete any leftover database file from a previous run to ensure clean state
+    if os.path.exists(db_path):
+        try:
+            os.unlink(db_path)
+        except PermissionError:
+            pass
+    
+    # Set environment variable to the full absolute path
+    os.environ['DATABASE_PATH'] = db_path
+    
+    # Create a new database instance with the unique path
+    db = Database(db_path=db_path)
+    db.init_db()
+    
+    # Store the db instance in the app for later use
+    app.test_db = db
+    
+    # Update the global database singleton to use the test database
+    import database as db_module
+    db_module._db_instance = db
+    
     # Clear persistence file to ensure clean session state
     from persistence import get_persistence_dir, clear_persisted_auth_tokens
     persistence_dir = get_persistence_dir()
@@ -56,14 +84,9 @@ def client(app, request):
             pass
     clear_persisted_auth_tokens()
     
-    # Initialize database for tests that need it
-    from database import get_database
-    db = get_database()
-    db.init_db()
-    
     # Mock persistence functions for non-restoration tests to ensure clean state
     from unittest.mock import patch
-    is_restoration_test = request.cls and request.cls.__name__ == 'TestSessionRestoration'
+    is_restoration_test = request.cls and request.cls.__name__ in ['TestSessionRestoration', 'TestSessionRestorationAfterSignOut']
     
     if not is_restoration_test:
         with patch('app.get_persisted_device_auth_token', return_value=None), \
@@ -71,6 +94,68 @@ def client(app, request):
             yield app.test_client()
     else:
         yield app.test_client()
+    
+    # Cleanup: close database and remove file
+    db.close()
+    if os.path.exists(db_path):
+        try:
+            os.unlink(db_path)
+        except PermissionError:
+            pass
+    
+    # Restore original environment
+    if 'DATABASE_PATH' in os.environ:
+        del os.environ['DATABASE_PATH']
+    
+    # Reset database singleton after test
+    reset_database()
+
+
+@pytest.fixture
+def auth_session(client, request):
+    """Create an authenticated session for testing.
+    
+    Args:
+        client: Flask test client fixture.
+        
+    Returns:
+        Flask test client with authenticated session.
+    """
+    # Generate unique values per test to avoid UNIQUE constraint conflicts
+    test_name = request.node.name
+    unique_suffix = f"_{test_name}"
+    
+    # Create a test device auth token with unique suffix
+    device_auth_token = f'device_token_test123{unique_suffix}'
+    
+    # Get the database from the app
+    db = client.application.test_db
+    
+    create_family(
+        db=db,
+        device_auth_token=device_auth_token,
+        mail='test@example.com',
+        parent_password_hash='$2b$12$hash1',
+        parent_password_second_hash='$2b$12$hash2',
+        parent_password_second_salt='$2b$12$salt',
+        parent_password_encrypted=False
+    )
+    
+    # Store auth token in session
+    with client.session_transaction() as sess:
+        sess['device_auth_token'] = device_auth_token
+        sess['server_url'] = 'http://localhost:8080'
+    
+    # Store the token in database
+    store_auth_token(
+        db=db,
+        token_type='device_auth_token',
+        token_value=device_auth_token,
+        device_id='device_test123',
+        mail='test@example.com'
+    )
+    
+    return client
 
 
 @pytest.fixture

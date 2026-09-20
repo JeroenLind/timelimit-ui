@@ -219,17 +219,6 @@ class TestDashboardTemplate:
         assert b'Server Status' in response.data
     
     @pytest.mark.timeout(10)
-    def test_dashboard_v2_has_historical_table(self, client):
-        """Test that dashboardV2 has historical data table."""
-        with client.session_transaction() as sess:
-            sess['device_auth_token'] = 'test_token_123'
-        
-        response = client.get('/dashboardV2')
-        
-        assert b'Historical Data' in response.data
-        assert b'historical-table' in response.data
-    
-    @pytest.mark.timeout(10)
     def test_dashboard_v2_has_refresh_button(self, client):
         """Test that dashboardV2 has refresh button."""
         with client.session_transaction() as sess:
@@ -264,7 +253,6 @@ class TestDashboardJavaScript:
         response = client.get('/dashboardV2')
         
         assert b'refreshServerStatus' in response.data
-        assert b'loadHistoricalData' in response.data
         assert b'showAlert' in response.data
     
     @pytest.mark.timeout(10)
@@ -277,7 +265,6 @@ class TestDashboardJavaScript:
         
         # Refresh button now calls sync endpoint instead of just checking status
         assert b'/api/sync/pull' in response.data
-        assert b'/api/timechecker/history' in response.data
 
 
 class TestDashboardCSS:
