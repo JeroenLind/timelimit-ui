@@ -37,7 +37,8 @@ from database import (
     get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
     get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_password_second_salt, get_parent_user_id, clear_all_tables,
     get_all_tables_data, clear_server_checks, get_family_by_mail, create_family_record, update_family_salt,
-    save_users, get_sync_state, get_family, update_family_parent_user_id
+    save_users, get_sync_state, save_sync_state, get_family, update_family_parent_user_id, create_user,
+    create_default_category
 )
 from middleware.request_logging import init_request_logging, shutdown_log_worker, get_request_id
 from persistence import (
@@ -120,39 +121,60 @@ def restore_session_from_persistence():
     
     This allows users to remain authenticated after app restart by
     restoring the device_auth_token from persistent storage.
+    
+    IMPORTANT: We verify the token exists in the database to ensure
+    the session is valid and not stale. This prevents inconsistent
+    authentication states where the session has a token but it's no
+    longer valid on the server.
     """
     # Only restore if not already authenticated
     if 'device_auth_token' not in session:
         persisted_device_auth_token = get_persisted_device_auth_token()
-        persisted_own_device_id = get_persisted_own_device_id()
         
         if persisted_device_auth_token:
             # Extract token from the dict returned by get_persisted_device_auth_token()
             token = persisted_device_auth_token.get('token') if isinstance(persisted_device_auth_token, dict) else persisted_device_auth_token
             if token:
-                session['device_auth_token'] = token
-                # Also store mail if available
-                mail = persisted_device_auth_token.get('mail') if isinstance(persisted_device_auth_token, dict) else None
-                if mail:
-                    session['mail'] = mail
-                logger.debug(
-                    "Session restored from persistence",
-                    component="session",
-                    token_restored=True
-                )
-        
-        if persisted_own_device_id:
-            session['own_device_id'] = persisted_own_device_id
-        
-        # Sync session data to database if needed
-        # This ensures data is persisted after migrations or database resets
-        sync_result = sync_session_to_database()
-        if sync_result.get('device_auth_token_synced'):
-            logger.info(
-                "Session data synced to database during startup",
-                component="session",
-                device_auth_token=session.get('device_auth_token', '')[:8] + '...'
-            )
+                # Verify the token is still valid in the database
+                # This prevents restoring stale/invalid tokens
+                db = get_database()
+                from database import get_auth_token
+                db_token_record = get_auth_token(db, token)
+                
+                if db_token_record:
+                    # Token is valid in database, restore session
+                    session['device_auth_token'] = token
+                    # Also store mail if available
+                    mail = persisted_device_auth_token.get('mail') if isinstance(persisted_device_auth_token, dict) else None
+                    if mail:
+                        session['mail'] = mail
+                    # Also restore own_device_id when device_auth_token is found
+                    # This ensures consistency: own_device_id is only present when authenticated
+                    persisted_own_device_id = get_persisted_own_device_id()
+                    if persisted_own_device_id:
+                        session['own_device_id'] = persisted_own_device_id
+                    logger.debug(
+                        "Session restored from persistence",
+                        component="session",
+                        token_restored=True
+                    )
+                else:
+                    # Token not found or expired in database - clear it
+                    logger.warning(
+                        "Persisted token not found or expired in database, not restoring session",
+                        component="session",
+                        token_preview=token[:8] + '...' if len(token) > 8 else token
+                    )
+    
+    # Sync session data to database if needed
+    # This ensures data is persisted after migrations or database resets
+    sync_result = sync_session_to_database()
+    if sync_result.get('device_auth_token_synced'):
+        logger.info(
+            "Session data synced to database during startup",
+            component="session",
+            device_auth_token=session.get('device_auth_token', '')[:8] + '...'
+        )
 
 
 # ============================================================================
@@ -927,6 +949,11 @@ def api_sign_in_into_family():
         # Store device auth token in session
         session['device_auth_token'] = response.data.get('deviceAuthToken')
         session['own_device_id'] = response.data.get('ownDeviceId')
+        
+        # Store parent password second hash in session for subsequent operations
+        # (e.g., adding users to family)
+        if parent_password_second_hash:
+            session['parent_password_second_hash'] = parent_password_second_hash
         
         # Persist auth token to file for session restoration after restart
         if response.data.get('deviceAuthToken'):
@@ -2255,7 +2282,7 @@ def post_recover_parent_password():
 def api_create_add_device_token():
     """Proxy to debug-server /api/v1/parent/create-add-device-token endpoint.
     
-    Expects JSON body with 'deviceAuthToken' and 'parentPasswordSecondHash' fields.
+    Expects JSON body with 'deviceAuthToken', 'parentId', and 'parentPasswordSecondHash' fields.
     
     Returns:
         JSON response with token and deviceId.
@@ -2264,9 +2291,10 @@ def api_create_add_device_token():
     request_id = get_request_id()
     data = request.get_json() or {}
     device_auth_token = data.get('deviceAuthToken')
+    parent_id = data.get('parentId')
     parent_password_second_hash = data.get('parentPasswordSecondHash')
     
-    if not device_auth_token or not parent_password_second_hash:
+    if not device_auth_token or not parent_id or not parent_password_second_hash:
         logger.error(
             "Create add device token failed: missing required fields",
             request_id=request_id,
@@ -2285,6 +2313,7 @@ def api_create_add_device_token():
     client = AuthClient(base_url=server_url)
     response = client.create_add_device_token(
         device_auth_token=device_auth_token,
+        parent_id=parent_id,
         parent_password_second_hash=parent_password_second_hash
     )
     
@@ -2350,7 +2379,8 @@ def api_add_device():
     response = client.add_device(
         register_token=register_token,
         device_name=data.get('deviceName'),
-        device_model=data.get('deviceModel')
+        device_model=data.get('deviceModel'),
+        client_level=7  # Default client level (matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE)
     )
     
     duration_ms = int((time.time() - start_time) * 1000)
@@ -2575,13 +2605,24 @@ def session_status():
     request_id = get_request_id()
     server_url = get_current_server_url()
     
+    # Get device_auth_token from session
+    device_auth_token = session.get('device_auth_token')
+    
+    # Verify the token is valid in the database
+    # This ensures consistency between session state and actual authentication
+    # by checking if the token exists and hasn't expired
+    is_token_valid = False
+    if device_auth_token:
+        db = get_database()
+        from database import get_auth_token
+        token_record = get_auth_token(db, device_auth_token)
+        is_token_valid = token_record is not None
+    
     # Check for parent password hash in session first, then fall back to database
     parent_password_second_hash = session.get('parent_password_second_hash')
-    if not parent_password_second_hash:
-        device_auth_token = session.get('device_auth_token')
-        if device_auth_token:
-            db = get_database()
-            parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
+    if not parent_password_second_hash and is_token_valid:
+        db = get_database()
+        parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
     
     # Check if signing key exists (by checking if the key file exists)
     # The signing key is generated during sync operations
@@ -2593,15 +2634,17 @@ def session_status():
     except Exception as e:
         logger.warning("Failed to check signing key status", error=str(e), request_id=request_id)
     
+    # Use verified token validity for authentication status
+    # This ensures authenticated is true only when the token is actually valid
     status = {
-        'authenticated': 'device_auth_token' in session,
+        'authenticated': is_token_valid,
         'server_url': server_url,
         'has_mail_auth_token': 'mail_auth_token' in session,
-        'has_device_auth_token': 'device_auth_token' in session,
+        'has_device_auth_token': is_token_valid,
         'has_child_device_auth_token': 'child_device_auth_token' in session,
-        'device_auth_token': session.get('device_auth_token'),
+        'device_auth_token': device_auth_token if is_token_valid else None,
         'mail_auth_token': session.get('mail_auth_token'),
-        'own_device_id': session.get('own_device_id'),
+        'own_device_id': session.get('own_device_id') if is_token_valid else None,
         'login_error': session.get('login_error'),
         'configured_app_version': 226,
         'has_parent_password_second_hash': parent_password_second_hash is not None,
@@ -2942,6 +2985,225 @@ def api_dashboard_categories():
         }), 500
 
 
+@app.route('/api/dashboard/categories/default', methods=['POST'])
+def api_create_default_category():
+    """Create a default category if none exists.
+    
+    This is used when a family is first created and the server
+    returns an empty categoryBase array.
+    
+    Returns:
+        JSON response with the created category or existing category.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Create default category request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Create default category request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Create default category request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+    )
+    
+    try:
+        db = get_database()
+        
+        # Check if categories already exist
+        existing_categories = get_categories_by_device_auth_token(db, device_auth_token)
+        if existing_categories:
+            logger.info(
+                "Default category already exists",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+                count=len(existing_categories)
+            )
+            return jsonify({
+                'status': 'ok',
+                'message': 'Categories already exist',
+                'categories': existing_categories
+            })
+        
+        # Create default category
+        category = create_default_category(db, device_auth_token)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Default category created",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            category_id=category['id'] if category else None
+        )
+        
+        if category:
+            return jsonify({
+                'status': 'ok',
+                'category': category
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'error': 'Failed to create default category'
+            }), 500
+            
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Create default category error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to create default category'
+        }), 500
+
+
+@app.route('/api/dashboard/categories', methods=['POST'])
+def api_create_category():
+    """Create a new category with the given title.
+    
+    This endpoint allows creating a new category with a free-format title.
+    If a category with the same title already exists for this device,
+    the existing category is returned instead of creating a new one.
+    
+    Request Body:
+        title: The category title (free-format string, required)
+        childId: Optional child ID for the category
+    
+    Returns:
+        JSON response with the created or existing category.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Create category request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Create category request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    data = request.get_json() or {}
+    
+    # Validate required fields
+    title = data.get('title', '').strip()
+    if not title:
+        return jsonify({
+            'status': 'error',
+            'error': 'Missing or empty title'
+        }), 400
+    
+    child_id = data.get('childId')
+    
+    logger.info(
+        "Create category request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        title=title
+    )
+    
+    try:
+        from database import (
+            get_database,
+            get_categories_by_device_auth_token,
+            create_category,
+            get_category_by_title
+        )
+        
+        db = get_database()
+        
+        # Check if a category with this title already exists
+        existing_category = get_category_by_title(db, device_auth_token, title)
+        if existing_category:
+            logger.info(
+                "Category with title already exists, returning existing",
+                request_id=request_id,
+                title=title,
+                category_id=existing_category.get('id')
+            )
+            return jsonify({
+                'status': 'ok',
+                'category': existing_category,
+                'message': 'Category already exists'
+            })
+        
+        # Create new category
+        category = create_category(
+            db=db,
+            device_auth_token=device_auth_token,
+            title=title,
+            child_id=child_id
+        )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Category created",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            category_id=category['id'],
+            title=title
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'category': category
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Create category error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to create category'
+        }), 500
+
+
 @app.route('/api/dashboard/connected-devices', methods=['GET'])
 def api_dashboard_connected_devices():
     """Get connected devices for the current device auth token.
@@ -3203,9 +3465,17 @@ def api_dashboard_time_limit_rules():
     )
     
     try:
-        from database import get_time_limit_rules_by_device_auth_token
+        from database import (
+            get_time_limit_rules_by_device_auth_token,
+            get_users_by_device_auth_token,
+            get_categories_by_device_auth_token,
+            get_category_apps_by_device
+        )
         db = get_database()
         rules = get_time_limit_rules_by_device_auth_token(db, device_auth_token)
+        users = get_users_by_device_auth_token(db, device_auth_token)
+        categories = get_categories_by_device_auth_token(db, device_auth_token)
+        category_apps = get_category_apps_by_device(db, device_auth_token)
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -3213,13 +3483,19 @@ def api_dashboard_time_limit_rules():
             "Time limit rules retrieved",
             duration_ms=duration_ms,
             request_id=request_id,
-            count=len(rules)
+            count=len(rules),
+            users_count=len(users),
+            categories_count=len(categories),
+            apps_count=sum(len(apps) for apps in category_apps.values())
         )
         
         return jsonify({
             'status': 'ok',
             'count': len(rules),
-            'rules': rules
+            'rules': rules,
+            'users': users,
+            'categories': categories,
+            'categoryApps': category_apps
         })
         
     except Exception as e:
@@ -3339,7 +3615,15 @@ def api_create_time_limit_rule():
     )
     
     try:
-        from database import save_time_limit_rule, get_database
+        from database import (
+            save_time_limit_rule,
+            get_database,
+            get_parent_password_second_salt,
+            get_parent_user_id,
+            increment_sequence_number
+        )
+        from utils.audit_log import log_time_limit_rule_created
+        
         db = get_database()
         
         # Generate rule ID
@@ -3358,6 +3642,58 @@ def api_create_time_limit_rule():
             days=days,
             limit_minutes=limit_minutes,
             version=rule.get('version')
+        )
+        
+        # Get parent's second password hash for sync integrity
+        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
+        parent_user_id = get_parent_user_id(db, device_auth_token)
+        
+        # Get sequence number for sync
+        sequence_number = increment_sequence_number(db, device_auth_token)
+        
+        # Prepare rule data for sync
+        sync_rule = {
+            'type': rule.get('type', 0),
+            'startTime': start_time_str,
+            'endTime': end_time_str,
+            'days': days,
+            'limitMinutes': limit_minutes
+        }
+        
+        # Push to server via sync protocol
+        if parent_password_second_hash:
+            auth_client = AuthClient()
+            sync_response = auth_client.add_time_limit_rule(
+                device_auth_token=device_auth_token,
+                user_id=user_id,
+                category_id=category_id,
+                rule=sync_rule,
+                sequence_number=sequence_number,
+                parent_password_second_hash=parent_password_second_hash
+            )
+            
+            if not sync_response.success:
+                logger.warning(
+                    "Failed to push time limit rule to server",
+                    request_id=request_id,
+                    rule_id=rule_id,
+                    error_code=sync_response.error_code,
+                    error_message=sync_response.error_message
+                )
+        
+        # Log the rule creation for audit
+        log_time_limit_rule_created(
+            device_auth_token=device_auth_token,
+            rule_id=rule_id,
+            user_id=user_id,
+            category_id=category_id,
+            rule_type=rule.get('type', 0),
+            start_time=start_time_str,
+            end_time=end_time_str,
+            days=days,
+            limit_minutes=limit_minutes,
+            version=rule.get('version'),
+            request_id=request_id
         )
         
         duration_ms = int((time.time() - start_time) * 1000)
@@ -3462,7 +3798,15 @@ def api_update_time_limit_rule(rule_id):
     )
     
     try:
-        from database import get_time_limit_rule_by_id, update_time_limit_rule, get_database
+        from database import (
+            get_time_limit_rule_by_id,
+            update_time_limit_rule,
+            get_database,
+            get_parent_password_second_salt,
+            increment_sequence_number
+        )
+        from utils.audit_log import log_time_limit_rule_updated
+        
         db = get_database()
         
         # Check if rule exists
@@ -3481,6 +3825,57 @@ def api_update_time_limit_rule(rule_id):
                 'status': 'error',
                 'error': 'No updates applied'
             }), 400
+        
+        # Get parent's second password hash for sync integrity
+        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
+        
+        # Get sequence number for sync
+        sequence_number = increment_sequence_number(db, device_auth_token)
+        
+        # Push update to server via sync protocol
+        if parent_password_second_hash:
+            auth_client = AuthClient()
+            
+            # Build update action for sync
+            sync_updates = {}
+            for json_key, value in mapped_updates.items():
+                if json_key in ['rule_type', 'start_time', 'end_time', 'days', 'limit_minutes', 'version']:
+                    # Map back to JSON field names
+                    reverse_mapping = {
+                        'rule_type': 'type',
+                        'start_time': 'startTime',
+                        'end_time': 'endTime',
+                        'days': 'days',
+                        'limit_minutes': 'limitMinutes',
+                        'version': 'version'
+                    }
+                    sync_key = reverse_mapping.get(json_key, json_key)
+                    sync_updates[sync_key] = value
+            
+            sync_response = auth_client.update_time_limit_rule(
+                device_auth_token=device_auth_token,
+                rule_id=rule_id,
+                updates=sync_updates,
+                sequence_number=sequence_number,
+                parent_password_second_hash=parent_password_second_hash
+            )
+            
+            if not sync_response.success:
+                logger.warning(
+                    "Failed to push time limit rule update to server",
+                    request_id=request_id,
+                    rule_id=rule_id,
+                    error_code=sync_response.error_code,
+                    error_message=sync_response.error_message
+                )
+        
+        # Log the rule update for audit
+        log_time_limit_rule_updated(
+            device_auth_token=device_auth_token,
+            rule_id=rule_id,
+            updates=mapped_updates,
+            request_id=request_id
+        )
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -3553,8 +3948,26 @@ def api_delete_time_limit_rule(rule_id):
     )
     
     try:
-        from database import delete_time_limit_rule, get_database
+        from database import (
+            delete_time_limit_rule,
+            get_database,
+            get_time_limit_rule_by_id,
+            get_parent_password_second_salt,
+            increment_sequence_number
+        )
+        from utils.audit_log import log_time_limit_rule_deleted
+        
         db = get_database()
+        
+        # Get the rule first to retrieve user_id for sync
+        rule = get_time_limit_rule_by_id(db, rule_id)
+        if not rule:
+            return jsonify({
+                'status': 'error',
+                'error': 'Rule not found'
+            }), 404
+        
+        user_id = rule.get('user_id')
         
         result = delete_time_limit_rule(db, rule_id)
         
@@ -3563,6 +3976,39 @@ def api_delete_time_limit_rule(rule_id):
                 'status': 'error',
                 'error': 'Rule not found'
             }), 404
+        
+        # Get parent's second password hash for sync integrity
+        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
+        
+        # Get sequence number for sync
+        sequence_number = increment_sequence_number(db, device_auth_token)
+        
+        # Push deletion to server via sync protocol
+        if parent_password_second_hash:
+            auth_client = AuthClient()
+            sync_response = auth_client.remove_time_limit_rule(
+                device_auth_token=device_auth_token,
+                user_id=user_id,
+                rule_id=rule_id,
+                sequence_number=sequence_number,
+                parent_password_second_hash=parent_password_second_hash
+            )
+            
+            if not sync_response.success:
+                logger.warning(
+                    "Failed to push time limit rule deletion to server",
+                    request_id=request_id,
+                    rule_id=rule_id,
+                    error_code=sync_response.error_code,
+                    error_message=sync_response.error_message
+                )
+        
+        # Log the rule deletion for audit
+        log_time_limit_rule_deleted(
+            device_auth_token=device_auth_token,
+            rule_id=rule_id,
+            request_id=request_id
+        )
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -3589,6 +4035,380 @@ def api_delete_time_limit_rule(rule_id):
         return jsonify({
             'status': 'error',
             'error': 'Failed to delete time limit rule'
+        }), 500
+
+
+# ============================================================================
+# Category Apps API Routes
+# ============================================================================
+@app.route('/api/dashboard/categories/<category_id>/apps', methods=['GET'])
+def api_get_category_apps(category_id):
+    """Get apps assigned to a category.
+    
+    Args:
+        category_id: The category ID to get apps for.
+    
+    Returns:
+        JSON response with list of app package names.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Get category apps request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Get category apps request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    logger.info(
+        "Get category apps request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        category_id=category_id
+    )
+    
+    try:
+        from database import (
+            get_category_apps,
+            get_database
+        )
+        db = get_database()
+        apps = get_category_apps(db, device_auth_token, category_id)
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Category apps retrieved",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            category_id=category_id,
+            count=len(apps)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'categoryId': category_id,
+            'apps': [app['app_package'] for app in apps]
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Get category apps error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to get category apps'
+        }), 500
+
+
+@app.route('/api/dashboard/categories/<category_id>/apps', methods=['POST'])
+def api_add_apps_to_category(category_id):
+    """Add apps to a category.
+    
+    Request Body:
+        apps: List of app package names to add
+        userId: User ID for the category (optional)
+    
+    Returns:
+        JSON response indicating success or failure.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Add apps to category request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Add apps to category request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    data = request.get_json() or {}
+    app_packages = data.get('apps', [])
+    
+    if not app_packages:
+        return jsonify({
+            'status': 'error',
+            'error': 'No apps provided'
+        }), 400
+    
+    user_id = data.get('userId')
+    
+    logger.info(
+        "Add apps to category request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        category_id=category_id,
+        app_count=len(app_packages)
+    )
+    
+    try:
+        from database import (
+            save_category_apps,
+            get_database,
+            get_parent_password_second_salt,
+            get_parent_user_id,
+            increment_sequence_number
+        )
+        from utils.audit_log import log_category_apps_added
+        from auth_client import AuthClient
+        
+        db = get_database()
+        
+        # Save to database
+        save_category_apps(
+            db=db,
+            device_auth_token=device_auth_token,
+            category_id=category_id,
+            app_packages=app_packages,
+            user_id=user_id
+        )
+        
+        # Get parent's second password hash for sync integrity
+        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
+        parent_user_id = get_parent_user_id(db, device_auth_token)
+        
+        # Get sequence number for sync
+        sequence_number = increment_sequence_number(db, device_auth_token)
+        
+        # Push to server via sync protocol
+        if parent_password_second_hash:
+            auth_client = AuthClient()
+            for app_package in app_packages:
+                sync_response = auth_client.add_category_app(
+                    device_auth_token=device_auth_token,
+                    category_id=category_id,
+                    app_package=app_package,
+                    user_id=parent_user_id or user_id or '',
+                    sequence_number=sequence_number,
+                    parent_password_second_hash=parent_password_second_hash
+                )
+                
+                if not sync_response.success:
+                    logger.warning(
+                        "Failed to push category app to server",
+                        request_id=request_id,
+                        category_id=category_id,
+                        app_package=app_package,
+                        error_code=sync_response.error_code,
+                        error_message=sync_response.error_message
+                    )
+        
+        # Log the operation for audit
+        log_category_apps_added(
+            device_auth_token=device_auth_token,
+            category_id=category_id,
+            app_packages=app_packages,
+            user_id=user_id,
+            request_id=request_id
+        )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Apps added to category",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            category_id=category_id,
+            app_count=len(app_packages)
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'categoryId': category_id,
+            'appsAdded': len(app_packages)
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Add apps to category error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to add apps to category'
+        }), 500
+
+
+@app.route('/api/dashboard/categories/<category_id>/apps', methods=['DELETE'])
+def api_remove_apps_from_category(category_id):
+    """Remove apps from a category.
+    
+    Request Body:
+        apps: List of app package names to remove
+        userId: User ID for the category (optional)
+    
+    Returns:
+        JSON response indicating success or failure.
+    """
+    start_time = time.time()
+    request_id = get_request_id()
+    
+    # Check authentication
+    if 'device_auth_token' not in session:
+        logger.warning(
+            "Remove apps from category request without authentication",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Not authenticated'
+        }), 401
+    
+    device_auth_token = session.get('device_auth_token')
+    if not device_auth_token:
+        logger.warning(
+            "Remove apps from category request without device_auth_token",
+            request_id=request_id
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'No device auth token'
+        }), 400
+    
+    data = request.get_json() or {}
+    app_packages = data.get('apps', [])
+    
+    if not app_packages:
+        return jsonify({
+            'status': 'error',
+            'error': 'No apps provided'
+        }), 400
+    
+    user_id = data.get('userId')
+    
+    logger.info(
+        "Remove apps from category request",
+        request_id=request_id,
+        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+        category_id=category_id,
+        app_count=len(app_packages)
+    )
+    
+    try:
+        from database import (
+            remove_category_apps,
+            get_database,
+            get_parent_password_second_salt,
+            get_parent_user_id,
+            increment_sequence_number
+        )
+        from utils.audit_log import log_category_apps_removed
+        from auth_client import AuthClient
+        
+        db = get_database()
+        
+        # Remove from database
+        removed_count = remove_category_apps(
+            db=db,
+            device_auth_token=device_auth_token,
+            category_id=category_id,
+            app_packages=app_packages
+        )
+        
+        # Get parent's second password hash for sync integrity
+        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
+        parent_user_id = get_parent_user_id(db, device_auth_token)
+        
+        # Get sequence number for sync
+        sequence_number = increment_sequence_number(db, device_auth_token)
+        
+        # Push to server via sync protocol
+        if parent_password_second_hash:
+            auth_client = AuthClient()
+            for app_package in app_packages:
+                sync_response = auth_client.remove_category_app(
+                    device_auth_token=device_auth_token,
+                    category_id=category_id,
+                    app_package=app_package,
+                    user_id=parent_user_id or user_id or '',
+                    sequence_number=sequence_number,
+                    parent_password_second_hash=parent_password_second_hash
+                )
+                
+                if not sync_response.success:
+                    logger.warning(
+                        "Failed to push remove category app to server",
+                        request_id=request_id,
+                        category_id=category_id,
+                        app_package=app_package,
+                        error_code=sync_response.error_code,
+                        error_message=sync_response.error_message
+                    )
+        
+        # Log the operation for audit
+        log_category_apps_removed(
+            device_auth_token=device_auth_token,
+            category_id=category_id,
+            app_packages=app_packages,
+            user_id=user_id,
+            request_id=request_id
+        )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            "Apps removed from category",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            category_id=category_id,
+            app_count=removed_count
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'categoryId': category_id,
+            'appsRemoved': removed_count
+        })
+        
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "Remove apps from category error",
+            duration_ms=duration_ms,
+            request_id=request_id,
+            error=str(e)
+        )
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to remove apps from category'
         }), 500
 
 
@@ -3641,6 +4461,11 @@ def api_add_user_to_family():
     # Check for parent password second hash
     parent_password_second_hash = session.get('parent_password_second_hash')
     if not parent_password_second_hash:
+        # Fall back to database (same as session_status endpoint)
+        db = get_database()
+        parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
+    
+    if not parent_password_second_hash:
         logger.warning(
             "Add user request without parent_password_second_hash",
             request_id=request_id
@@ -3661,6 +4486,13 @@ def api_add_user_to_family():
     device_name = data.get('deviceName')
     device_model = data.get('deviceModel')
     
+    # Convert empty strings to None for optional device info
+    # This ensures consistent behavior with the add_device method
+    if device_name == '':
+        device_name = None
+    if device_model == '':
+        device_model = None
+    
     # Get parent user ID from database
     db = get_database()
     parent_user_id = get_parent_user_id(db, device_auth_token)
@@ -3671,6 +4503,7 @@ def api_add_user_to_family():
         )
         return jsonify({
             'status': 'error',
+            'error_code': 'server_error',
             'error': 'Parent user ID not found'
         }), 500
     
@@ -3701,6 +4534,7 @@ def api_add_user_to_family():
         # Step 1: Create add-device token
         token_response = client.create_add_device_token(
             device_auth_token=device_auth_token,
+            parent_id=parent_user_id,
             parent_password_second_hash=parent_password_second_hash
         )
         
@@ -3754,7 +4588,18 @@ def api_add_user_to_family():
         own_device_id = add_device_response.data.get('ownDeviceId')
         
         # Step 3: Pull status to get users
-        pull_response = client.pull_status(device_auth_token=child_device_auth_token)
+        # Use parent's device_auth_token to fetch users that belong to the family
+        # Force a full sync with empty versions to ensure the newly created user is returned
+        # The server only returns changes based on version hashes, so we need to send
+        # empty versions to get all users including the newly added one
+        empty_client_status = {
+            "clientLevel": 7,
+            "devices": "",
+            "users": "",
+            "apps": {},
+            "categories": {}
+        }
+        pull_response = client.pull_status(device_auth_token=device_auth_token, client_data_status=empty_client_status)
         
         if not pull_response.success:
             log_add_user_response(
@@ -3775,10 +4620,21 @@ def api_add_user_to_family():
             }), 500
         
         # Step 4: Save users to database
-        # Users are saved with the child's device_auth_token
+        # Users are saved with the parent's device_auth_token so they can be retrieved
+        # by the dashboard when querying with the parent's token
         users_data = pull_response.data.get('users', {}).get('data', [])
+        
+        # Log the users data received from pull_status
+        logger.debug(
+            "Pull status returned users data",
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            users_count=len(users_data),
+            users=[{"id": u.get('id'), "name": u.get('name'), "type": u.get('type')} for u in users_data]
+        )
+        
         if users_data:
-            save_users(db=db, device_auth_token=child_device_auth_token, users_data=users_data)
+            save_users(db=db, device_auth_token=device_auth_token, users_data=users_data)
         
         # Find the new user
         new_user = None
@@ -3788,6 +4644,43 @@ def api_add_user_to_family():
                 break
         
         user_id = new_user.get('id') if new_user else None
+        
+        # If user not found in pull_status response, create a user record locally
+        # This handles the case where the server hasn't yet propagated the user
+        # (timing issue between device creation and user availability)
+        if user_id is None:
+            # Create a user record with the device ID as the user ID
+            # The server creates a user for each device, so the user ID should be the device ID
+            device_id = own_device_id
+            if device_id:
+                # Create a minimal user record for the new device
+                create_user(
+                    db=db,
+                    user_id=device_id,
+                    device_auth_token=device_auth_token,
+                    name=user_name,
+                    user_type='child'
+                )
+                user_id = device_id
+                logger.info(
+                    "Created user record locally for newly added device",
+                    request_id=request_id,
+                    user_id=user_id,
+                    user_name=user_name
+                )
+        
+        # Update sync state to record the last sync timestamp
+        # This ensures the family overview shows the correct last_sync time
+        device_version = pull_response.data.get('devices', {}).get('version')
+        user_version = pull_response.data.get('users', {}).get('version')
+        save_sync_state(db=db, device_auth_token=device_auth_token, device_list_version=device_version, user_list_version=user_version)
+        logger.info(
+            "Sync state updated after adding user",
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            device_version=device_version,
+            user_version=user_version
+        )
         
         client.close()
         
@@ -3894,7 +4787,12 @@ def api_dashboard_family_overview():
         
         # Get last sync timestamp
         sync_state = get_sync_state(db, device_auth_token)
-        last_sync = sync_state.get('last_sync') if sync_state else None
+        last_sync_timestamp = sync_state.get('last_sync_timestamp') if sync_state else None
+        
+        # Convert timestamp to ISO string for JavaScript
+        last_sync = None
+        if last_sync_timestamp:
+            last_sync = datetime.fromtimestamp(last_sync_timestamp / 1000, tz=timezone.utc).isoformat()
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -4670,6 +5568,9 @@ if __name__ == '__main__':
             '/api/sync/pull',
             '/api/dashboard/users', '/api/dashboard/devices', '/api/dashboard/categories',
             '/api/dashboard/connected-devices', '/api/dashboard/stream',
+            '/api/dashboard/unified-view', '/api/dashboard/time-limit-rules',
+            '/api/dashboard/time-limit-rules/<rule_id>', '/api/dashboard/users/add',
+            '/api/dashboard/family-overview',
             '/api/timechecker/status', '/api/timechecker/history',
             '/health',
             '/create-family', '/create-family/cancel'

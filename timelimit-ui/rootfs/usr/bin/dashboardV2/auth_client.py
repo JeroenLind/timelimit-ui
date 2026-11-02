@@ -877,6 +877,92 @@ class AuthClient:
             )
         
         return response
+
+    # ========================================================================
+    # Utility Methods
+    # ========================================================================
+    
+    def check_server_connection(self) -> APIResponse:
+        """Check if the server is reachable.
+        
+        Returns:
+            APIResponse indicating server status.
+        """
+        request_id = get_request_id()
+        
+        logger.info(
+            "Checking server connection",
+            request_id=request_id,
+            base_url=self.base_url
+        )
+        
+        response = self.get_server_time()
+        
+        if response.success:
+            logger.info(
+                "Server connection check successful",
+                request_id=request_id
+            )
+        else:
+            logger.warning(
+                "Server connection check failed",
+                request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+    # ========================================================================
+    # Utility Methods
+    # ========================================================================
+    
+    def check_server_connection(self) -> APIResponse:
+        """Check if the server is reachable.
+        
+        Returns:
+            APIResponse indicating server status.
+        """
+        request_id = get_request_id()
+        
+        logger.info(
+            "Checking server connection",
+            request_id=request_id,
+            base_url=self.base_url
+        )
+        
+        response = self.get_server_time()
+        
+        if response.success:
+            logger.info(
+                "Server connection check successful",
+                request_id=request_id
+            )
+        else:
+            logger.warning(
+                "Server connection check failed",
+                request_id=request_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    def close(self) -> None:
+        """Close the HTTP session."""
+        self.session.close()
+
+
+# ============================================================================
+# Convenience Functions
+# ============================================================================
+    
+    def close(self) -> None:
+        """Close the HTTP session."""
+        self.session.close()
+
+
+# ============================================================================
+# Convenience Functions
+# ============================================================================
     
     # ========================================================================
     # Parent Device Token Endpoints
@@ -1611,6 +1697,210 @@ class AuthClient:
                 request_id=request_id,
                 user_id=user_id,
                 rule_id=rule_id,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    # ========================================================================
+    # Category Apps Endpoints
+    # ========================================================================
+    
+    def add_category_app(
+        self,
+        device_auth_token: str,
+        category_id: str,
+        app_package: str,
+        user_id: str,
+        sequence_number: int,
+        parent_password_second_hash: str
+    ) -> APIResponse:
+        """Add an app to a category via the sync protocol.
+        
+        This method sends an AddCategoryAppAction via the sync protocol,
+        which is the correct way to add apps to categories according to the server's
+        expected behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            category_id: ID of the category to add the app to.
+            app_package: Package name of the app to add.
+            user_id: ID of the user the category belongs to.
+            sequence_number: The sequence number for this action.
+            parent_password_second_hash: Parent's second password hash for integrity.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag on success.
+        """
+        import json
+        from crypto_utils import calculate_hmac_sha256_binary
+        
+        request_id = get_request_id()
+        
+        # Build the encoded action (no spaces after colons to match server schema)
+        encoded_action = json.dumps({
+            "type": "AddCategoryAppAction",
+            "categoryId": category_id,
+            "app": app_package,
+            "userId": user_id
+        }, separators=(',', ':'))
+        
+        # Calculate the integrity hash
+        integrity = calculate_hmac_sha256_binary(
+            parent_password_second_hash,
+            sequence_number,
+            user_id,  # Use user_id as the identifier for integrity calculation
+            encoded_action
+        )
+        
+        # Build the action
+        action = {
+            "encodedAction": encoded_action,
+            "sequenceNumber": sequence_number,
+            "integrity": integrity,
+            "type": "appLogic",
+            "userId": user_id
+        }
+        
+        # Sanitize for logging (remove sensitive fields)
+        sanitized_action = {
+            'type': action.get('type'),
+            'userId': action.get('userId'),
+            'sequenceNumber': action.get('sequenceNumber'),
+            'categoryId': category_id,
+            'app': app_package
+        }
+        
+        logger.info(
+            "Pushing add category app action",
+            request_id=request_id,
+            user_id=user_id,
+            category_id=category_id,
+            app_package=app_package,
+            sequence_number=sequence_number,
+            action_preview=sanitized_action
+        )
+        
+        # Push the action via sync protocol
+        response = self.push_actions(device_auth_token, [action])
+        
+        if response.success:
+            logger.info(
+                "Add category app action pushed successfully",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                app_package=app_package,
+                sequence_number=sequence_number
+            )
+        else:
+            logger.warning(
+                "Failed to push add category app action",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                app_package=app_package,
+                error_code=response.error_code,
+                error_message=response.error_message
+            )
+        
+        return response
+    
+    def remove_category_app(
+        self,
+        device_auth_token: str,
+        category_id: str,
+        app_package: str,
+        user_id: str,
+        sequence_number: int,
+        parent_password_second_hash: str
+    ) -> APIResponse:
+        """Remove an app from a category via the sync protocol.
+        
+        This method sends a RemoveCategoryAppAction via the sync protocol,
+        which is the correct way to remove apps from categories according to the server's
+        expected behavior.
+        
+        Args:
+            device_auth_token: Device auth token for authentication.
+            category_id: ID of the category to remove the app from.
+            app_package: Package name of the app to remove.
+            user_id: ID of the user the category belongs to.
+            sequence_number: The sequence number for this action.
+            parent_password_second_hash: Parent's second password hash for integrity.
+            
+        Returns:
+            APIResponse with shouldDoFullSync flag on success.
+        """
+        import json
+        from crypto_utils import calculate_hmac_sha256_binary
+        
+        request_id = get_request_id()
+        
+        # Build the encoded action (no spaces after colons to match server schema)
+        encoded_action = json.dumps({
+            "type": "RemoveCategoryAppAction",
+            "categoryId": category_id,
+            "app": app_package,
+            "userId": user_id
+        }, separators=(',', ':'))
+        
+        # Calculate the integrity hash
+        integrity = calculate_hmac_sha256_binary(
+            parent_password_second_hash,
+            sequence_number,
+            user_id,  # Use user_id as the identifier for integrity calculation
+            encoded_action
+        )
+        
+        # Build the action
+        action = {
+            "encodedAction": encoded_action,
+            "sequenceNumber": sequence_number,
+            "integrity": integrity,
+            "type": "appLogic",
+            "userId": user_id
+        }
+        
+        # Sanitize for logging (remove sensitive fields)
+        sanitized_action = {
+            'type': action.get('type'),
+            'userId': action.get('userId'),
+            'sequenceNumber': action.get('sequenceNumber'),
+            'categoryId': category_id,
+            'app': app_package
+        }
+        
+        logger.info(
+            "Pushing remove category app action",
+            request_id=request_id,
+            user_id=user_id,
+            category_id=category_id,
+            app_package=app_package,
+            sequence_number=sequence_number,
+            action_preview=sanitized_action
+        )
+        
+        # Push the action via sync protocol
+        response = self.push_actions(device_auth_token, [action])
+        
+        if response.success:
+            logger.info(
+                "Remove category app action pushed successfully",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                app_package=app_package,
+                sequence_number=sequence_number
+            )
+        else:
+            logger.warning(
+                "Failed to push remove category app action",
+                request_id=request_id,
+                user_id=user_id,
+                category_id=category_id,
+                app_package=app_package,
                 error_code=response.error_code,
                 error_message=response.error_message
             )

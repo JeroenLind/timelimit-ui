@@ -441,7 +441,7 @@ Register a child device using the add-device token.
 {
     "registerToken": "register_token_xyz789",
     "deviceName": "Child's Phone",
-    "deviceModel": "Pixel 6",
+    "childDevice": {"model": "Pixel 6"},
     "clientLevel": 7
 }
 ```
@@ -786,11 +786,222 @@ interface Category {
 
 ---
 
+## Time Limit Rules API Endpoints
+
+### GET /api/dashboard/time-limit-rules
+
+Get all time limit rules for the current device auth token.
+
+**Request:**
+- Headers: `Authorization: Bearer <device_auth_token>`
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "rules": [
+        {
+            "id": "rule_123",
+            "user_id": "user_456",
+            "category_id": "category_789",
+            "start_time": "08:00",
+            "end_time": "20:00",
+            "days_bitmask": 127,
+            "limit_minutes": 120
+        }
+    ],
+    "users": [
+        {
+            "id": "user_456",
+            "name": "Child User"
+        }
+    ],
+    "categories": [
+        {
+            "id": "category_789",
+            "title": "Games"
+        }
+    ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Response status ("ok" or "error") |
+| `rules` | array | List of time limit rules |
+| `users` | array | List of users (for dropdown selection) |
+| `categories` | array | List of categories (for dropdown selection) |
+
+**Rule Object Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique rule identifier |
+| `user_id` | string | ID of the user this rule applies to |
+| `category_id` | string | ID of the category this rule applies to |
+| `start_time` | string | Start time in HH:MM format (24-hour) |
+| `end_time` | string | End time in HH:MM format (24-hour) |
+| `days_bitmask` | integer | Bitmask for days of week (0-127): 1=Mon, 2=Tue, 4=Wed, 8=Thu, 16=Fri, 32=Sat, 64=Sun |
+| `limit_minutes` | integer | Time limit in minutes (0 = no limit) |
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 500 | `{"status": "error", "error": "Server error"}` |
+
+---
+
+### POST /api/dashboard/time-limit-rules
+
+Create a new time limit rule.
+
+**Request:**
+```http
+POST /api/dashboard/time-limit-rules
+Authorization: Bearer <device_auth_token>
+Content-Type: application/json
+
+{
+    "user_id": "user_456",
+    "category_id": "category_789",
+    "start_time": "08:00",
+    "end_time": "20:00",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "limit_minutes": 120
+}
+```
+
+**Request Body Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | string | Yes | ID of the user this rule applies to |
+| `category_id` | string | Yes | ID of the category this rule applies to |
+| `start_time` | string | Yes | Start time in HH:MM format (24-hour) |
+| `end_time` | string | Yes | End time in HH:MM format (24-hour) |
+| `days` | array | Yes | Array of day abbreviations: "mon", "tue", "wed", "thu", "fri", "sat", "sun" |
+| `limit_minutes` | integer | No | Time limit in minutes (default: 120, 0 = no limit) |
+
+**Response - Success (201):**
+```json
+{
+    "status": "ok",
+    "rule": {
+        "id": "rule_123",
+        "user_id": "user_456",
+        "category_id": "category_789",
+        "start_time": "08:00",
+        "end_time": "20:00",
+        "days_bitmask": 62,
+        "limit_minutes": 120
+    }
+}
+```
+
+**Sync Integration:**
+This endpoint automatically syncs the new rule with the TimeLimit server using the CRDT-based sync protocol with HMAC-SHA256 integrity signing.
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 400 | `{"status": "error", "error": "Invalid request data"}` |
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 500 | `{"status": "error", "error": "Server error"}` |
+
+---
+
+### PUT /api/dashboard/time-limit-rules/{ruleId}
+
+Update an existing time limit rule.
+
+**Request:**
+```http
+PUT /api/dashboard/time-limit-rules/rule_123
+Authorization: Bearer <device_auth_token>
+Content-Type: application/json
+
+{
+    "user_id": "user_456",
+    "category_id": "category_789",
+    "start_time": "09:00",
+    "end_time": "21:00",
+    "days": ["mon", "tue", "wed", "thu", "fri", "sat"],
+    "limit_minutes": 180
+}
+```
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "rule": {
+        "id": "rule_123",
+        "user_id": "user_456",
+        "category_id": "category_789",
+        "start_time": "09:00",
+        "end_time": "21:00",
+        "days_bitmask": 62,
+        "limit_minutes": 180
+    }
+}
+```
+
+**Sync Integration:**
+This endpoint automatically syncs the updated rule with the TimeLimit server.
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 400 | `{"status": "error", "error": "Invalid request data"}` |
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 404 | `{"status": "error", "error": "Rule not found"}` |
+| 500 | `{"status": "error", "error": "Server error"}` |
+
+---
+
+### DELETE /api/dashboard/time-limit-rules/{ruleId}
+
+Delete a time limit rule.
+
+**Request:**
+```http
+DELETE /api/dashboard/time-limit-rules/rule_123
+Authorization: Bearer <device_auth_token>
+```
+
+**Response - Success (200):**
+```json
+{
+    "status": "ok",
+    "message": "Rule deleted successfully"
+}
+```
+
+**Sync Integration:**
+This endpoint automatically syncs the deletion with the TimeLimit server.
+
+**Error Responses:**
+
+| Status Code | Error Response |
+|-------------|----------------|
+| 401 | `{"status": "error", "error": "Not authenticated"}` |
+| 404 | `{"status": "error", "error": "Rule not found"}` |
+| 500 | `{"status": "error", "error": "Server error"}` |
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2026-09-13 | Added POST /api/dashboard/users/add endpoint documentation for adding child users to families |
+| 1.1.0 | 2026-09-27 | Added Time Limit Rules API endpoints (GET, POST, PUT, DELETE) with sync integration |
 
 ---
 

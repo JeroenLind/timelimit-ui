@@ -246,14 +246,20 @@ class TestDashboardJavaScript:
     
     @pytest.mark.timeout(10)
     def test_dashboard_v2_has_javascript(self, client):
-        """Test that dashboardV2 includes JavaScript."""
+        """Test that dashboardV2 includes JavaScript file."""
         with client.session_transaction() as sess:
             sess['device_auth_token'] = 'test_token_123'
         
         response = client.get('/dashboardV2')
         
-        assert b'refreshServerStatus' in response.data
-        assert b'showAlert' in response.data
+        # Check that the JavaScript file is included
+        assert b'/static/js/dashboardV2.js' in response.data
+        
+        # Load the JavaScript file and check for functions
+        js_response = client.get('/static/js/dashboardV2.js')
+        assert js_response.status_code == 200
+        assert b'refreshServerStatus' in js_response.data
+        assert b'showAlert' in js_response.data
     
     @pytest.mark.timeout(10)
     def test_dashboard_v2_has_api_endpoints_in_js(self, client):
@@ -261,10 +267,12 @@ class TestDashboardJavaScript:
         with client.session_transaction() as sess:
             sess['device_auth_token'] = 'test_token_123'
         
-        response = client.get('/dashboardV2')
+        # Load the JavaScript file and check for API endpoints
+        js_response = client.get('/static/js/dashboardV2.js')
+        assert js_response.status_code == 200
         
         # Refresh button now calls sync endpoint instead of just checking status
-        assert b'/api/sync/pull' in response.data
+        assert b'/api/sync/pull' in js_response.data
 
 
 class TestDashboardCSS:

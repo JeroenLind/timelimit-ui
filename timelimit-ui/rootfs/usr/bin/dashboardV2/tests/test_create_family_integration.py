@@ -663,6 +663,7 @@ class TestAddUserToFamilyIntegration:
             mock_client.create_add_device_token.assert_called_once()
             call_kwargs = mock_client.create_add_device_token.call_args[1]
             assert call_kwargs['device_auth_token'] == device_auth_token
+            assert call_kwargs['parent_id'] == parent_user_id
             assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
             
             mock_client.add_device.assert_called_once()
@@ -674,10 +675,12 @@ class TestAddUserToFamilyIntegration:
             
             mock_client.pull_status.assert_called_once()
             pull_status_kwargs = mock_client.pull_status.call_args[1]
-            assert pull_status_kwargs['device_auth_token'] == 'child_device_auth_token'
+            # After fix: pull_status should be called with parent's device_auth_token
+            # so users are saved with the correct key for the dashboard to retrieve
+            assert pull_status_kwargs['device_auth_token'] == device_auth_token
             
-            # Verify users were saved to database
-            users = get_users_by_device_auth_token(db, 'child_device_auth_token')
+            # Verify users were saved to database with parent's device_auth_token
+            users = get_users_by_device_auth_token(db, device_auth_token)
             assert len(users) == 1
             assert users[0]['name'] == 'Test Child'
             assert users[0]['type'] == 'child'
@@ -1015,8 +1018,8 @@ class TestAddUserToFamilyIntegration:
         """Test adding user when the user is not in the sync response.
         
         This test verifies that when the newly added user is not found
-        in the pull_status response, userId is None but the operation
-        still succeeds.
+        in the pull_status response, a local user record is created
+        and the operation still succeeds with a valid userId.
         """
         # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
@@ -1077,6 +1080,14 @@ class TestAddUserToFamilyIntegration:
             assert response.status_code == 200
             data = json.loads(response.data)
             assert data['status'] == 'ok'
-            # userId should be None since the user wasn't in the response
-            assert data['userId'] is None
+            # userId should be the device ID since a local user record is created
+            # when the user is not found in the sync response
+            assert data['userId'] == 'child_device_id_not_found'
             assert data['deviceAuthToken'] == 'child_device_auth_token_not_found'
+            
+            # Verify the user was created locally in the database
+            users = get_users_by_device_auth_token(db, device_auth_token)
+            assert len(users) == 2  # Other User + Test Child
+            user_names = [u['name'] for u in users]
+            assert 'Other User' in user_names
+            assert 'Test Child' in user_names

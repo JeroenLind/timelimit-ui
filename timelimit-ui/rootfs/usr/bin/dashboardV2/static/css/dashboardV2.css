@@ -101,6 +101,12 @@ body {
   border: 1px solid var(--color-border);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 /* Main content */
 .dashboard-content, .status-section {
   background: var(--color-card);
@@ -306,21 +312,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  width: 44px;
+  height: 44px;
+  background: var(--color-card);
+  border: 2px solid #222;
+  border-radius: 8px;
   cursor: pointer;
   transition: var(--transition-fast);
+  box-shadow: 0 2px 4px var(--color-shadow);
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999;
 }
 
 .menu-toggle:hover {
-  background: var(--color-card);
+  background: var(--color-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--color-shadow);
 }
 
 .menu-toggle:hover .bar {
-  background: #ffffff;
+  background: #222;
 }
 
 .menu-toggle:focus {
@@ -340,9 +353,9 @@ body {
 
 .menu-toggle .bar {
   display: block;
-  width: 20px;
-  height: 2px;
-  background: var(--color-text-primary);
+  width: 22px;
+  height: 2.5px;
+  background: #222;
   margin: 4px 0;
   transition: var(--transition-fast);
 }
@@ -433,7 +446,8 @@ body {
 }
 
 .sidebar-nav a,
-.sidebar-nav button {
+.sidebar-nav button,
+.sidebar-nav a.sidebar-action-link {
   display: block;
   padding: var(--spacing-sm) var(--spacing-md);
   color: var(--color-text-primary);
@@ -948,85 +962,6 @@ body {
   padding: var(--spacing-md);
 }
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--color-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1001;
-}
-
-.modal {
-  background: var(--color-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  max-width: 500px;
-  width: 90%;
-  box-shadow: 0 8px 32px var(--color-shadow);
-  border: 1px solid var(--color-border);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-}
-
-.modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.modal-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.modal-close:hover {
-  background: var(--color-card);
-}
-
-.modal-close:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  z-index: 1;
-}
-
-.modal-close:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.modal-close:active {
-  transform: scale(0.9);
-}
-
-.modal-body {
-  margin-bottom: var(--spacing-md);
-}
-
-.modal-footer {
-  display: flex;
-  gap: var(--spacing-sm);
-  justify-content: flex-end;
-}
-
 /* Form Elements */
 .form-group {
   margin-bottom: var(--spacing-md);
@@ -1369,6 +1304,42 @@ textarea:focus {
   z-index: 1;
 }
 
+/* Refresh button style - used for action links */
+.refresh-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+
+.refresh-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  transform: translateY(-1px);
+}
+
+.refresh-btn:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.refresh-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.refresh-btn:active {
+  transform: translateY(0);
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -1376,4 +1347,281 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-content {
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-border);
+  position: relative;
+}
+
+.modal-content h3 {
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Modal form styles */
+.modal .form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.modal .form-group label {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.modal .form-group input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modal .form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+}
+
+.modal .form-group input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.modal .error-message {
+  color: #ff4444;
+  font-size: 12px;
+  margin-top: var(--spacing-xs);
+}
+
+/* Modal button styles */
+.modal .btn-secondary {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.modal .btn-secondary:hover {
+  background: var(--color-border);
+}
+
+.modal .btn-secondary:active {
+  transform: translateY(1px);
+}
+
+.modal .btn-primary {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.modal .btn-primary:hover {
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px);
+}
+
+.modal .btn-primary:active {
+  transform: translateY(0);
+}
+
+.modal .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.modal .modal-button-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+  margin-top: var(--spacing-md);
+}
+
+/* Server Offline Banner */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+  z-index: 1000;
+  position: relative;
+}
+
+.offline-indicator {
+  font-size: 20px;
+}
+
+.offline-message {
+  flex: 1;
+  color: #856404;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.retry-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.retry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.retry-btn:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.retry-btn:active {
+  transform: translateY(0);
+}
+
+/* Server Offline State - Applied to body */
+body.server-offline {
+  cursor: not-allowed;
+}
+
+body.server-offline * {
+  cursor: not-allowed !important;
+}
+
+/* Disabled button styles */
+button.disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: all !important;
+}
+
+/* Disabled input styles */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Disabled action buttons visual feedback */
+.refresh-btn.disabled,
+.sidebar-action-link.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Dim content when server is offline */
+body.server-offline .dashboard-content,
+body.server-offline .status-section {
+  opacity: 0.9;
+  filter: grayscale(10%);
+}
+
+/* Ensure modals still work when server is offline */
+body.server-offline .modal,
+body.server-offline .modal-content {
+  opacity: 1;
+  filter: none;
 }

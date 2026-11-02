@@ -418,9 +418,18 @@ Create a token for adding a child device to the family.
 ```json
 {
     "deviceAuthToken": "device_token_abc123",
+    "parentId": "parent_user_123",
     "parentPasswordSecondHash": "$2a$12$..."
 }
 ```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `deviceAuthToken` | string | Yes | Device auth token for authentication |
+| `parentId` | string | Yes | Parent user ID |
+| `parentPasswordSecondHash` | string | Yes | Parent password second hash for verification |
 
 **Response:**
 ```json
@@ -441,10 +450,26 @@ Register a child device using the add-device token.
 {
     "registerToken": "register_token_xyz789",
     "deviceName": "Child's Phone",
-    "deviceModel": "Pixel 6",
+    "childDevice": {
+        "model": "Pixel 6"
+    },
     "clientLevel": 7
 }
 ```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `registerToken` | string | Yes | Token from `/parent/create-add-device-token` |
+| `deviceName` | string | Yes | Name for the child's device (defaults to "Unknown Device" if not provided) |
+| `childDevice` | object | Yes | Device info object containing `model` field (defaults to `{"model": "Unknown"}` if not provided) |
+| `clientLevel` | integer | Yes | Client level/version (defaults to 7 if not provided) |
+
+**Note:** All fields are required by the TimeLimit server. The client provides default values for optional fields:
+- `deviceName` defaults to "Unknown Device"
+- `childDevice.model` defaults to "Unknown"
+- `clientLevel` defaults to 7 (matches Android app's `ClientDataStatus.CLIENT_LEVEL_VALUE`)
 
 **Response:**
 ```json

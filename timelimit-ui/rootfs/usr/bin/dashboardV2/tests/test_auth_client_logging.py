@@ -911,7 +911,7 @@ class TestAuthClientSanitization:
                 # Capture stdout to get JSON output
                 captured_output = io.StringIO()
                 with patch('sys.stdout', captured_output):
-                    client.create_add_device_token('device123', 'password_hash')
+                    client.create_add_device_token('device123', 'parent_user_123', 'password_hash')
                 
                 reset_structlog()
 

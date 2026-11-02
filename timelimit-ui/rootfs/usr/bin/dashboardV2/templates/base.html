@@ -9,18 +9,18 @@
 </head>
 <body>
     {% block header %}
-    <header class="dashboard-header">
-        <div class="container">
-            <h1>⏱️ TimeLimit Dashboard</h1>
-            {% if session.get('server_url') %}
-            <div class="server-info">
-                <span class="server-label">Server:</span>
-                <span class="server-url">{{ session.get('server_url') }}</span>
+        <header class="dashboard-header">
+            <div class="container">
+                <h1>⏱️ TimeLimit Dashboard</h1>
+                {% if session.get('server_url') %}
+                <div class="server-info">
+                    <span class="server-label">Server:</span>
+                    <span class="server-url">{{ session.get('server_url') }}</span>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
-        </div>
-    </header>
-    {% endblock %}
+        </header>
+        {% endblock %}
     
     <main class="container">
         {% block content %}{% endblock %}

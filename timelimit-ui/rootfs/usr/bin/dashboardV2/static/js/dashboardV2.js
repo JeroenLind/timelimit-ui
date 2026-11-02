@@ -125,6 +125,37 @@
     }
     
     /**
+     * Refresh server status display
+     */
+    function refreshServerStatus() {
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusContent = document.getElementById('status-content');
+        const errorMessage = document.getElementById('error-message');
+        
+        if (statusIndicator && statusContent) {
+            if (isAuthenticated) {
+                statusIndicator.className = 'status-indicator status-success';
+                statusContent.innerHTML = '<div class="server-info">' +
+                    '<span class="server-label">Server:</span>' +
+                    '<span class="server-url" style="color: #00ff88; font-family: monospace; font-size: 12px;"> Connected</span>' +
+                    '</div>';
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            } else {
+                statusIndicator.className = 'status-indicator status-warning';
+                statusContent.innerHTML = '<div class="server-info">' +
+                    '<span class="server-label">Server:</span>' +
+                    '<span class="server-url" style="color: #ff9800; font-family: monospace; font-size: 12px;"> Not connected</span>' +
+                    '</div>';
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            }
+        }
+    }
+    
+    /**
      * Update session overview display with validation status
      * @param {Object} data - Session status data from API
      */
@@ -360,7 +391,6 @@
         const loginExistingFamilyLink = document.getElementById('login-existing-family-link');
         const recoverPasswordLink = document.getElementById('recover-password-link');
         const signoutLink = document.getElementById('signout-link');
-        const signInSection = document.getElementById('sign-in-section');
         
         if (createFamilyLink && loginExistingFamilyLink && recoverPasswordLink) {
             if (data.authenticated) {
@@ -370,10 +400,6 @@
                 if (signoutLink) {
                     signoutLink.style.display = 'block';
                 }
-                // Hide the prominent sign-in section when authenticated
-                if (signInSection) {
-                    signInSection.style.display = 'none';
-                }
             } else {
                 createFamilyLink.style.display = 'block';
                 loginExistingFamilyLink.style.display = 'block';
@@ -381,11 +407,27 @@
                 if (signoutLink) {
                     signoutLink.style.display = 'none';
                 }
-                // Show the prominent sign-in section when not authenticated
-                if (signInSection) {
-                    signInSection.style.display = 'block';
-                }
             }
+        }
+        
+        // Handle sidebar login links and add dummy user button
+        const loginSidebarLink = document.getElementById('login-sidebar-link');
+        const createFamilySidebarLink = document.getElementById('create-family-sidebar-link');
+        const addDummyUserBtn = document.getElementById('add-dummy-user-btn');
+        const signoutBtnSidebar = document.getElementById('signout-btn-sidebar');
+        
+        if (loginSidebarLink && createFamilySidebarLink && addDummyUserBtn && signoutBtnSidebar) {
+            // Show/hide login links based on authentication
+            if (data.authenticated) {
+                loginSidebarLink.style.display = 'none';
+                createFamilySidebarLink.style.display = 'none';
+            } else {
+                loginSidebarLink.style.display = 'block';
+                createFamilySidebarLink.style.display = 'block';
+            }
+            // Show/hide add dummy user button based on authentication
+            addDummyUserBtn.style.display = data.authenticated ? 'block' : 'none';
+            signoutBtnSidebar.style.display = data.authenticated ? 'block' : 'none';
         }
     }
 
@@ -416,6 +458,29 @@
     }
     
     /**
+     * Clear the family overview content
+     */
+    function clearFamilyOverviewContent() {
+        const emailDisplay = document.getElementById('family-email-display');
+        const devicesCount = document.getElementById('devices-count');
+        const usersCount = document.getElementById('users-count');
+        const lastSync = document.getElementById('last-sync-timestamp');
+        
+        if (emailDisplay) {
+            emailDisplay.innerHTML = '<span class="email-text">No family data</span>';
+        }
+        if (devicesCount) {
+            devicesCount.textContent = '0';
+        }
+        if (usersCount) {
+            usersCount.textContent = '0';
+        }
+        if (lastSync) {
+            lastSync.textContent = 'Last sync: N/A';
+        }
+    }
+    
+    /**
      * Clear session
      */
     async function clearSession() {
@@ -434,6 +499,9 @@
                 const sessionData = { authenticated: false };
                 updateLoginStatusBanner(sessionData);
                 updateSessionOverview(sessionData);
+                
+                // Clear family overview content
+                clearFamilyOverviewContent();
                 
                 // Show success message
                 showAlert('Signed out successfully. Please sign in to continue.', 'success');
@@ -682,7 +750,7 @@
                                             <div class="device-model">${escapeHtml(device.model || 'Unknown')}</div>
                                         </div>
                                         <div class="device-actions">
-                                            ${device.id === currentDeviceId ? '<span style="color: #28a745; font-weight: 500;">(Current)</span>' : ''}
+                                            ${device.id === currentDeviceId ? '<span style="color: #28a745; font-weight: bold; margin-left: 8px;">(Current)</span>' : ''}
                                         </div>
                                     </div>
                                 `).join('') : '<div style="text-align: center; color: #6c757d; padding: 10px;">No devices assigned</div>'}
@@ -1491,72 +1559,80 @@
     }
     
     /**
-         * Load family overview data from API
-         */
-        async function loadFamilyOverview() {
-            try {
-                const response = await fetch('/api/dashboard/family-overview');
-                const data = await response.json();
-                
-                if (data.status === 'ok') {
-                    renderFamilyOverview(data);
-                } else {
-                    console.error('Failed to load family overview:', data.error);
-                }
-            } catch (error) {
-                console.error('Error loading family overview:', error);
-            }
+     * Load family overview data from API
+     */
+    async function loadFamilyOverview() {
+        // Check authentication first
+        if (!isAuthenticated) {
+            clearFamilyOverviewContent();
+            return;
         }
-    
-        /**
-         * Render the Family Overview card
-         * @param {Object} data - Family overview data
-         * @param {string} data.family_email - Family email address
-         * @param {number} data.devices_count - Number of devices in the family
-         * @param {number} data.users_count - Number of users in the family
-         * @param {string} data.last_sync - Last sync timestamp (ISO string)
-         */
-        function renderFamilyOverview(data) {
-            if (!data) {
-                console.error('renderFamilyOverview: No data provided');
-                return;
+        
+        try {
+            const response = await fetch('/api/dashboard/family-overview');
+            const data = await response.json();
+            
+            if (data.status === 'ok') {
+                renderFamilyOverview(data);
+            } else {
+                console.error('Failed to load family overview:', data.error);
+                clearFamilyOverviewContent();
             }
-    
-            // Update family email display with truncation
-            const emailDisplay = document.getElementById('family-email-display');
-            if (emailDisplay) {
-                const email = data.family_email || 'No family email';
-                const truncatedEmail = email.length > 40 ? email.substring(0, 37) + '...' : email;
-                emailDisplay.innerHTML = '<span class="email-text ellipsis" title="' + escapeHtml(email) + '">' + escapeHtml(truncatedEmail) + '</span>';
-            }
-    
-            // Update devices count
-            const devicesCount = document.getElementById('devices-count');
-            if (devicesCount) {
-                devicesCount.textContent = data.devices_count !== undefined ? data.devices_count : 0;
-            }
-    
-            // Update users count
-            const usersCount = document.getElementById('users-count');
-            if (usersCount) {
-                usersCount.textContent = data.users_count !== undefined ? data.users_count : 0;
-            }
-    
-            // Update last sync timestamp
-            const lastSync = document.getElementById('last-sync-timestamp');
-            if (lastSync && data.last_sync) {
-                const syncDate = new Date(data.last_sync);
-                const syncTime = syncDate.toLocaleString();
-                lastSync.textContent = 'Last sync: ' + syncTime;
-            }
+        } catch (error) {
+            console.error('Error loading family overview:', error);
+            clearFamilyOverviewContent();
         }
-    
+    }
+
+    /**
+     * Render the Family Overview card
+     * @param {Object} data - Family overview data
+     * @param {string} data.family_email - Family email address
+     * @param {number} data.devices_count - Number of devices in the family
+     * @param {number} data.users_count - Number of users in the family
+     * @param {string} data.last_sync - Last sync timestamp (ISO string)
+     */
+    function renderFamilyOverview(data) {
+        if (!data) {
+            console.error('renderFamilyOverview: No data provided');
+            return;
+        }
+
+        // Update family email display with truncation
+        const emailDisplay = document.getElementById('family-email-display');
+        if (emailDisplay) {
+            const email = data.family_email || 'No family email';
+            const truncatedEmail = email.length > 40 ? email.substring(0, 37) + '...' : email;
+            emailDisplay.innerHTML = '<span class="email-text ellipsis" title="' + escapeHtml(email) + '">' + escapeHtml(truncatedEmail) + '</span>';
+        }
+
+        // Update devices count
+        const devicesCount = document.getElementById('devices-count');
+        if (devicesCount) {
+            devicesCount.textContent = data.devices_count !== undefined ? data.devices_count : 0;
+        }
+
+        // Update users count
+        const usersCount = document.getElementById('users-count');
+        if (usersCount) {
+            usersCount.textContent = data.users_count !== undefined ? data.users_count : 0;
+        }
+
+        // Update last sync timestamp
+        const lastSync = document.getElementById('last-sync-timestamp');
+        if (lastSync && data.last_sync) {
+            const syncDate = new Date(data.last_sync);
+            const syncTime = syncDate.toLocaleString();
+            lastSync.textContent = 'Last sync: ' + syncTime;
+        }
+    }
+
     /**
      * Show device removal confirmation dialog
      * @param {string} deviceId - Device ID to remove
      * @param {string} deviceName - Device name for display
      */
-     async function confirmRemoveDevice(deviceId, deviceName) {
+    async function confirmRemoveDevice(deviceId, deviceName) {
         // Check if parent password hash is set before allowing removal
         if (!hasParentPasswordHash) {
             showAlert('Parent password hash is required. Please set it in the session settings first.', 'warning');
@@ -1631,6 +1707,8 @@
     window.updateAdminSectionVisibility = updateAdminSectionVisibility;
     window.renderFamilyOverview = renderFamilyOverview;
     window.loadFamilyOverview = loadFamilyOverview;
+    window.clearFamilyOverviewContent = clearFamilyOverviewContent;
+    window.refreshServerStatus = refreshServerStatus;
     window.toggleCollapsible = toggleCollapsible;
     window.renderUnifiedView = renderUnifiedView;
     window.refreshUnifiedView = refreshUnifiedView;
@@ -1656,6 +1734,8 @@
         loadDevices: loadDevices,
         loadConnectedDevices: loadConnectedDevices,
         loadFamilyOverview: loadFamilyOverview,
+        clearFamilyOverviewContent: clearFamilyOverviewContent,
+        refreshServerStatus: refreshServerStatus,
         refreshUsers: refreshUsers,
         refreshDevices: refreshDevices,
         refreshConnectedDevices: refreshConnectedDevices,
@@ -1723,6 +1803,43 @@
         
         if (!dashboardContainer && !statusIndicator) {
             return;
+        }
+        
+        // Get references to hamburger menu elements
+        const menuToggleBtn = document.getElementById('menu-toggle');
+        const sidebarCloseBtn = document.getElementById('sidebar-close');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        
+        // Register event listeners for hamburger menu
+        if (menuToggleBtn) {
+            menuToggleBtn.addEventListener('click', toggleMenu);
+        }
+        if (sidebarCloseBtn) {
+            sidebarCloseBtn.addEventListener('click', closeMenu);
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', closeMenu);
+        }
+        
+        // Register event listeners for sidebar action buttons
+        const addDummyUserBtn = document.getElementById('add-dummy-user-btn');
+        if (addDummyUserBtn) {
+            addDummyUserBtn.addEventListener('click', showAddUserModal);
+        }
+        
+        const addUserModalClose = document.getElementById('add-user-modal-close');
+        if (addUserModalClose) {
+            addUserModalClose.addEventListener('click', hideAddUserModal);
+        }
+        
+        const addUserSubmitBtn = document.getElementById('add-user-submit-btn');
+        if (addUserSubmitBtn) {
+            addUserSubmitBtn.addEventListener('click', submitAddUserForm);
+        }
+        
+        const signoutBtnSidebar = document.getElementById('signout-btn-sidebar');
+        if (signoutBtnSidebar) {
+            signoutBtnSidebar.addEventListener('click', clearSession);
         }
         
         // Check authentication status first and get session data

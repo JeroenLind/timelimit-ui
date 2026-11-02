@@ -173,13 +173,27 @@ class TestConfigMethods:
     
     def test_get_database_path(self):
         """Test get_database_path method."""
-        path = Config.get_database_path()
+        # Save original DATABASE_PATH
+        original_db_path = os.environ.get('DATABASE_PATH')
         
-        # Should end with dashboardV2.db
-        assert path.endswith('dashboardV2.db')
-        
-        # Should be an absolute path
-        assert os.path.isabs(path)
+        try:
+            # Remove DATABASE_PATH to test default behavior
+            if 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
+            
+            path = Config.get_database_path()
+            
+            # Should end with dashboardV2.db
+            assert path.endswith('dashboardV2.db')
+            
+            # Should be an absolute path
+            assert os.path.isabs(path)
+        finally:
+            # Restore original DATABASE_PATH
+            if original_db_path is not None:
+                os.environ['DATABASE_PATH'] = original_db_path
+            elif 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
     
     def test_get_server_url(self):
         """Test get_server_url method."""
@@ -312,23 +326,51 @@ class TestConfigCrossPlatform:
     
     def test_database_path_uses_os_path(self):
         """Test that database path uses os.path for cross-platform compatibility."""
-        # The get_database_path method should use os.path.join
-        path = Config.get_database_path()
+        # Save original DATABASE_PATH
+        original_db_path = os.environ.get('DATABASE_PATH')
         
-        # Should work on both Windows and Unix
-        assert isinstance(path, str)
-        
-        # Should contain the database filename
-        assert 'dashboardV2.db' in path
+        try:
+            # Remove DATABASE_PATH to test default behavior
+            if 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
+            
+            # The get_database_path method should use os.path.join
+            path = Config.get_database_path()
+            
+            # Should work on both Windows and Unix
+            assert isinstance(path, str)
+            
+            # Should contain the database filename
+            assert 'dashboardV2.db' in path
+        finally:
+            # Restore original DATABASE_PATH
+            if original_db_path is not None:
+                os.environ['DATABASE_PATH'] = original_db_path
+            elif 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
     
     def test_path_separators(self):
         """Test that path separators are handled correctly."""
-        # This test ensures the code doesn't hardcode Unix paths
-        path = Config.get_database_path()
+        # Save original DATABASE_PATH
+        original_db_path = os.environ.get('DATABASE_PATH')
         
-        # Should not contain hardcoded Unix paths
-        assert not path.startswith('/usr/')
-        assert not path.startswith('/home/')
+        try:
+            # Remove DATABASE_PATH to test default behavior
+            if 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
+            
+            # This test ensures the code doesn't hardcode Unix paths
+            path = Config.get_database_path()
+            
+            # Should not contain hardcoded Unix paths
+            assert not path.startswith('/usr/')
+            assert not path.startswith('/home/')
+        finally:
+            # Restore original DATABASE_PATH
+            if original_db_path is not None:
+                os.environ['DATABASE_PATH'] = original_db_path
+            elif 'DATABASE_PATH' in os.environ:
+                del os.environ['DATABASE_PATH']
 
 
 class TestPersistenceConfig:

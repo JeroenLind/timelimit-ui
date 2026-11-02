@@ -36,18 +36,19 @@
         align-items: center;
         gap: 10px;
         padding: 10px;
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.9);
         border-radius: 8px;
         margin-bottom: 15px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
     }
     
     .server-label {
-        color: #aaa;
+        color: #222;
         font-weight: 500;
     }
     
     .server-url {
-        color: #fff;
+        color: #222;
         font-family: monospace;
         font-size: 12px;
     }
@@ -90,6 +91,513 @@
     
     #status-content {
         color: #ccc;
+    }
+    
+        color: #222;
+        margin-bottom: 15px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    #status-content {
+        color: #ccc;
+    }
+    
+    .dashboard-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    
+    .dashboard-table th,
+    .dashboard-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .dashboard-table th {
+        background: rgba(102, 126, 234, 0.1);
+        font-weight: 600;
+        color: #222;
+    }
+    
+    .dashboard-table tr:hover {
+        background: rgba(102, 126, 234, 0.05);
+    }
+    
+    .btn-edit {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .btn-edit:hover {
+        background: rgba(102, 126, 234, 0.2);
+    }
+    
+    .btn-delete {
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        color: #f44336;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .btn-delete:hover {
+        background: rgba(244, 67, 54, 0.2);
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .modal-content {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+    
+    .sidebar-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #999;
+        padding: 0;
+        line-height: 1;
+    }
+    
+    .sidebar-close:hover {
+        color: #222;
+    }
+    
+    .offline-banner {
+        background: rgba(255, 152, 0, 0.1);
+        border: 1px solid rgba(255, 152, 0, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .offline-indicator {
+        font-size: 18px;
+    }
+    
+    .offline-message {
+        flex: 1;
+        color: #222;
+    }
+    
+    .retry-btn {
+        background: rgba(255, 152, 0, 0.2);
+        border: 1px solid rgba(255, 152, 0, 0.3);
+        border-radius: 6px;
+        padding: 8px 16px;
+        cursor: pointer;
+        color: #ff9800;
+    }
+    
+    .retry-btn:hover {
+        background: rgba(255, 152, 0, 0.3);
+    }
+    
+    .db-table-wrapper {
+        overflow-x: auto;
+    }
+    
+    .alert-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .alert {
+        padding: 12px 20px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 400px;
+    }
+    
+    .alert-success {
+        border-left: 4px solid #4caf50;
+    }
+    
+    .alert-error {
+        border-left: 4px solid #f44336;
+    }
+    
+    .alert-warning {
+        border-left: 4px solid #ff9800;
+    }
+    
+    .alert-info {
+        border-left: 4px solid #2196f3;
+    }
+    
+    .alert-close {
+        margin-left: auto;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        color: #999;
+    }
+    
+    .alert-close:hover {
+        color: #222;
+    }
+    
+    .btn-secondary {
+        background: rgba(96, 96, 96, 0.1);
+        border: 1px solid rgba(96, 96, 96, 0.3);
+        color: #666;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    
+    .btn-secondary:hover {
+        background: rgba(96, 96, 96, 0.2);
+    }
+    
+    .btn-primary {
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    
+    .btn-primary:hover {
+        background: rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-primary.loading {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+    
+    .refresh-btn {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .refresh-btn:hover {
+        background: rgba(102, 126, 234, 0.2);
+    }
+    
+    .form-group label {
+        font-weight: 500;
+        color: #222;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+    
+    .stat-badge {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 20px;
+        padding: 8px 12px;
+        text-align: center;
+    }
+    
+    .stat-badge .count {
+        display: block;
+        font-size: 24px;
+        font-weight: 600;
+        color: #222;
+    }
+    
+    .stat-badge .label {
+        display: block;
+        font-size: 11px;
+        color: #666;
+    }
+    
+    .family-overview-card {
+        text-align: center;
+    }
+    
+    .family-email {
+        margin: 15px 0;
+        font-size: 16px;
+        color: #222;
+    }
+    
+    .ellipsis {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .last-sync {
+        font-size: 12px;
+        color: #666;
+        margin-top: 10px;
+    }
+    
+    .admin-only {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .time-limit-rules-section {
+        margin-top: 20px;
+    }
+    
+    .time-limit-rules-section h2 {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+    
+    .time-limit-rules-section .refresh-btn {
+        margin-right: 10px;
+    }
+    
+    .time-limit-rules-section .add-rule-btn {
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .time-limit-rules-section .add-rule-btn:hover {
+        background: rgba(102, 126, 234, 0.3);
+    }
+    
+    .time-limit-rules-table th {
+        background: rgba(102, 126, 234, 0.1);
+        font-weight: 600;
+        color: #222;
+    }
+    
+    .time-limit-rules-table td {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .time-limit-rules-table tr:hover {
+        background: rgba(102, 126, 234, 0.05);
+    }
+    
+    .time-limit-rules-table .actions-cell {
+        white-space: nowrap;
+    }
+    
+    .time-limit-rules-table .action-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 8px;
+        margin-right: 4px;
+    }
+    
+    .time-limit-rules-table .edit-btn {
+        color: #667eea;
+    }
+    
+    .time-limit-rules-table .edit-btn:hover {
+        color: #4a55d6;
+    }
+    
+    .time-limit-rules-table .delete-btn {
+        color: #f44336;
+    }
+    
+    .time-limit-rules-table .delete-btn:hover {
+        color: #d32f2f;
+    }
+    
+    .rule-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .rule-modal-content {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .rule-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+    
+    .rule-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #999;
+        padding: 0;
+        line-height: 1;
+    }
+    
+    .rule-modal-close:hover {
+        color: #222;
+    }
+    
+    .rule-form-group label {
+        font-weight: 500;
+        color: #222;
+        display: block;
+        margin-bottom: 5px;
+    }
+    
+    .rule-form-group input,
+    .rule-form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+    }
+    
+    .rule-form-group input:focus,
+    .rule-form-group select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+    
+    .rule-days-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+    }
+    
+    .rule-days-checkbox input {
+        width: auto;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .rule-form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+    
+    .rule-cancel-btn {
+        background: rgba(96, 96, 96, 0.1);
+        border: 1px solid rgba(96, 96, 96, 0.3);
+        color: #666;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    
+    .rule-cancel-btn:hover {
+        background: rgba(96, 96, 96, 0.2);
+    }
+    
+    .rule-submit-btn {
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    
+    .rule-submit-btn:hover {
+        background: rgba(102, 126, 234, 0.3);
+    }
+    
+    .rule-submit-btn.loading {
+        opacity: 0.7;
+        cursor: not-allowed;
     }
     
     .content h2 {
@@ -418,31 +926,6 @@
         color: #fff;
     }
     
-    /* Refresh button */
-    .refresh-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        color: #fff;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-size: 14px;
-    }
-    
-    .refresh-btn:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateY(-1px);
-    }
-    
-    .refresh-btn.loading {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-    
     /* Delete button */
     .delete-btn {
         background: rgba(244, 67, 54, 0.2);
@@ -752,7 +1235,7 @@
 
 {% block content %}
 <!-- Hamburger Menu Button -->
-<button id="menu-toggle" class="menu-toggle" aria-label="Open menu" aria-expanded="false">
+<button id="menu-toggle" type="button" class="menu-toggle" aria-label="Open menu" aria-expanded="false">
     <span class="bar" aria-hidden="true"></span>
     <span class="bar" aria-hidden="true"></span>
     <span class="bar" aria-hidden="true"></span>
@@ -774,7 +1257,10 @@
         </ul>
         <h3>Actions</h3>
         <ul>
-            <li><button id="sync-now-btn" role="menuitem">Sync Now</button></li>
+            <li><button id="sync-now-btn" class="sidebar-action-link" role="menuitem">Sync Now</button></li>
+            <li><a href="/login-as-parent" id="login-sidebar-link" class="sidebar-action-link" role="menuitem">Sign In</a></li>
+            <li><a href="/create-family" id="create-family-sidebar-link" class="sidebar-action-link" role="menuitem">Create Family</a></li>
+            <li><button id="add-dummy-user-btn" class="sidebar-action-link" role="menuitem">Add Dummy User</button></li>
             <li><button id="signout-btn-sidebar" role="menuitem">Sign Out</button></li>
         </ul>
     </div>
@@ -782,6 +1268,200 @@
 
 <!-- Sidebar Overlay -->
 <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
+
+<!-- Add Dummy User Modal -->
+<div id="add-user-modal" class="modal">
+    <div class="modal-content" style="
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 400px;
+        margin: 0 auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    ">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="add-user-modal-title" style="color: #222; margin: 0; font-size: 18px;">Add Dummy User</h3>
+            <button id="add-user-modal-close" class="sidebar-close" aria-label="Close modal" style="
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                width: 30px;
+                height: 30px;
+            ">&times;</button>
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="add-user-name" style="display: block; color: #666; font-size: 13px; margin-bottom: 8px;">User Name</label>
+            <input type="text" id="add-user-name" name="name" placeholder="Enter user name" style="
+                width: 100%;
+                padding: 12px 14px;
+                font-size: 14px;
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                background: #fff;
+                color: #212529;
+            ">
+            <div id="add-user-name-error" style="display: none; color: #ff4444; font-size: 12px; margin-top: 6px;"></div>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="add-user-cancel-btn" class="btn-secondary" style="
+                padding: 10px 16px;
+                background: #e9ecef;
+                border: 1px solid #e9ecef;
+                border-radius: 6px;
+                cursor: pointer;
+                color: #495057;
+                font-size: 14px;
+            ">Cancel</button>
+            <button id="add-user-submit-btn" class="btn-primary" style="
+                padding: 10px 16px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 600;
+            ">Add User</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal Overlay -->
+<div id="add-user-modal-overlay" class="modal-overlay"></div>
+
+<!-- Rule Form Modal -->
+<div id="rule-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 500px;
+        margin: 0 auto;
+    ">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="rule-modal-title">Add Time Limit Rule</h3>
+            <button id="rule-modal-close" class="sidebar-close" aria-label="Close modal" onclick="hideRuleForm()">
+                ×
+            </button>
+        </div>
+        
+        <form id="rule-form">
+            <input type="hidden" id="rule-id-field">
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="rule-user" style="display: block; margin-bottom: 5px; color: #222; font-weight: 500;">User</label>
+                <select id="rule-user" name="userId" style="
+                    width: 100%;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    background: #fff;
+                "></select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="rule-category-name" style="display: block; margin-bottom: 5px; color: #222; font-weight: 500;">Category Name</label>
+                <input type="text" id="rule-category-name" name="categoryName" placeholder="Enter category name (e.g., Games, Social Media)" style="
+                    width: 100%;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    background: #fff;
+                ">
+            </div>
+            
+            <!-- Hidden field to store the resolved categoryId -->
+            <input type="hidden" id="rule-category-id" name="categoryId">
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #222; font-weight: 500;">Time Period</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="time" id="rule-start-time" name="startTime" style="
+                        flex: 1;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        background: #fff;
+                    ">
+                    <span style="align-self: center;">to</span>
+                    <input type="time" id="rule-end-time" name="endTime" style="
+                        flex: 1;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        background: #fff;
+                    ">
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; color: #222; font-weight: 500;">Days of Week</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-monday" name="days" value="1"> Mon
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-tuesday" name="days" value="2"> Tue
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-wednesday" name="days" value="4"> Wed
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-thursday" name="days" value="8"> Thu
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-friday" name="days" value="16"> Fri
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-saturday" name="days" value="32"> Sat
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="checkbox" id="rule-day-sunday" name="days" value="64"> Sun
+                                </label>
+                            </div>
+                        </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="rule-limit" style="display: block; margin-bottom: 5px; color: #222; font-weight: 500;">Time Limit (minutes)</label>
+                <input type="number" id="rule-limit" name="limitMinutes" min="0" value="120" style="
+                    width: 100%;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    background: #fff;
+                ">
+            </div>
+            
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button id="rule-cancel-btn" type="button" class="btn-secondary" onclick="hideRuleForm()">
+                    Cancel
+                </button>
+                <button id="rule-submit-btn" type="submit" class="btn-primary">
+                    Save Rule
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Overlay -->
+<div id="rule-modal-overlay" class="modal-overlay"></div>
+
+<!-- Server Offline Banner -->
+<div id="offline-banner" class="offline-banner" style="display: none;">
+    <span class="offline-indicator">⚠️</span>
+    <span class="offline-message">Server is offline. Dashboard is in read-only mode.</span>
+    <button id="retry-btn" class="retry-btn" onclick="dashboardV2.retryConnection()">Retry Connection</button>
+</div>
 
 <div class="status-section">
     <h2><span class="status-indicator status-warning" id="status-indicator"></span>Server Status</h2>
@@ -906,6 +1586,37 @@
 </div>
 
 <div class="dashboard-content">
+    <h2>Time Limit Rules</h2>
+    <div style="margin-bottom: 10px;">
+        <button class="refresh-btn" id="refresh-rules-btn" onclick="refreshTimeLimitRules()">
+            <span>🔄</span> Refresh Rules
+        </button>
+        <button class="refresh-btn" id="add-rule-btn" onclick="showRuleForm()">
+            <span>+</span> Add Rule
+        </button>
+    </div>
+    <div class="db-table-wrapper">
+        <table class="dashboard-table" id="time-limit-rules-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th>Time</th>
+                    <th>Days</th>
+                    <th>Limit</th>
+                    <th>Apps</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="time-limit-rules-body">
+                <tr><td colspan="8" style="text-align: center; color: #ccc;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="dashboard-content">
     <h2>Session Information</h2>
     
     <!-- Session Status Overview -->
@@ -926,92 +1637,92 @@
         </div>
         
         <!-- Detailed Session Fields -->
-        <div style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 15px;">
+        <div style="background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 15px; border: 1px solid rgba(0, 0, 0, 0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="color: #aaa;">Field</span>
-                <span style="color: #aaa;">Status</span>
+                <span style="color: #222;">Field</span>
+                <span style="color: #222;">Status</span>
             </div>
             
             <div id="session-fields-container">
                 <!-- Server URL -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.95); border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Server URL</span>
-                        <span id="field-server-url" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Server URL</span>
+                        <span id="field-server-url" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="server-url-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Not configured</div>
+                    <div id="server-url-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not configured</div>
                 </div>
                 
                 <!-- Device Auth Token -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.95); border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Device Auth Token</span>
-                        <span id="field-device-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Device Auth Token</span>
+                        <span id="field-device-token" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="device-token-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Not available</div>
+                    <div id="device-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
                 </div>
                 
                 <!-- Own Device ID -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.95); border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Own Device ID</span>
-                        <span id="field-device-id" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Own Device ID</span>
+                        <span id="field-device-id" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="device-id-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Not available</div>
+                    <div id="device-id-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
                 </div>
                 
                 <!-- Mail Auth Token -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.95); border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Mail Auth Token</span>
-                        <span id="field-mail-token" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Mail Auth Token</span>
+                        <span id="field-mail-token" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="mail-token-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Not available</div>
+                    <div id="mail-token-status" style="font-size: 11px; color: #666; margin-top: 4px;">Not available</div>
                 </div>
                 
                 <!-- Login Status -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.95); border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Login Status</span>
-                        <span id="field-login-status" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Login Status</span>
+                        <span id="field-login-status" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="login-status-message" style="font-size: 11px; color: #ccc; margin-top: 4px;">Checking login status...</div>
+                    <div id="login-status-message" style="font-size: 11px; color: #666; margin-top: 4px;">Checking login status...</div>
                 </div>
                 
                 <!-- Configured App Version -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.2); border-radius: 6px; border: 1px solid rgba(102, 126, 234, 0.5);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Dashboard App Version</span>
-                        <span id="field-app-version" style="color: #667eea; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Dashboard App Version</span>
+                        <span id="field-app-version" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="app-version-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Configured version for sync</div>
+                    <div id="app-version-status" style="font-size: 11px; color: #666; margin-top: 4px;">Configured version for sync</div>
                 </div>
                 
                 <!-- Parent Password Hash (for device removal) -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(244, 67, 54, 0.1); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(244, 67, 54, 0.2); border-radius: 6px; border: 1px solid rgba(244, 67, 54, 0.5);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Parent Password Hash</span>
-                        <span id="field-parent-password-hash" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Parent Password Hash</span>
+                        <span id="field-parent-password-hash" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="parent-password-hash-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Hash for device removal operations</div>
+                    <div id="parent-password-hash-status" style="font-size: 11px; color: #666; margin-top: 4px;">Hash for device removal operations</div>
                 </div>
                 
                 <!-- Signing Key (for device registration) -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(155, 89, 182, 0.1); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(155, 89, 182, 0.2); border-radius: 6px; border: 1px solid rgba(155, 89, 182, 0.5);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Signing Key</span>
-                        <span id="field-signing-key" style="color: #888; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Signing Key</span>
+                        <span id="field-signing-key" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="signing-key-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Curve25519 key for device registration</div>
+                    <div id="signing-key-status" style="font-size: 11px; color: #666; margin-top: 4px;">Curve25519 key for device registration</div>
                 </div>
                 
                 <!-- Client Level (for sync protocol) -->
-                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;">
+                <div class="server-info" style="padding: 10px; margin-bottom: 8px; background: rgba(102, 126, 234, 0.2); border-radius: 6px; border: 1px solid rgba(102, 126, 234, 0.5);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #ddd;">Client Level</span>
-                        <span id="field-client-level" style="color: #667eea; font-family: monospace; font-size: 12px;">-</span>
+                        <span style="color: #222;">Client Level</span>
+                        <span id="field-client-level" style="color: #222; font-family: monospace; font-size: 12px;">-</span>
                     </div>
-                    <div id="client-level-status" style="font-size: 11px; color: #ccc; margin-top: 4px;">Client version level for sync protocol</div>
+                    <div id="client-level-status" style="font-size: 11px; color: #666; margin-top: 4px;">Client version level for sync protocol</div>
                 </div>
             </div>
         </div>
@@ -1087,186 +1798,4 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/dashboardV2.js"></script>
-<script>
-    // Server status functions
-    function fetchSessionStatus() {
-        const serverUrlElement = document.getElementById('server-status-text');
-        const authStatusElement = document.getElementById('auth-status-text');
-        
-        fetch('/api/session/status', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.server_url && serverUrlElement) {
-                serverUrlElement.textContent = 'Server: ' + data.server_url;
-            }
-            if (authStatusElement) {
-                if (data.authenticated) {
-                    authStatusElement.textContent = 'Auth: Authenticated';
-                    authStatusElement.style.color = '#4caf50';
-                } else {
-                    authStatusElement.textContent = 'Auth: Not authenticated';
-                    authStatusElement.style.color = '#ff9800';
-                }
-            }
-            // Update the login status banner
-            if (typeof updateLoginStatusBanner === 'function') {
-                updateLoginStatusBanner(data);
-            }
-            // Update the detailed session overview
-            if (typeof updateSessionOverview === 'function') {
-                updateSessionOverview(data);
-            }
-        })
-        .catch(error => {
-            console.log('Could not fetch session status');
-        });
-    }
-    
-    function refreshServerStatus() {
-        const btn = document.getElementById('refresh-btn');
-        const icon = document.getElementById('refresh-icon');
-        const text = document.getElementById('refresh-text');
-        
-        btn.classList.add('loading');
-        icon.textContent = '⏳';
-        text.textContent = 'Syncing...';
-        
-        // Call the sync endpoint to pull users and devices from the server
-        fetch('/api/sync/pull', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'ok') {
-                // Reload all data after sync
-                Promise.all([
-                    loadUsers(),
-                    loadDevices(),
-                    loadConnectedDevices()
-                ]).then(() => {
-                    showAlert('Sync completed successfully', 'success');
-                });
-            } else {
-                showAlert('Sync failed: ' + (data.error || 'Unknown error'), 'error');
-            }
-        })
-        .catch(error => {
-            showAlert('Failed to sync: ' + error.message, 'error');
-        })
-        .finally(() => {
-            btn.classList.remove('loading');
-            icon.textContent = '🔄';
-            text.textContent = 'Refresh Status';
-        });
-    }
-    
-    function updateStatusDisplay(data) {
-        const statusContent = document.getElementById('status-content');
-        const statusIndicator = document.getElementById('status-indicator');
-        const errorMessage = document.getElementById('error-message');
-        
-        if (data.success) {
-            const serverTime = new Date(data.server_time).toLocaleTimeString();
-            statusContent.innerHTML = `
-                <div class="server-info">
-                    <span class="status-indicator status-success"></span>
-                    <span class="server-label">Server is reachable</span>
-                </div>
-                <div style="margin-top: 10px; color: #aaa; font-size: 14px;">
-                    Server time: <strong style="color: #00ff88;">${serverTime}</strong>
-                </div>
-            `;
-            errorMessage.style.display = 'none';
-        } else {
-            statusContent.innerHTML = `
-                <div class="server-info">
-                    <span class="status-indicator status-error"></span>
-                    <span class="server-label">Server unreachable</span>
-                </div>
-            `;
-            errorMessage.style.display = 'block';
-            errorMessage.textContent = data.error_message || 'Connection failed';
-        }
-        
-        // Update last update time
-        document.getElementById('last-update').textContent = 'Last update: ' + new Date().toLocaleTimeString();
-    }
-    
-    function showAlert(message, type) {
-        const container = document.getElementById('alert-container');
-        const alert = document.createElement('div');
-        alert.className = 'alert ' + type;
-        alert.innerHTML = `
-            ${message}
-            <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
-        `;
-        
-        container.appendChild(alert);
-        
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (alert.parentElement) {
-                alert.remove();
-            }
-        }, 5000);
-    }
-    
-    function loadHistoricalData() {
-        fetch('/api/timechecker/history', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            const historyBody = document.getElementById('history-body');
-            if (historyBody) {
-                if (data.checks && data.checks.length > 0) {
-                    historyBody.innerHTML = data.checks.map(check => {
-                        const timestamp = check.timestamp ? new Date(check.timestamp).toLocaleString() : 'N/A';
-                        const status = check.success ? 'Success' : 'Error';
-                        const serverTime = check.server_time ? new Date(check.server_time).toLocaleString() : 'N/A';
-                        const error = check.error_message || check.error_code || '-';
-                        return `<tr>
-                            <td>${timestamp}</td>
-                            <td>${status}</td>
-                            <td>${serverTime}</td>
-                            <td>${error}</td>
-                        </tr>`;
-                    }).join('');
-                } else {
-                    historyBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ccc;">No history data available</td></tr>';
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Failed to load historical data:', error);
-        });
-    }
-    
-    // Check for redirect message from login-as-parent
-    function checkRedirectMessage() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const message = urlParams.get('message');
-        
-        if (message === 'already_authenticated') {
-            showAlert('Already logged in - skipping login', 'warning');
-            // Clean up the URL by removing the message parameter
-            const newUrl = new URL(window.location);
-            newUrl.searchParams.delete('message');
-            window.history.replaceState({}, '', newUrl);
-        }
-    }
-    
-    // Automatically refresh server status and session info when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        checkRedirectMessage();
-        refreshServerStatus();
-        fetchSessionStatus();
-    });
-</script>
 {% endblock %}

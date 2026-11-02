@@ -774,8 +774,8 @@ class TestHamburgerMenuVisibility:
 
         # Check that the CSS file contains hamburger menu styles
         assert '.menu-toggle {' in css_content
-        assert 'width: 40px' in css_content or 'width: var(--spacing-md)' in css_content
-        assert 'height: 40px' in css_content or 'height: var(--size-lg)' in css_content
+        assert 'width: 40px' in css_content or 'width: 44px' in css_content or 'width: var(--spacing-md)' in css_content
+        assert 'height: 40px' in css_content or 'height: 44px' in css_content or 'height: var(--size-lg)' in css_content
 
     @pytest.mark.timeout(10)
     def test_hamburger_menu_bars_have_correct_styles(self, client):
@@ -786,8 +786,8 @@ class TestHamburgerMenuVisibility:
 
         # Check that the bar styles are defined in CSS
         assert '.menu-toggle .bar {' in css_content
-        assert 'width: 20px' in css_content or 'width: var(--size-sm)' in css_content
-        assert 'height: 2px' in css_content
+        assert 'width: 20px' in css_content or 'width: 22px' in css_content or 'width: var(--size-sm)' in css_content
+        assert 'height: 2px' in css_content or 'height: 2.5px' in css_content
 
     @pytest.mark.timeout(10)
     def test_sidebar_has_correct_positioning(self, client):
@@ -840,3 +840,323 @@ class TestHamburgerMenuVisibility:
         assert menu_toggle_style, "menu-toggle style not found"
         assert 'background' in menu_toggle_style, "menu-toggle should have a background color"
         assert 'border' in menu_toggle_style, "menu-toggle should have a border"
+
+
+class TestSidebarLoginLinks:
+    """Tests for sidebar login links (Sign In, Create Family)."""
+
+    @pytest.mark.timeout(10)
+    def test_login_sidebar_link_exists_in_html(self, client):
+        """Test that login-sidebar-link element exists in HTML."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="login-sidebar-link"' in html_content, "login-sidebar-link element not found in HTML"
+        assert 'href="/login-as-parent"' in html_content, "login-sidebar-link should link to /login-as-parent"
+        print("[LOG] login-sidebar-link element exists in HTML")
+
+    @pytest.mark.timeout(10)
+    def test_create_family_sidebar_link_exists_in_html(self, client):
+        """Test that create-family-sidebar-link element exists in HTML."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="create-family-sidebar-link"' in html_content, "create-family-sidebar-link element not found in HTML"
+        assert 'href="/create-family"' in html_content, "create-family-sidebar-link should link to /create-family"
+        print("[LOG] create-family-sidebar-link element exists in HTML")
+
+    @pytest.mark.timeout(10)
+    def test_sidebar_login_links_have_role_menuitem(self, client):
+        """Test that sidebar login links have role='menuitem'."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="login-sidebar-link"' in html_content
+        assert 'role="menuitem"' in html_content
+        print("[LOG] Sidebar login links have role='menuitem'")
+
+    @pytest.mark.timeout(10)
+    def test_sidebar_login_links_have_sidebar_action_link_class(self, client):
+        """Test that sidebar login links have sidebar-action-link class."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'class="sidebar-action-link"' in html_content, "sidebar-action-link class not found"
+        print("[LOG] Sidebar login links have sidebar-action-link class")
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_handles_sidebar_login_links(self, client):
+        """Test that updateSessionOverview function handles sidebar login links."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check for the new sidebar login link element lookups
+        assert "document.getElementById('login-sidebar-link')" in js_content, \
+            "login-sidebar-link element lookup not found in JavaScript"
+        assert "document.getElementById('create-family-sidebar-link')" in js_content, \
+            "create-family-sidebar-link element lookup not found in JavaScript"
+        print("[LOG] updateSessionOverview handles sidebar login links")
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_shows_login_links_when_not_authenticated(self, client):
+        """Test that updateSessionOverview shows login links when not authenticated."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check for the logic that shows login links when not authenticated
+        assert "loginSidebarLink.style.display = 'block'" in js_content, \
+            "Logic to show login-sidebar-link when not authenticated not found"
+        assert "createFamilySidebarLink.style.display = 'block'" in js_content, \
+            "Logic to show create-family-sidebar-link when not authenticated not found"
+        print("[LOG] updateSessionOverview shows login links when not authenticated")
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_hides_login_links_when_authenticated(self, client):
+        """Test that updateSessionOverview hides login links when authenticated."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check for the logic that hides login links when authenticated
+        assert "loginSidebarLink.style.display = 'none'" in js_content, \
+            "Logic to hide login-sidebar-link when authenticated not found"
+        assert "createFamilySidebarLink.style.display = 'none'" in js_content, \
+            "Logic to hide create-family-sidebar-link when authenticated not found"
+        print("[LOG] updateSessionOverview hides login links when authenticated")
+
+    @pytest.mark.timeout(10)
+    def test_sidebar_action_link_css_exists(self, client):
+        """Test that sidebar-action-link CSS class exists."""
+        css_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'css', 'dashboardV2.css'))
+        with open(css_path, 'r', encoding='utf-8') as f:
+            css_content = f.read()
+
+        assert '.sidebar-action-link' in css_content or '.sidebar-nav a,' in css_content, \
+            "sidebar-action-link CSS class or sidebar-nav a styles not found"
+        print("[LOG] sidebar-action-link CSS class exists")
+
+
+class TestAddDummyUserButton:
+    """Tests for the Add Dummy User button in the sidebar."""
+
+    @pytest.mark.timeout(10)
+    def test_add_dummy_user_button_exists_in_html(self, client):
+        """Test that add-dummy-user-btn element exists in HTML."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-dummy-user-btn"' in html_content, "add-dummy-user-btn element not found in HTML"
+        assert 'class="sidebar-action-link"' in html_content, "add-dummy-user-btn should have sidebar-action-link class"
+        print("[LOG] add-dummy-user-btn element exists in HTML")
+
+    @pytest.mark.timeout(10)
+    def test_add_dummy_user_button_has_role_menuitem(self, client):
+        """Test that add-dummy-user-btn has role='menuitem'."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-dummy-user-btn"' in html_content
+        assert 'role="menuitem"' in html_content
+        print("[LOG] add-dummy-user-btn has role='menuitem'")
+
+    @pytest.mark.timeout(10)
+    def test_add_dummy_user_button_in_actions_section(self, client):
+        """Test that add-dummy-user-btn is in the Actions section."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Check that the button is in the Actions section (after Create Family link)
+        assert 'id="create-family-sidebar-link"' in html_content
+        assert 'id="add-dummy-user-btn"' in html_content
+        # Verify order: Create Family -> Add Dummy User -> Sign Out
+        create_family_pos = html_content.find('id="create-family-sidebar-link"')
+        add_dummy_pos = html_content.find('id="add-dummy-user-btn"')
+        signout_pos = html_content.find('id="signout-btn-sidebar"')
+        assert create_family_pos < add_dummy_pos < signout_pos, \
+            "add-dummy-user-btn should be between create-family-sidebar-link and signout-btn-sidebar"
+        print("[LOG] add-dummy-user-btn is in the Actions section")
+
+
+class TestAddDummyUserModal:
+    """Tests for the Add Dummy User modal."""
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_exists_in_html(self, client):
+        """Test that add-user-modal element exists in HTML."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-modal"' in html_content, "add-user-modal element not found in HTML"
+        print("[LOG] add-user-modal element exists in HTML")
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_has_name_input(self, client):
+        """Test that add-user-modal has a name input field."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-name"' in html_content, "add-user-name input not found in modal"
+        print("[LOG] add-user-modal has name input field")
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_has_submit_button(self, client):
+        """Test that add-user-modal has a submit button."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-submit-btn"' in html_content, "add-user-submit-btn not found in modal"
+        print("[LOG] add-user-modal has submit button")
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_has_cancel_button(self, client):
+        """Test that add-user-modal has a cancel button."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-cancel-btn"' in html_content, "add-user-cancel-btn not found in modal"
+        print("[LOG] add-user-modal has cancel button")
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_has_close_button(self, client):
+        """Test that add-user-modal has a close button (X)."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-modal-close"' in html_content, "add-user-modal-close button not found in modal"
+        print("[LOG] add-user-modal has close button")
+
+    @pytest.mark.timeout(10)
+    def test_add_user_modal_overlay_exists(self, client):
+        """Test that add-user-modal-overlay element exists in HTML."""
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates', 'dashboardV2.html'))
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        assert 'id="add-user-modal-overlay"' in html_content, "add-user-modal-overlay element not found in HTML"
+        print("[LOG] add-user-modal-overlay element exists in HTML")
+
+
+class TestAddDummyUserJavaScript:
+    """Tests for the Add Dummy User JavaScript functions."""
+
+    @pytest.mark.timeout(10)
+    def test_showAddUserModal_function_exists(self, client):
+        """Test that showAddUserModal function exists in JavaScript."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert 'function showAddUserModal()' in js_content, "showAddUserModal function not found"
+        print("[LOG] showAddUserModal function exists in JavaScript")
+
+    @pytest.mark.timeout(10)
+    def test_hideAddUserModal_function_exists(self, client):
+        """Test that hideAddUserModal function exists in JavaScript."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert 'function hideAddUserModal()' in js_content, "hideAddUserModal function not found"
+        print("[LOG] hideAddUserModal function exists in JavaScript")
+
+    @pytest.mark.timeout(10)
+    def test_submitAddUserForm_function_exists(self, client):
+        """Test that submitAddUserForm function exists in JavaScript."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert 'async function submitAddUserForm()' in js_content, "submitAddUserForm function not found"
+        print("[LOG] submitAddUserForm function exists in JavaScript")
+
+    @pytest.mark.timeout(10)
+    def test_add_dummy_user_button_event_listener(self, client):
+        """Test that event listener is registered for add-dummy-user-btn."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert "getElementById('add-dummy-user-btn')" in js_content, \
+            "Event listener for add-dummy-user-btn not found"
+        assert "showAddUserModal()" in js_content, \
+            "showAddUserModal call not found in event listener"
+        print("[LOG] Event listener for add-dummy-user-btn is registered")
+
+    @pytest.mark.timeout(10)
+    def test_modal_close_event_listener(self, client):
+        """Test that event listener is registered for modal close button."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert "getElementById('add-user-modal-close')" in js_content, \
+            "Event listener for add-user-modal-close not found"
+        print("[LOG] Event listener for modal close button is registered")
+
+    @pytest.mark.timeout(10)
+    def test_modal_submit_button_event_listener(self, client):
+        """Test that event listener is registered for modal submit button."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert "getElementById('add-user-submit-btn')" in js_content, \
+            "Event listener for add-user-submit-btn not found"
+        assert "submitAddUserForm()" in js_content, \
+            "submitAddUserForm call not found in event listener"
+        print("[LOG] Event listener for modal submit button is registered")
+
+
+class TestAddDummyUserVisibility:
+    """Tests for the Add Dummy User button visibility in updateSessionOverview."""
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_handles_add_dummy_user_button(self, client):
+        """Test that updateSessionOverview function handles add-dummy-user-btn."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        assert "document.getElementById('add-dummy-user-btn')" in js_content, \
+            "add-dummy-user-btn element lookup not found in JavaScript"
+        print("[LOG] updateSessionOverview handles add-dummy-user-btn")
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_shows_add_dummy_user_when_authenticated(self, client):
+        """Test that updateSessionOverview shows add-dummy-user-btn when authenticated."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check for the logic that shows add-dummy-user-btn when authenticated
+        # The code uses a ternary operator: data.authenticated ? 'block' : 'none'
+        assert "addDummyUserBtn.style.display = data.authenticated ? 'block' : 'none'" in js_content, \
+            "Logic to show/hide add-dummy-user-btn based on authentication not found"
+        print("[LOG] updateSessionOverview shows add-dummy-user-btn when authenticated")
+
+    @pytest.mark.timeout(10)
+    def test_updateSessionOverview_hides_add_dummy_user_when_not_authenticated(self, client):
+        """Test that updateSessionOverview hides add-dummy-user-btn when not authenticated."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check for the logic that hides add-dummy-user-btn when not authenticated
+        # The code uses a ternary operator: data.authenticated ? 'block' : 'none'
+        assert "addDummyUserBtn.style.display = data.authenticated ? 'block' : 'none'" in js_content, \
+            "Logic to show/hide add-dummy-user-btn based on authentication not found"
+        print("[LOG] updateSessionOverview hides add-dummy-user-btn when not authenticated")

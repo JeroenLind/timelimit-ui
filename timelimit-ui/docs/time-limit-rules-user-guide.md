@@ -43,12 +43,13 @@ Time Limit Rules allow you to control when and how long children can use specifi
    **User Selection**
    - Select the child user from the dropdown list
    - The user must be a child account (not the parent)
-
-   **Category Selection**
-   - Select the app category the rule applies to
-   - Common categories include: Games, Social Media, Education, etc.
-   - You can select "All Categories" to apply the rule to all apps
-
+   
+   **Category Name**
+   - Enter a free-format category name (e.g., "Games", "Social Media", "Education")
+   - The category name can be any descriptive string
+   - If a category with the same name already exists, it will be reused
+   - If the category doesn't exist, it will be created automatically
+   
    **Time Limit**
    - Enter the duration in minutes (e.g., 60 for 1 hour, 120 for 2 hours)
    - Maximum recommended: 1440 minutes (24 hours)

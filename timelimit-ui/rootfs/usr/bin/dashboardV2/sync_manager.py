@@ -26,6 +26,7 @@ from database import (
     save_users, get_users_by_device_auth_token,
     save_sync_state, get_sync_state,
     save_categories, get_categories_by_device_auth_token,
+    create_default_category,
     save_connected_devices, get_connected_devices,
     update_device_app_version,
     get_next_sequence_number, increment_sequence_number,
@@ -135,6 +136,39 @@ class SyncManager:
                 )
                 client.close()
                 return False
+            
+            # Check if server returned empty data (no devices, no users)
+            # This can happen when the client's version hashes don't match the server's state
+            # In this case, retry with empty versions to force a full sync
+            server_data = response.data
+            has_devices = isinstance(server_data, dict) and 'devices' in server_data and 'data' in server_data.get('devices', {})
+            has_users = isinstance(server_data, dict) and 'users' in server_data and 'data' in server_data.get('users', {})
+            
+            if not has_devices and not has_users:
+                logger.debug(
+                    "Server returned empty data - retrying with empty versions for full sync",
+                    request_id=request_id,
+                    device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+                )
+                # Close the current client
+                client.close()
+                
+                # Create new client and retry with empty versions
+                client = AuthClient(base_url=server_url)
+                empty_status = self._build_client_data_status(None)
+                response = client.pull_status(device_auth_token, empty_status)
+                
+                if not response.success:
+                    logger.warning(
+                        "Sync failed on retry with empty versions",
+                        request_id=request_id,
+                        error_code=response.error_code,
+                        error_message=response.error_message
+                    )
+                    client.close()
+                    return False
+                
+                server_data = response.data
             
             # Push app version action to server if own_device_id is provided
             # This ensures the server knows the dashboard's app version
@@ -258,6 +292,21 @@ class SyncManager:
         """
         request_id = get_request_id()
         
+        # Log incoming server data for debugging
+        logger.debug(
+            "Server data received for sync",
+            request_id=request_id,
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            has_devices='devices' in server_data,
+            has_users='users' in server_data,
+            has_categories='categoryBase' in server_data,
+            has_pings='pings' in server_data,
+            devices_count=len(server_data.get('devices', {}).get('data', [])),
+            users_count=len(server_data.get('users', {}).get('data', [])),
+            categories_count=len(server_data.get('categoryBase', [])),
+            pings_count=len(server_data.get('pings', []))
+        )
+        
         # Store devices
         if 'devices' in server_data and 'data' in server_data['devices']:
             devices = server_data['devices']['data']
@@ -350,6 +399,18 @@ class SyncManager:
                 device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
                 count=len(categories)
             )
+        
+        # Create default category if none exist
+        # This handles the case where the server returns an empty categoryBase
+        # (e.g., when a family is first created)
+        existing_categories = get_categories_by_device_auth_token(self.db, device_auth_token)
+        if not existing_categories:
+            logger.info(
+                "No categories found after sync, creating default category",
+                request_id=request_id,
+                device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+            )
+            create_default_category(self.db, device_auth_token)
         
         # Store connected devices (from pings if available)
         # The 'pings' field contains ServerPing objects with deviceId, token, and type

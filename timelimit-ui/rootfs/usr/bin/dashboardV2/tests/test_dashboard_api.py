@@ -46,121 +46,6 @@ from database import get_database as db_get_database
 
 
 @pytest.fixture
-def test_app(request):
-    """Create a test Flask application."""
-    # Use a unique database path for each test
-    test_name = request.node.name
-    # Use absolute path to avoid any path resolution issues
-    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f'test_dashboard_{test_name}.db'))
-    
-    # Reset the database singleton first
-    reset_database()
-    
-    # Delete any leftover database file from a previous run to ensure clean state
-    if os.path.exists(db_path):
-        try:
-            os.unlink(db_path)
-        except PermissionError:
-            pass
-    
-    # Set environment variable to the full absolute path
-    os.environ['DATABASE_PATH'] = db_path
-    
-    # Configure app for testing
-    app.config['TESTING'] = True
-    app.config['DATABASE_PATH'] = db_path
-    
-    # Create a new database instance with the unique path
-    db = Database(db_path=db_path)
-    db.init_db()
-    
-    # Store the db instance in the app for later use
-    app.test_db = db
-    
-    # Update the global database singleton to use the test database
-    import database as db_module
-    db_module._db_instance = db
-    
-    # Create a temporary server selection store for isolation
-    import shutil
-    temp_dir = tempfile.mkdtemp()
-    temp_file = os.path.join(temp_dir, 'server_selection.json')
-    from persistence import FileServerSelectionStore
-    temp_store = FileServerSelectionStore(temp_file)
-    
-    # Patch the store in app.py and persistence.py
-    import app as app_module
-    import persistence as persistence_module
-    
-    original_app_store = getattr(app_module, 'persistence_store', None)
-    original_default_store = getattr(persistence_module, '_default_store', None)
-    
-    app_module.persistence_store = temp_store
-    persistence_module._default_store = temp_store
-    
-    # Mock persistence functions for non-restoration tests to ensure clean state
-    from unittest.mock import patch
-    is_restoration_test = request.cls and request.cls.__name__ == 'TestSessionRestoration'
-    
-    if not is_restoration_test:
-        with patch('app.get_persisted_device_auth_token', return_value=None), \
-             patch('app.get_persisted_own_device_id', return_value=None):
-            yield app
-    else:
-        yield app
-    
-    # Restore original stores
-    if original_app_store is not None:
-        app_module.persistence_store = original_app_store
-    if original_default_store is not None:
-        persistence_module._default_store = original_default_store
-        
-    # Cleanup temp directory
-    try:
-        shutil.rmtree(temp_dir)
-    except OSError:
-        pass
-        
-    # Cleanup: close database and remove file
-    db.close()
-    if os.path.exists(db_path):
-        try:
-            os.unlink(db_path)
-        except PermissionError:
-            # File might be locked by background threads, try again later
-            pass
-    # Restore original environment
-    if 'DATABASE_PATH' in os.environ:
-        del os.environ['DATABASE_PATH']
-    
-    # Reset database singleton after test
-    reset_database()
-
-
-@pytest.fixture
-def client(test_app, request):
-    """Create a test client."""
-    from unittest.mock import patch
-    
-    # Check if this is a session restoration test
-    is_restoration_test = request.cls and request.cls.__name__ == 'TestSessionRestoration'
-    
-    if not is_restoration_test:
-        # Patch persistence functions to prevent session restoration from previous tests
-        with patch('app.get_persisted_device_auth_token', return_value=None), \
-             patch('app.get_persisted_own_device_id', return_value=None):
-            test_client = test_app.test_client()
-            with test_client.session_transaction() as sess:
-                sess.clear()
-            yield test_client
-    else:
-        test_client = test_app.test_client()
-        with test_client.session_transaction() as sess:
-            sess.clear()
-        yield test_client
-
-
-@pytest.fixture
 def auth_session(client, request):
     """Create an authenticated session for testing."""
     # Generate unique values per test to avoid UNIQUE constraint conflicts
@@ -770,6 +655,85 @@ class TestApiDashboardCategories:
         assert data['status'] == 'ok'
         assert data['count'] == 2
         assert len(data['categories']) == 2
+
+
+class TestApiDashboardCreateDefaultCategory:
+    """Tests for /api/dashboard/categories/default endpoint."""
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_unauthenticated(self, client):
+        """Test creating default category without authentication."""
+        response = client.post('/api/dashboard/categories/default')
+        
+        assert response.status_code == 401
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'Not authenticated'
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_no_device_auth_token(self, client):
+        """Test creating default category without device auth token in session."""
+        with client.session_transaction() as sess:
+            sess['device_auth_token'] = None
+        
+        response = client.post('/api/dashboard/categories/default')
+        
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['status'] == 'error'
+        assert data['error'] == 'No device auth token'
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_creates_new_category(self, auth_session):
+        """Test creating default category when none exist."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+        
+        # Ensure no categories exist
+        db = auth_session.application.test_db
+        categories = get_categories_by_device_auth_token(db, device_auth_token)
+        assert len(categories) == 0
+        
+        response = auth_session.post('/api/dashboard/categories/default')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert 'category' in data
+        assert data['category']['title'] == 'All Apps'
+        
+        # Verify category was created in database
+        categories = get_categories_by_device_auth_token(db, device_auth_token)
+        assert len(categories) == 1
+        assert categories[0]['title'] == 'All Apps'
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_returns_existing(self, auth_session):
+        """Test that existing categories are returned when they exist."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+        
+        # Add existing categories
+        db = auth_session.application.test_db
+        save_categories(db, device_auth_token, [
+            {
+                'id': 'existing_cat',
+                'title': 'Existing Category',
+                'childId': 'user1',
+                'extraTime': 60
+            }
+        ])
+        
+        response = auth_session.post('/api/dashboard/categories/default')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        assert 'categories' in data
+        assert len(data['categories']) == 1
+        assert data['categories'][0]['title'] == 'Existing Category'
 
 
 class TestApiDashboardConnectedDevices:
@@ -1641,7 +1605,9 @@ class TestApiClearAll:
         
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'ok'
+        # last_sync should be None when no sync has occurred
+        assert 'last_sync' in data
+        assert data['last_sync'] is None
         
         # Verify session is cleared
         with auth_session.session_transaction() as sess:
@@ -1654,7 +1620,9 @@ class TestApiClearAll:
         
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'ok'
+        # last_sync should be None when no sync has occurred
+        assert 'last_sync' in data
+        assert data['last_sync'] is None
         
         # Verify tables_cleared contains expected tables
         assert 'tables_cleared' in data
@@ -2780,17 +2748,24 @@ class TestApiAddUserToFamily:
         assert data['error'] == 'No device auth token'
 
     @pytest.mark.timeout(10)
-    def test_add_user_no_parent_password_second_hash(self, client, auth_session):
-        """Test adding user without parent password hash in session."""
+    def test_add_user_parent_password_second_hash_fallback_to_database(self, client, auth_session):
+        """Test adding user falls back to database when hash not in session."""
         # Get device_auth_token from session
         with auth_session.session_transaction() as sess:
             device_auth_token = sess['device_auth_token']
-            # Ensure parent_password_second_hash is not set
+            # Ensure parent_password_second_hash is not in session
+            # but should be retrieved from database
             sess.pop('parent_password_second_hash', None)
-
-        response = auth_session.post('/api/dashboard/users/add',
-                                     json={'name': 'Test Child'})
-
+        
+        # Mock the database to return None for parent_password_second_hash
+        # to test the case where hash is not in session AND not in database
+        from unittest.mock import patch
+        from database import get_parent_password_hash
+        
+        with patch('app.get_parent_password_hash', return_value=None):
+            response = auth_session.post('/api/dashboard/users/add',
+                                         json={'name': 'Test Child'})
+        
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['status'] == 'error'
@@ -2880,6 +2855,7 @@ class TestApiAddUserToFamily:
         mock_client.create_add_device_token.assert_called_once()
         call_kwargs = mock_client.create_add_device_token.call_args[1]
         assert call_kwargs['device_auth_token'] == device_auth_token
+        assert call_kwargs['parent_id'] == parent_user_id
         assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
 
         mock_client.add_device.assert_called_once()
@@ -2891,7 +2867,9 @@ class TestApiAddUserToFamily:
 
         mock_client.pull_status.assert_called_once()
         pull_status_kwargs = mock_client.pull_status.call_args[1]
-        assert pull_status_kwargs['device_auth_token'] == 'child_device_auth_token'
+        # After fix: pull_status should be called with parent's device_auth_token
+        # so users are saved with the correct key for the dashboard to retrieve
+        assert pull_status_kwargs['device_auth_token'] == device_auth_token
 
     @pytest.mark.timeout(10)
     @patch('app.AuthClient')
@@ -3188,3 +3166,49 @@ class TestApiDashboardFamilyOverview:
         assert data['status'] == 'ok'
         # family_email should be None when no family exists
         assert data['family_email'] is None
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_returns_last_sync_after_sync(self, auth_session):
+        """Test that family overview returns last_sync timestamp after a sync."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+
+        db = auth_session.application.test_db
+
+        # Save sync state to simulate a completed sync
+        from database import save_sync_state
+        save_sync_state(db, device_auth_token, 'device_v1', 'user_v1')
+
+        response = auth_session.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # last_sync should be an ISO string after sync
+        assert 'last_sync' in data
+        assert data['last_sync'] is not None
+        # Verify it's a valid ISO string
+        from datetime import datetime
+        parsed_date = datetime.fromisoformat(data['last_sync'].replace('Z', '+00:00'))
+        assert parsed_date is not None
+
+    @pytest.mark.timeout(10)
+    def test_family_overview_returns_none_last_sync_when_no_sync(self, auth_session):
+        """Test that family overview returns None for last_sync when no sync has occurred."""
+        # Get device_auth_token from session
+        with auth_session.session_transaction() as sess:
+            device_auth_token = sess['device_auth_token']
+
+        db = auth_session.application.test_db
+
+        # Do NOT save sync state - simulate no sync yet
+
+        response = auth_session.get('/api/dashboard/family-overview')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['status'] == 'ok'
+        # last_sync should be None when no sync has occurred
+        assert 'last_sync' in data
+        assert data['last_sync'] is None

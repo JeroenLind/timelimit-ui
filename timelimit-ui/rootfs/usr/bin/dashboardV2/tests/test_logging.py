@@ -669,6 +669,33 @@ class TestStartupLogRotation:
                 assert len(log_files) <= 5, "Old log files should be cleaned up to respect MAX_LOG_FILES"
 
 
+class TestTestLogDirectory:
+    """Tests for test-specific log directory configuration."""
+
+    def test_test_logs_directory_exists(self):
+        """Verify the test logs directory exists."""
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        log_dir = os.path.join(tests_dir, 'logs')
+        assert os.path.exists(log_dir), f"Test logs directory should exist at {log_dir}"
+
+    def test_test_log_paths_are_set_by_pytest_configure(self):
+        """Verify that pytest_configure sets test-specific log paths."""
+        # This test verifies that the environment variables are set correctly
+        # when pytest_configure runs before test collection
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        expected_log_file = os.path.join(tests_dir, 'logs', 'dashboardV2.log')
+        expected_werkzeug_file = os.path.join(tests_dir, 'logs', 'werkzeug.log')
+        
+        # Check that the expected paths are set (or will be set by pytest_configure)
+        # Note: This test runs after pytest_configure has already set the env vars
+        assert os.environ.get('LOG_FILE_PATH') == expected_log_file, \
+            f"LOG_FILE_PATH should be {expected_log_file}"
+        assert os.environ.get('LOG_WERKZEUG_FILE_PATH') == expected_werkzeug_file, \
+            f"LOG_WERKZEUG_FILE_PATH should be {expected_werkzeug_file}"
+        assert os.environ.get('LOG_ROTATE_ON_START') == 'false', \
+            "LOG_ROTATE_ON_START should be 'false' for tests"
+
+
 class TestWerkzeugSeparation:
     """Tests for Werkzeug logger separation from structlog."""
 

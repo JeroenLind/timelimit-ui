@@ -518,6 +518,48 @@ class TestApplyServerDataStatus:
         assert 'device1' in device_ids
         assert 'device2' in device_ids
         assert 'device3' in device_ids
+    
+    def test_apply_server_data_status_creates_default_category_when_empty(self, test_db):
+        """Test that a default category is created when server returns empty categoryBase."""
+        manager = SyncManager(test_db)
+        
+        # Server returns empty categoryBase (common when family is first created)
+        server_data = {
+            'categoryBase': []
+        }
+        
+        manager._apply_server_data_status(server_data, 'device_test123')
+        
+        from database import get_categories_by_device_auth_token
+        categories = get_categories_by_device_auth_token(test_db, 'device_test123')
+        
+        # Should have created a default category
+        assert len(categories) == 1
+        assert categories[0]['title'] == 'All Apps'
+    
+    def test_apply_server_data_status_no_category_creation_when_categories_exist(self, test_db):
+        """Test that default category is not created when categories already exist."""
+        manager = SyncManager(test_db)
+        
+        # Server returns empty categoryBase but categories already exist
+        server_data = {
+            'categoryBase': []
+        }
+        
+        # Pre-create a category
+        from database import save_categories
+        save_categories(test_db, 'device_test123', [
+            {'id': 'existing_cat', 'title': 'Existing Category'}
+        ])
+        
+        manager._apply_server_data_status(server_data, 'device_test123')
+        
+        from database import get_categories_by_device_auth_token
+        categories = get_categories_by_device_auth_token(test_db, 'device_test123')
+        
+        # Should still have only the existing category
+        assert len(categories) == 1
+        assert categories[0]['id'] == 'existing_cat'
 
 
 class TestUpdateSyncState:
@@ -823,6 +865,77 @@ class TestDoSync:
         assert device['highest_app_version'] == str(Config().APP_VERSION)  # '226'
         assert device['platform_type'] == 'dashboard'
         assert device['platform_level'] == 1
+
+    @pytest.mark.timeout(10)
+    @patch('sync_manager.AuthClient')
+    def test_do_sync_retries_on_empty_response(self, mock_client_class, test_db):
+        """Test that sync retries with empty versions when server returns empty data.
+        
+        This tests the fix for the issue where the first sync at startup would fail
+        because the sync_state had stale version hashes. When the server returns
+        empty data (no devices, no users), the client should retry with empty
+        versions to force a full sync.
+        
+        This matches the Android app's behavior documented in context_android_app.md:
+        "If 'data' is null, the client must immediately call pullChanges with an
+        empty ClientDataStatus to get the initial state."
+        """
+        # Mock the auth client
+        mock_client = Mock()
+        
+        # First call returns empty data (simulating stale sync state)
+        mock_empty_response = Mock()
+        mock_empty_response.success = True
+        mock_empty_response.data = {
+            'fullVersion': 1791572185980,
+            'apiLevel': 8,
+            'dh': {'k': 'test_key', 'v': 'test_version'},
+            'u2f': {'v': 'JiPX', 'd': []}
+            # No 'devices' or 'users' fields - empty response
+        }
+        
+        # Second call returns full data (after retry with empty versions)
+        mock_full_response = Mock()
+        mock_full_response.success = True
+        mock_full_response.data = {
+            'devices': {
+                'version': 'new_version',
+                'data': [
+                    {'deviceId': 'device1', 'name': 'Phone', 'model': 'Pixel 7'}
+                ]
+            },
+            'users': {
+                'version': 'new_version',
+                'data': [
+                    {'id': 'user1', 'name': 'Parent', 'type': 'parent', 'mail': 'parent@example.com'}
+                ]
+            },
+            'categoryBase': [],
+            'pings': [
+                {'deviceId': 'device1', 'token': 'token1', 'type': 'parent'}
+            ]
+        }
+        
+        # Set up the mock to return empty first, then full data
+        mock_client.pull_status.side_effect = [mock_empty_response, mock_full_response]
+        mock_client_class.return_value = mock_client
+        
+        manager = SyncManager(test_db)
+        result = manager.do_sync('device_token_123', 'http://localhost:8080')
+        
+        # Verify sync succeeded
+        assert result is True
+        
+        # Verify pull_status was called twice (initial + retry)
+        assert mock_client.pull_status.call_count == 2
+        
+        # Verify data was saved
+        users = get_users_by_device_auth_token(test_db, 'device_token_123')
+        assert len(users) == 1
+        # Verify device was saved (check via connected devices)
+        connected = get_connected_devices(test_db, 'device_token_123')
+        assert len(connected) == 1
+        assert connected[0]['device_id'] == 'device1'
 
 
 class TestBuildUpdateDeviceStatusAction:

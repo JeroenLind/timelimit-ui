@@ -13,9 +13,44 @@ from flask import Flask
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# CRITICAL: Set environment variables BEFORE any imports that trigger setup_structlog()
+# This must be done at module level, before any test files are loaded
+tests_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(tests_dir, 'logs')
+
+# Ensure the logs directory exists
+os.makedirs(log_dir, exist_ok=True)
+
+# Set environment variables for test logging
+os.environ['LOG_FILE_PATH'] = os.path.join(log_dir, 'dashboardV2.log')
+os.environ['LOG_WERKZEUG_FILE_PATH'] = os.path.join(log_dir, 'werkzeug.log')
+os.environ['LOG_ROTATE_ON_START'] = 'false'  # Use fixed filename for tests
+os.environ['LOG_LEVEL'] = 'INFO'  # Default log level for tests
+
+# Set DATABASE_PATH to a test database BEFORE any imports
+# This ensures the real dashboardV2.db is never used during tests
+os.environ['DATABASE_PATH'] = os.path.join(tests_dir, 'test_isolation.db')
+
 # Skip port check during testing to allow module import
 os.environ['SKIP_PORT_CHECK'] = 'true'
 
+
+def pytest_configure(config):
+    """Configure test environment before any imports or collection.
+    
+    This hook runs before any test modules are imported, allowing us to
+    set environment variables that affect logging configuration before
+    the app module is loaded.
+    
+    IMPORTANT: DATABASE_PATH must be set BEFORE any imports to ensure
+    the real database is never used during test collection or import.
+    """
+    # Environment variables are already set at module level above
+    # This hook is kept for potential future use and for pytest to call
+    pass
+
+
+# Import app and other modules after environment variables are set
 from app import app as flask_app
 from config import Config
 from database import Database, reset_database, create_family, store_auth_token
@@ -191,6 +226,46 @@ def test_db():
     db.close()
     os.close(db_fd)
     os.unlink(db_path)
+
+
+@pytest.fixture
+def test_database_factory(tmp_path):
+    """Factory fixture that provides isolated test databases.
+    
+    This fixture provides a factory function that creates new test databases
+    with unique paths. Each database is isolated and automatically cleaned up
+    when the tmp_path fixture is cleaned up.
+    
+    Yields:
+        A function that creates a new test database when called.
+        Usage: db, db_path = test_database_factory('my_test_db')
+    
+    Example:
+        def test_something(test_database_factory):
+            db, db_path = test_database_factory('test_something')
+            # Use db for testing
+            # Database is automatically cleaned up
+    """
+    def _create_test_db(db_name='test_db'):
+        """Create a new test database with a unique name.
+        
+        Args:
+            db_name: Name for the database file (without .db extension).
+                     Defaults to 'test_db'.
+        
+        Returns:
+            Tuple of (Database instance, database path string).
+        """
+        db_path = str(tmp_path / f'{db_name}.db')
+        reset_database()
+        db = Database(db_path=db_path)
+        db.init_db()
+        return db, db_path
+    
+    yield _create_test_db
+    
+    # Cleanup: reset the singleton after all tests using this factory
+    reset_database()
 
 
 @pytest.fixture

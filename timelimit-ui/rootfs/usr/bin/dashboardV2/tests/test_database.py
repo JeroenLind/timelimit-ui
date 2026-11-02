@@ -46,6 +46,7 @@ from database import (
     get_sync_state,
     save_categories,
     get_categories_by_device_auth_token,
+    create_default_category,
     save_connected_devices,
     get_connected_devices,
     get_next_sequence_number,
@@ -3105,3 +3106,111 @@ class TestAddUserToFamily:
         
         # Should return one of the parent IDs
         assert parent_user_id in ['parent_1', 'parent_2']
+
+
+class TestCreateDefaultCategory:
+    """Tests for create_default_category function."""
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_success(self, test_db):
+        """Test that a default category is created successfully."""
+        device_auth_token = 'test_device_token'
+        
+        # Create default category
+        category = create_default_category(test_db, device_auth_token)
+        
+        # Verify category was created
+        assert category is not None
+        assert category['title'] == 'All Apps'
+        assert category['device_auth_token'] == device_auth_token
+        assert 'id' in category  # UUID is generated
+        
+        # Verify category exists in database
+        categories = get_categories_by_device_auth_token(test_db, device_auth_token)
+        assert len(categories) == 1
+        assert categories[0]['title'] == 'All Apps'
+        assert categories[0]['device_auth_token'] == device_auth_token
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_custom_title(self, test_db):
+        """Test that a default category can be created with custom title."""
+        device_auth_token = 'test_device_token'
+        
+        # Create default category with custom title
+        category = create_default_category(
+            test_db,
+            device_auth_token,
+            title='Custom Category'
+        )
+        
+        # Verify category was created with custom title
+        assert category is not None
+        assert category['title'] == 'Custom Category'
+        
+        # Verify category exists in database
+        categories = get_categories_by_device_auth_token(test_db, device_auth_token)
+        assert len(categories) == 1
+        assert categories[0]['title'] == 'Custom Category'
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_multiple_calls(self, test_db):
+        """Test that create_default_category creates a new category each time."""
+        device_auth_token = 'test_device_token'
+        
+        # Create default category first time
+        category1 = create_default_category(test_db, device_auth_token)
+        assert category1 is not None
+        
+        # Create another category - should create a new one with different ID
+        category2 = create_default_category(test_db, device_auth_token)
+        assert category2 is not None
+        
+        # Verify both categories exist (different UUIDs)
+        categories = get_categories_by_device_auth_token(test_db, device_auth_token)
+        assert len(categories) == 2
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_multiple_device_tokens(self, test_db):
+        """Test that create_default_category works correctly with multiple device auth tokens."""
+        device_auth_token_1 = 'device_token_1'
+        device_auth_token_2 = 'device_token_2'
+        
+        # Create default category for device 1
+        category1 = create_default_category(test_db, device_auth_token_1)
+        assert category1 is not None
+        assert category1['device_auth_token'] == device_auth_token_1
+        
+        # Create default category for device 2
+        category2 = create_default_category(test_db, device_auth_token_2)
+        assert category2 is not None
+        assert category2['device_auth_token'] == device_auth_token_2
+        
+        # Verify each device has its own category
+        categories_1 = get_categories_by_device_auth_token(test_db, device_auth_token_1)
+        categories_2 = get_categories_by_device_auth_token(test_db, device_auth_token_2)
+        
+        assert len(categories_1) == 1
+        assert len(categories_2) == 1
+        assert categories_1[0]['device_auth_token'] == device_auth_token_1
+        assert categories_2[0]['device_auth_token'] == device_auth_token_2
+    
+    @pytest.mark.timeout(10)
+    def test_create_default_category_with_existing_categories(self, test_db):
+        """Test that create_default_category doesn't interfere with existing categories."""
+        device_auth_token = 'test_device_token'
+        
+        # Create an existing category
+        save_categories(test_db, device_auth_token, [
+            {'id': 'existing_cat', 'title': 'Existing Category'}
+        ])
+        
+        # Create default category
+        category = create_default_category(test_db, device_auth_token)
+        assert category is not None
+        
+        # Verify both categories exist
+        categories = get_categories_by_device_auth_token(test_db, device_auth_token)
+        assert len(categories) == 2
+        
+        category_ids = [c['id'] for c in categories]
+        assert 'existing_cat' in category_ids

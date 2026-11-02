@@ -1201,6 +1201,96 @@ def log_time_limit_rule_deleted(
 
 
 # ============================================================================
+# Category Apps Audit Logging
+# ============================================================================
+
+def log_category_apps_added(
+    device_auth_token: str,
+    category_id: str,
+    app_packages: List[str],
+    user_id: Optional[str] = None,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log a category apps addition event.
+    
+    This function logs when apps are added to a category, including
+    all app package names for audit purposes.
+    
+    Args:
+        device_auth_token: The device auth token for the operation.
+        category_id: The category ID apps were added to.
+        app_packages: List of app package names that were added.
+        user_id: Optional user ID for the category.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'category_apps_added',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        category_id=category_id,
+        app_packages=app_packages,
+        app_count=len(app_packages),
+        user_id=user_id,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+def log_category_apps_removed(
+    device_auth_token: str,
+    category_id: str,
+    app_packages: List[str],
+    user_id: Optional[str] = None,
+    request_id: Optional[str] = None,
+    server_url: Optional[str] = None,
+    audit_log_path: Optional[str] = None
+) -> None:
+    """Log a category apps removal event.
+    
+    This function logs when apps are removed from a category, including
+    all app package names for audit purposes.
+    
+    Args:
+        device_auth_token: The device auth token for the operation.
+        category_id: The category ID apps were removed from.
+        app_packages: List of app package names that were removed.
+        user_id: Optional user ID for the category.
+        request_id: Optional request ID for correlation.
+        server_url: Optional server URL being contacted.
+        audit_log_path: Optional path to the audit log file.
+    """
+    logger = get_audit_logger(audit_log_path)
+    
+    # Get precise timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    # Build the audit log entry
+    logger.info(
+        'category_apps_removed',
+        timestamp=timestamp,
+        timestamp_unix_ms=int(time.time() * 1000),
+        device_auth_token=device_auth_token,
+        category_id=category_id,
+        app_packages=app_packages,
+        app_count=len(app_packages),
+        user_id=user_id,
+        request_id=request_id,
+        server_url=server_url
+    )
+
+
+# ============================================================================
 # Add User to Family Audit Logging
 # ============================================================================
 

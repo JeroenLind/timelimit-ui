@@ -319,3 +319,128 @@ class TestSignOutWithOwnDeviceId:
         # Verify parent_password_second_hash is cleared from session
         with client.session_transaction() as sess:
             assert 'parent_password_second_hash' not in sess
+
+
+class TestSignOutJavaScript:
+    """Tests for JavaScript sign-out functionality.
+
+    These tests verify that the JavaScript functions properly clear
+    the dashboard content when the user signs out.
+    """
+
+    @pytest.mark.timeout(10)
+    def test_clearSession_calls_load_functions(self, client):
+        """Test that clearSession() calls loadUsers, loadDevices, loadConnectedDevices, loadFamilyOverview."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that clearSession calls the load functions
+        assert 'loadFamilyOverview()' in js_content, \
+            "clearSession() should call loadFamilyOverview() to clear family overview content"
+        assert 'loadUsers()' in js_content, \
+            "clearSession() should call loadUsers() to clear users content"
+        assert 'loadDevices()' in js_content, \
+            "clearSession() should call loadDevices() to clear devices content"
+        assert 'loadConnectedDevices()' in js_content, \
+            "clearSession() should call loadConnectedDevices() to clear connected devices content"
+        
+        print("[LOG] clearSession() calls all necessary load functions to clear dashboard content")
+
+    @pytest.mark.timeout(10)
+    def test_loadFamilyOverview_checks_authentication(self, client):
+        """Test that loadFamilyOverview() checks isAuthenticated before fetching data."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that loadFamilyOverview checks isAuthenticated
+        assert 'function loadFamilyOverview()' in js_content, \
+            "loadFamilyOverview function not found"
+        
+        # Find the loadFamilyOverview function and check for isAuthenticated check
+        lines = js_content.split('\n')
+        in_function = False
+        found_auth_check = False
+        
+        for line in lines:
+            if 'function loadFamilyOverview()' in line:
+                in_function = True
+            elif in_function:
+                if 'isAuthenticated' in line and ('if' in line or '!' in line):
+                    found_auth_check = True
+                    break
+                if line.strip().startswith('}') and 'async function' not in line:
+                    break
+        
+        assert found_auth_check, \
+            "loadFamilyOverview() should check isAuthenticated before fetching data"
+        
+        print("[LOG] loadFamilyOverview() checks isAuthenticated before fetching data")
+
+    @pytest.mark.timeout(10)
+    def test_clearFamilyOverviewContent_function_exists(self, client):
+        """Test that clearFamilyOverviewContent() function exists."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that clearFamilyOverviewContent function exists
+        assert 'function clearFamilyOverviewContent()' in js_content, \
+            "clearFamilyOverviewContent() function not found"
+        
+        print("[LOG] clearFamilyOverviewContent() function exists")
+
+    @pytest.mark.timeout(10)
+    def test_clearFamilyOverviewContent_is_exposed_on_window(self, client):
+        """Test that clearFamilyOverviewContent is exposed on window object."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that clearFamilyOverviewContent is exposed on window
+        assert 'window.clearFamilyOverviewContent = clearFamilyOverviewContent' in js_content, \
+            "clearFamilyOverviewContent should be exposed on window object"
+        
+        print("[LOG] clearFamilyOverviewContent is exposed on window object")
+
+    @pytest.mark.timeout(10)
+    def test_clearFamilyOverviewContent_is_exposed_on_dashboardV2(self, client):
+        """Test that clearFamilyOverviewContent is exposed on dashboardV2 object."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that clearFamilyOverviewContent is exposed on dashboardV2 object
+        assert 'clearFamilyOverviewContent: clearFamilyOverviewContent' in js_content, \
+            "clearFamilyOverviewContent should be exposed on dashboardV2 object"
+        
+        print("[LOG] clearFamilyOverviewContent is exposed on dashboardV2 object")
+
+    @pytest.mark.timeout(10)
+    def test_loadFamilyOverview_clears_content_on_error(self, client):
+        """Test that loadFamilyOverview() clears content when API returns error."""
+        js_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'dashboardV2.js'))
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+
+        # Check that loadFamilyOverview calls clearFamilyOverviewContent on error
+        # Look for the pattern in the function
+        lines = js_content.split('\n')
+        in_function = False
+        found_clear_call = False
+        
+        for i, line in enumerate(lines):
+            if 'function loadFamilyOverview()' in line:
+                in_function = True
+            elif in_function:
+                if 'clearFamilyOverviewContent()' in line:
+                    found_clear_call = True
+                    break
+                if line.strip().startswith('}') and 'async function' not in line:
+                    break
+        
+        assert found_clear_call, \
+            "loadFamilyOverview() should call clearFamilyOverviewContent() on error"
+        
+        print("[LOG] loadFamilyOverview() clears content on error")

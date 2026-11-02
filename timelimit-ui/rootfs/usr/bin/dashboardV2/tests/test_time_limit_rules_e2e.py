@@ -39,62 +39,12 @@ from database import (
 
 
 @pytest.fixture
-def test_app(request):
-    """Create a test Flask application."""
-    # Use a unique database path for each test
-    test_name = request.node.name
-    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f'test_e2e_{test_name}.db'))
-    
-    # Set environment variable to the full absolute path
-    os.environ['DATABASE_PATH'] = db_path
-    
-    # Configure app for testing
-    app.config['TESTING'] = True
-    app.config['DATABASE_PATH'] = db_path
-    app.config['SECRET_KEY'] = 'test-secret-key-for-e2e-testing'
-    
-    # Create a new database instance with the unique path
-    from database import Database, reset_database
-    reset_database()
-    db = Database(db_path=db_path)
-    db.init_db()
-    
-    # Store the db instance in the app for later use
-    app.test_db = db
-    
-    # Update the global database singleton to use the test database
-    import database as db_module
-    db_module._db_instance = db
-    
-    yield app
-    
-    # Cleanup
-    db.close()
-    if os.path.exists(db_path):
-        try:
-            os.unlink(db_path)
-        except PermissionError:
-            pass
-    if 'DATABASE_PATH' in os.environ:
-        del os.environ['DATABASE_PATH']
-
-
-@pytest.fixture
-def client(test_app):
-    """Create a test client."""
-    from unittest.mock import patch
-    
-    with patch('app.get_persisted_device_auth_token', return_value=None), \
-         patch('app.get_persisted_own_device_id', return_value=None):
-        test_client = test_app.test_client()
-        with test_client.session_transaction() as sess:
-            sess.clear()
-        yield test_client
-
-
-@pytest.fixture
 def auth_session(client, request):
-    """Create an authenticated session for testing."""
+    """Create an authenticated session for testing.
+    
+    Returns a tuple of (client, device_auth_token, db) for convenience
+    in E2E tests that need direct database access.
+    """
     test_name = request.node.name
     unique_suffix = f"_{test_name}"
     

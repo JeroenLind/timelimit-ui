@@ -1110,7 +1110,9 @@ def sync_session_to_database() -> Dict[str, Any]:
                 )
     
     # Check if own_device_id needs to be synced
-    if own_device_id:
+    # Only sync own_device_id if device_auth_token is also present
+    # This ensures consistency: own_device_id is only valid when authenticated
+    if own_device_id and device_auth_token:
         try:
             from database import get_latest_own_device_id
             db = get_database()

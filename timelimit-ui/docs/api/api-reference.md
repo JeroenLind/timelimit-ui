@@ -63,6 +63,16 @@ Sign in to an existing family.
 }
 ```
 
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mailAuthToken` | string | Yes | Mail auth token from sign-in-by-mail-code |
+| `parentPasswordSecondHash` | string | No | Parent password second hash for device removal operations |
+| `deviceName` | string | No | Name for the parent's device |
+| `deviceModel` | string | No | Model of the parent's device |
+| `clientLevel` | integer | No | Client level/version (typically 7) |
+
 **Response**:
 ```json
 {
@@ -71,6 +81,13 @@ Sign in to an existing family.
     "ownDeviceId": "device_id"
 }
 ```
+
+**Session Behavior:**
+- On successful sign-in, `device_auth_token` and `own_device_id` are stored in the session
+- If `parentPasswordSecondHash` is provided, it is also stored in the session
+- The stored `parent_password_second_hash` is required for subsequent operations like adding users to the family
+
+**Note:** The `clientLevel` parameter is required by the TimeLimit server to properly identify the client making the request. The value `7` matches the Android app's `ClientDataStatus.CLIENT_LEVEL_VALUE`.
 
 ---
 
@@ -202,9 +219,26 @@ Add a child device to the family.
 {
     "registerToken": "register_token",
     "deviceName": "Device Name",
-    "deviceModel": "Device Model"
+    "childDevice": {
+        "model": "Device Model"
+    },
+    "clientLevel": 7
 }
 ```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `registerToken` | string | Yes | Token from create-add-device-token |
+| `deviceName` | string | Yes | Name for the child's device (defaults to "Unknown Device" if not provided) |
+| `childDevice` | object | Yes | Device info object containing `model` field (defaults to `{"model": "Unknown"}` if not provided) |
+| `clientLevel` | integer | Yes | Client level/version (defaults to 7 if not provided) |
+
+**Note:** All fields are required by the TimeLimit server. The client provides default values for optional fields:
+- `deviceName` defaults to "Unknown Device"
+- `childDevice.model` defaults to "Unknown"
+- `clientLevel` defaults to 7 (matches Android app's `ClientDataStatus.CLIENT_LEVEL_VALUE`)
 
 **Response**:
 ```json

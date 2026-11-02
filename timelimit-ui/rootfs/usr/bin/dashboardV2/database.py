@@ -21,6 +21,7 @@ family from device using deviceAuthToken.
 import os
 import sqlite3
 import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
@@ -253,6 +254,47 @@ class Database:
                 )
             ''')
             
+            # Create indexes for time_limit_rules table for performance optimization
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_time_limit_rules_user_id
+                ON time_limit_rules(user_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_time_limit_rules_category_id
+                ON time_limit_rules(category_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_time_limit_rules_device_auth_token
+                ON time_limit_rules(device_auth_token)
+            ''')
+            
+            # Create category_apps table - for storing app-to-category assignments
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS category_apps (
+                    category_id TEXT NOT NULL,
+                    device_auth_token TEXT NOT NULL,
+                    app_package TEXT NOT NULL,
+                    user_id TEXT,
+                    created_at INTEGER,
+                    PRIMARY KEY (category_id, app_package, device_auth_token),
+                    FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
+                )
+            ''')
+            
+            # Create indexes for category_apps table
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_category_apps_device_auth_token
+                ON category_apps(device_auth_token)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_category_apps_category_id
+                ON category_apps(category_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_category_apps_user_id
+                ON category_apps(user_id)
+            ''')
+            
             conn.commit()
             logger.info(
                 "Database initialized",
@@ -269,6 +311,7 @@ class Database:
             conn = self.get_connection()
             cursor = conn.cursor()
             
+            cursor.execute('DROP TABLE IF EXISTS category_apps')
             cursor.execute('DROP TABLE IF EXISTS time_limit_rules')
             cursor.execute('DROP TABLE IF EXISTS connected_devices')
             cursor.execute('DROP TABLE IF EXISTS categories')
@@ -496,6 +539,125 @@ class Database:
                 conn.commit()
                 logger.info(
                     "Migration completed: time_limit_rules table created",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            # Migration: Create indexes for time_limit_rules table
+            # Check if indexes exist and create them if not
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_time_limit_rules_user_id'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on time_limit_rules.user_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_time_limit_rules_user_id ON time_limit_rules(user_id)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on time_limit_rules.user_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_time_limit_rules_category_id'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on time_limit_rules.category_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_time_limit_rules_category_id ON time_limit_rules(category_id)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on time_limit_rules.category_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_time_limit_rules_device_auth_token'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on time_limit_rules.device_auth_token",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_time_limit_rules_device_auth_token ON time_limit_rules(device_auth_token)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on time_limit_rules.device_auth_token",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            # Migration: Create category_apps table if it doesn't exist
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='category_apps'")
+            if cursor.fetchone() is None:
+                logger.info(
+                    "Running migration: creating category_apps table",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('''
+                    CREATE TABLE category_apps (
+                        category_id TEXT NOT NULL,
+                        device_auth_token TEXT NOT NULL,
+                        app_package TEXT NOT NULL,
+                        user_id TEXT,
+                        created_at INTEGER,
+                        PRIMARY KEY (category_id, app_package, device_auth_token),
+                        FOREIGN KEY (device_auth_token) REFERENCES families(device_auth_token)
+                    )
+                ''')
+                conn.commit()
+                logger.info(
+                    "Migration completed: category_apps table created",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            # Migration: Create indexes for category_apps table
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_category_apps_device_auth_token'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on category_apps.device_auth_token",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_category_apps_device_auth_token ON category_apps(device_auth_token)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on category_apps.device_auth_token",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_category_apps_category_id'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on category_apps.category_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_category_apps_category_id ON category_apps(category_id)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on category_apps.category_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_category_apps_user_id'")
+            if not cursor.fetchone():
+                logger.info(
+                    "Running migration: creating index on category_apps.user_id",
+                    component="database",
+                    db_path=self.db_path
+                )
+                cursor.execute('CREATE INDEX idx_category_apps_user_id ON category_apps(user_id)')
+                conn.commit()
+                logger.info(
+                    "Migration completed: index created on category_apps.user_id",
                     component="database",
                     db_path=self.db_path
                 )
@@ -1319,6 +1481,11 @@ def save_users(
 ) -> None:
     """Save users from ServerDataStatus to the database.
     
+    This function preserves existing users that are not in the server response.
+    This is important because the server may only return changed users during
+    incremental syncs, and we don't want to lose users that were added locally
+    (e.g., via "Add Dummy User" feature).
+    
     Args:
         db: Database instance.
         device_auth_token: The device auth token.
@@ -1328,9 +1495,48 @@ def save_users(
         conn = db.get_connection()
         cursor = conn.cursor()
         
+        # Log incoming users data for debugging
+        logger.debug(
+            "save_users called with data",
+            component="database",
+            device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None,
+            users_data_count=len(users_data),
+            users_data=[{"id": u.get("id"), "name": u.get("name"), "type": u.get("type")} for u in users_data]
+        )
+        
+        # Get existing users before saving
+        cursor.execute('SELECT id, name, type FROM users WHERE device_auth_token = ?', (device_auth_token,))
+        existing_users = {row['id']: {"name": row['name'], "type": row['type']} for row in cursor.fetchall()}
+        logger.debug(
+            "Existing users before save",
+            component="database",
+            device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None,
+            existing_users_count=len(existing_users),
+            existing_users=existing_users
+        )
+        
+        # Get user IDs from server response
+        server_user_ids = {user.get('id') for user in users_data if user.get('id')}
+        
+        # Find users that exist locally but not in server response
+        # These should be preserved (not deleted)
+        preserved_user_ids = set(existing_users.keys()) - server_user_ids
+        
+        if preserved_user_ids:
+            logger.debug(
+                "Preserving users not in server response",
+                component="database",
+                device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None,
+                preserved_user_ids=list(preserved_user_ids)
+            )
+        
         current_time = int(datetime.now().timestamp() * 1000)
         
         for user in users_data:
+            user_id = user.get('id')
+            user_name = user.get('name')
+            user_type = user.get('type')
+            
             cursor.execute('''
                 INSERT OR REPLACE INTO users
                 (id, device_auth_token, name, password, second_password_salt, type, time_zone,
@@ -1355,15 +1561,119 @@ def save_users(
                 user.get('preBlockDuration', 0),
                 current_time
             ))
+            
+            logger.debug(
+                "User inserted/replaced",
+                component="database",
+                user_id=user_id,
+                user_name=user_name,
+                user_type=user_type,
+                was_existing=user_id in existing_users
+            )
+        
+        # Re-insert preserved users that were not in the server response
+        # This ensures locally-added users (e.g., via "Add Dummy User") are not lost during sync
+        for user_id in preserved_user_ids:
+            preserved_user = existing_users[user_id]
+            cursor.execute('''
+                INSERT OR REPLACE INTO users
+                (id, device_auth_token, name, password, second_password_salt, type, time_zone,
+                 disable_limits_until, mail, current_device, category_for_not_assigned_apps,
+                 relax_primary_device, flags, limit_login_category, pre_block_duration, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user_id,
+                device_auth_token,
+                preserved_user['name'],
+                None,  # password - keep existing
+                None,  # second_password_salt - keep existing
+                preserved_user['type'],
+                None,  # time_zone - keep existing
+                None,  # disable_limits_until - keep existing
+                None,  # mail - keep existing
+                None,  # current_device - keep existing
+                None,  # category_for_not_assigned_apps - keep existing
+                0,  # relax_primary_device - default
+                0,  # flags - default
+                None,  # limit_login_category - keep existing
+                0,  # pre_block_duration - default
+                current_time
+            ))
+            
+            logger.debug(
+                "Preserved user re-inserted",
+                component="database",
+                user_id=user_id,
+                user_name=preserved_user['name'],
+                user_type=preserved_user['type']
+            )
         
         conn.commit()
+        
+        # Log final user count
+        cursor.execute('SELECT COUNT(*) as count FROM users WHERE device_auth_token = ?', (device_auth_token,))
+        final_count = cursor.fetchone()['count']
         logger.info(
             "Users saved",
             component="database",
             db_path=db.db_path,
             table_name="users",
             device_auth_token=device_auth_token,
-            count=len(users_data)
+            count=len(users_data),
+            final_count=final_count,
+            existing_users_before=len(existing_users),
+            preserved_count=len(preserved_user_ids)
+        )
+
+
+def create_user(
+    db: Database,
+    user_id: str,
+    device_auth_token: str,
+    name: str,
+    user_type: str = 'child'
+) -> None:
+    """Create a new user record in the database.
+    
+    This is used when a user is added via the dashboard but the server
+    hasn't yet returned the user in the pull_status response.
+    
+    Args:
+        db: Database instance.
+        user_id: Unique user identifier (typically the device ID for child devices).
+        device_auth_token: The device auth token this user belongs to.
+        name: User's display name.
+        user_type: User type ('child' or 'parent'). Defaults to 'child'.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO users
+            (id, device_auth_token, name, password, second_password_salt, type, time_zone,
+             disable_limits_until, mail, current_device, category_for_not_assigned_apps,
+             relax_primary_device, flags, limit_login_category, pre_block_duration, last_updated)
+            VALUES (?, ?, ?, NULL, NULL, ?, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL, 0, ?)
+        ''', (
+            user_id,
+            device_auth_token,
+            name,
+            user_type,
+            current_time
+        ))
+        
+        conn.commit()
+        logger.info(
+            "User created",
+            component="database",
+            db_path=db.db_path,
+            table_name="users",
+            user_id=user_id,
+            name=name,
+            user_type=user_type
         )
 
 
@@ -1899,6 +2209,157 @@ def get_categories_by_device_auth_token(db: Database, device_auth_token: str) ->
         return [dict(row) for row in cursor.fetchall()]
 
 
+def create_default_category(
+    db: Database,
+    device_auth_token: str,
+    title: str = 'All Apps'
+) -> Optional[Dict[str, Any]]:
+    """Create a default category for a family if none exists.
+    
+    This is used when a family is first created and the server returns
+    an empty categoryBase array. The default category allows users to
+    create time limit rules.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token.
+        title: Optional category title (default: 'All Apps').
+        
+    Returns:
+        The created category record, or None if creation failed.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Generate a unique category ID using UUID
+        # This ensures the ID is globally unique across all families
+        category_id = str(uuid.uuid4())
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        # Create the default category
+        cursor.execute('''
+            INSERT INTO categories
+            (id, device_auth_token, title, sort_order, last_updated)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            category_id,
+            device_auth_token,
+            title,
+            0,  # sort_order
+            current_time
+        ))
+        
+        conn.commit()
+        
+        logger.info(
+            "Default category created",
+            component="database",
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            category_id=category_id,
+            title=title
+        )
+        
+        return {
+            'id': category_id,
+            'device_auth_token': device_auth_token,
+            'title': title,
+            'sort_order': 0,
+            'last_updated': current_time
+        }
+
+
+def create_category(
+    db: Database,
+    device_auth_token: str,
+    title: str,
+    child_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new category with the given title.
+    
+    This function creates a new category that can be referenced by time limit rules.
+    The category ID is generated as a UUID and the title is stored as a free-format string.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token.
+        title: The category title (free-format string).
+        child_id: Optional child ID for the category. If not provided, uses empty string.
+        
+    Returns:
+        The created category record with id, title, and other fields.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Generate a unique category ID using UUID
+        category_id = str(uuid.uuid4())
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        # Create the category
+        cursor.execute('''
+            INSERT INTO categories
+            (id, device_auth_token, child_id, title, sort_order, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            category_id,
+            device_auth_token,
+            child_id or '',
+            title,
+            0,  # sort_order
+            current_time
+        ))
+        
+        conn.commit()
+        
+        logger.info(
+            "Category created",
+            component="database",
+            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
+            category_id=category_id,
+            title=title
+        )
+        
+        return {
+            'id': category_id,
+            'device_auth_token': device_auth_token,
+            'child_id': child_id or '',
+            'title': title,
+            'sort_order': 0,
+            'last_updated': current_time
+        }
+
+
+def get_category_by_title(
+    db: Database,
+    device_auth_token: str,
+    title: str
+) -> Optional[Dict[str, Any]]:
+    """Get a category by its title for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token.
+        title: The category title to search for.
+        
+    Returns:
+        The category record if found, None otherwise.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT * FROM categories WHERE device_auth_token = ? AND title = ?',
+            (device_auth_token, title)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
 # ============================================================================
 # Connected Devices Operations
 # ============================================================================
@@ -2296,6 +2757,250 @@ def delete_time_limit_rule(
         conn.commit()
         
         return cursor.rowcount > 0
+
+
+# ============================================================================
+# Category Apps Operations
+# ============================================================================
+
+def save_category_app(
+    db: Database,
+    device_auth_token: str,
+    category_id: str,
+    app_package: str,
+    user_id: Optional[str] = None
+) -> None:
+    """Save a single app to a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Device auth token this assignment belongs to.
+        category_id: Category ID to add the app to.
+        app_package: App package name (e.g., com.example.app).
+        user_id: Optional user ID for the category.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO category_apps
+            (category_id, device_auth_token, app_package, user_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            category_id,
+            device_auth_token,
+            app_package,
+            user_id,
+            current_time
+        ))
+        
+        conn.commit()
+        logger.debug(
+            "Category app saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="category_apps",
+            category_id=category_id,
+            app_package=app_package
+        )
+
+
+def save_category_apps(
+    db: Database,
+    device_auth_token: str,
+    category_id: str,
+    app_packages: List[str],
+    user_id: Optional[str] = None
+) -> None:
+    """Save multiple apps to a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Device auth token this assignment belongs to.
+        category_id: Category ID to add the apps to.
+        app_packages: List of app package names.
+        user_id: Optional user ID for the category.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        current_time = int(datetime.now().timestamp() * 1000)
+        
+        for app_package in app_packages:
+            cursor.execute('''
+                INSERT OR REPLACE INTO category_apps
+                (category_id, device_auth_token, app_package, user_id, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                category_id,
+                device_auth_token,
+                app_package,
+                user_id,
+                current_time
+            ))
+        
+        conn.commit()
+        logger.debug(
+            "Category apps saved",
+            component="database",
+            db_path=db.db_path,
+            table_name="category_apps",
+            category_id=category_id,
+            app_count=len(app_packages)
+        )
+
+
+def get_category_apps(
+    db: Database,
+    device_auth_token: str,
+    category_id: str
+) -> List[Dict[str, Any]]:
+    """Get all apps assigned to a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        category_id: The category ID to look up.
+        
+    Returns:
+        List of category app records.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT * FROM category_apps WHERE device_auth_token = ? AND category_id = ?',
+            (device_auth_token, category_id)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_category_apps_by_device(
+    db: Database,
+    device_auth_token: str
+) -> Dict[str, List[str]]:
+    """Get all apps grouped by category for a device auth token.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: The device auth token to look up.
+        
+    Returns:
+        Dictionary mapping category_id to list of app package names.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'SELECT category_id, app_package FROM category_apps WHERE device_auth_token = ?',
+            (device_auth_token,)
+        )
+        
+        result: Dict[str, List[str]] = {}
+        for row in cursor.fetchall():
+            category_id = row['category_id']
+            app_package = row['app_package']
+            if category_id not in result:
+                result[category_id] = []
+            result[category_id].append(app_package)
+        
+        return result
+
+
+def remove_category_app(
+    db: Database,
+    device_auth_token: str,
+    category_id: str,
+    app_package: str
+) -> bool:
+    """Remove a single app from a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Device auth token this assignment belongs to.
+        category_id: Category ID to remove the app from.
+        app_package: App package name to remove.
+        
+    Returns:
+        True if deleted, False if not found.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'DELETE FROM category_apps WHERE device_auth_token = ? AND category_id = ? AND app_package = ?',
+            (device_auth_token, category_id, app_package)
+        )
+        conn.commit()
+        
+        return cursor.rowcount > 0
+
+
+def remove_category_apps(
+    db: Database,
+    device_auth_token: str,
+    category_id: str,
+    app_packages: List[str]
+) -> int:
+    """Remove multiple apps from a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Device auth token this assignment belongs to.
+        category_id: Category ID to remove the apps from.
+        app_packages: List of app package names to remove.
+        
+    Returns:
+        Number of apps removed.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'DELETE FROM category_apps WHERE device_auth_token = ? AND category_id = ? AND app_package IN ({})'.format(
+                ','.join('?' * len(app_packages))
+            ),
+            (device_auth_token, category_id) + tuple(app_packages)
+        )
+        conn.commit()
+        
+        return cursor.rowcount
+
+
+def delete_category_apps(
+    db: Database,
+    device_auth_token: str,
+    category_id: str
+) -> int:
+    """Delete all apps for a category.
+    
+    Args:
+        db: Database instance.
+        device_auth_token: Device auth token this assignment belongs to.
+        category_id: Category ID to delete all apps for.
+        
+    Returns:
+        Number of apps deleted.
+    """
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'DELETE FROM category_apps WHERE device_auth_token = ? AND category_id = ?',
+            (device_auth_token, category_id)
+        )
+        conn.commit()
+        
+        return cursor.rowcount
 
 
 def get_unified_view_data(

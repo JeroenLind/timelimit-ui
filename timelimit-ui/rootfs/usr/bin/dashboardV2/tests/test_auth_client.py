@@ -910,6 +910,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         response = client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -936,6 +937,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         response = client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -962,6 +964,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         response = client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -988,6 +991,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         response = client.create_add_device_token(
             device_auth_token='invalid_device_token',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -1014,6 +1018,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         response = client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='wrong_hash'
         )
         
@@ -1039,6 +1044,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -1070,6 +1076,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -1099,6 +1106,7 @@ class TestAuthClientChildDevice:
         client = AuthClient()
         client.create_add_device_token(
             device_auth_token='device_token_123',
+            parent_id='parent_user_123',
             parent_password_second_hash='$2b$12$hash2'
         )
         
@@ -1337,8 +1345,8 @@ class TestAuthClientChildDevice:
         assert request_data['registerToken'] == 'register_token_123'
         assert 'deviceName' in request_data
         assert request_data['deviceName'] == 'Child Device'
-        assert 'deviceModel' in request_data
-        assert request_data['deviceModel'] == 'Pixel 7'
+        assert 'childDevice' in request_data
+        assert request_data['childDevice'] == {'model': 'Pixel 7'}
     
     @pytest.mark.timeout(10)
     @patch('requests.Session')
@@ -2286,6 +2294,696 @@ class TestAuthClientSync:
         
         client = AuthClient()
         response = client.pull_status(device_auth_token='device_token_123')
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+
+
+class TestAuthClientCategoryApps:
+    """Tests for category apps sync methods."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_success(self, mock_session_class):
+        """Test successful add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is AddCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'AddCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_failure(self, mock_session_class):
+        """Test failed add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_uses_gzip(self, mock_session_class):
+        """Test that add_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_success(self, mock_session_class):
+        """Test successful remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is RemoveCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'RemoveCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_failure(self, mock_session_class):
+        """Test failed remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_uses_gzip(self, mock_session_class):
+        """Test that remove_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+
+
+class TestAuthClientCategoryApps:
+    """Tests for category apps sync methods."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_success(self, mock_session_class):
+        """Test successful add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is AddCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'AddCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_failure(self, mock_session_class):
+        """Test failed add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_uses_gzip(self, mock_session_class):
+        """Test that add_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_success(self, mock_session_class):
+        """Test successful remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is RemoveCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'RemoveCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_failure(self, mock_session_class):
+        """Test failed remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_uses_gzip(self, mock_session_class):
+        """Test that remove_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+
+
+class TestAuthClientCategoryApps:
+    """Tests for category apps sync methods."""
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_success(self, mock_session_class):
+        """Test successful add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is AddCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'AddCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_failure(self, mock_session_class):
+        """Test failed add_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_add_category_app_uses_gzip(self, mock_session_class):
+        """Test that add_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.add_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        # Verify POST was called with gzip compression
+        call_args = mock_session.post.call_args
+        assert 'Content-Encoding' in call_args.kwargs['headers']
+        assert call_args.kwargs['headers']['Content-Encoding'] == 'gzip'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_success(self, mock_session_class):
+        """Test successful remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is True
+        assert response.status_code == 200
+        assert response.data['shouldDoFullSync'] is False
+        
+        # Verify the POST was called with correct data
+        call_args = mock_session.post.call_args
+        assert call_args is not None
+        # Data is gzip-compressed, so we need to decompress it
+        import json
+        import gzip
+        request_data = call_args.kwargs['data']
+        if 'Content-Encoding' in call_args.kwargs.get('headers', {}):
+            decompressed = gzip.decompress(request_data)
+            action = json.loads(decompressed.decode('utf-8'))
+        else:
+            action = json.loads(request_data.decode('utf-8') if isinstance(request_data, bytes) else request_data)
+        # The action is wrapped in an 'actions' array
+        assert 'actions' in action
+        assert len(action['actions']) > 0
+        assert 'encodedAction' in action['actions'][0]
+        
+        # Verify the action type is RemoveCategoryAppAction
+        encoded_action = action['actions'][0]['encodedAction']
+        decoded_action = json.loads(encoded_action)
+        assert decoded_action['type'] == 'RemoveCategoryAppAction'
+        assert decoded_action['categoryId'] == 'cat_1'
+        assert decoded_action['app'] == 'com.example.app'
+        assert decoded_action['userId'] == 'user_1'
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_failure(self, mock_session_class):
+        """Test failed remove_category_app request."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'status': 'error',
+            'error': 'Unauthorized'
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
+        
+        assert response.success is False
+        assert response.status_code == 401
+    
+    @pytest.mark.timeout(10)
+    @patch('requests.Session')
+    def test_remove_category_app_uses_gzip(self, mock_session_class):
+        """Test that remove_category_app uses gzip compression."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'ok',
+            'shouldDoFullSync': False
+        }
+        mock_session.post.return_value = mock_response
+        mock_session_class.return_value = mock_session
+        
+        client = AuthClient()
+        response = client.remove_category_app(
+            device_auth_token='device_token_123',
+            category_id='cat_1',
+            app_package='com.example.app',
+            user_id='user_1',
+            sequence_number=1,
+            parent_password_second_hash='$2b$12$hash2'
+        )
         
         assert response.success is True
         # Verify POST was called with gzip compression
