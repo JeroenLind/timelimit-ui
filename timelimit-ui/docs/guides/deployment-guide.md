@@ -114,29 +114,39 @@ The add-on integrates with Home Assistant's:
 
 ### Installation
 
-1. Clone the repository:
+1. Clone the repository and go to the application directory (`app.py` and the
+   requirements files live in `dashboardV2`):
 ```bash
-git clone https://github.com/timelimit-ui/timelimit-ui.git
+git clone https://github.com/JeroenLind/timelimit-ui.git
 cd timelimit-ui
+git checkout claudeEnhancedVersion
+cd timelimit-ui/rootfs/usr/bin/dashboardV2
 ```
 
-2. Install dependencies:
+2. Install dependencies (on Windows use `py -3` instead of `python`):
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+# for running the tests as well:
+python -m pip install -r requirements-dev.txt
 ```
 
-3. Set environment variables:
+3. Set environment variables (optional):
 ```bash
 export FLASK_HOST=0.0.0.0
 export FLASK_PORT=8099
 export FLASK_DEBUG=false
 export LOG_LEVEL=info
 ```
+On Windows (PowerShell): `$env:FLASK_PORT = "8099"`.
 
 4. Run the application:
 ```bash
 python app.py
 ```
+
+The app creates its own runtime files next to `app.py` (SQLite database,
+`dashboard_signing_key.json`, `server_selection.json`, logs). These are listed in
+`.gitignore` and must not be committed.
 
 ### Running as a Service
 

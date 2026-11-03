@@ -1,0 +1,18 @@
+# Runtime dependencies for Dashboard V2.
+# Install and run from this directory (Windows: use "py -3"):
+#   py -3 -m pip install -r requirements.txt
+#   py -3 app.py
+#
+# Version bounds are lower bounds from what the code needs, with an upper bound
+# only where a major release is known to change the API (APScheduler 4 is a
+# rewrite; this code uses the 3.x BackgroundScheduler).
+# Verified with: Flask 3.1, Werkzeug 3.1, bcrypt 5.0, cryptography 50,
+# requests 2.34, structlog 26.1, APScheduler 3.11 on Python 3.13.
+
+flask>=3.0,<4
+werkzeug>=3.0,<4
+requests>=2.31
+bcrypt>=4.0,<6
+cryptography>=42
+structlog>=23.1
+apscheduler>=3.10,<4

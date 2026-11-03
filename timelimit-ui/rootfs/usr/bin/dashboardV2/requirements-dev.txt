@@ -1,0 +1,8 @@
+# Development and test dependencies (includes the runtime ones).
+#   py -3 -m pip install -r requirements-dev.txt
+#   py -3 -m pytest tests
+-r requirements.txt
+
+pytest>=8.0
+# tests/pytest.ini sets a per-test "timeout" option
+pytest-timeout>=2.3
