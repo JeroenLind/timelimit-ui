@@ -1,8 +1,13 @@
-# Log files
+# Log files (including rotated logs such as dashboardV2.log.1)
 *.log
+*.log.*
+logs/
 
 # Text files (generated documentation, build artifacts)
 *.txt
+# ...but keep dependency manifests
+!requirements.txt
+!requirements-*.txt
 
 # Python cache
 __pycache__/
@@ -38,3 +43,24 @@ $null
 
 # Database files
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# --- Sensitive / runtime data written by the app (never commit) ---
+# Dashboard signing key (private key, generated on first start)
+dashboard_signing_key.json
+# Selected server, auth token backup and UI storage (created at runtime)
+server_selection.json
+auth_token_backup.json
+timelimit_ui_storage.json
+timelimit_ui_storage.json.tmp
+# Family creation audit log (contains password hashes and auth tokens)
+KeyFamilyData.md
+
+# --- Local manual test payloads (contain test credentials/tokens/e-mail) ---
+/create_family_data.json
+/sign_in_data.json
+/test_*.json
