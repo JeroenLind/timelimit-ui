@@ -14,7 +14,7 @@
 ## Key Architecture
 - Client-server: TimeLimit UI ↔ TimeLimit Backend Server ↔ Android App / Devices
 - Sync protocol: Action-based CRDT with HMAC-SHA256 integrity signing
-- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp25619, HMAC-SHA512/SHA256
+- Crypto: bcrypt (cost 12), Curve25519, AES-GCM, ECDH secp256r1 (prime256v1), HMAC-SHA512/SHA256
 - WebSocket (Socket.IO) for real-time sync notifications
 - HTTP API with gzip compression, Content-Length auto-negotiation
 

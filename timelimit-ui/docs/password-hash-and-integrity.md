@@ -1,5 +1,7 @@
 # Password hashes and integrity checks
 
+> **Status 2026-11-03:** the integrity algorithm below is verified against the server (see `ServerAPI.md` section 5.4, including test vectors). The paths `web_server.py`/`state.js`/localStorage refer to the legacy dashboard, not Dashboard V2 (Flask `app.py`). The server also accepts `integrity: "device"` for a device that is signed in as a parent, which avoids needing the password (`ServerAPI.md` section 4.2).
+
 This document describes how the dashboard currently derives password hashes and integrity values for sync actions. Use this as the reference point if future changes break compatibility.
 
 ## Scope and current behavior
@@ -44,7 +46,7 @@ The dashboard stores the following object in localStorage under the key:
 Notes:
 
 - secondHash is the bcrypt hash string (example: $2a$12$...).
-- secondSalt is converted to standard base64 when the value is a bcrypt salt.
+- The legacy JS converted secondSalt to base64 for its own storage. On the wire the server expects the raw bcrypt salt string (`$2a$12$` + 22 characters); the HMAC key is the full secondHash string, never the salt.
 
 ## Integrity calculation (apiLevel >= 6)
 

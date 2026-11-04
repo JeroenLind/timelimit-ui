@@ -475,7 +475,7 @@ Device A (key holder)          Server          Device B (key requester)
 - ECDH with secp256r1 curve
 - Used for encrypting parent passwords during family creation
 - `DHHandshake.fromServerKey()`: generates own keypair, computes shared secret
-- `encrypt()`: AES-GCM with 16-byte key (first 32 bytes of shared secret), 12-byte IV, AAD for auth
+- `encrypt()`: AES-GCM with 16-byte key (first 16 bytes of the 32-byte shared secret; verified in the server source, see docs/ServerAPI.md section 8), 12-byte IV, AAD for auth
 - Output format: `base64(iv + encryptedData) + "." + base64(ownPublicKey) + "." + keyVersion`
 
 #### Password Hashing (`PasswordHashing.kt`)
@@ -845,7 +845,7 @@ Parent Device              TimeLimit Server           New Python Device
 - **Server Domain**: `api.timelimit.io`
 - **Backup Domain**: `api.timelimitapp.de`
 - **Certificate Pinning**: Production pins ISRG Root X1, X2, YE, YR (Let's Encrypt). Development has no pinning.
-- **Client Level**: `7` (current protocol version, sent as `clientLevel` in registration and sync requests)
+- **Client Level**: `7` (unverified: the Android fork we could read sends `6`; the server only gates features by level, see docs/ServerAPI.md; current protocol version, sent as `clientLevel` in registration and sync requests)
 
 ### 8.3 HTTP Request Format
 
