@@ -26,8 +26,28 @@ def strip_comments(body: str) -> str:
     return body
 
 
+def join_nested(body: str) -> str:
+    """Join multi-line inline object types (`items: Array<{ ... }>`) into one line."""
+    out, buf, depth = [], "", 0
+    for raw in body.splitlines():
+        line = raw.split("//", 1)[0].rstrip() if depth else raw
+        if depth == 0 and ("{" not in raw or raw.count("{") == raw.count("}")):
+            out.append(raw)
+            continue
+        buf = (buf + ("" if buf.rstrip().endswith("{") else ";") + " " + line.strip().rstrip(";,")) if buf else raw.rstrip()
+        depth = buf.count("{") - buf.count("}")
+        if depth <= 0:
+            out.append(re.sub(r"\s+", " ", buf))
+            buf, depth = "", 0
+    if buf:
+        out.append(re.sub(r"\s+", " ", buf))
+    text = "\n".join(out)
+    text = re.sub(r";(\s*;)+", ";", text)
+    return re.sub(r";\s*}", " }", text)
+
+
 def parse_fields(body: str):
-    body = strip_comments(body)
+    body = join_nested(strip_comments(body))
     fields = []
     for raw in body.splitlines():
         line = raw.strip()

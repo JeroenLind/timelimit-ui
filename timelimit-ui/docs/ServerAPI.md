@@ -12,8 +12,10 @@ This document is the reference for how Dashboard V2 talks to a TimeLimit server.
 | Server reference A | `eixel05/timelimit-server` @ `569e5ce` (2024-12-02), unmodified copy of upstream `timelimit-server`, `apiLevel` 7 |
 | Server reference B | `MichaelSp/timelimit-server` @ `fe90617` (2026-10-21), declares `codeberg.org/timelimit/timelimit-server#master` as its upstream (`upstream.json`), `apiLevel` 9. **Used as the primary reference**, because it is the newer protocol level (the dashboard already handles `pings`, which only exists there) |
 | A vs. B | Identical: routes, request schemas, password regexes, integrity algorithm, byte helpers. Different: `apiLevel` 7 vs 9, `pings` in `ServerDataStatus`, extra `clientLevel` gates (>=7, >=8), `type` optional in `can-do-purchase`, `e` (expiresAt) in time limit rules. Source layout and code style differ (refactor) |
-| Not verified | The exact version of the server you deploy; the hosted `api.timelimit.io`; the current official Android app (only forks up to 2023 were available, and those send `clientLevel` 6) |
-| Regenerating | The action reference (`docs/protocol/actions-reference.md`) is generated from the server sources: see [Action reference](#7-action-reference) |
+| Client reference C | `mpashka/timelimit-android` @ `824990a` (2026-09-21), app version 7.5.0 (code 227), `clientLevel` 8. A fork of the official Android app; it adds a website filter (`UPDATE_USER_URL_FILTER`, user field `urlFilter`) that the reference servers do not know. Used to cross-check this document, see [Section 11](#11-cross-check-against-the-android-client) |
+| Client reference D | `flov91/timelimit-android` @ `d4669b3` (2026-09-08; upstream state of early 2023 plus a local-CA change), `clientLevel` 6. Cross-checked the same way |
+| Not verified | The exact version of the server you deploy; the hosted `api.timelimit.io`; the current official Android app itself (only forks were reachable) |
+| Regenerating | The action reference (`docs/protocol/actions-reference.md`) is generated from the server sources, and the client comparison is a script too: see [Action reference](#7-action-reference) and [Section 11](#11-cross-check-against-the-android-client) |
 
 ## Table of Contents
 
@@ -27,8 +29,9 @@ This document is the reference for how Dashboard V2 talks to a TimeLimit server.
 8. [Crypto](#8-crypto)
 9. [Errors](#9-errors)
 10. [Known deviations of Dashboard V2](#10-known-deviations-of-dashboard-v2)
-11. [Dashboard internal endpoints](#dashboard-internal-endpoints)
-12. [Time limit rules API (dashboard internal)](#time-limit-rules-api-endpoints)
+11. [Cross-check against the Android client](#11-cross-check-against-the-android-client)
+12. [Dashboard internal endpoints](#dashboard-internal-endpoints)
+13. [Time limit rules API (dashboard internal)](#time-limit-rules-api-endpoints)
 
 ---
 
@@ -41,7 +44,7 @@ This document is the reference for how Dashboard V2 talks to a TimeLimit server.
 - **Credentials are in the request body**, never in headers. The server has no header-based authentication (only `/admin` uses HTTP Basic). Headers such as `Authorization: Bearer ...` or `X-Request-ID`, which the dashboard adds, are ignored.
 - **Requests are validated strictly**: every request body is checked against a JSON schema with `additionalProperties: false`. An unknown field, a missing required field or a wrong type gives `400 Bad Request`. Do not send "extra" fields.
 - `POST /sync/push-actions` accepts bodies up to 5120 kB. All other endpoints use the body-parser default limit.
-- The dashboard gzips `pull-status` requests; body-parser inflates compressed request bodies by default.
+- Request bodies may be gzip compressed (`Content-Encoding: gzip`); body-parser inflates them by default. The Android app gzips **every** request and, if a server answers `411 Length Required`, repeats it with an explicit `Content-Length`. The dashboard gzips `pull-status` only; plain JSON works everywhere.
 - Errors are returned with an HTTP status code and the **default Express error page (HTML)**, not JSON. See [Errors](#9-errors).
 
 ### Identifiers and formats
@@ -116,6 +119,8 @@ Sends a mail with a 3-word code. Source: `api/auth.ts`, `function/authentication
 { "mailAddressNotWhitelisted": true }
 { "mailServerBlacklisted": true }
 ```
+
+The Android client additionally understands `mailServerBlacklistedTemporarily` and `blockedForIntegrityReasons` (both booleans, treated as errors) and sends the headers `X-Client-Package` / `X-Client-Version` plus, on the hosted server, a TLS client certificate from Android key attestation ("device verification"). **None of this exists in the reference server sources**; it belongs to the hosted service or a newer server. A client should treat unknown `true` flags in this response as an error. When the server answers `400`, Android retries once without `deviceAuthToken` and without device verification.
 
 The two flag responses are **HTTP 200**, so the client must check which key is present. Errors: `400` (invalid body or unparsable mail address), `401` (`deviceAuthToken` unknown), `429` (rate limit: per address 2 per 5 minutes and 6 per day; server wide 100 per minute, 500 per hour, 1000 per day).
 
@@ -356,13 +361,13 @@ Source `function/sync/get-server-data-status/index.ts`. The server only sends da
 | >= 7 | `pings` (reference B only) |
 | >= 8 | behaviour of "release 7.5.0 and newer" (reference B only) |
 
-The dashboard currently sends 7 (`sync_manager.py`, `auth_client.py`). The dashboard does not implement the crypto features, so `devices2`/`krq`/`kr`/`dh`/`u2f` are received but ignored; that is harmless.
+The dashboard currently sends 7 (`sync_manager.py`, `auth_client.py`); the Android app 7.5.0 sends 8 (the fork `flov91` sends 6). Without level 8 the server only skips behaviour for "release 7.5.0 and newer". Android also falls back: if `create-family`, `sign-in-into-family` or `child/add-device` answers `400`, it repeats the request **without** `clientLevel` (for servers whose schema lacks the field). The dashboard does not implement the crypto features, so `devices2`/`krq`/`kr`/`dh`/`u2f` are received but ignored; that is harmless.
 
 #### Rule shape differs between pull and push
 
 | Direction | Fields |
 |---|---|
-| Pull (`rules[].rules[]`) | `id`, `extraTime`, `dayMask`, `maxTime`, `start`, `end`, `session`, `pause`, `perDay` |
+| Pull (`rules[].rules[]`) | `id`, `extraTime`, `dayMask`, `maxTime`, `start`, `end`, `session`, `pause`, `perDay`, and in reference B `e` (expiresAt, ms, omitted when unset; emitted by `get-server-data-status/category/rules.ts` although the TypeScript interface does not list it; Android reads it) |
 | Push `CREATE_TIMELIMIT_RULE` | `{rule: {ruleId, categoryId, time, days, extraTime, start?, end?, dur?, pause?, perDay?, e?}}`: the fields are nested in `rule` |
 | Push `UPDATE_TIMELIMIT_RULE` | **flat**, without `categoryId`: `ruleId`, `time`, `days`, `extraTime`, `start?`, `end?`, `dur?`, `pause?`, `perDay?`, `e?` |
 
@@ -404,6 +409,8 @@ Rules (source `function/sync/apply-actions/index.ts`):
 - Applied changes trigger `should sync` for the other devices of the family; they do **not** trigger one for the sending device.
 
 Sequence numbers: the dashboard must persist the next number per device and continue from it. The server's value is not exposed by any endpoint; if the dashboard loses it, actions with a too-low number are silently ignored (a higher number is always accepted).
+
+How the Android app behaves (the reference behaviour): it keeps a persistent counter that starts at 0 and is incremented for every action it creates (also for actions that are never uploaded successfully); it uploads **25 actions per request** (the server limit is 50); after each response it deletes the uploaded actions from its queue **whatever the outcome**; and on `shouldDoFullSync: true` it forgets all stored version ids, so the next pull returns everything. One sync round is: push all pending actions, then pull-status; if applying the pull created new actions, it repeats the round after 250 ms (at most twice).
 
 ### 5.4 Integrity of actions
 
@@ -504,7 +511,7 @@ Source `websocket/index.ts`. Socket.IO is attached to the same HTTP server on th
 | server -> client | `connected devices` | `string[]` of `deviceId`s of the family that currently have a socket open |
 | server -> client | `sign out` | The device was removed; drop the credentials |
 
-No authentication besides the token; an unknown token joins an empty room. Typical client behaviour: connect, `devicelogin`, pull once, then pull on every `should sync`. Fall back to polling when the socket is not connected.
+Android connects with the **websocket transport only** (no HTTP long polling) and uses the path `<path of the server URL>/socket.io`, so a server behind a path prefix such as `https://host/timelimit` is reached at `/timelimit/socket.io`. There is no authentication besides the token; an unknown token joins an empty room. Typical client behaviour: connect, `devicelogin`, pull once, then pull on every `should sync`. Fall back to polling when the socket is not connected.
 
 ---
 
@@ -513,6 +520,7 @@ No authentication besides the token; an unknown token joins an empty room. Typic
 There are 68 action types: 50 `parent`, 2 `child`, 16 `appLogic`. The complete wire format (type name, required/optional fields, field types) is generated from the server sources:
 
 - [`docs/protocol/actions-reference.md`](protocol/actions-reference.md): generated, do not edit by hand.
+- [`docs/protocol/compare_android_actions.py`](protocol/compare_android_actions.py): compares an Android client with this reference ([Section 11](#11-cross-check-against-the-android-client)).
 - [`docs/protocol/gen_actions.py`](protocol/gen_actions.py): the generator. Usage: `python3 -I gen_actions.py <path-to-timelimit-server>/src > actions-reference.md`. It only reads the server checkout.
 
 Things to know that the table cannot show:
@@ -576,6 +584,36 @@ Found by comparing the dashboard code with the server. These are bugs or risks i
 | D12 | tests | Tests run against a mock (FastAPI debug server) with different fields | Contract tests against the schemas in this document |
 
 Recommended order for the fixes: one `ActionBuilder` that produces the correct `parent`-type actions with `integrity: "device"`, then D1-D6, then D10/D11, then contract tests (D12).
+
+---
+
+## 11. Cross-check against the Android client
+
+Done 2026-11-04. Goal: confirm that this document, which was derived from the server, matches what a real client sends and expects. Clients used: C (`mpashka`, 7.5.0) and D (`flov91`, `clientLevel` 6); see [Verification status](#verification-status).
+
+| Area | Result |
+|------|--------|
+| REST endpoints and request fields | **Match.** Android calls exactly the routes in [Section 3](#3-endpoints) with the documented fields: `create-family` (`mailAuthToken`, `timeZone`, `parentName`, `deviceName`, `parentPassword{hash,secondHash,secondSalt}`, `parentDevice{model}`, `clientLevel`), `sign-in-into-family`, `child/add-device` (`registerToken`, `childDevice{model}`, `deviceName`), `create-add-device-token` (`parentId`), `remove-device` (`parentUserId`), `link-mail-address`, `create-identity-token`, `delete-account`, `update-primary-device`, `logout-at-primary-device`, `report-removed`, `is-device-removed`. Android sends no extra fields and no `Authorization` header |
+| `ClientDataStatus` | **Match.** `devices`, `users`, `apps`, `categories{base,apps,rules,usedTime,tasks}`, `clientLevel`, `devicesDetail`, `kri`, `kr`, `dh`, `u2f`. `tasks` is omitted while empty |
+| `ServerDataStatus` keys | **Match.** Android parses `devices`, `devices2`, `apps`, `rmCategories`, `categoryBase`, `categoryApp`, `usedTimes`, `rules`, `tasks`, `users`, `krq`, `kr`, `pings`, `dh`, `u2f`, `fullVersion`, `message`, `apiLevel`. Per-object field names of devices, categories, used times and rules are identical to the server (script check). The server also sends `blockedTimes` in user entries; Android ignores it |
+| Pull rules | The check found one gap in the first version of this document: pulled rules carry an optional `e`. Fixed in [5.2](#52-pull-status) |
+| Actions: wire `type` | **Match.** 67 of the 68 server action types are sent by the client with the same type string and the same outer type (`parent`/`child`/`appLogic`): 66 compared by script, `PING` by hand (the client writes its type as a literal string). Never sent by the client: `ADD_USED_TIME` (legacy version 1) |
+| Actions: fields | **Match.** No difference in top-level field names for any type, for client C and for client D. Nested items such as `ADD_USED_TIME_V2.i[]` (`categoryId`, `tta`, `etts`, `as`, `sdl`) were compared by hand |
+| Only in client C | `UPDATE_USER_URL_FILTER` (parent action) and the user field `urlFilter`: fork extension, unknown to the reference servers. Do not send it to a normal server: the action would be rejected |
+| Integrity | **Match.** `HmacSHA256`, key = UTF-8 bytes of the parent's `secondHash` string, message = 8-byte big-endian sequence number, 4-byte big-endian length + UTF-8 device id of the **own** device, 4-byte big-endian length + UTF-8 action JSON. Result `"password:" + base64`. Android uses the older SHA-512 text form only when the server `apiLevel` is below 6. Android sends `"device"` for a parent that is signed in on the device (`userId` = that parent), `"childDevice"` for child self-limits, SHA-512 hex with the child's `secondHash` for child actions, and `userId: ""`, `integrity: ""` for `appLogic` |
+| Action JSON | The client sends `encodedAction` as a string and computes the HMAC over exactly that string |
+| Sequence numbers | Start at 0, +1 per created action, persisted. See [5.3](#53-push-actions) |
+| WebSocket | **Match** for events and payloads; transport and path details added in [Section 6](#6-websocket-socketio) |
+| Not in the server sources | Mail-code response flags `mailServerBlacklistedTemporarily` / `blockedForIntegrityReasons`, request headers `X-Client-*`, TLS client attestation: see [3.2](#32-post-authsend-mail-login-code-v2) |
+
+Both scripts only read files and live next to the generated reference:
+
+```
+python3 -I docs/protocol/gen_actions.py <timelimit-server>/src > docs/protocol/actions-reference.md
+python3 -I docs/protocol/compare_android_actions.py <timelimit-android>/app/src/main/java/io/timelimit/android/sync/actions/Actions.kt docs/protocol/actions-reference.md
+```
+
+Limits of this check: it proves that the client and the reference servers agree with each other and with this document. It does not prove how the server you actually run behaves, and the nested field names, REST fields and response keys were compared partly by script and partly by reading.
 
 ---
 
@@ -1026,3 +1064,4 @@ interface Category {
 
 *This document serves as the basis/reference for all external server API changes. It should be extended as new features are added to the dashboard.*
 | 2.0.0 | 2026-11-03 | Rewritten from the server implementation (see Verification status): no `/api/v1` prefix, credentials in body, strict schemas, device-integrity authorization, correct action wire format (`parent`, SCREAMING_SNAKE types), sync/push semantics, WebSocket, crypto (AES key = first 16 bytes), error table, known deviations D1-D12. Generated action reference added |
+| 2.1.0 | 2026-11-04 | Cross-checked against Android clients (`mpashka` 7.5.0 and `flov91`): new Section 11; pulled rules also carry `e`; Android sync behaviour (batch 25, sequence counter, full-sync reset), gzip/411, WebSocket transport and path prefix, `clientLevel` 8 and fallback, hosted-server-only mail flags. Fixed the actions-reference generator for nested inline types (`ADD_USED_TIME_V2`) |

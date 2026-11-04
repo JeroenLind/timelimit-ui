@@ -845,7 +845,7 @@ Parent Device              TimeLimit Server           New Python Device
 - **Server Domain**: `api.timelimit.io`
 - **Backup Domain**: `api.timelimitapp.de`
 - **Certificate Pinning**: Production pins ISRG Root X1, X2, YE, YR (Let's Encrypt). Development has no pinning.
-- **Client Level**: `7` (unverified: the Android fork we could read sends `6`; the server only gates features by level, see docs/ServerAPI.md; current protocol version, sent as `clientLevel` in registration and sync requests)
+- **Client Level**: `7` (checked 2026-11-04: Android app 7.5.0 in the `mpashka` fork sends `8`, the older `flov91` fork sends `6`; the server only gates features by level, see docs/ServerAPI.md section 5.2; so `7` was not the current level, sent as `clientLevel` in registration and sync requests)
 
 ### 8.3 HTTP Request Format
 

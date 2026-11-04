@@ -528,12 +528,7 @@ Source: `src/action/addusedtime2.ts` (interface `SerializedAddUsedTimeActionVers
 | Field | Type | Required | Note |
 |---|---|---|---|
 | `d` | `number` | yes |  |
-| `i` | `Array<{` | yes |  |
-| `categoryId` | `string` | yes |  |
-| `tta` | `number` | yes |  |
-| `etts` | `number` | yes |  |
-| `as` | `Array<[number, number]>` | no |  |
-| `sdl` | `Array<[number, number, number, number]>` | no |  |
+| `i` | `Array<{ categoryId: string; tta: number; etts: number; as?: Array<[number, number]>; sdl?: Array<[number, number, number, number]> }>` | yes |  |
 | `t` | `number` | no |  |
 
 ### `FINISH_KEY_REQUEST`
