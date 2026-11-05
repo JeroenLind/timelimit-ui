@@ -64,3 +64,6 @@ KeyFamilyData.md
 /create_family_data.json
 /sign_in_data.json
 /test_*.json
+
+# Local notes with credentials (never commit)
+timelimit-ui/docs/password info.md
