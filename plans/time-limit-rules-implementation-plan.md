@@ -1,3 +1,5 @@
+> **Outdated (2026-11-04):** this plan uses class-style action names (`AddTimeLimitRuleAction`, ...) and outer type `appLogic`. The real server only accepts the wire format in `timelimit-ui/docs/ServerAPI.md`; the implementation is in `action_builder.py` / `action_pusher.py`.
+
 # Time Limit Rules Feature Implementation Plan
 
 ## Executive Summary

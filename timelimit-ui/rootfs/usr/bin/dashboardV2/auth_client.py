@@ -1,10 +1,12 @@
 """Standalone HTTP client for debug-server API communication.
 
 This module provides a standalone HTTP client for communicating with the
-debug-server's /api/v1/ endpoints. It is completely self-contained and
-does not import any debug-server internals.
+TimeLimit server (and the debug server). It is completely self-contained and
+does not import any server internals.
 
-All API calls use the Authorization: Bearer <token> header for authentication.
+The real server ignores the Authorization header: credentials travel in the JSON body
+of each request. The protocol is described in docs/ServerAPI.md. Parent actions are
+built by action_builder.py and pushed by action_pusher.py, not by this class.
 """
 
 import gzip
@@ -971,13 +973,18 @@ class AuthClient:
     def create_add_device_token(
         self,
         device_auth_token: str,
-        parent_password_second_hash: str
+        parent_id: str,
+        parent_password_second_hash: str = "device"
     ) -> APIResponse:
-        """Create an add-device token for a child device.
+        """Create an add-device token for a child device (POST /parent/create-add-device-token).
+        
+        The server schema requires all three fields. See docs/ServerAPI.md section 3.7.
         
         Args:
             device_auth_token: Device auth token for authentication.
-            parent_password_second_hash: Parent password second hash for verification.
+            parent_id: Id of the parent user (``parentId``).
+            parent_password_second_hash: The parent's secondHash, or ``"device"`` (default)
+                to authorize with this device, which is signed in as the parent.
             
         Returns:
             APIResponse with token and deviceId.
@@ -987,6 +994,7 @@ class AuthClient:
         # Sanitize request data for logging
         data = {
             'deviceAuthToken': device_auth_token,
+            'parentId': parent_id,
             'parentPasswordSecondHash': parent_password_second_hash
         }
         sanitized_data = sanitize_dict(data)
@@ -1030,12 +1038,15 @@ class AuthClient:
         device_model: Optional[str] = None,
         client_level: Optional[int] = None
     ) -> APIResponse:
-        """Register a child device.
+        """Register a child device (POST /child/add-device, docs/ServerAPI.md section 3.8).
+        
+        The server requires ``registerToken``, ``childDevice: {model}`` and ``deviceName``
+        and rejects any other field. Defaults are used when name or model are missing.
         
         Args:
             register_token: Add-device token from parent.
-            device_name: Optional device name.
-            device_model: Optional device model.
+            device_name: Device name (default "Child device").
+            device_model: Device model (default "Unknown").
             client_level: Optional client level/version.
             
         Returns:
@@ -1044,11 +1055,11 @@ class AuthClient:
         request_id = get_request_id()
         
         # Sanitize request data for logging
-        data = {'registerToken': register_token}
-        if device_name:
-            data['deviceName'] = device_name
-        if device_model:
-            data['deviceModel'] = device_model
+        data = {
+            'registerToken': register_token,
+            'childDevice': {'model': device_model or 'Unknown'},
+            'deviceName': device_name or 'Child device'
+        }
         if client_level:
             data['clientLevel'] = client_level
         sanitized_data = sanitize_dict(data)
@@ -1421,491 +1432,11 @@ class AuthClient:
         
         return response
     
-    def push_device_removal_action(
-        self,
-        device_auth_token: str,
-        parent_user_id: str,
-        parent_password_second_hash: str,
-        device_id: str,
-        sequence_number: int
-    ) -> APIResponse:
-        """Push a device removal action through the sync protocol.
-        
-        This method sends a REMOVE_DEVICE action via the sync protocol,
-        which is the correct way to remove devices according to the server's
-        expected behavior.
-        
-        Args:
-            device_auth_token: Device auth token for authentication.
-            parent_user_id: ID of the parent user making the request.
-            parent_password_second_hash: Parent's second password hash for integrity.
-            device_id: ID of the device to remove.
-            sequence_number: The sequence number for this action.
-            
-        Returns:
-            APIResponse with shouldDoFullSync flag on success.
-        """
-        import json
-        from crypto_utils import calculate_hmac_sha256_binary
-        
-        request_id = get_request_id()
-        
-        # Build the encoded action (no spaces after colons to match server schema)
-        encoded_action = json.dumps({
-            "type": "REMOVE_DEVICE",
-            "deviceId": device_id
-        }, separators=(',', ':'))
-        
-        # Calculate the integrity hash
-        integrity = calculate_hmac_sha256_binary(
-            parent_password_second_hash,
-            sequence_number,
-            device_id,
-            encoded_action
-        )
-        
-        # Build the action
-        action = {
-            "encodedAction": encoded_action,
-            "sequenceNumber": sequence_number,
-            "integrity": integrity,
-            "type": "appLogic",
-            "userId": parent_user_id
-        }
-        
-        # Sanitize for logging (remove sensitive fields)
-        sanitized_action = {
-            'type': action.get('type'),
-            'userId': action.get('userId'),
-            'sequenceNumber': action.get('sequenceNumber')
-        }
-        
-        logger.info(
-            "Pushing device removal action",
-            request_id=request_id,
-            device_id=device_id,
-            parent_user_id=parent_user_id,
-            sequence_number=sequence_number,
-            action_preview=sanitized_action
-        )
-        
-        # Push the action via sync protocol
-        response = self.push_actions(device_auth_token, [action])
-        
-        if response.success:
-            logger.info(
-                "Device removal action pushed successfully",
-                request_id=request_id,
-                device_id=device_id,
-                sequence_number=sequence_number
-            )
-        else:
-            logger.warning(
-                "Failed to push device removal action",
-                request_id=request_id,
-                device_id=device_id,
-                error_code=response.error_code,
-                error_message=response.error_message
-            )
-        
-        return response
-    
-    # ========================================================================
-    # Time Limit Rules Endpoints
-    # ========================================================================
-    
-    def add_time_limit_rule(
-        self,
-        device_auth_token: str,
-        user_id: str,
-        category_id: str,
-        rule: Dict[str, Any],
-        sequence_number: int,
-        parent_password_second_hash: str
-    ) -> APIResponse:
-        """Add a time limit rule via the sync protocol.
-        
-        This method sends an AddTimeLimitRuleAction via the sync protocol,
-        which is the correct way to add time limit rules according to the server's
-        expected behavior.
-        
-        Args:
-            device_auth_token: Device auth token for authentication.
-            user_id: ID of the user the rule applies to.
-            category_id: ID of the category the rule applies to.
-            rule: Rule data with type, startTime, endTime, days, limitMinutes.
-            sequence_number: The sequence number for this action.
-            parent_password_second_hash: Parent's second password hash for integrity.
-            
-        Returns:
-            APIResponse with shouldDoFullSync flag on success.
-        """
-        import json
-        from crypto_utils import calculate_hmac_sha256_binary
-        
-        request_id = get_request_id()
-        
-        # Build the encoded action (no spaces after colons to match server schema)
-        encoded_action = json.dumps({
-            "type": "AddTimeLimitRuleAction",
-            "categoryId": category_id,
-            "userId": user_id,
-            "rule": rule
-        }, separators=(',', ':'))
-        
-        # Calculate the integrity hash
-        # For time limit rules, we use a placeholder device_id for the integrity calculation
-        # The server validates the integrity using the parent's second hash
-        integrity = calculate_hmac_sha256_binary(
-            parent_password_second_hash,
-            sequence_number,
-            user_id,  # Use user_id as the identifier for integrity calculation
-            encoded_action
-        )
-        
-        # Build the action
-        action = {
-            "encodedAction": encoded_action,
-            "sequenceNumber": sequence_number,
-            "integrity": integrity,
-            "type": "appLogic",
-            "userId": user_id
-        }
-        
-        # Sanitize for logging (remove sensitive fields)
-        sanitized_action = {
-            'type': action.get('type'),
-            'userId': action.get('userId'),
-            'sequenceNumber': action.get('sequenceNumber')
-        }
-        
-        logger.info(
-            "Pushing add time limit rule action",
-            request_id=request_id,
-            user_id=user_id,
-            category_id=category_id,
-            sequence_number=sequence_number,
-            action_preview=sanitized_action
-        )
-        
-        # Push the action via sync protocol
-        response = self.push_actions(device_auth_token, [action])
-        
-        if response.success:
-            logger.info(
-                "Add time limit rule action pushed successfully",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                sequence_number=sequence_number
-            )
-        else:
-            logger.warning(
-                "Failed to push add time limit rule action",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                error_code=response.error_code,
-                error_message=response.error_message
-            )
-        
-        return response
-    
-    def remove_time_limit_rule(
-        self,
-        device_auth_token: str,
-        user_id: str,
-        rule_id: str,
-        sequence_number: int,
-        parent_password_second_hash: str
-    ) -> APIResponse:
-        """Remove a time limit rule via the sync protocol.
-        
-        This method sends a RemoveTimeLimitRuleAction via the sync protocol,
-        which is the correct way to remove time limit rules according to the server's
-        expected behavior.
-        
-        Args:
-            device_auth_token: Device auth token for authentication.
-            user_id: ID of the user the rule applies to.
-            rule_id: ID of the rule to remove.
-            sequence_number: The sequence number for this action.
-            parent_password_second_hash: Parent's second password hash for integrity.
-            
-        Returns:
-            APIResponse with shouldDoFullSync flag on success.
-        """
-        import json
-        from crypto_utils import calculate_hmac_sha256_binary
-        
-        request_id = get_request_id()
-        
-        # Build the encoded action (no spaces after colons to match server schema)
-        encoded_action = json.dumps({
-            "type": "RemoveTimeLimitRuleAction",
-            "userId": user_id,
-            "ruleId": rule_id
-        }, separators=(',', ':'))
-        
-        # Calculate the integrity hash
-        integrity = calculate_hmac_sha256_binary(
-            parent_password_second_hash,
-            sequence_number,
-            user_id,  # Use user_id as the identifier for integrity calculation
-            encoded_action
-        )
-        
-        # Build the action
-        action = {
-            "encodedAction": encoded_action,
-            "sequenceNumber": sequence_number,
-            "integrity": integrity,
-            "type": "appLogic",
-            "userId": user_id
-        }
-        
-        # Sanitize for logging (remove sensitive fields)
-        sanitized_action = {
-            'type': action.get('type'),
-            'userId': action.get('userId'),
-            'sequenceNumber': action.get('sequenceNumber')
-        }
-        
-        logger.info(
-            "Pushing remove time limit rule action",
-            request_id=request_id,
-            user_id=user_id,
-            rule_id=rule_id,
-            sequence_number=sequence_number,
-            action_preview=sanitized_action
-        )
-        
-        # Push the action via sync protocol
-        response = self.push_actions(device_auth_token, [action])
-        
-        if response.success:
-            logger.info(
-                "Remove time limit rule action pushed successfully",
-                request_id=request_id,
-                user_id=user_id,
-                rule_id=rule_id,
-                sequence_number=sequence_number
-            )
-        else:
-            logger.warning(
-                "Failed to push remove time limit rule action",
-                request_id=request_id,
-                user_id=user_id,
-                rule_id=rule_id,
-                error_code=response.error_code,
-                error_message=response.error_message
-            )
-        
-        return response
-    
-    # ========================================================================
-    # Category Apps Endpoints
-    # ========================================================================
-    
-    def add_category_app(
-        self,
-        device_auth_token: str,
-        category_id: str,
-        app_package: str,
-        user_id: str,
-        sequence_number: int,
-        parent_password_second_hash: str
-    ) -> APIResponse:
-        """Add an app to a category via the sync protocol.
-        
-        This method sends an AddCategoryAppAction via the sync protocol,
-        which is the correct way to add apps to categories according to the server's
-        expected behavior.
-        
-        Args:
-            device_auth_token: Device auth token for authentication.
-            category_id: ID of the category to add the app to.
-            app_package: Package name of the app to add.
-            user_id: ID of the user the category belongs to.
-            sequence_number: The sequence number for this action.
-            parent_password_second_hash: Parent's second password hash for integrity.
-            
-        Returns:
-            APIResponse with shouldDoFullSync flag on success.
-        """
-        import json
-        from crypto_utils import calculate_hmac_sha256_binary
-        
-        request_id = get_request_id()
-        
-        # Build the encoded action (no spaces after colons to match server schema)
-        encoded_action = json.dumps({
-            "type": "AddCategoryAppAction",
-            "categoryId": category_id,
-            "app": app_package,
-            "userId": user_id
-        }, separators=(',', ':'))
-        
-        # Calculate the integrity hash
-        integrity = calculate_hmac_sha256_binary(
-            parent_password_second_hash,
-            sequence_number,
-            user_id,  # Use user_id as the identifier for integrity calculation
-            encoded_action
-        )
-        
-        # Build the action
-        action = {
-            "encodedAction": encoded_action,
-            "sequenceNumber": sequence_number,
-            "integrity": integrity,
-            "type": "appLogic",
-            "userId": user_id
-        }
-        
-        # Sanitize for logging (remove sensitive fields)
-        sanitized_action = {
-            'type': action.get('type'),
-            'userId': action.get('userId'),
-            'sequenceNumber': action.get('sequenceNumber'),
-            'categoryId': category_id,
-            'app': app_package
-        }
-        
-        logger.info(
-            "Pushing add category app action",
-            request_id=request_id,
-            user_id=user_id,
-            category_id=category_id,
-            app_package=app_package,
-            sequence_number=sequence_number,
-            action_preview=sanitized_action
-        )
-        
-        # Push the action via sync protocol
-        response = self.push_actions(device_auth_token, [action])
-        
-        if response.success:
-            logger.info(
-                "Add category app action pushed successfully",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                app_package=app_package,
-                sequence_number=sequence_number
-            )
-        else:
-            logger.warning(
-                "Failed to push add category app action",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                app_package=app_package,
-                error_code=response.error_code,
-                error_message=response.error_message
-            )
-        
-        return response
-    
-    def remove_category_app(
-        self,
-        device_auth_token: str,
-        category_id: str,
-        app_package: str,
-        user_id: str,
-        sequence_number: int,
-        parent_password_second_hash: str
-    ) -> APIResponse:
-        """Remove an app from a category via the sync protocol.
-        
-        This method sends a RemoveCategoryAppAction via the sync protocol,
-        which is the correct way to remove apps from categories according to the server's
-        expected behavior.
-        
-        Args:
-            device_auth_token: Device auth token for authentication.
-            category_id: ID of the category to remove the app from.
-            app_package: Package name of the app to remove.
-            user_id: ID of the user the category belongs to.
-            sequence_number: The sequence number for this action.
-            parent_password_second_hash: Parent's second password hash for integrity.
-            
-        Returns:
-            APIResponse with shouldDoFullSync flag on success.
-        """
-        import json
-        from crypto_utils import calculate_hmac_sha256_binary
-        
-        request_id = get_request_id()
-        
-        # Build the encoded action (no spaces after colons to match server schema)
-        encoded_action = json.dumps({
-            "type": "RemoveCategoryAppAction",
-            "categoryId": category_id,
-            "app": app_package,
-            "userId": user_id
-        }, separators=(',', ':'))
-        
-        # Calculate the integrity hash
-        integrity = calculate_hmac_sha256_binary(
-            parent_password_second_hash,
-            sequence_number,
-            user_id,  # Use user_id as the identifier for integrity calculation
-            encoded_action
-        )
-        
-        # Build the action
-        action = {
-            "encodedAction": encoded_action,
-            "sequenceNumber": sequence_number,
-            "integrity": integrity,
-            "type": "appLogic",
-            "userId": user_id
-        }
-        
-        # Sanitize for logging (remove sensitive fields)
-        sanitized_action = {
-            'type': action.get('type'),
-            'userId': action.get('userId'),
-            'sequenceNumber': action.get('sequenceNumber'),
-            'categoryId': category_id,
-            'app': app_package
-        }
-        
-        logger.info(
-            "Pushing remove category app action",
-            request_id=request_id,
-            user_id=user_id,
-            category_id=category_id,
-            app_package=app_package,
-            sequence_number=sequence_number,
-            action_preview=sanitized_action
-        )
-        
-        # Push the action via sync protocol
-        response = self.push_actions(device_auth_token, [action])
-        
-        if response.success:
-            logger.info(
-                "Remove category app action pushed successfully",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                app_package=app_package,
-                sequence_number=sequence_number
-            )
-        else:
-            logger.warning(
-                "Failed to push remove category app action",
-                request_id=request_id,
-                user_id=user_id,
-                category_id=category_id,
-                app_package=app_package,
-                error_code=response.error_code,
-                error_message=response.error_message
-            )
-        
-        return response
+    # NOTE: parent actions (time limit rules, apps per category, users, ...) are not
+    # methods of this class. Build them with action_builder.py and send them with
+    # action_pusher.push_parent_actions(), which uses the correct wire format, outer type
+    # "parent" and integrity "device". Devices are removed with remove_device() below
+    # (POST /parent/remove-device); there is no REMOVE_DEVICE action. See docs/ServerAPI.md.
     
     # ========================================================================
     # Utility Methods

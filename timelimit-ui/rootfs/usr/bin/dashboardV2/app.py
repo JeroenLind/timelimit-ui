@@ -35,7 +35,7 @@ from config import Config
 from database import (
     Database, get_database, reset_database, store_auth_token,
     get_users_by_device_auth_token, get_devices_by_device_auth_token, get_categories_by_device_auth_token, get_connected_devices,
-    get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_password_second_salt, get_parent_user_id, clear_all_tables,
+    get_device_auth_tokens, upsert_family_password_hash, get_parent_password_hash, get_parent_user_id, get_user_by_id, clear_all_tables,
     get_all_tables_data, clear_server_checks, get_family_by_mail, create_family_record, update_family_salt,
     save_users, get_sync_state, save_sync_state, get_family, update_family_parent_user_id, create_user,
     create_default_category
@@ -3426,6 +3426,69 @@ def api_dashboard_unified_view():
 # ============================================================================
 # Time Limit Rules API Routes
 # ============================================================================
+def _hhmm_to_minute(value):
+    """'HH:MM' -> minute of the day (0..1439), or None when empty."""
+    if not value:
+        return None
+    hours, minutes = value.split(':')
+    return int(hours) * 60 + int(minutes)
+
+
+def _wire_rule_fields(rule_row):
+    """Map a local time limit rule (database row) to the wire fields of the server.
+
+    Local ``limit_minutes`` becomes ``time`` in milliseconds, ``days`` stays the bit mask and
+    ``start_time``/``end_time`` ('HH:MM') become minutes of the day. See docs/ServerAPI.md 5.2.
+    """
+    start = _hhmm_to_minute(rule_row.get('start_time'))
+    end = _hhmm_to_minute(rule_row.get('end_time'))
+    if start is None and end is None:
+        pass
+    elif start is None:
+        start = 0
+    elif end is None:
+        end = 1439
+    days = rule_row.get('days')
+    return {
+        'time_ms': int(rule_row.get('limit_minutes') or 0) * 60 * 1000,
+        'days': 127 if days is None else int(days),
+        'start': start,
+        'end': end,
+    }
+
+
+def _push_parent_actions_safely(device_auth_token, actions, request_id):
+    """Push parent actions for the logged-in dashboard device. Never raises.
+
+    The dashboard device is signed in as the parent, so the actions use
+    ``integrity: "device"`` and need no password. The server skips invalid actions silently,
+    so the result says whether the server confirmed them.
+
+    Returns a dict with ``synced`` (True/False) and ``syncMessage`` (None when synced).
+    """
+    from action_builder import ActionError
+    from action_pusher import push_parent_actions
+
+    try:
+        client = AuthClient(base_url=get_current_server_url())
+        result = push_parent_actions(
+            client,
+            device_auth_token,
+            session.get('own_device_id'),
+            actions,
+        )
+    except ActionError as e:
+        logger.warning("Not pushing to server: invalid action", request_id=request_id, error=str(e))
+        return {'synced': False, 'syncMessage': str(e)}
+    except Exception as e:
+        logger.error("Pushing parent actions failed", request_id=request_id, error=str(e))
+        return {'synced': False, 'syncMessage': 'push failed'}
+    if not result.confirmed:
+        logger.warning("Parent actions not confirmed by server", request_id=request_id, detail=result.summary)
+        return {'synced': False, 'syncMessage': result.summary}
+    return {'synced': True, 'syncMessage': None}
+
+
 @app.route('/api/dashboard/time-limit-rules', methods=['GET'])
 def api_dashboard_time_limit_rules():
     """Get all time limit rules for the current device auth token.
@@ -3618,17 +3681,14 @@ def api_create_time_limit_rule():
         from database import (
             save_time_limit_rule,
             get_database,
-            get_parent_password_second_salt,
-            get_parent_user_id,
-            increment_sequence_number
         )
         from utils.audit_log import log_time_limit_rule_created
         
         db = get_database()
         
-        # Generate rule ID
-        import secrets
-        rule_id = f'rule_{secrets.token_hex(8)}'
+        # Rule ids are 6 alphanumeric characters on the server
+        from action_builder import new_id, create_timelimit_rule, ActionError
+        rule_id = new_id()
         
         save_time_limit_rule(
             db=db,
@@ -3644,42 +3704,16 @@ def api_create_time_limit_rule():
             version=rule.get('version')
         )
         
-        # Get parent's second password hash for sync integrity
-        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
-        parent_user_id = get_parent_user_id(db, device_auth_token)
-        
-        # Get sequence number for sync
-        sequence_number = increment_sequence_number(db, device_auth_token)
-        
-        # Prepare rule data for sync
-        sync_rule = {
-            'type': rule.get('type', 0),
-            'startTime': start_time_str,
-            'endTime': end_time_str,
-            'days': days,
-            'limitMinutes': limit_minutes
-        }
-        
-        # Push to server via sync protocol
-        if parent_password_second_hash:
-            auth_client = AuthClient()
-            sync_response = auth_client.add_time_limit_rule(
-                device_auth_token=device_auth_token,
-                user_id=user_id,
-                category_id=category_id,
-                rule=sync_rule,
-                sequence_number=sequence_number,
-                parent_password_second_hash=parent_password_second_hash
-            )
-            
-            if not sync_response.success:
-                logger.warning(
-                    "Failed to push time limit rule to server",
-                    request_id=request_id,
-                    rule_id=rule_id,
-                    error_code=sync_response.error_code,
-                    error_message=sync_response.error_message
-                )
+        # Push to the server (CREATE_TIMELIMIT_RULE, parent action, device integrity)
+        try:
+            wire = _wire_rule_fields({
+                'start_time': start_time_str, 'end_time': end_time_str,
+                'days': days, 'limit_minutes': limit_minutes,
+            })
+            actions = [create_timelimit_rule(rule_id, category_id, **wire)]
+            sync_status = _push_parent_actions_safely(device_auth_token, actions, request_id)
+        except ActionError as e:
+            sync_status = {'synced': False, 'syncMessage': str(e)}
         
         # Log the rule creation for audit
         log_time_limit_rule_created(
@@ -3707,7 +3741,8 @@ def api_create_time_limit_rule():
         
         return jsonify({
             'status': 'ok',
-            'ruleId': rule_id
+            'ruleId': rule_id,
+            **sync_status
         })
         
     except Exception as e:
@@ -3802,8 +3837,6 @@ def api_update_time_limit_rule(rule_id):
             get_time_limit_rule_by_id,
             update_time_limit_rule,
             get_database,
-            get_parent_password_second_salt,
-            increment_sequence_number
         )
         from utils.audit_log import log_time_limit_rule_updated
         
@@ -3826,48 +3859,14 @@ def api_update_time_limit_rule(rule_id):
                 'error': 'No updates applied'
             }), 400
         
-        # Get parent's second password hash for sync integrity
-        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
-        
-        # Get sequence number for sync
-        sequence_number = increment_sequence_number(db, device_auth_token)
-        
-        # Push update to server via sync protocol
-        if parent_password_second_hash:
-            auth_client = AuthClient()
-            
-            # Build update action for sync
-            sync_updates = {}
-            for json_key, value in mapped_updates.items():
-                if json_key in ['rule_type', 'start_time', 'end_time', 'days', 'limit_minutes', 'version']:
-                    # Map back to JSON field names
-                    reverse_mapping = {
-                        'rule_type': 'type',
-                        'start_time': 'startTime',
-                        'end_time': 'endTime',
-                        'days': 'days',
-                        'limit_minutes': 'limitMinutes',
-                        'version': 'version'
-                    }
-                    sync_key = reverse_mapping.get(json_key, json_key)
-                    sync_updates[sync_key] = value
-            
-            sync_response = auth_client.update_time_limit_rule(
-                device_auth_token=device_auth_token,
-                rule_id=rule_id,
-                updates=sync_updates,
-                sequence_number=sequence_number,
-                parent_password_second_hash=parent_password_second_hash
-            )
-            
-            if not sync_response.success:
-                logger.warning(
-                    "Failed to push time limit rule update to server",
-                    request_id=request_id,
-                    rule_id=rule_id,
-                    error_code=sync_response.error_code,
-                    error_message=sync_response.error_message
-                )
+        # Push the full updated rule (UPDATE_TIMELIMIT_RULE is flat and needs all of time/days/extraTime)
+        from action_builder import update_timelimit_rule, ActionError
+        try:
+            wire = _wire_rule_fields(get_time_limit_rule_by_id(db, rule_id) or {})
+            sync_status = _push_parent_actions_safely(
+                device_auth_token, [update_timelimit_rule(rule_id, **wire)], request_id)
+        except ActionError as e:
+            sync_status = {'synced': False, 'syncMessage': str(e)}
         
         # Log the rule update for audit
         log_time_limit_rule_updated(
@@ -3888,7 +3887,8 @@ def api_update_time_limit_rule(rule_id):
         
         return jsonify({
             'status': 'ok',
-            'message': 'Rule updated successfully'
+            'message': 'Rule updated successfully',
+            **sync_status
         })
         
     except Exception as e:
@@ -3952,8 +3952,6 @@ def api_delete_time_limit_rule(rule_id):
             delete_time_limit_rule,
             get_database,
             get_time_limit_rule_by_id,
-            get_parent_password_second_salt,
-            increment_sequence_number
         )
         from utils.audit_log import log_time_limit_rule_deleted
         
@@ -3977,31 +3975,14 @@ def api_delete_time_limit_rule(rule_id):
                 'error': 'Rule not found'
             }), 404
         
-        # Get parent's second password hash for sync integrity
-        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
-        
-        # Get sequence number for sync
-        sequence_number = increment_sequence_number(db, device_auth_token)
-        
-        # Push deletion to server via sync protocol
-        if parent_password_second_hash:
-            auth_client = AuthClient()
-            sync_response = auth_client.remove_time_limit_rule(
-                device_auth_token=device_auth_token,
-                user_id=user_id,
-                rule_id=rule_id,
-                sequence_number=sequence_number,
-                parent_password_second_hash=parent_password_second_hash
-            )
-            
-            if not sync_response.success:
-                logger.warning(
-                    "Failed to push time limit rule deletion to server",
-                    request_id=request_id,
-                    rule_id=rule_id,
-                    error_code=sync_response.error_code,
-                    error_message=sync_response.error_message
-                )
+        # Push the deletion (DELETE_TIMELIMIT_RULE). Rules with an old-style local id
+        # (not 6 characters) were never valid on the server and are only removed locally.
+        from action_builder import delete_timelimit_rule, is_valid_id
+        if is_valid_id(rule_id):
+            sync_status = _push_parent_actions_safely(
+                device_auth_token, [delete_timelimit_rule(rule_id)], request_id)
+        else:
+            sync_status = {'synced': False, 'syncMessage': 'rule id is not a server rule id; removed locally only'}
         
         # Log the rule deletion for audit
         log_time_limit_rule_deleted(
@@ -4021,7 +4002,8 @@ def api_delete_time_limit_rule(rule_id):
         
         return jsonify({
             'status': 'ok',
-            'message': 'Rule deleted successfully'
+            'message': 'Rule deleted successfully',
+            **sync_status
         })
         
     except Exception as e:
@@ -4179,13 +4161,10 @@ def api_add_apps_to_category(category_id):
     try:
         from database import (
             save_category_apps,
-            get_database,
-            get_parent_password_second_salt,
-            get_parent_user_id,
-            increment_sequence_number
+            get_database
         )
         from utils.audit_log import log_category_apps_added
-        from auth_client import AuthClient
+        from action_builder import add_category_apps, ActionError
         
         db = get_database()
         
@@ -4198,35 +4177,12 @@ def api_add_apps_to_category(category_id):
             user_id=user_id
         )
         
-        # Get parent's second password hash for sync integrity
-        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
-        parent_user_id = get_parent_user_id(db, device_auth_token)
-        
-        # Get sequence number for sync
-        sequence_number = increment_sequence_number(db, device_auth_token)
-        
-        # Push to server via sync protocol
-        if parent_password_second_hash:
-            auth_client = AuthClient()
-            for app_package in app_packages:
-                sync_response = auth_client.add_category_app(
-                    device_auth_token=device_auth_token,
-                    category_id=category_id,
-                    app_package=app_package,
-                    user_id=parent_user_id or user_id or '',
-                    sequence_number=sequence_number,
-                    parent_password_second_hash=parent_password_second_hash
-                )
-                
-                if not sync_response.success:
-                    logger.warning(
-                        "Failed to push category app to server",
-                        request_id=request_id,
-                        category_id=category_id,
-                        app_package=app_package,
-                        error_code=sync_response.error_code,
-                        error_message=sync_response.error_message
-                    )
+        # Push to the server (ADD_CATEGORY_APPS, parent action, device integrity)
+        try:
+            sync_status = _push_parent_actions_safely(
+                device_auth_token, [add_category_apps(category_id, app_packages)], request_id)
+        except ActionError as e:
+            sync_status = {'synced': False, 'syncMessage': str(e)}
         
         # Log the operation for audit
         log_category_apps_added(
@@ -4250,7 +4206,8 @@ def api_add_apps_to_category(category_id):
         return jsonify({
             'status': 'ok',
             'categoryId': category_id,
-            'appsAdded': len(app_packages)
+            'appsAdded': len(app_packages),
+            **sync_status
         })
         
     except Exception as e:
@@ -4325,13 +4282,10 @@ def api_remove_apps_from_category(category_id):
     try:
         from database import (
             remove_category_apps,
-            get_database,
-            get_parent_password_second_salt,
-            get_parent_user_id,
-            increment_sequence_number
+            get_database
         )
         from utils.audit_log import log_category_apps_removed
-        from auth_client import AuthClient
+        from action_builder import remove_category_apps as build_remove_category_apps, ActionError
         
         db = get_database()
         
@@ -4343,35 +4297,12 @@ def api_remove_apps_from_category(category_id):
             app_packages=app_packages
         )
         
-        # Get parent's second password hash for sync integrity
-        parent_password_second_hash = get_parent_password_second_salt(db, device_auth_token)
-        parent_user_id = get_parent_user_id(db, device_auth_token)
-        
-        # Get sequence number for sync
-        sequence_number = increment_sequence_number(db, device_auth_token)
-        
-        # Push to server via sync protocol
-        if parent_password_second_hash:
-            auth_client = AuthClient()
-            for app_package in app_packages:
-                sync_response = auth_client.remove_category_app(
-                    device_auth_token=device_auth_token,
-                    category_id=category_id,
-                    app_package=app_package,
-                    user_id=parent_user_id or user_id or '',
-                    sequence_number=sequence_number,
-                    parent_password_second_hash=parent_password_second_hash
-                )
-                
-                if not sync_response.success:
-                    logger.warning(
-                        "Failed to push remove category app to server",
-                        request_id=request_id,
-                        category_id=category_id,
-                        app_package=app_package,
-                        error_code=sync_response.error_code,
-                        error_message=sync_response.error_message
-                    )
+        # Push to the server (REMOVE_CATEGORY_APPS, parent action, device integrity)
+        try:
+            sync_status = _push_parent_actions_safely(
+                device_auth_token, [build_remove_category_apps(category_id, app_packages)], request_id)
+        except ActionError as e:
+            sync_status = {'synced': False, 'syncMessage': str(e)}
         
         # Log the operation for audit
         log_category_apps_removed(
@@ -4395,7 +4326,8 @@ def api_remove_apps_from_category(category_id):
         return jsonify({
             'status': 'ok',
             'categoryId': category_id,
-            'appsRemoved': removed_count
+            'appsRemoved': removed_count,
+            **sync_status
         })
         
     except Exception as e:
@@ -4419,14 +4351,19 @@ def api_remove_apps_from_category(category_id):
 def api_add_user_to_family():
     """Add a new user (child) to the family.
     
-    This endpoint implements the add-device flow:
-    1. Create add-device token on the server
-    2. Register the child device
-    3. Sync users from the server
-    4. Save users to the database
+    Flow (docs/ServerAPI.md 5.5 and 3.7-3.8):
+    1. Create the child user with an ADD_USER parent action (a device never creates a user)
+    2. Create add-device token on the server
+    3. Register the child device
+    4. Sync users from the server
+    5. Save users to the database
+    
+    The dashboard device is signed in as the parent, so no parent password is needed
+    (``integrity: "device"``).
     
     Request Body:
         name: The child's display name (required)
+        timeZone: Optional time zone of the child (default: the parent's time zone)
         deviceName: Optional device name
         deviceModel: Optional device model
     
@@ -4456,23 +4393,6 @@ def api_add_user_to_family():
         return jsonify({
             'status': 'error',
             'error': 'No device auth token'
-        }), 400
-    
-    # Check for parent password second hash
-    parent_password_second_hash = session.get('parent_password_second_hash')
-    if not parent_password_second_hash:
-        # Fall back to database (same as session_status endpoint)
-        db = get_database()
-        parent_password_second_hash = get_parent_password_hash(db, device_auth_token)
-    
-    if not parent_password_second_hash:
-        logger.warning(
-            "Add user request without parent_password_second_hash",
-            request_id=request_id
-        )
-        return jsonify({
-            'status': 'error',
-            'error': 'Missing parent_password_second_hash'
         }), 400
     
     data = request.get_json() or {}
@@ -4531,11 +4451,32 @@ def api_add_user_to_family():
         server_url = get_current_server_url()
         client = AuthClient(base_url=server_url)
         
+        # Step 0: create the child user (ADD_USER). The server skips invalid actions
+        # silently, so stop here when it does not confirm.
+        from action_builder import add_child_user, new_id, ActionError
+        parent_row = get_user_by_id(db, parent_user_id) or {}
+        time_zone = data.get('timeZone') or parent_row.get('time_zone')
+        new_user_id = new_id()
+        try:
+            add_user_action = add_child_user(new_user_id, user_name, time_zone)
+        except ActionError as e:
+            client.close()
+            return jsonify({'status': 'error', 'error': str(e)}), 400
+        add_user_status = _push_parent_actions_safely(
+            device_auth_token, [add_user_action], request_id)
+        if not add_user_status['synced']:
+            client.close()
+            return jsonify({
+                'status': 'error',
+                'error': 'The server did not accept the new user',
+                'syncMessage': add_user_status['syncMessage']
+            }), 502
+        
         # Step 1: Create add-device token
         token_response = client.create_add_device_token(
             device_auth_token=device_auth_token,
             parent_id=parent_user_id,
-            parent_password_second_hash=parent_password_second_hash
+            parent_password_second_hash="device"
         )
         
         if not token_response.success:
@@ -4644,30 +4585,28 @@ def api_add_user_to_family():
                 break
         
         user_id = new_user.get('id') if new_user else None
+        if user_id is None:
+            user_id = new_user_id
         
         # If user not found in pull_status response, create a user record locally
         # This handles the case where the server hasn't yet propagated the user
         # (timing issue between device creation and user availability)
-        if user_id is None:
-            # Create a user record with the device ID as the user ID
-            # The server creates a user for each device, so the user ID should be the device ID
-            device_id = own_device_id
-            if device_id:
-                # Create a minimal user record for the new device
-                create_user(
-                    db=db,
-                    user_id=device_id,
-                    device_auth_token=device_auth_token,
-                    name=user_name,
-                    user_type='child'
-                )
-                user_id = device_id
-                logger.info(
-                    "Created user record locally for newly added device",
-                    request_id=request_id,
-                    user_id=user_id,
-                    user_name=user_name
-                )
+        if new_user is None:
+            # The ADD_USER was confirmed but the pull did not list the user yet:
+            # keep a local record under the id that was sent to the server.
+            create_user(
+                db=db,
+                user_id=user_id,
+                device_auth_token=device_auth_token,
+                name=user_name,
+                user_type='child'
+            )
+            logger.info(
+                "Created user record locally for newly added user",
+                request_id=request_id,
+                user_id=user_id,
+                user_name=user_name
+            )
         
         # Update sync state to record the last sync timestamp
         # This ensures the family overview shows the correct last_sync time

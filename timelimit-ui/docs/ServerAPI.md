@@ -566,24 +566,36 @@ Details per endpoint are in [Section 3](#3-endpoints). **Not an error status:** 
 
 ## 10. Known deviations of Dashboard V2
 
-Found by comparing the dashboard code with the server. These are bugs or risks in the client, listed so they can be fixed against this document. Line numbers refer to the code at commit `9a3f92f`.
+Found by comparing the dashboard code with the server. These are bugs or risks in the client, listed so they can be fixed against this document. The descriptions refer to the code at commit `9a3f92f`; the **Status** column was updated on 2026-11-04.
 
-| # | Where | Deviation | Fix |
-|---|---|---|---|
-| D1 | `auth_client.py` `add_time_limit_rule`, `remove_time_limit_rule`, `add_category_app`, `remove_category_app` | Wrong `type` names (class-style instead of `CREATE_TIMELIMIT_RULE`, `DELETE_TIMELIMIT_RULE`, `ADD_CATEGORY_APPS`, `REMOVE_CATEGORY_APPS`) | Use the wire names from the actions reference |
-| D2 | same | Outer type `appLogic`; the server cannot parse these as app-logic actions, so every action is silently dropped (`shouldDoFullSync: true`) | Outer type `parent` |
-| D3 | same | The child's `user_id` is used as the HMAC "device id" | Use the own device id (and prefer `integrity: "device"`) |
-| D4 | `app.py` rule/app endpoints (~3621+) | `get_parent_password_second_salt` is used as the HMAC key; the key must be the `secondHash` string, and the device method makes it unnecessary | Use `integrity: "device"` with the parent user id from `devices.data[ownDeviceId].currentUserId` |
-| D5 | `auth_client.py` `push_device_removal_action` | Sends a `REMOVE_DEVICE` action, which does not exist | Use `POST /parent/remove-device` |
-| D6 | `auth_client.py` `create_add_device_token` | Missing `parentId`, which the schema requires | Add `parentId` (parent user id) and `parentPasswordSecondHash: "device"` |
-| D7 | `auth_client.py` `add_device` | Flat `deviceModel`; check the schema for `child/add-device` in [3.8](#38-post-childadd-device) | Follow the schema |
-| D8 | `app.py` `api_add_user_to_family` | Only registers a device; a user is created by `ADD_USER` | Push `ADD_USER` after (or instead of) add-device as appropriate |
-| D9 | `auth_client.py` `_make_request` | Sends `Authorization: Bearer` and `X-Request-ID` headers; the server ignores both. The token must be in the body | Remove or keep for tracing only; never rely on them |
-| D10 | `sync_manager.py` | `_build_client_data_status` sends empty `categories`, so all category data is sent on every pull; `_apply_server_data_status` ignores `rules`, `categoryApp`, `usedTimes`, `tasks`, `apps` | Store and send versions; apply these keys |
-| D11 | everywhere that pushes actions | Sequence number handling must persist per device; failed actions consume numbers; `shouldDoFullSync` is ignored | Persist the counter; after a push, pull and verify |
-| D12 | tests | Tests run against a mock (FastAPI debug server) with different fields | Contract tests against the schemas in this document |
+| # | Where | Deviation | Fix | Status |
+|---|---|---|---|---|
+| D1 | `auth_client.py` `add_time_limit_rule`, `remove_time_limit_rule`, `add_category_app`, `remove_category_app` | Wrong `type` names (class-style instead of `CREATE_TIMELIMIT_RULE`, `DELETE_TIMELIMIT_RULE`, `ADD_CATEGORY_APPS`, `REMOVE_CATEGORY_APPS`) | Use the wire names from the actions reference | **Fixed.** The four methods were removed from `AuthClient`; `action_builder.py` builds the wire format and is checked against `actions-reference.md` in `tests/test_action_builder.py` |
+| D2 | same | Outer type `appLogic`; the server cannot parse these as app-logic actions, so every action is silently dropped (`shouldDoFullSync: true`) | Outer type `parent` | **Fixed.** `action_pusher.push_parent_actions` always sends outer type `parent` |
+| D3 | same | The child's `user_id` is used as the HMAC "device id" | Use the own device id (and prefer `integrity: "device"`) | **Fixed.** The HMAC (only used with `second_hash`) takes the own device id; default is `integrity: "device"` |
+| D4 | `app.py` rule/app endpoints (~3621+) | `get_parent_password_second_salt` is used as the HMAC key; the key must be the `secondHash` string, and the device method makes it unnecessary | Use `integrity: "device"` with the parent user id from `devices.data[ownDeviceId].currentUserId` | **Fixed.** The endpoints in `app.py` no longer read the password material; `_push_parent_actions_safely` resolves the parent user id |
+| D5 | `auth_client.py` `push_device_removal_action` | Sends a `REMOVE_DEVICE` action, which does not exist | Use `POST /parent/remove-device` | **Fixed.** `push_device_removal_action` was removed; devices go through `remove_device()` |
+| D6 | `auth_client.py` `create_add_device_token` | Missing `parentId`, which the schema requires | Add `parentId` (parent user id) and `parentPasswordSecondHash: "device"` | **Fixed.** `create_add_device_token(device_auth_token, parent_id, parent_password_second_hash="device")` |
+| D7 | `auth_client.py` `add_device` | Flat `deviceModel`; check the schema for `child/add-device` in [3.8](#38-post-childadd-device) | Follow the schema | **Fixed.** `childDevice: {model}` and `deviceName` are always sent |
+| D8 | `app.py` `api_add_user_to_family` | Only registers a device; a user is created by `ADD_USER` | Push `ADD_USER` after (or instead of) add-device as appropriate | **Fixed.** `api_add_user_to_family` first pushes `ADD_USER` (with a new 6-character id; time zone from the request or the parent) and stops with `502` when the server does not confirm; the password is no longer required |
+| D9 | `auth_client.py` `_make_request` | Sends `Authorization: Bearer` and `X-Request-ID` headers; the server ignores both. The token must be in the body | Remove or keep for tracing only; never rely on them | Open (harmless: the server ignores both headers) |
+| D10 | `sync_manager.py` | `_build_client_data_status` sends empty `categories`, so all category data is sent on every pull; `_apply_server_data_status` ignores `rules`, `categoryApp`, `usedTimes`, `tasks`, `apps` | Store and send versions; apply these keys | Open |
+| D11 | everywhere that pushes actions | Sequence number handling must persist per device; failed actions consume numbers; `shouldDoFullSync` is ignored | Persist the counter; after a push, pull and verify | **Partly fixed.** The push path reserves numbers atomically from 0 (`reserve_sequence_numbers`), batches 25 and reports `confirmed` / `should_do_full_sync`. Not done: an automatic pull after a push to verify the result. The `UPDATE_DEVICE_STATUS` push in `sync_manager.py` still uses the older get/increment pair on the same counter, and `increment_sequence_number` uses `INSERT OR REPLACE`, which replaces the whole `sync_state` row |
+| D12 | tests | Tests run against a mock (FastAPI debug server) with different fields | Contract tests against the schemas in this document | **Partly fixed.** `test_action_builder.py` and `test_action_pusher.py` are contract tests against the generated reference. Other tests still use mocks; tests of the removed `AuthClient` methods were deleted |
 
-Recommended order for the fixes: one `ActionBuilder` that produces the correct `parent`-type actions with `integrity: "device"`, then D1-D6, then D10/D11, then contract tests (D12).
+Remaining order: D10 (store and send version ids, apply `rules`, `categoryApp`, `usedTimes`, `tasks`, `apps`), then the rest of D11 (pull and verify after a push), then widening the contract tests (D12).
+
+How to push an action from dashboard code:
+
+```python
+from action_builder import create_timelimit_rule, new_id
+from action_pusher import push_parent_actions
+
+result = push_parent_actions(client, device_auth_token, own_device_id,
+                             [create_timelimit_rule(new_id(), category_id, time_ms=3600000)])
+if not result.confirmed:      # request failed, or the server skipped an action silently
+    print(result.summary)
+```
 
 ---
 
@@ -979,7 +991,7 @@ When a rule is created or deleted, the dashboard saves it locally and then pushe
 3. It is pushed with `POST /sync/push-actions`.
 4. A pull-status follows; `shouldDoFullSync: true` means the server did not apply it.
 
-> **Current code does not do this yet.** `auth_client.py` still uses class-style type names, outer type `appLogic`, and an HMAC with the wrong key and device id (deviations D1-D4 in [Section 10](#10-known-deviations-of-dashboard-v2)). Until they are fixed, rule and app changes are saved locally but silently dropped by the real server.
+> **Status (2026-11-04):** the dashboard now does this: rule and category-app endpoints build the action with `action_builder.py` and push it with `action_pusher.py` (device integrity, outer type `parent`). The response of those endpoints contains `synced` (true only when the server confirmed) and `syncMessage`. A pull-status after the push is not done yet (D11 in [Section 10](#10-known-deviations-of-dashboard-v2)).
 
 ---
 
@@ -1065,3 +1077,4 @@ interface Category {
 *This document serves as the basis/reference for all external server API changes. It should be extended as new features are added to the dashboard.*
 | 2.0.0 | 2026-11-03 | Rewritten from the server implementation (see Verification status): no `/api/v1` prefix, credentials in body, strict schemas, device-integrity authorization, correct action wire format (`parent`, SCREAMING_SNAKE types), sync/push semantics, WebSocket, crypto (AES key = first 16 bytes), error table, known deviations D1-D12. Generated action reference added |
 | 2.1.0 | 2026-11-04 | Cross-checked against Android clients (`mpashka` 7.5.0 and `flov91`): new Section 11; pulled rules also carry `e`; Android sync behaviour (batch 25, sequence counter, full-sync reset), gzip/411, WebSocket transport and path prefix, `clientLevel` 8 and fallback, hosted-server-only mail flags. Fixed the actions-reference generator for nested inline types (`ADD_USED_TIME_V2`) |
+| 2.2.0 | 2026-11-04 | Section 10 got a Status column: D1-D8 fixed in the dashboard code (`action_builder.py`, `action_pusher.py`), D11/D12 partly, D9/D10 open |

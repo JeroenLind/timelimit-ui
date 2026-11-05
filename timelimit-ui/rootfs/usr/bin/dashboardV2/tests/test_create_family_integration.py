@@ -584,6 +584,15 @@ class TestAddUserToFamilyIntegration:
     7. Response includes userId, deviceAuthToken, and ownDeviceId
     """
 
+    @pytest.fixture(autouse=True)
+    def _server_confirms_pushes(self):
+        """The server confirms every pushed parent action (the push itself is tested in
+        test_action_pusher.py and test_action_builder.py)."""
+        with patch('app._push_parent_actions_safely',
+                   return_value={'synced': True, 'syncMessage': None}) as push:
+            self.push_mock = push
+            yield push
+
     @pytest.mark.timeout(30)
     def test_add_user_complete_flow(self, auth_session):
         """Test complete flow from API to database.
@@ -650,7 +659,7 @@ class TestAddUserToFamilyIntegration:
             
             # Make the API call
             response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
+                                         json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
             
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -664,7 +673,7 @@ class TestAddUserToFamilyIntegration:
             call_kwargs = mock_client.create_add_device_token.call_args[1]
             assert call_kwargs['device_auth_token'] == device_auth_token
             assert call_kwargs['parent_id'] == parent_user_id
-            assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
+            assert call_kwargs['parent_password_second_hash'] == 'device'  # device integrity, no password needed
             
             mock_client.add_device.assert_called_once()
             add_device_kwargs = mock_client.add_device.call_args[1]
@@ -747,6 +756,7 @@ class TestAddUserToFamilyIntegration:
             # Make the API call with device info
             response = auth_session.post('/api/dashboard/users/add',
                                          json={
+                                             'timeZone': 'Europe/Amsterdam',
                                              'name': 'Child With Device',
                                              'deviceName': 'My Child Device',
                                              'deviceModel': 'Pixel 7'
@@ -794,7 +804,7 @@ class TestAddUserToFamilyIntegration:
             
             # Make the API call
             response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
+                                         json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
             
             assert response.status_code == 500
             data = json.loads(response.data)
@@ -866,6 +876,7 @@ class TestAddUserToFamilyIntegration:
             # Test with user name containing special characters and spaces
             response = auth_session.post('/api/dashboard/users/add',
                                          json={
+                                             'timeZone': 'Europe/Amsterdam',
                                              'name': 'Child with Special Chars! @#',
                                              'deviceName': '',  # Empty string
                                              'deviceModel': ''  # Empty string
@@ -931,7 +942,7 @@ class TestAddUserToFamilyIntegration:
             
             # Make the API call
             response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
+                                         json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
             
             assert response.status_code == 500
             data = json.loads(response.data)
@@ -981,7 +992,7 @@ class TestAddUserToFamilyIntegration:
             
             # Make the API call
             response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
+                                         json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
             
             assert response.status_code == 500
             data = json.loads(response.data)
@@ -1005,7 +1016,7 @@ class TestAddUserToFamilyIntegration:
         
         # Make the API call
         response = auth_session.post('/api/dashboard/users/add',
-                                     json={'name': 'Test Child'})
+                                     json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
         
         assert response.status_code == 500
         data = json.loads(response.data)
@@ -1075,14 +1086,16 @@ class TestAddUserToFamilyIntegration:
             
             # Make the API call
             response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
+                                         json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
             
             assert response.status_code == 200
             data = json.loads(response.data)
             assert data['status'] == 'ok'
-            # userId should be the device ID since a local user record is created
-            # when the user is not found in the sync response
-            assert data['userId'] == 'child_device_id_not_found'
+            # The user is not in the sync response, so the id of the ADD_USER action that the
+            # server confirmed is used and a local user record is created under it
+            pushed_actions = self.push_mock.call_args[0][1]
+            assert [a['type'] for a in pushed_actions] == ['ADD_USER']
+            assert data['userId'] == pushed_actions[0]['userId']
             assert data['deviceAuthToken'] == 'child_device_auth_token_not_found'
             
             # Verify the user was created locally in the database

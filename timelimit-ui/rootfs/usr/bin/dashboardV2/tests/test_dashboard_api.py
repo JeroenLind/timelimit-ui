@@ -2239,6 +2239,15 @@ class TestDebugDatabase:
 class TestApiTimeLimitRules:
     """Tests for /api/dashboard/time-limit-rules endpoints."""
     
+    @pytest.fixture(autouse=True)
+    def _server_confirms_pushes(self):
+        """The server confirms every pushed parent action (the push itself is tested in
+        test_action_pusher.py and test_action_builder.py)."""
+        with patch('app._push_parent_actions_safely',
+                   return_value={'synced': True, 'syncMessage': None}) as push:
+            self.push_mock = push
+            yield push
+
     @pytest.mark.timeout(10)
     def test_time_limit_rules_unauthenticated(self, client):
         """Test time limit rules GET without authentication."""
@@ -2477,20 +2486,19 @@ class TestApiTimeLimitRules:
             {'id': 'user_1', 'name': 'Child User', 'type': 'child', 'mail': 'child@example.com'}
         ])
         save_categories(db, device_auth_token, [
-            {'id': 'cat_1', 'title': 'Test Category'}
+            {'id': 'cat001', 'title': 'Test Category'}
         ])
         
         # Mock the AuthClient
         mock_client = Mock()
         mock_response = Mock()
         mock_response.success = True
-        mock_client.add_time_limit_rule.return_value = mock_response
         mock_auth_client_class.return_value = mock_client
         
         response = auth_session.post('/api/dashboard/time-limit-rules',
             data=json.dumps({
                 'userId': 'user_1',
-                'categoryId': 'cat_1',
+                'categoryId': 'cat001',
                 'rule': {
                     'type': 0,
                     'startTime': '08:00',
@@ -2506,7 +2514,14 @@ class TestApiTimeLimitRules:
         data = json.loads(response.data)
         assert data['status'] == 'ok'
         assert 'ruleId' in data
-        assert data['ruleId'].startswith('rule_')
+        assert len(data['ruleId']) == 6 and data['ruleId'].isalnum()  # server rule id format
+        assert data['synced'] is True
+        # exactly one CREATE_TIMELIMIT_RULE parent action was pushed, in server wire format
+        pushed = self.push_mock.call_args[0][1]
+        assert [a['type'] for a in pushed] == ['CREATE_TIMELIMIT_RULE']
+        assert pushed[0]['rule']['categoryId'] == 'cat001'
+        assert pushed[0]['rule']['time'] == 60 * 60 * 1000
+        assert (pushed[0]['rule']['start'], pushed[0]['rule']['end']) == (480, 1080)
     
     @pytest.mark.timeout(10)
     def test_update_time_limit_rule_unauthenticated(self, client):
@@ -2722,11 +2737,20 @@ class TestApiTimeLimitRules:
 class TestApiAddUserToFamily:
     """Tests for /api/dashboard/users/add endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _server_confirms_pushes(self):
+        """The server confirms every pushed parent action (the push itself is tested in
+        test_action_pusher.py and test_action_builder.py)."""
+        with patch('app._push_parent_actions_safely',
+                   return_value={'synced': True, 'syncMessage': None}) as push:
+            self.push_mock = push
+            yield push
+
     @pytest.mark.timeout(10)
     def test_add_user_unauthenticated(self, client):
         """Test adding user without authentication."""
         response = client.post('/api/dashboard/users/add',
-                               json={'name': 'Test Child'})
+                               json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
 
         assert response.status_code == 401
         data = json.loads(response.data)
@@ -2740,7 +2764,7 @@ class TestApiAddUserToFamily:
             sess['device_auth_token'] = None
 
         response = client.post('/api/dashboard/users/add',
-                               json={'name': 'Test Child'})
+                               json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
 
         assert response.status_code == 400
         data = json.loads(response.data)
@@ -2748,28 +2772,29 @@ class TestApiAddUserToFamily:
         assert data['error'] == 'No device auth token'
 
     @pytest.mark.timeout(10)
-    def test_add_user_parent_password_second_hash_fallback_to_database(self, client, auth_session):
-        """Test adding user falls back to database when hash not in session."""
-        # Get device_auth_token from session
+    @patch('app.AuthClient')
+    def test_add_user_does_not_need_parent_password(self, mock_auth_client_class, auth_session):
+        """The dashboard device is signed in as the parent: no password hash is required."""
         with auth_session.session_transaction() as sess:
             device_auth_token = sess['device_auth_token']
-            # Ensure parent_password_second_hash is not in session
-            # but should be retrieved from database
             sess.pop('parent_password_second_hash', None)
-        
-        # Mock the database to return None for parent_password_second_hash
-        # to test the case where hash is not in session AND not in database
-        from unittest.mock import patch
-        from database import get_parent_password_hash
-        
+        update_family_parent_user_id(auth_session.application.test_db, device_auth_token, 'abc123')
+
+        mock_client = Mock()
+        failed = Mock()
+        failed.success = False
+        failed.error_code = 'x'
+        failed.error_message = 'x'
+        mock_client.create_add_device_token.return_value = failed
+        mock_auth_client_class.return_value = mock_client
+
         with patch('app.get_parent_password_hash', return_value=None):
-            response = auth_session.post('/api/dashboard/users/add',
-                                         json={'name': 'Test Child'})
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert data['error'] == 'Missing parent_password_second_hash'
+            auth_session.post('/api/dashboard/users/add',
+                              json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
+
+        kwargs = mock_client.create_add_device_token.call_args.kwargs
+        assert kwargs['parent_password_second_hash'] == 'device'
+        assert kwargs['parent_id'] == 'abc123'
 
     @pytest.mark.timeout(10)
     def test_add_user_missing_user_name(self, client, auth_session):
@@ -2842,7 +2867,7 @@ class TestApiAddUserToFamily:
         mock_auth_client_class.return_value = mock_client
 
         response = auth_session.post('/api/dashboard/users/add',
-                                     json={'name': 'Test Child'})
+                                     json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -2856,7 +2881,7 @@ class TestApiAddUserToFamily:
         call_kwargs = mock_client.create_add_device_token.call_args[1]
         assert call_kwargs['device_auth_token'] == device_auth_token
         assert call_kwargs['parent_id'] == parent_user_id
-        assert call_kwargs['parent_password_second_hash'] == '$2b$12$test_hash'
+        assert call_kwargs['parent_password_second_hash'] == 'device'  # device integrity, no password needed
 
         mock_client.add_device.assert_called_once()
         add_device_kwargs = mock_client.add_device.call_args[1]
@@ -2899,7 +2924,7 @@ class TestApiAddUserToFamily:
         mock_auth_client_class.return_value = mock_client
 
         response = auth_session.post('/api/dashboard/users/add',
-                                     json={'name': 'Test Child'})
+                                     json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
 
         assert response.status_code == 500
         data = json.loads(response.data)
@@ -2953,7 +2978,7 @@ class TestApiAddUserToFamily:
         mock_auth_client_class.return_value = mock_client
 
         response = auth_session.post('/api/dashboard/users/add',
-                                     json={'name': 'Test Child'})
+                                     json={'name': 'Test Child', 'timeZone': 'Europe/Amsterdam'})
 
         assert response.status_code == 500
         data = json.loads(response.data)

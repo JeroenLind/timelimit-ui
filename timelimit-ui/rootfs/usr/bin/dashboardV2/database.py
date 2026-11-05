@@ -2096,6 +2096,38 @@ def get_next_sequence_number(db: Database, device_auth_token: str) -> int:
         return 0
 
 
+def reserve_sequence_numbers(db: Database, device_auth_token: str, count: int) -> int:
+    """Reserve ``count`` consecutive sync sequence numbers and return the first one.
+
+    Follows the server (and Android) semantics: numbers start at 0, every action uses
+    one, and a number is consumed even when the action later fails. The counter is stored
+    before anything is sent, so a crash never causes a number to be reused.
+
+    Unlike increment_sequence_number(), which returns the already incremented value
+    (and so skips 0), this returns the first free number.
+    """
+    if count < 1:
+        raise ValueError("count must be >= 1")
+    with db._lock:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT next_sequence_number FROM sync_state WHERE device_auth_token = ?', (device_auth_token,))
+        row = cursor.fetchone()
+        first = row[0] if row and row[0] is not None else 0
+        if row:
+            cursor.execute(
+                'UPDATE sync_state SET next_sequence_number = ? WHERE device_auth_token = ?',
+                (first + count, device_auth_token)
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO sync_state (device_auth_token, next_sequence_number) VALUES (?, ?)',
+                (device_auth_token, first + count)
+            )
+        conn.commit()
+        return first
+
+
 def increment_sequence_number(db: Database, device_auth_token: str) -> int:
     """Increment and return the sequence number for a device auth token.
     
