@@ -10,3 +10,5 @@ Warn the user in case of conflicting requirements
 When implementing a feature make sure all existing requirements are still fulfilled
 
 Update the design documentation on all major updates on the code base. The documentation must always be up to date
+
+Location and format: the requirements live in `timelimit-ui/docs/requirements/requirements.md`. Every requirement has a unique ID (FR/UI/TR/NFR/SEC), a MoSCoW priority and a status. Never duplicate a requirement; change it in place. Bugs are not listed separately: a bug fix becomes (or sharpens) a requirement plus a regression test.
