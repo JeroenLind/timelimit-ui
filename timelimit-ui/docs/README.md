@@ -11,7 +11,7 @@ Welcome to the Dashboard V2 documentation. This is the central hub for all docum
 
 ### Architecture
 - [Design Overview](architecture/design.md) - High-level architecture and design decisions
-- [Data Models](architecture/data-models.md) - Database schema and data structures
+- [Data and cache](architecture/design.md#4-data-and-cache) - Cache design (schema details: `archive/design-v1-2026-09.md`)
 - [Technical Stack](#technical-stack) - Technologies used in the project
 
 ### API Documentation
@@ -43,7 +43,6 @@ Welcome to the Dashboard V2 documentation. This is the central hub for all docum
 ### Additional Documentation
 - [Dashboard V2 Implementation](dashboardV2-implementation.md) - Implementation details
 - [Create Family Fixes](create-family-fixes.md) - Fixes for family creation flow
-- [UI Patterns Analysis](ui-patterns-analysis.md) - UI patterns analysis
 
 ## Overview
 
@@ -140,7 +139,7 @@ Dashboard V2 uses SQLite with 8 tables for local data storage:
 | `connected_devices` | Real-time connected device tracking | `(device_auth_token, device_id)` |
 | `time_limit_rules` | Local time limit rules | `id` |
 
-See [Data Models](architecture/data-models.md) for complete database schema documentation.
+See [Architecture – Data and cache](architecture/design.md#4-data-and-cache); the 2026-09 schema reference is `archive/design-v1-2026-09.md`.
 
 ## Server Selection
 

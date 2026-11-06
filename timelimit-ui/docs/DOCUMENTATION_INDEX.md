@@ -12,7 +12,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 |----------|----------|---------|
 | [Getting Started](#getting-started) | README.md | Central documentation hub |
 | [Architecture](#architecture) | design.md | System architecture overview |
-| [Architecture](#architecture) | data-models.md | Database schema documentation |
+| [Architecture](#architecture) | design.md (section 4) | Cache and data design |
 | [API](#api-documentation) | ServerAPI.md | External server API |
 | [API](#api-documentation) | api-reference.md | Internal API reference |
 | [API](#api-documentation) | internal-api.md | Internal dashboard API |
@@ -59,7 +59,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 3. Session Persistence
 4. CRDT-Based Sync
 
-### Data Models (`docs/architecture/data-models.md`)
+### Data Models (`docs/architecture/design.md` section 4; old schema reference in `docs/archive/design-v1-2026-09.md`)
 
 **Database Tables**:
 | Table | Purpose | Primary Key |
@@ -261,7 +261,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 
 ## Implementation Plans
 
-### Time Limit Rules (`docs/plans/time-limit-rules/implementation-plan.md`)
+### Time Limit Rules (`plans/time-limit-rules-implementation-plan.md` (repo root, historical))
 
 **Purpose**: Time limit rules implementation documentation
 
@@ -280,7 +280,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 
 **Implementation Status**: ✅ Complete
 
-### Add User to Family (`docs/plans/add-user-to-family/`)
+### Add User to Family (`plans/add-user-to-family-*.md` (repo root, historical))
 
 **Purpose**: Add user to family implementation documentation
 
@@ -303,7 +303,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 4. Bcrypt Hash Prefix Mismatch
 5. Password Validation
 
-### UI Patterns Analysis (`docs/ui-patterns-analysis.md`)
+### UI Patterns Analysis (removed; see `docs/development/ui-patterns.md`)
 
 **Purpose**: Analysis of UI patterns for implementing features
 

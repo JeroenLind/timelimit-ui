@@ -169,9 +169,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-200 | M | **SQLite** is the cache. One file, **next to the app**, one per installation. The server is the source of truth. | Done |
+| TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **family id** from the server. | Rework |
 | TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Rework |
-| TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally. | Done |
+| TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally, in the database and in the session file with backup. | Done |
 | TR-203 | S | Schema changes use versioned migrations. | Open |
 | TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | – |
 
@@ -181,9 +181,17 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | TR-300 | M | Python 3.10+; `requirements.txt` with loose version ranges. Starts with `py -3 app.py` on Windows. | Done |
 | TR-301 | M | All settings (port, data directory, log level, timings) come from a config file/environment variables and the UI; no hard-coded paths, so the same code runs as an HA add-on (paths via add-on options). | Partial |
-| TR-302 | S | Later: second HA add-on, reached through ingress; no base-URL assumptions (relative URLs in templates and JS). | Open |
+| TR-302 | S | Later: second HA add-on (**aarch64**), reached through ingress, built by GitHub Actions to `ghcr.io`; no base-URL assumptions (relative URLs). The Windows version is run locally without a GitHub build. The add-on s6 service must start the new dashboard (`dashboard-v2`), not the legacy `web_server.py`. | Open |
 | TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Open |
 | TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
+| TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |
+| TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Open |
+| TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with fixed codes (`SERVER_UNREACHABLE`, `ACTION_NOT_CONFIRMED`, `INVALID_INPUT`, `SESSION_INVALID`, ...) and a matching HTTP status. | Open |
+| TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Open |
+| TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
+| TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Open |
+| TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Open |
+| TR-312 | M | The legacy UI layer (`frontend.py`, `web_server.py`, `api_client.py`, `check_server.py`) and the one-off scripts are removed, after the s6 service is switched. | Open |
 
 ### 3.4 Logging and diagnostics
 
@@ -197,7 +205,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-500 | M | pytest unit tests, isolated (temporary DB per test), all green. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
+| TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests; tests that only grep source text are replaced by behaviour tests; tests of deleted code are removed. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
 | TR-501 | M | **Contract tests**: every action the dashboard can produce is validated against the schemas generated from the server. | Partial |
 | TR-502 | M | **Browser/UI tests** (Playwright) for the main screens: overview, child detail, rule dialog, hamburger menu, offline banner. | Open |
 | TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | – |
@@ -218,9 +226,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement |
 |----|-----|-------------|
-| SEC-001 | M | The dashboard listens on **localhost only** and has no login. Remote access comes later through Home Assistant (ingress authentication). |
+| SEC-001 | M | The dashboard listens on **localhost by default** (127.0.0.1) and has no login. Remote access comes later through Home Assistant (ingress authentication). |
 | SEC-002 | M | The server connection uses HTTPS when the server is not on the local network. Plain HTTP is allowed for localhost/LAN test servers. (Replaces NFR-003 "all communication HTTPS".) |
-| SEC-003 | M | The device auth token is stored only in the local database file, never sent to the browser. |
+| SEC-003 | M | The device auth token is stored only on the local disk (database and session file), never sent to the browser. The browser never talks to the TimeLimit server; only the backend does. |
 | SEC-004 | S | Secrets in the repository: the old test signing key stays untracked; `docs/password info.md` must not be tracked. |
 
 ---
@@ -269,7 +277,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 ## 8. Build order (proposal, after approval)
 
-1. Test isolation (TR-500) and sync correctness (TR-103, FR-200..202, TR-201).
+See `docs/architecture/design.md` section 10 for the current build order. Summary: 1. foundation (TR-500 isolation, TR-307 error envelope, server-down handling, TR-306); 2. sync (TR-103, TR-309, TR-310, FR-200..202); 3. cleanup (TR-312, after the s6 switch); 4. features; 5. frontend (TR-311); 6. HA add-on (TR-302).
+
+Original proposal: 1. Test isolation (TR-500) and sync correctness (TR-103, FR-200..202, TR-201).
 2. Rules, blocked times, categories and apps (FR-300..305, FR-400..404).
 3. Extra time, temporary blocking, used time (FR-500..503, FR-600..601).
 4. Settings, WebSocket, i18n, themes, UI tests (FR-100..104, FR-207, UI-002..005, TR-502).
