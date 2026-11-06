@@ -137,10 +137,10 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-1000 | M | Health check on page load with a configurable timeout (default 3 s). | Done |
-| FR-1001 | M | When the server is unreachable: offline banner, **read-only view from the cache**, all change controls disabled, SSE/WebSocket closed, no requests queued. | Partial |
-| FR-1002 | M | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and a "Retry connection" button. | Done |
-| FR-1003 | M | When the server is back, controls are re-enabled and data is refreshed with a sync. | Done |
+| FR-1000 | M | Health check on page load with a configurable timeout (default 3 s). | Open (JS missing) |
+| FR-1001 | M | When the server is unreachable: offline banner, **read-only view from the cache**, all change controls disabled, SSE/WebSocket closed, no requests queued. | Open (JS missing) |
+| FR-1002 | M | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and a "Retry connection" button. | Open (JS missing) |
+| FR-1003 | M | When the server is back, controls are re-enabled and data is refreshed with a sync. | Open (JS missing) |
 
 ### 2.12 Audit log
 
@@ -182,7 +182,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-300 | M | Python 3.10+; `requirements.txt` with loose version ranges. Starts with `py -3 app.py` on Windows. | Done |
 | TR-301 | M | All settings (port, data directory, log level, timings) come from a config file/environment variables and the UI; no hard-coded paths, so the same code runs as an HA add-on (paths via add-on options). | Partial |
 | TR-302 | S | Later: second HA add-on, reached through ingress; no base-URL assumptions (relative URLs in templates and JS). | Open |
-| TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Done |
+| TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Open |
 | TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
 
 ### 3.4 Logging and diagnostics
