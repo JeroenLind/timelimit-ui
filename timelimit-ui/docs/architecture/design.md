@@ -38,6 +38,34 @@ Gap: the code listens on `0.0.0.0` and port 8099 by default.
 
 ## 2. Components and layers
 
+### 2.1 Structure diagram
+
+![Structure of the dashboard: browser, four layers, and the outside world](structure.svg)
+
+*(Source: `make_structure_svg.py`; regenerate with `python make_structure_svg.py structure.svg`.)*
+
+How to read it:
+- **Components do not talk to each other freely.** Every arrow is an allowed call and all of them point **downwards**. Anything not drawn is not allowed.
+- **Three things own an outside world:** the **Server client** (the only HTTP to the TimeLimit server), the **Repository** (the only SQL, the only access to the SQLite file) and the **Domain** (pure logic, no I/O at all, depends on nothing).
+- **Only one path changes server data:** Routes → Services → SyncService → Sync worker → action_pusher → Server client. Nothing else may push actions or pull from the server.
+- **Everything upward is a notification, not a call:** the Sync worker tells the SSE hub that the cache changed, and the SSE hub pushes an event to the browser; the server's WebSocket only wakes the Socket listener, which enqueues a job.
+- **The three triggers** (a user change through SyncService, the Socket listener, the fallback poller) all enqueue a job; the single Sync worker runs them one at a time, so two syncs never run at once.
+
+| Component | May call | Must not call |
+|-----------|----------|---------------|
+| Browser (api module) | Routes (HTTP), SSE hub (listen) | the TimeLimit server directly |
+| Routes | Services, SSE hub | Repository, Server client, SQL |
+| Services (Rules, Category, …) | Domain, Repository, SyncService | Server client, Sync worker directly |
+| SyncService | Sync worker (enqueue) | Server client |
+| Socket listener, Fallback poller | Sync worker (enqueue), Server client (health only) | Repository, Services |
+| Sync worker | action_pusher, Server client, Repository, Domain | Routes, Services |
+| action_pusher | Domain, Server client, Repository (sequence numbers) | Services |
+| Domain | nothing | everything (it is pure) |
+
+Gap: today these boundaries do not exist; `app.py` calls the database, the server client and `do_sync` directly from about 58 routes.
+
+### 2.2 Layers in short
+
 ```
  routes (Flask)      thin: parse input, call a service, return the error envelope
      │
