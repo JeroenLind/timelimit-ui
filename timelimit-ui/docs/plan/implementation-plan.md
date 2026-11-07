@@ -115,7 +115,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 
 ### A1 · Baseline and working method — S
 **Refs:** TR-504, `.roo/rules`. **Decided:** K0, Q2, R1 (§3).
-**Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run (1325 tests, 29 failed, 369 s). Add a dev requirements file (pytest, pytest-xdist, playwright). Fix the new code's folder layout (answer of Q2). Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
+**Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run (1325 tests, 29 failed, 369 s). Add a dev requirements file (pytest, pytest-xdist, playwright). Create the new package `dashboard/` with the sub-folders of Q2. Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
 **Result (testable):**
 - `py -3 -m pytest` on the **old** tree reproduces the recorded baseline numbers (a script prints "baseline OK").
 - The new, empty package imports (`py -3 -c "import <package>"`) and an empty test folder for it passes in CI/local.
