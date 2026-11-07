@@ -34,6 +34,8 @@ versions; the HA image installs with `-c constraints.txt`. Regenerate after chan
 ## Commits (TR-518)
 Short, descriptive message, one commit per plan step, ending with the agreed trailers
 (`Co-Authored-By: ...` and `Claude-Session: ...`).
+In between, checkpoint commits `wip(<step>): ...` are allowed (and may use `--no-verify`) so no work is lost when a
+session is interrupted; the closing commit of a step passes the hook. See `docs/plan/progress.md` for the resume protocol.
 
 ## Decisions (TR-519)
 `docs/decisions/`: one record per decision, written from `TEMPLATE.md`; IDs follow the plan.
