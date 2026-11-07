@@ -2,7 +2,7 @@
 
 | Item | Value |
 |------|-------|
-| Version | 1.1 (draft for approval; 1.0 plus the answers to all plan questions of 2026-11-07) |
+| Version | 1.2 (draft for approval; 1.1 plus requirement FR-307 "rule off for today") |
 | Implements | `docs/requirements/requirements.md` v3.0 and `docs/architecture/design.md` v3.0 |
 | Protocol | `docs/ServerAPI.md`, `docs/protocol/actions-reference.md` |
 | Rule | **This plan makes no design choices.** Where a step needed one, it was asked as a question (section 3); the answers are recorded there and in the design and requirements. New gaps found later go back to the design or requirements first. |
@@ -63,6 +63,7 @@
 | E Features | E1 | Settings, linking, version warning, debug export | L | Q6, Q7 |
 | | E2 | Children overview, child detail, devices (read only) | M | |
 | | E3 | Time limit rules | M | |
+| | E3a | Rule off for today (FR-307) | M | W1–W6 |
 | | E4 | Pending/stale markers, conflict warning, rollback UI | M | Q3 |
 | | E5 | Blocked times | M | Q4 |
 | | E6 | Categories | M | Q5 |
@@ -106,6 +107,19 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | Q13 | E10, A3 | Are passwords and the second hash logged? | Secrets are **masked at info level and higher**; **only at debug level** everything is unmasked, also in the debug export. Replaces the earlier "logs not masked"; design §5 and TR-402 updated. |
 | R1 | A1 | TR-203 versus TR-310 | **TR-203 removed.** |
 | R2 | B1, B3 | Tasks | **Not stored** in v1 (no UI). B3 checks what the server sends when the tasks version is omitted. |
+
+**Rule off for today (new requirement FR-307, asked 2026-11-07):**
+
+| # | Steps | Question | Answer |
+|---|-------|----------|--------|
+| W1 | B2, E3a | How to emulate "off" when a rule has no switch? | **Remove today's bit** from the rule's days mask (`UPDATE_TIMELIMIT_RULE`) and put it back later; the rest of the rule stays. |
+| W2 | E3a | Which midnight and time zone? | The time zone of the **machine running the dashboard**. |
+| W3 | E3a | Child's time zone differs from the dashboard's | **Warn** (naming both zones), keep the function available; weekday follows the dashboard. |
+| W4 | B1, E3a | Dashboard not running at midnight | Pending restores are in the **database**; at the next start overdue ones run **immediately** with a notice. |
+| W5 | E3a | Rule changed or deleted on the server meanwhile | **Do not touch it**, show a notice; the parent decides. |
+| W6 | E3a | Edit or delete in the dashboard while off | **Restore first**, then apply the change; short notice. |
+
+Derived by me from these answers and written into FR-307 for your confirmation: (e) switching on again earlier the same day is allowed; (f) not offered for a rule that does not apply today, and if today's bit is the only one the mask becomes 0 until the restore; (g) the list shows "off for today" with the restore time and every switch-off and restore is audit-logged. Design consequences: the restore timer is a fourth trigger in the sync engine (diagram: "Timers"), and the pending restores are kept across a cache reset like the link.
 
 **Still open (not blocking the start):** FR-505 (E13) is built only if you ask for it; audit-log entries without a child (E12); pinning the server version in the HA server add-on (design §11).
 
@@ -178,10 +192,10 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 
 ### B1 · Repository and cache schema — L
 **Refs:** TR-200, 201, 202, 310, FR-103, FR-206 (storage), SEC-003, `design.md` §4.
-**Work:** Repository modules are the only place with SQL. Tables for: devices, users, categories, category apps, rules, blocked times per category, used time per day (including the dashboard's **own daily totals**, Q10; lost on a reset, Q10b), installed apps per device (**no tasks**, R2), version ids per part, audit log, settings, and the **link** (token, own device id, family id, sequence counter). Cache keyed by family id. `reset_cache()` drops the cache tables but keeps link, settings and the sequence counter. Token also kept in the session file with backup (kept behaviour). No `INSERT OR REPLACE` on sync state; multi-table writes in one transaction.
+**Work:** Repository modules are the only place with SQL. Tables for: devices, users, categories, category apps, rules, blocked times per category, used time per day (including the dashboard's **own daily totals**, Q10; lost on a reset, Q10b), installed apps per device (**no tasks**, R2), version ids per part, audit log, settings, and the **link** (token, own device id, family id, sequence counter). Cache keyed by family id. `reset_cache()` drops the cache tables but keeps link, settings, the sequence counter and the pending restores of "rule off for today" (FR-307, W4). Token also kept in the session file with backup (kept behaviour). No `INSERT OR REPLACE` on sync state; multi-table writes in one transaction.
 **Result:**
 - U: round trip of every entity; transaction rollback leaves nothing half-written (fault injected mid-write).
-- U: `reset_cache()` keeps the sequence counter, link and settings (value before = value after).
+- U: `reset_cache()` keeps the sequence counter, link, settings and pending restores (value before = value after).
 - U: a schema version mismatch at start triggers the reset and the sequence counter survives.
 - U: thread-safety test (concurrent writers) without errors.
 - No password is ever written (a test inspects the database file for the test password).
@@ -306,6 +320,20 @@ Every feature step is a **vertical slice**: domain action → service → route 
 - I: create → rule appears with the same values after the pull, including a rule pulled from the server with field `e`.
 - E: create a rule with days Mon–Fri and 90 minutes; the table shows "Mon–Fri · 1 h 30"; editing and deleting (with confirm) work; invalid input (end before start, time window > 1439) shows a field message and sends nothing (fake sees no request).
 - I: the fake rejects the action → the UI reverts and shows the error (links to E4).
+
+### E3a · Rule off for today — M
+**Refs:** FR-307, FR-1100. **Decided:** W1–W6 (§3). Needs E3 and B5; the timer part needs B5/B6.
+**Work:** In the rule list a button "off for today" (not offered when the rule does not apply today). Switching off pushes `UPDATE_TIMELIMIT_RULE` with today's bit removed and stores a pending restore (rule id, day bit, original days, the state that was set, due time). A timer (a trigger of the sync engine) restores at the dashboard's midnight; at start, overdue restores run at once with a notice. At restore the rule on the server is compared with the state that was set: different or missing → nothing is changed and a notice is shown. Editing or deleting such a rule restores it first. Warning when the child's time zone differs. State "off for today" with the restore time in the list; switch-off and restore are audit-logged.
+**Result:**
+- C/U: the days mask without today's bit for all 7 weekdays and for masks with one bit (result 0), validated against the schema; a rule that does not apply today is refused before sending.
+- I (fake clock): switch off on a Wednesday → the fake shows the rule without bit Wednesday and all other fields unchanged; at midnight (clock advanced) the bit is back and the pending restore is gone; the audit log has both entries.
+- I: stop the dashboard before midnight, start it the next afternoon → the restore runs immediately at start and a notice lists it.
+- I: change the rule on the fake while it is off → at restore nothing is sent and a notice appears; delete it on the fake → same.
+- I/E: edit and delete in the UI while off → the restore is pushed first, then the change; a notice says "off for today" ended.
+- I: a cache reset between switch-off and midnight keeps the pending restore.
+- I: the server (fake) never sees anything but `UPDATE_TIMELIMIT_RULE` actions for this feature (asserted on the action types).
+- U: dashboard time zone ≠ child's time zone → the warning names both zones; the function still works.
+- E: the button is disabled with a reason for a rule that does not apply today; "on again" the same day restores at once.
 
 ### E4 · Markers, conflicts, rollback — M
 **Refs:** FR-205, 206, 208, 209, UI-007. **Decided:** Q3 (§3).
@@ -436,6 +464,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 | FR-205, 206, 208, 209 | E4 | | FR-901, 902 | E10 |
 | FR-207 | B6 | | FR-1000..1003 | A7 |
 | FR-300..303, 305, 306 | E3 | | FR-1100, 1101 | E12 |
+| FR-307 | E3a | | | |
 | FR-304 | E5 | | UI-001 | E1, E2, E11 |
 | FR-400..402 | E6 | | UI-002..006 | D1 |
 | FR-403..405 | E7 | | UI-007 | E4 |

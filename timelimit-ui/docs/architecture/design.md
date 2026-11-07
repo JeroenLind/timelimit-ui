@@ -49,7 +49,7 @@ How to read it:
 - **Three things own an outside world:** the **Server client** (the only HTTP to the TimeLimit server), the **Repository** (the only SQL, the only access to the SQLite file) and the **Domain** (pure logic, no I/O at all, depends on nothing).
 - **Only one path changes server data:** Routes → Services → SyncService → Sync worker → action_pusher → Server client. Nothing else may push actions or pull from the server.
 - **Everything upward is a notification, not a call:** the Sync worker tells the SSE hub that the cache changed, and the SSE hub pushes an event to the browser; the server's WebSocket only wakes the Socket listener, which enqueues a job.
-- **The three triggers** (a user change through SyncService, the Socket listener, the fallback poller) all enqueue a job; the single Sync worker runs them one at a time, so two syncs never run at once.
+- **The four triggers** (a user change through SyncService, the Socket listener, the timers: fallback poller, health check and the restore timer of "rule off for today" (FR-307)) all enqueue a job; the single Sync worker runs them one at a time, so two syncs never run at once.
 
 | Component | May call | Must not call |
 |-----------|----------|---------------|
@@ -57,7 +57,7 @@ How to read it:
 | Routes | Services, SSE hub | Repository, Server client, SQL |
 | Services (Rules, Category, …) | Domain, Repository, SyncService | Server client, Sync worker directly |
 | SyncService | Sync worker (enqueue) | Server client |
-| Socket listener, Fallback poller | Sync worker (enqueue), Server client (health only) | Repository, Services |
+| Socket listener, Timers (fallback poller, health check, restore timer) | Sync worker (enqueue), Server client (health only) | Repository, Services |
 | Sync worker | action_pusher, Server client, Repository, Domain | Routes, Services |
 | action_pusher | Domain, Server client, Repository (sequence numbers) | Services |
 | Domain | nothing | everything (it is pure) |
@@ -128,7 +128,7 @@ Gap: no version exchange (`ClientDataStatus` has no versions, D10); no pull afte
 - **SQLite**, one file per installation, in the data folder (section 8). The server is the source of truth; the file is a cache plus the link to the server.
 - **Cache key:** the **family id** from the server (not the device token). The token is an ordinary column.
 - **Cache content (target):** devices, users, categories, category apps, rules, blocked times per category, used time per day (the dashboard builds its own daily totals so the history grows to 30 days; they are lost on a cache reset), installed apps of child devices, version ids per part. **Tasks are not stored** (no screen in v1).
-- **Kept for the link (never dropped):** device token, own device id, family id, the sequence counter, settings.
+- **Kept for the link (never dropped):** device token, own device id, family id, the sequence counter, settings, and the **pending restores** of "rule off for today" (FR-307): losing them would leave a rule switched off for good.
 - **Schema changes:** no migration chain. On a schema change the cache is dropped and fully re-synced. **The sequence counter and the link must survive a reset**: a counter that goes back to 0 makes the server skip actions silently.
 - Users and other entities the server no longer reports are kept and flagged "no longer on server" until cleaned up.
 - No parent passwords are stored.

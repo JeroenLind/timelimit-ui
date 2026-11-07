@@ -35,7 +35,7 @@
 <rect x="220" y="220" width="300" height="50" rx="6" class="b"/><text x="370.0" y="240" class="t">Rules · Category · Usage · ExtraTime</text><text x="370.0" y="258" class="s">Family · Settings · TestUser services</text>
 <rect x="640" y="220" width="160" height="50" rx="6" class="b"/><text x="720.0" y="240" class="t">SyncService</text><text x="720.0" y="258" class="s">push, then pull</text>
 <rect x="230" y="336" width="130" height="58" rx="6" class="b"/><text x="295.0" y="356" class="t">Socket listener</text><text x="295.0" y="374" class="s">server: should sync</text>
-<rect x="372" y="336" width="130" height="58" rx="6" class="b"/><text x="437.0" y="356" class="t">Fallback poller</text><text x="437.0" y="374" class="s">+ health check</text>
+<rect x="372" y="336" width="130" height="58" rx="6" class="b"/><text x="437.0" y="356" class="t">Timers</text><text x="437.0" y="374" class="s">poll · health · restore</text>
 <rect x="520" y="336" width="180" height="58" rx="6" class="b"/><text x="610.0" y="356" class="t">action_pusher</text><text x="610.0" y="374" class="s">sequence numbers,</text><text x="610.0" y="389" class="s">integrity</text>
 <rect x="730" y="336" width="170" height="58" rx="6" class="b"/><text x="815.0" y="356" class="t">Sync worker</text><text x="815.0" y="374" class="s">one thread, job queue</text>
 <rect x="330" y="494" width="230" height="52" rx="6" class="g"/><text x="445.0" y="514" class="t">Server client</text><text x="445.0" y="532" class="s">the only HTTP to the server</text>
