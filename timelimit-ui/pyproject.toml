@@ -25,6 +25,8 @@ python_version = "3.10"
 mypy_path = "rootfs/usr/bin"
 explicit_package_bases = true
 files = ["rootfs/usr/bin/dashboard"]
+# The kept old tests import untyped legacy modules (until B2/B4 moves them).
+exclude = ["tests/kept/"]
 warn_unused_configs = true
 
 # Strict where the code is pure or the only door to the outside (TR-515).

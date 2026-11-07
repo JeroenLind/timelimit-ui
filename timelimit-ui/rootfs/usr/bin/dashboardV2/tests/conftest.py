@@ -50,6 +50,16 @@ def pytest_configure(config):
     pass
 
 
+def pytest_collection_modifyitems(config, items):
+    """Mark every old test as legacy (plan A2, decision T2).
+
+    The tests of the modules the rebuild keeps (class K) moved to dashboard/tests/kept; what is left
+    here runs apart: ``pytest -m legacy`` and does not block the definition of done.
+    """
+    for item in items:
+        item.add_marker(pytest.mark.legacy)
+
+
 # Import app and other modules after environment variables are set
 from app import app as flask_app
 from config import Config

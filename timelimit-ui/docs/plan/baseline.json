@@ -1,10 +1,10 @@
 {
-  "note": "Old dashboardV2 suite, run from rootfs/usr/bin/dashboardV2 with: pytest tests -q. Written by tools/baseline.py --record.",
-  "collected": 1325,
+  "note": "Old dashboardV2 suite (legacy), run from rootfs/usr/bin/dashboardV2 with: pytest tests -q. Written by tools/baseline.py --record. The 77 kept tests (class K) moved to dashboard/tests/kept in step A2, so 1325 - 77 = 1248 remain.",
+  "collected": 1248,
   "platforms": {
     "linux": {
       "recorded": "2026-11-07, cloud container, Python 3.13",
-      "passed": 1321,
+      "passed": 1244,
       "failed": [
         "tests/test_config.py::TestConfigCrossPlatform::test_path_separators",
         "tests/test_dashboard_api.py::TestApiClearAll::test_clear_all_clears_session",
