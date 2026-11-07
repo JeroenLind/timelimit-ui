@@ -50,7 +50,7 @@
 | | A5 | Fake TimeLimit server (test double) | L | |
 | | A6 | Server client with timeouts, gzip, error mapping | M | |
 | | A7 | Frontend skeleton with working server-down handling | M | |
-| B Sync | B1 | Repository and cache schema keyed by family id | L | |
+| B Sync | B1 | Repository and cache schema keyed by server profile and family id | L | |
 | | B2 | Domain: every v1 action built and validated | L | Q4, Q5 |
 | | B3 | Pull with version exchange | L | |
 | | B4 | Push, confirmation, rollback | M | |
@@ -106,6 +106,9 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | Q12 | E12 | Where is the audit log shown? | As a **tab "Changes" in child detail**. Entries without a child are still stored; where they are shown is decided when E12 is detailed. |
 | Q13 | E10, A3 | Are passwords and the second hash logged? | Secrets are **masked at info level and higher**; **only at debug level** everything is unmasked, also in the debug export. Replaces the earlier "logs not masked"; design §5 and TR-402 updated. |
 | R1 | A1 | TR-203 versus TR-310 | **TR-203 removed.** |
+| S1 | E1 | Default server and selection | Dropdown in settings: **Official server** (`https://api.timelimit.io`) or **Alternative server**; nothing selected on first start. |
+| S2 | E1 | Alternative server fields | Protocol (http/https, default **http**), address and port; stored persistently. |
+| S3 | A3, B1, E1 | Switching servers | **Each server has its own profile** (link, cache, counter, pending restores); switching back restores it untouched. |
 | R2 | B1, B3 | Tasks | **Not stored** in v1 (no UI). B3 checks what the server sends when the tasks version is omitted. |
 
 **Rule off for today (new requirement FR-307, asked 2026-11-07):**
@@ -121,7 +124,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 
 Derived from these answers, written into FR-307 and **confirmed by you on 2026-11-07**: (e) switching on again earlier the same day is allowed; (f) not offered for a rule that does not apply today, and if today's bit is the only one the mask becomes 0 until the restore; (g) the list shows "off for today" with the restore time and every switch-off and restore is audit-logged. Design consequences: the restore timer is a fourth trigger in the sync engine (diagram: "Timers"), and the pending restores are kept across a cache reset like the link.
 
-**Still open (not blocking the start):** FR-505 (E13) is built only if you ask for it; audit-log entries without a child (E12); pinning the server version in the HA server add-on (design §11).
+**Still open (not blocking the start):** FR-505 (E13) is built only if you ask for it; audit-log entries without a child (E12).
 
 ---
 
@@ -295,11 +298,13 @@ Every feature step is a **vertical slice**: domain action → service → route 
 
 ### E1 · Settings, linking, version warning, debug export — L
 **Refs:** FR-100, 101 (part), 102, 103, 104, TR-402, FR-1002. **Decided:** Q6, Q6b, Q6c, Q7, Q9 (§3).
-**Work:** Settings screen: server URL, link (log in once as an existing parent, create "Dashboard" with `ADD_USER`, register as a new device, Q6/Q6b; with the test-server switch on, create a new family, Q6c), connection state, device id (not the token), versions, last sync, timings, log level, language/theme, test-server setting, debug export (unmasked, with the warning). Version/`clientLevel` check on connect (warn only). Server URL changeable in the UI. `SESSION_INVALID` shows "link again".
+**Work:** Settings screen: server dropdown (official / alternative with protocol, address, port; S1, S2), per-server profiles (S3), link (log in once as an existing parent, create "Dashboard" with `ADD_USER`, register as a new device, Q6/Q6b; with the test-server switch on, create a new family, Q6c), connection state, device id (not the token), versions, last sync, timings, log level, language/theme, test-server setting, debug export (unmasked, with the warning). Version/`clientLevel` check on connect (warn only). The server can be switched in the UI; every server keeps its own link and cache. `SESSION_INVALID` shows "link again".
 **Result:**
 - E: first start without a link shows only the settings/link screen; entering the fake's URL and the credentials of an existing parent creates the parent "Dashboard" (`ADD_USER` is the first action, confirmed), registers a new device and the overview loads; the parent's password is not in the database or the logs at info level.
 - E: on a fresh fake server with no family and the switch "This is a test server" off, the link screen offers no "create family"; with the switch on it creates a family whose first parent is "Dashboard".
 - I: the link survives a restart and a cache reset.
+- E: choosing "Alternative" asks for protocol (default http), address and port; the choice is still there after a restart.
+- I: link two fake servers in turn; switching back and forth keeps each link, cache, counter and pending restores separate, and an action is only ever sent to the active server.
 - E: a server with `apiLevel` 7 or 9 shows no warning; any other value shows a warning banner but stays usable (Q7).
 - E: the token is never present in any page, script or API response (test scans responses).
 - E: debug export downloads a file and the warning appears first.
@@ -423,7 +428,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 
 ### F2 · aarch64 add-on with options — M
 **Refs:** TR-302, TR-301, `design.md` §8.
-**Work:** `config.yaml`: aarch64, ingress, options (server URL default from the server add-on's internal hostname, log level, test-server mode, listen address `0.0.0.0` set by the add-on), data in `/data`. s6 service starts the new dashboard.
+**Work:** `config.yaml`: aarch64, ingress, options (log level, listen address `0.0.0.0` set by the add-on; the server is chosen in the settings screen, design §8.1), data in `/data`. s6 service starts the new dashboard.
 **Result:**
 - U: the options → configuration mapping is tested with sample `options.json`.
 - U: a schema check of `config.yaml` (HA add-on schema validator).

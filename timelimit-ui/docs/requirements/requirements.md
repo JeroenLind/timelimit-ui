@@ -19,7 +19,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 - One family with one or more parents. Parents also use the Android app.
 - The dashboard is one extra device in the family, signed in as its own parent user called **"Dashboard"**.
 - There is no dashboard login: it is a single shared instance for the household. Access is limited to the machine it runs on (see SEC-001).
-- v1 runs directly on a Windows laptop (`py -3 app.py`). Later it becomes a **second Home Assistant add-on** (own container, reached through HA ingress). The HA server add-on (`JeroenLind/timelimit-ha`) wraps the unmodified official server; it adds only logging patches.
+- v1 runs directly on a Windows laptop (`py -3 app.py`). Later it becomes a **second Home Assistant add-on** (own container, reached through HA ingress). The dashboard works against any TimeLimit server: the official one or an alternative (own or test) server, selected in settings (FR-100).
 
 **In scope (v1):** time limit rules, blocked-time schedule, categories and their apps, extra time and temporary blocking, used time, child devices (read only), settings, a separate test section.
 
@@ -33,7 +33,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-100 | M | On first start the dashboard shows a **settings screen** where the server URL is entered. For a real family the dashboard logs in **once** as an existing parent (the password is used once and not stored), creates the parent **"Dashboard"** itself with `ADD_USER` (FR-801) and registers itself as a **new device** (no import of an older dashboard's link). With the test-server switch on (FR-800) the screen can also **create a new family** on a fresh test server; its first parent becomes "Dashboard". The device auth token is stored. | Partial |
+| FR-100 | M | On first start the dashboard shows a **settings screen** where the **server is selected** with a dropdown: **Official server** (`https://api.timelimit.io`) or **Alternative server** (protocol http/https with default http, address and port). The choice is stored persistently; each server keeps its own link, cache and pending restores, so switching never mixes data and actions only reach the active server. For a real family the dashboard logs in **once** as an existing parent (the password is used once and not stored), creates the parent **"Dashboard"** itself with `ADD_USER` (FR-801) and registers itself as a **new device** (no import of an older dashboard's link). With the test-server switch on (FR-800) the screen can also **create a new family** on a fresh test server; its first parent becomes "Dashboard". The device auth token is stored. | Partial |
 | FR-101 | M | The dashboard device is signed in as a separate parent user **"Dashboard"** (never as a person's own parent account). Its actions use device integrity (`integrity:"device"`). | Partial |
 | FR-102 | S | On connecting, the dashboard reads the server's `apiLevel` and **warns** (never blocks) when it is not 7 or 9 (the tested range). | Open |
 | FR-103 | M | Only one family per installation. Switching family means resetting the installation. | Done |
@@ -170,7 +170,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **family id** from the server. | Rework |
+| TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **server profile** plus the **family id** from the server. | Rework |
 | TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Rework |
 | TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally, in the database and in the session file with backup. | Done |
 | TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | – |
@@ -245,14 +245,14 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-007 hamburger on all screens | Sidebar on desktop, hamburger on small screens (UI-002). |
 | FR-002 fixed timings | Configurable with the old values as defaults. |
 | NFR-003 HTTPS everywhere | HTTPS required only outside the local network (SEC-002). |
-| Original goal "own server-side additions" | None exist. The HA add-on wraps the official server and only adds logging patches. |
+| Original goal "own server-side additions" | None exist in v1. |
 
 ## 6. Conflicts and open points to confirm
 
 1. **Logging:** secrets are masked at info level and higher and unmasked only at debug level (decided 2026-11-07). Anyone who sets debug level and shares the export shares the token; the UI warns.
 2. **Per-app usage** was dropped from v1 because the server has no per-app data for parents.
 3. **FR-505** (disable all limits until a time) was not chosen; kept as Should only if wanted.
-4. **Server version**: the HA add-on builds `master` of the official server without a pinned version; the verified references are `apiLevel` 7 and 9. Decide whether the add-on pins a version.
+4. **Server version**: the verified references are `apiLevel` 7 and 9; other versions only give a warning (FR-102).
 5. **Test isolation** (29 failing tests) and **D10/D11** (sync) block FR-200..202; they come first in the build order.
 6. `docs/password info.md` is still tracked and holds a plaintext test password; untracking is pending the owner's decision.
 

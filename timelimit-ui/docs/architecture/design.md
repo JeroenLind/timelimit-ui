@@ -19,8 +19,8 @@ Every section says what the **target design** is and, where it differs, what the
         ▼
  ┌─────────────────────────────┐        HTTPS/HTTP         ┌──────────────────────┐
  │ Dashboard backend (Python)  │ ────────────────────────► │ TimeLimit server     │
- │  Flask + sync worker +      │  REST (sync, auth)        │ (official, unmodified│
- │  socket listener + SQLite   │ ◄──────────────────────── │  + logging patches)  │
+ │  Flask + sync worker +      │  REST (sync, auth)        │ (official or own    │
+ │  socket listener + SQLite   │ ◄──────────────────────── │   alternative)       │
  └─────────────────────────────┘  Socket.IO "should sync"  └──────────┬───────────┘
         ▲                                                             │
         │ HA ingress (later)                                          │ same family
@@ -29,8 +29,8 @@ Every section says what the **target design** is and, where it differs, what the
 
 - The dashboard is **one more device** of a family, signed in as its own parent user **"Dashboard"**. Other parents and children use the Android app.
 - The **browser never talks to the TimeLimit server**. The backend holds the device token and the server WebSocket; the browser only sees the backend (HTTP and SSE).
-- One installation = one family = one server. No dashboard login (single shared instance).
-- Runs next to the official admin UI of the server (port 8090 in the HA add-on); it does not replace it.
+- One **active server** at a time, chosen in settings (see §8.1); each server has its own link, cache and pending restores. One family per server. No dashboard login (single shared instance).
+- The dashboard works against any TimeLimit server that speaks the protocol; it makes no assumption about how or where the server is hosted.
 - Default port **8100**, configurable. Default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress.
 - In Home Assistant the dashboard offers only its web UI through ingress (no sensors or services in v1).
 
@@ -126,7 +126,7 @@ Gap: no version exchange (`ClientDataStatus` has no versions, D10); no pull afte
 ## 4. Data and cache
 
 - **SQLite**, one file per installation, in the data folder (section 8). The server is the source of truth; the file is a cache plus the link to the server.
-- **Cache key:** the **family id** from the server (not the device token). The token is an ordinary column.
+- **Cache key:** the **server profile** (§8.1) plus the **family id** from the server (not the device token). The token is an ordinary column. Every server profile has its own link, cache, counter and pending restores.
 - **Cache content (target):** devices, users, categories, category apps, rules, blocked times per category, used time per day (the dashboard builds its own daily totals so the history grows to 30 days; they are lost on a cache reset), installed apps of child devices, version ids per part. **Tasks are not stored** (no screen in v1).
 - **Kept for the link (never dropped):** device token, own device id, family id, the sequence counter, settings, and the **pending restores** of "rule off for today" (FR-307): losing them would leave a rule switched off for good.
 - **Schema changes:** no migration chain. On a schema change the cache is dropped and fully re-synced. **The sequence counter and the link must survive a reset**: a counter that goes back to 0 makes the server skip actions silently.
@@ -198,7 +198,13 @@ Gap: one 1865-line `dashboardV2.js`, 1626-line CSS, 128 inline styles in `dashbo
 | Build | none (a local script if ever needed) | GitHub Actions → image on `ghcr.io`, version from one source |
 | Architecture | – | **aarch64** (his HA) |
 
-- Add-on options: server URL (default through the internal hostname of the server add-on), log level, test-server mode, listen address (set by the add-on). The server URL can also be overridden in the UI.
+- Add-on options: log level, listen address (set by the add-on). The server is chosen in the settings screen (§8.1), not in the add-on options.
+
+### 8.1 Server selection
+- Settings has a **dropdown**: **Official server** (`https://api.timelimit.io`) or **Alternative server**. For the alternative the user enters **protocol (http/https, default http), address and port**.
+- The choice is stored persistently (in the settings table) and survives restarts and cache resets. On first start nothing is selected and the link screen asks for it.
+- **Each server has its own profile:** link (device token, own device id, family id), cache, sequence counter and pending restores (FR-307). Switching the server activates another profile; switching back restores it untouched. Actions can never reach a server other than the active one.
+- The "This is a test server" switch (FR-800) belongs to the profile of an alternative server.
 - One code base for both; differences are configuration only (paths, listen address, options).
 - Logging: configurable level, rotation (size and file count), debug export.
 - Python 3.10+, `requirements.txt` with loose ranges.
@@ -220,7 +226,7 @@ Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29
 
 0. **Strategy (decided 2026-11-07):** the new dashboard is built **next to the old one** in a new package `dashboard/` (sub-folders `routes/`, `services/`, `repository/`, `domain/`, `sync/`, `client/`, `static/`, `templates/`). `action_builder`, `action_pusher` and `crypto_utils` are reused; the old `dashboardV2/` is deleted at the end (cut-over).
 1. **Foundation:** per-test isolation and the 29 failing tests; error envelope; server-down handling and timeouts; settings/data folder; `SECRET_KEY`.
-2. **Sync:** `SyncService` with worker, version exchange (D10/D11), full-sync handling, cache keyed by family id, sequence counter kept across resets.
+2. **Sync:** `SyncService` with worker, version exchange (D10/D11), full-sync handling, cache keyed by server profile and family id, sequence counter kept across resets.
 3. **Cleanup:** switch the s6 service to `dashboard-v2`, then delete the legacy UI layer and scripts.
 4. **Frontend base (decided 2026-11-07: before the features):** themes, i18n, sidebar/hamburger, dialogs, Playwright set-up.
 5. **Features:** rules, blocked times (per category), categories and apps, extra time and temporary blocking, used time (own daily totals), settings and linking, password actions, test section, audit log.
@@ -229,6 +235,5 @@ Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29
 
 ## 11. Open points
 
-1. The HA server add-on builds the official `master` unpinned; decide whether to pin a version.
-2. Security before HA: no CSRF protection, and debug-level logs/exports are unmasked; revisit when the dashboard becomes reachable beyond the laptop.
-3. Audit-log entries without a child (settings, test section): where they are shown.
+1. Security before HA: no CSRF protection, and debug-level logs/exports are unmasked; revisit when the dashboard becomes reachable beyond the laptop.
+2. Audit-log entries without a child (settings, test section): where they are shown.
