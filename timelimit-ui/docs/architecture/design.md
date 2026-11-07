@@ -221,7 +221,7 @@ Gap: `config.yaml` says `amd64` only and has a hard-coded server URL; the Docker
 - **Definition of done:** the complete suite is green, including unrelated tests. Until the cut-over this means the new suite plus the kept old tests. Run stops at the first failure (`-x`) during work.
 - A live test against a real server is optional (local test server).
 
-Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29 failed** (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing), 369 s.
+Gap (Windows run 2026-11-04; a Linux run on 2026-11-07 failed only 4 tests, see `docs/plan/baseline.json`): all tests share `test_isolation.db`; the last full run had 1325 tests, **29 failed** (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing), 369 s.
 
 ### 9.1 Development standards (TR-510..TR-519)
 - **Tooling:** `pyproject.toml` configures `ruff` (lint and format) and `mypy` (strict on `domain/` and `client/`, later wider). `.editorconfig` and `.gitattributes` fix LF line endings. One command, `py -3 tools/check.py`, runs lint, type check and the full suite; the pre-commit hook runs `ruff` plus the fast unit tests.

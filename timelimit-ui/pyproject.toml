@@ -34,6 +34,7 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["rootfs/usr/bin/dashboard", "tools/tests"]
+pythonpath = ["tools", "rootfs/usr/bin"]
 timeout = 30
 markers = [
     "legacy: old dashboardV2 tests, run apart until the cut-over (plan T2)",

@@ -1,0 +1,17 @@
+{
+  "note": "Old dashboardV2 suite, run from rootfs/usr/bin/dashboardV2 with: pytest tests -q. Written by tools/baseline.py --record.",
+  "collected": 1325,
+  "platforms": {
+    "linux": {
+      "recorded": "2026-11-07, cloud container, Python 3.13",
+      "passed": 1321,
+      "failed": [
+        "tests/test_config.py::TestConfigCrossPlatform::test_path_separators",
+        "tests/test_dashboard_api.py::TestApiClearAll::test_clear_all_clears_session",
+        "tests/test_dashboard_api.py::TestApiClearAll::test_clear_all_returns_table_counts",
+        "tests/test_database_isolation.py::TestDatabaseIsolation::test_test_database_is_in_tests_directory"
+      ]
+    }
+  },
+  "earlier_windows_run": "2026-11-04: 1325 tests, 29 failed, 369 s (failure list not kept; record it with tools/baseline.py --record on Windows)"
+}

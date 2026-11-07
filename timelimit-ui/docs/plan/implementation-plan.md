@@ -145,7 +145,7 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 
 ### A1 · Baseline and working method — S
 **Refs:** TR-504, `.roo/rules`. **Decided:** K0, Q2, R1 (§3).
-**Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run (1325 tests, 29 failed, 369 s). Add a dev requirements file (pytest, pytest-xdist, playwright). Create the new package `dashboard/` with the sub-folders of Q2. Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
+**Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run per platform in `docs/plan/baseline.json` (`tools/baseline.py`): 1325 tests collected; on Windows (2026-11-04) 29 failed in 369 s; in the Linux cloud container (2026-11-07) 4 failed (`test_path_separators`, two `ClearAll` tests, `test_test_database_is_in_tests_directory`) in 198 s. The Windows failure list is recorded on your first run of `py -3 tools/baseline.py --record`. Add a dev requirements file (pytest, pytest-xdist, playwright). Create the new package `dashboard/` with the sub-folders of Q2. Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
 **Result (testable):**
 - `py -3 -m pytest` on the **old** tree reproduces the recorded baseline numbers (a script prints "baseline OK").
 - The new, empty package imports (`py -3 -c "import <package>"`) and an empty test folder for it passes in CI/local.
