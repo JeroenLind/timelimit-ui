@@ -2,7 +2,7 @@
 
 | Item | Value |
 |------|-------|
-| Version | 3.0 (rewrite, based on the interview of 2026-11-05) |
+| Version | 3.1 (3.0 plus the answers to the plan questions of 2026-11-07) |
 | Status | **Draft for approval** – nothing is built against this version until it is approved |
 | Replaces | requirements.md v2 (FR-001..007, NFR-001..004, TR-001, Test-001..004, BUG-001..004) |
 | Protocol reference | `docs/ServerAPI.md` (verified against server and Android client) |
@@ -33,9 +33,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-100 | M | On first start the dashboard shows a **settings screen** where the server URL is entered. The dashboard registers itself as a new device in the family (create family or add device) and stores the device auth token. | Partial |
+| FR-100 | M | On first start the dashboard shows a **settings screen** where the server URL is entered. For a real family the dashboard logs in **once** as an existing parent (the password is used once and not stored), creates the parent **"Dashboard"** itself with `ADD_USER` (FR-801) and registers itself as a **new device** (no import of an older dashboard's link). With the test-server switch on (FR-800) the screen can also **create a new family** on a fresh test server; its first parent becomes "Dashboard". The device auth token is stored. | Partial |
 | FR-101 | M | The dashboard device is signed in as a separate parent user **"Dashboard"** (never as a person's own parent account). Its actions use device integrity (`integrity:"device"`). | Partial |
-| FR-102 | S | On connecting, the dashboard reads the server's `clientLevel`/version info and **warns** (never blocks) when it is outside the tested range. | Open |
+| FR-102 | S | On connecting, the dashboard reads the server's `apiLevel` and **warns** (never blocks) when it is not 7 or 9 (the tested range). | Open |
 | FR-103 | M | Only one family per installation. Switching family means resetting the installation. | Done |
 | FR-104 | S | The settings screen shows server URL, connection state, device id (not the token), dashboard version, and last sync. | Partial |
 
@@ -62,7 +62,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-301 | M | Days use the bitmask Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64 (0–127; 127 = every day). The UI uses checkboxes; the bitmask is calculated in one place only. | Done |
 | FR-302 | M | Time is entered in minutes (0 = no time allowed), time windows as HH:MM 24 h (0–1439 minutes of the day, start ≤ end). Input is validated before sending. | Done |
 | FR-303 | M | Creating a rule uses the nested `rule` object; updating uses flat fields without `categoryId` (see ServerAPI.md 5.2). Rules pulled from the server (including `e`) are shown correctly. | Done (push) / Rework (pull) |
-| FR-304 | M | **Weekly blocked-time schedule** per child (the app's "blocked times": slots per weekday) can be viewed and edited. | Open |
+| FR-304 | M | **Weekly blocked-time schedule** per **category** (as the server stores it: slots per weekday, `UPDATE_CATEGORY_BLOCKED_TIMES`) can be viewed and edited. | Open |
 | FR-305 | M | Deleting a rule asks for confirmation. | Open |
 | FR-306 | S | The rule table shows: child, category, days, limit, window, session limit; one row per rule, sorted by category. | Partial |
 
@@ -72,7 +72,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | FR-400 | M | Create, rename and delete categories per child. Deleting asks for confirmation and states how many apps and rules are removed. | Open |
 | FR-401 | M | Set the order and the parent category of a category. | Open |
-| FR-402 | M | Category settings as in the official app (e.g. block all apps, hide time information, network/extra-time options as offered by the server for the child's clientLevel). | Open |
+| FR-402 | M | Category settings, four groups: (1) category flags (block, show time, etc.; bit meanings taken from the server code), (2) block all notifications and time warnings, (3) battery limit (charging/mobile) and network ids (add, reset), (4) the category for unassigned apps (per child) and disable limits per category. | Open |
 | FR-403 | M | Assign and remove apps for a category (`ADD_CATEGORY_APPS`, `REMOVE_CATEGORY_APPS`). Adding moves an app out of its previous category. | Partial |
 | FR-404 | M | The selectable app list comes from the **child's device** (installed apps as synced by the device). If the list is encrypted for a clientLevel the dashboard cannot read, the UI says so and allows manual package names. | Open |
 | FR-405 | S | Apps show their label and package name. | Open |
@@ -93,7 +93,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | FR-600 | M | Show **today's** used time per category and child, against the limit. | Open |
-| FR-601 | M | Show the **history per day** (7 and 30 days) per category as a list and a bar chart. | Open |
+| FR-601 | M | Show the **history per day** (7 and 30 days) per category as a list and a bar chart. The dashboard **builds its own daily totals** in the cache so the history grows to 30 days from the first use (it is lost on a cache reset, TR-310). | Open |
 | FR-602 | W | Used time per app is **not** offered: the server stores used time per category per day only. | – |
 
 ### 2.7 Children and devices
@@ -109,7 +109,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-800 | M | A clearly separated "Test" section lets the parent create family members (`ADD_USER`) for a **local test server that is not linked to an app**. It is meant for testing only and hidden or disabled when the server is not marked as a test server (setting). | Partial |
+| FR-800 | M | A clearly separated "Test" section lets the parent create family members (`ADD_USER`) for a **local test server that is not linked to an app**. A switch **"This is a test server"** in settings (default off) enables it; with the switch off the menu item is absent and its routes answer 404. The page `debug_database.html` is part of this section. | Partial |
 | FR-801 | M | Adding a user pushes `ADD_USER` first; a 502 is shown when the server does not confirm. Parent users need the DH-encrypted password container. | Done (child) / Open (parent) |
 
 ### 2.9 Parent security
@@ -128,7 +128,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | UI-002 | M | Navigation: **fixed sidebar on desktop**, **hamburger menu on small screens**. The menu opens/closes with the button, the close button, the overlay and Escape; `aria-expanded`/`aria-hidden` are kept correct and focus returns to the button. (Replaces FR-007; BUG-004 as regression test.) | Done (hamburger) / Rework (sidebar) |
 | UI-003 | M | Layout works on desktop browsers, phones and tablets. | Partial |
 | UI-004 | M | Dark theme (and light). | Open |
-| UI-005 | M | Languages: Dutch and English, selectable in settings. | Open |
+| UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Open |
 | UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Open |
 | UI-007 | M | Every action shows its state: pending, confirmed, failed. | Partial |
 | UI-008 | W | No screen reader / WCAG target in v1 (basic ARIA only, as in UI-002). | – |
@@ -146,7 +146,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-1100 | M | Every change made through the dashboard (action type, child, result, time) is logged and shown in a list. | Partial |
+| FR-1100 | M | Every change made through the dashboard (action type, child, result, time) is logged and shown as a tab **"Changes"** in child detail. Entries without a child (settings, test section) are stored; where they are shown is decided when E12 is detailed. | Partial |
 | FR-1101 | M | Entries older than **30 days** are removed automatically. | Open |
 
 ---
@@ -172,7 +172,6 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **family id** from the server. | Rework |
 | TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Rework |
 | TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally, in the database and in the session file with backup. | Done |
-| TR-203 | S | Schema changes use versioned migrations. | Open |
 | TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | – |
 
 ### 3.3 Runtime, packaging and configuration
@@ -186,7 +185,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
 | TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |
 | TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Open |
-| TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with fixed codes (`SERVER_UNREACHABLE`, `ACTION_NOT_CONFIRMED`, `INVALID_INPUT`, `SESSION_INVALID`, ...) and a matching HTTP status. | Open |
+| TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Open |
 | TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Open |
 | TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
 | TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Open |
@@ -199,7 +198,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | TR-400 | M | Configurable log level (debug/info/warn/error). | Done |
 | TR-401 | M | Log rotation with limited size and file count. | Done |
-| TR-402 | S | A **debug export** button in settings. Logs are **not masked** (local use); the UI warns before sharing the export. | Open |
+| TR-402 | S | A **debug export** button in settings. Secrets (tokens, hashes, the typed password, the second hash) are **masked at info level and higher**; only at **debug level** everything is unmasked, also in the export; the UI warns before sharing. | Open |
 
 ### 3.5 Quality
 
@@ -249,7 +248,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 ## 6. Conflicts and open points to confirm
 
-1. **Logging not masked** (decided) vs. HA and sharing: logs and the debug export contain tokens. Acceptable for local use; revisit before the HA add-on (a leaked token gives full access to the family).
+1. **Logging:** secrets are masked at info level and higher and unmasked only at debug level (decided 2026-11-07). Anyone who sets debug level and shares the export shares the token; the UI warns.
 2. **Per-app usage** was dropped from v1 because the server has no per-app data for parents.
 3. **FR-505** (disable all limits until a time) was not chosen; kept as Should only if wanted.
 4. **Server version**: the HA add-on builds `master` of the official server without a pinned version; the verified references are `apiLevel` 7 and 9. Decide whether the add-on pins a version.

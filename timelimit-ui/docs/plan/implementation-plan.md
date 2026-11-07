@@ -2,19 +2,18 @@
 
 | Item | Value |
 |------|-------|
-| Version | 1.0 (draft for approval) |
+| Version | 1.1 (draft for approval; 1.0 plus the answers to all plan questions of 2026-11-07) |
 | Implements | `docs/requirements/requirements.md` v3.0 and `docs/architecture/design.md` v3.0 |
 | Protocol | `docs/ServerAPI.md`, `docs/protocol/actions-reference.md` |
-| Rule | **This plan makes no design choices.** Where a step needs one, the step is *gated* by a question in section 3. We go back to the design or requirements, record the answer there, and only then start the step. |
+| Rule | **This plan makes no design choices.** Where a step needed one, it was asked as a question (section 3); the answers are recorded there and in the design and requirements. New gaps found later go back to the design or requirements first. |
 
 ---
 
 ## 1. How to read this plan
 
-**Strategy (needs your confirmation, K0).** You allowed a new setup. The plan assumes: *build the new dashboard next to the old one, reuse what is already correct, switch over at the end*.
-- Reused as-is (already wire-correct and tested): `action_builder.py`, `action_pusher.py`, `crypto_utils.py`, the generated protocol docs and schemas.
+**Strategy (decided, K0).** The new dashboard is built **next to the old one** in a new package `dashboard/`; what is already correct is reused, the switch-over comes at the end.
+- Reused as-is (wire-correct and tested): `action_builder.py`, `action_pusher.py`, `crypto_utils.py`, the generated protocol docs and schemas.
 - The old `dashboardV2/` application stays runnable and untouched until step G1; then it is deleted.
-- If you prefer to rebuild in place, steps A–F stay the same in content but touch the existing files; step G1 disappears. Say so and I adjust.
 
 **Test levels used in every step**
 
@@ -34,7 +33,7 @@
 
 **Size:** S (≤ 1 day), M (1–3 days), L (> 3 days). Rough relative sizes, not promises.
 
-**Order.** Follows `design.md` §10 (foundation → sync → cleanup → features → frontend → HA). Two additions are consequences of the strategy and are marked **[deviation]**; they need your OK (K0, K1):
+**Order.** Follows `design.md` §10 (foundation → sync → cleanup → features → frontend → HA). Two additions to that order were approved (K0, K1) and are marked **[deviation]**:
 - D1 (frontend base: theme, i18n, navigation) comes **before** the feature steps, so every feature view is built correctly once instead of being reworked.
 - G1 (delete the old `dashboardV2/`) is new because of the build-next-to-old strategy.
 
@@ -42,7 +41,7 @@
 
 ## 2. Overview
 
-| Phase | Step | Result in one line | Size | Gate |
+| Phase | Step | Result in one line | Size | Decided in §3 |
 |-------|------|--------------------|------|------|
 | A Foundation | A1 | Baseline and working method fixed | S | K0, Q2, R1 |
 | | A2 | Isolated, green, parallel test suite | M | |
@@ -82,35 +81,40 @@
 
 ---
 
-## 3. Questions to settle before the gated steps
+## 3. Decisions taken (answers to the plan questions)
 
-Each question is a place where the design or the requirements do not yet decide something the plan needs. **Nothing below is decided here.** Options are listed only to make the question easy to answer.
+All questions of the first version of this plan were answered on 2026-11-06/07 and are now part of the requirements (v3.1) and the design (v3.1). This table is the record; the step texts below already use the answers.
 
-| # | Gate for | Question | Where the gap is |
-|---|----------|----------|------------------|
-| K0 | A1, G1 | Build the new dashboard next to the old one (assumed), or rebuild in place? | strategy, not in design |
-| K1 | D1 | May the frontend base (D1) come before the features, deviating from design §10 order? | `design.md` §10 |
-| Q2 | A1 | Name and folder layout of the new code (design names components, not files or packages). | `design.md` §2 |
-| Q3 | A4, E4 | The complete list of error codes with HTTP status. Design names four classes; `TR-307` says "...". FR-208 (conflict warning) also needs a code and a mechanism (e.g. version sent with the edit, answer 409). | `design.md` §6, TR-307, FR-208 |
-| Q4 | B2, E5 | **Requirement mismatch:** FR-304 says blocked times are *per child*. In the protocol they are *per category* (`UPDATE_CATEGORY_BLOCKED_TIMES`, `categoryBase.blockedTimes`). Which is meant? | FR-304 vs `ServerAPI.md` |
-| Q5 | B2, E6 | FR-402 "category settings as in the official app" is not specific. Which ones, from: block all apps, hide time information, block notifications, battery limit, time warnings, network ids, "category for unassigned apps", disable limits per category? | FR-402 |
-| Q6 | E1, E10 | How does the "Dashboard" parent come to exist and how does the dashboard device sign in as it (FR-100/101)? Options: (a) a parent named "Dashboard" is created in the app and the dashboard registers with its credentials; (b) the dashboard creates it itself with `ADD_USER` (needs the DH password container, FR-801); (c) on a test server the dashboard creates the family and its first parent. Also: is an existing link of the old dashboard imported, or does the new dashboard register again? | FR-100, FR-101, FR-801 |
-| Q7 | E1 | FR-102: what is the "tested range" that triggers the warning (which `apiLevel`, server versions)? Design says warn, not block. | FR-102 |
-| Q8 | D1 | Default language when the browser language is neither Dutch nor English, and the default theme before a choice is made (design says: follow the system). | UI-005, `design.md` §7 |
-| Q9 | A3 | How is a server "marked as a test server" (FR-800)? Setting name and where it is changed (add-on option, settings screen, both)? | FR-800, `design.md` §8 |
-| Q10 | E9 | FR-601 wants 7 and 30 days. The protocol delivers `usedTimes` per category, but not which days. E9 starts with a check against the server code and the fake server; if the server returns fewer days, the requirement changes. | FR-601 |
-| Q11 | E11 | Is the test section hidden or only disabled on a production server? Is `debug_database.html` part of it? | FR-800, `design.md` §11 |
-| Q12 | E12 | UI-001 lists four screens; none shows the audit log (FR-1100). Where is it shown (a tab in child detail, a page, settings)? | UI-001, FR-1100 |
-| Q13 | E10 | Logs are not masked (design §5). Does that include the parent password typed in the modal and the password HMAC key (second hash)? Design §5 says the password is never *stored*, but says nothing about logging it. | `design.md` §5 |
-| R1 | A1 | **Requirement conflict:** TR-203 ("versioned migrations") contradicts TR-310 and the design (drop the cache and re-sync). Remove TR-203? | requirements |
-| R2 | E2 | The cache stores tasks (design §4) but no requirement or screen uses them. Cache only, no UI in v1? | design §4 |
+| # | Steps | Question | Answer |
+|---|-------|----------|--------|
+| K0 | A1, G1 | Build next to the old code or rebuild in place? | **Next to the old code**, new package, cut-over in G1. |
+| K1 | D1 | Frontend base before the features (deviation from design §10)? | **Yes**, D1 comes before the features; design §10 updated. |
+| Q2 | A1 | Package name and layout | **`dashboard/`** (under `rootfs/usr/bin/`) with sub-folders `routes/`, `services/`, `repository/`, `domain/`, `sync/`, `client/`, `static/`, `templates/`. |
+| Q3 | A4, E4 | Error codes and the conflict mechanism | **Accepted list** (design §6, TR-307): `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409. |
+| Q4 | B2, E5 | Blocked times per child or per category? | **Per category** (as the server stores them); FR-304 changed. |
+| Q5 | B2, E6 | Which category settings (FR-402)? | **All four groups:** flags (block, show time, …), notifications and time warnings, battery limit and network ids, category for unassigned apps and disable limits per category. Flag bits are taken from the server code in B2. |
+| Q6 | E1, E10 | How does the parent "Dashboard" come to exist? | **(b)** The dashboard logs in once as an existing parent (password used once, not stored) and creates "Dashboard" itself with `ADD_USER` (DH password container). |
+| Q6b | E1 | Import the old dashboard's link? | **No**, register again as a new device. |
+| Q6c | E1 | First family on a fresh test server? | With the test-server switch on, the link screen can **create a new family**; its first parent becomes "Dashboard". |
+| Q7 | E1 | Tested range for the version warning | **`apiLevel` 7 and 9**; any other value gives a warning (never blocks). |
+| Q8 | D1 | Default language and theme | Language follows the browser (nl/en), otherwise **English**; theme follows the **system**. |
+| Q9 | A3 | How is a server marked as a test server? | Switch **"This is a test server"** in the settings screen, default off. |
+| Q10 | E9 | History when the server returns fewer than 30 days | The dashboard **builds its own daily totals** in the cache (history grows from first use). |
+| Q10b | B1, E9 | Does that history survive a cache reset? | **No**, it is ordinary cache and is lost on a reset (TR-310 unchanged). |
+| Q11 | E11 | Test section without the switch; `debug_database.html` | **Hidden** (menu item absent, routes 404); `debug_database.html` moves **into** the test section. |
+| Q12 | E12 | Where is the audit log shown? | As a **tab "Changes" in child detail**. Entries without a child are still stored; where they are shown is decided when E12 is detailed. |
+| Q13 | E10, A3 | Are passwords and the second hash logged? | Secrets are **masked at info level and higher**; **only at debug level** everything is unmasked, also in the debug export. Replaces the earlier "logs not masked"; design §5 and TR-402 updated. |
+| R1 | A1 | TR-203 versus TR-310 | **TR-203 removed.** |
+| R2 | B1, B3 | Tasks | **Not stored** in v1 (no UI). B3 checks what the server sends when the tasks version is omitted. |
+
+**Still open (not blocking the start):** FR-505 (E13) is built only if you ask for it; audit-log entries without a child (E12); pinning the server version in the HA server add-on (design §11).
 
 ---
 
 ## 4. Phase A – Foundation (design §10.1)
 
 ### A1 · Baseline and working method — S
-**Refs:** TR-504, `.roo/rules`. **Gate:** K0, Q2, R1.
+**Refs:** TR-504, `.roo/rules`. **Decided:** K0, Q2, R1 (§3).
 **Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run (1325 tests, 29 failed, 369 s). Add a dev requirements file (pytest, pytest-xdist, playwright). Fix the new code's folder layout (answer of Q2). Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
 **Result (testable):**
 - `py -3 -m pytest` on the **old** tree reproduces the recorded baseline numbers (a script prints "baseline OK").
@@ -126,8 +130,8 @@ Each question is a place where the design or the requirements do not yet decide 
 - Per-test timeout 30 s is active; a deliberately hanging test is killed in the demo.
 
 ### A3 · Configuration, data folder, secret key, logging — M
-**Refs:** TR-300, 301, 305, 306, 400, 401, SEC-001, SEC-004. **Gate:** Q9.
-**Work:** One configuration module: precedence *environment > config file > default*; data folder (`data/` next to the app, `/data` in HA); default `127.0.0.1:8100`; secret key generated on first start and kept; log level and rotation; timing settings with their defaults (health timeout 3 s, back-off 10→30 s, sync target 5 s, browser timeout 10 s); test-server setting (answer of Q9). `data/` goes into `.gitignore`.
+**Refs:** TR-300, 301, 305, 306, 400, 401, SEC-001, SEC-004. **Decided:** Q9 (§3).
+**Work:** One configuration module: precedence *environment > config file > default*; data folder (`data/` next to the app, `/data` in HA); default `127.0.0.1:8100`; masking of secrets in logs at info level and higher, unmasked only at debug (Q13); secret key generated on first start and kept; log level and rotation; timing settings with their defaults (health timeout 3 s, back-off 10→30 s, sync target 5 s, browser timeout 10 s); the setting "This is a test server" (default off, Q9). `data/` goes into `.gitignore`.
 **Result:**
 - U: precedence table (env wins, then file, then default) for every setting; invalid values give a clear error at start.
 - U/I: the secret key is created once and identical after a restart; changing the env var overrides it.
@@ -136,8 +140,8 @@ Each question is a place where the design or the requirements do not yet decide 
 - M: `py -3 app.py` on Windows creates `data/` and starts on 8100.
 
 ### A4 · One error envelope for all API routes — M
-**Refs:** TR-307, `design.md` §6. **Gate:** Q3.
-**Work:** One error type and handler producing `{status:"error", code, message, requestId}` with the agreed codes and HTTP status; request id per request, also in the log line. Routes added later must use it.
+**Refs:** TR-307, `design.md` §6. **Decided:** Q3 (§3).
+**Work:** One error type and handler producing `{status:"error", code, message, requestId}` with the codes and HTTP status of design §6 (Q3); request id per request, also in the log line. Routes added later must use it.
 **Result:**
 - U: every code maps to its HTTP status; unknown exceptions give the generic code and 500, with no stack trace in the response.
 - I: a test iterates over **all registered API routes** with a forced failure and asserts the envelope (the test fails when a new route returns another error format).
@@ -174,7 +178,7 @@ Each question is a place where the design or the requirements do not yet decide 
 
 ### B1 · Repository and cache schema — L
 **Refs:** TR-200, 201, 202, 310, FR-103, FR-206 (storage), SEC-003, `design.md` §4.
-**Work:** Repository modules are the only place with SQL. Tables for: devices, users, categories, category apps, rules, blocked times, used time per day, tasks, installed apps per device, version ids per part, audit log, settings, and the **link** (token, own device id, family id, sequence counter). Cache keyed by family id. `reset_cache()` drops the cache tables but keeps link, settings and the sequence counter. Token also kept in the session file with backup (kept behaviour). No `INSERT OR REPLACE` on sync state; multi-table writes in one transaction.
+**Work:** Repository modules are the only place with SQL. Tables for: devices, users, categories, category apps, rules, blocked times per category, used time per day (including the dashboard's **own daily totals**, Q10; lost on a reset, Q10b), installed apps per device (**no tasks**, R2), version ids per part, audit log, settings, and the **link** (token, own device id, family id, sequence counter). Cache keyed by family id. `reset_cache()` drops the cache tables but keeps link, settings and the sequence counter. Token also kept in the session file with backup (kept behaviour). No `INSERT OR REPLACE` on sync state; multi-table writes in one transaction.
 **Result:**
 - U: round trip of every entity; transaction rollback leaves nothing half-written (fault injected mid-write).
 - U: `reset_cache()` keeps the sequence counter, link and settings (value before = value after).
@@ -183,8 +187,8 @@ Each question is a place where the design or the requirements do not yet decide 
 - No password is ever written (a test inspects the database file for the test password).
 
 ### B2 · Domain: every v1 action — L
-**Refs:** TR-100, 101, 102, 501, FR-300..303, 400..403, 500..504, 801, 901. **Gate:** Q4, Q5.
-**Work:** Extend `action_builder.py` (pure, no I/O) to all actions needed in v1: rules (done), categories (`CREATE_CATEGORY`, `DELETE_CATEGORY`, `UPDATE_CATEGORY_TITLE`, `SET_PARENT_CATEGORY`, `UPDATE_CATEGORY_SORTING`, category settings per Q5), apps (done), blocked times (`UPDATE_CATEGORY_BLOCKED_TIMES`; verify the `times` string format in the server code and write it into `ServerAPI.md`), extra time (`INCREMENT_CATEGORY_EXTRATIME`, `SET_CATEGORY_EXTRA_TIME`), temporary block (`UPDATE_CATEGORY_TEMPORARILY_BLOCKED`), users (`ADD_USER` child done; parent with the DH container), password integrity (`SET_KEEP_SIGNED_IN`, change parent password). Bitmask and blocked-times encoding as pure functions.
+**Refs:** TR-100, 101, 102, 501, FR-300..303, 400..403, 500..504, 801, 901. **Decided:** Q4, Q5 (§3).
+**Work:** Extend `action_builder.py` (pure, no I/O) to all actions needed in v1: rules (done), categories (`CREATE_CATEGORY`, `DELETE_CATEGORY`, `UPDATE_CATEGORY_TITLE`, `SET_PARENT_CATEGORY`, `UPDATE_CATEGORY_SORTING`, category settings: the four groups of FR-402, Q5), apps (done), blocked times (`UPDATE_CATEGORY_BLOCKED_TIMES`; verify the `times` string format in the server code and write it into `ServerAPI.md`), extra time (`INCREMENT_CATEGORY_EXTRATIME`, `SET_CATEGORY_EXTRA_TIME`), temporary block (`UPDATE_CATEGORY_TEMPORARILY_BLOCKED`), users (`ADD_USER` child done; parent with the DH container), password integrity (`SET_KEEP_SIGNED_IN`, change parent password). Bitmask and blocked-times encoding as pure functions.
 **Result:**
 - C: for **every** builder, generated valid and invalid inputs are checked against the server schemas (valid pass, invalid raise `ActionError` before a sequence number is used).
 - U: property tests: bitmask and blocked-times encode/decode round trip; boundaries (0, 1439, 127).
@@ -193,7 +197,7 @@ Each question is a place where the design or the requirements do not yet decide 
 
 ### B3 · Pull with version exchange — L
 **Refs:** FR-201, 202, TR-103, D10.
-**Work:** `ClientDataStatus` carries all stored versions (devices, users, apps per device, categories `{base, apps, rules, usedTime, tasks}`); apply every part of `ServerDataStatus` (`devices`, `users`, `categoryBase`, `categoryApp`, `rules` incl. field `e`, `usedTimes`, `tasks`, `apps`, `rmCategories`, `fullVersion`, `apiLevel`); `shouldDoFullSync` handling: forget versions, full re-pull, notice.
+**Work:** `ClientDataStatus` carries all stored versions (devices, users, apps per device, categories `{base, apps, rules, usedTime}`; tasks are not stored, R2 — this step checks what the server sends when the tasks version is omitted); apply every part of `ServerDataStatus` (`devices`, `users`, `categoryBase`, `categoryApp`, `rules` incl. field `e`, `usedTimes`, `apps`, `rmCategories`, `fullVersion`, `apiLevel`); `shouldDoFullSync` handling: forget versions, full re-pull, notice.
 **Result:**
 - I: for a scripted server state, after a pull the cache equals the server state in every table (a helper compares the two).
 - I: a second pull sends the stored versions and the fake answers with no data (asserted request body and empty response).
@@ -256,11 +260,11 @@ Each question is a place where the design or the requirements do not yet decide 
 
 ---
 
-## 7. Phase D – Frontend base (before the features) **[deviation, gate K1]**
+## 7. Phase D – Frontend base (before the features) **[deviation, approved K1]**
 
 ### D1 · Theme, i18n, navigation, dialogs — M
-**Refs:** UI-002, 003, 004, 005, 006, TR-311. **Gate:** Q8.
-**Work:** Shared CSS with variables (no inline styles); dark theme follows the system with a manual override; `nl.json` / `en.json` with fallback to English and a language switch; sidebar on desktop, hamburger on small screens (open/close by button, close button, overlay, Escape; `aria-expanded`/`aria-hidden`; focus returns to the button); one confirmation-dialog component; responsive layout for phone and tablet.
+**Refs:** UI-002, 003, 004, 005, 006, TR-311. **Decided:** Q8 (§3).
+**Work:** Shared CSS with variables (no inline styles); dark theme follows the system with a manual override; `nl.json` / `en.json` with fallback to English and a language switch (default: the browser language if nl or en, otherwise English; Q8); sidebar on desktop, hamburger on small screens (open/close by button, close button, overlay, Escape; `aria-expanded`/`aria-hidden`; focus returns to the button); one confirmation-dialog component; responsive layout for phone and tablet.
 **Result:**
 - E: at 1280 px the sidebar is visible and there is no hamburger; at 390 px the hamburger shows and works by all four ways, with the right ARIA state and focus.
 - E: emulated `prefers-color-scheme: dark` → dark theme; manual override wins and is remembered.
@@ -276,12 +280,13 @@ Each question is a place where the design or the requirements do not yet decide 
 Every feature step is a **vertical slice**: domain action → service → route → view, with the same four checks: **C** (action against the schema), **I** (round trip with the fake: action pushed, confirmed, cache updated), **E** (the user scenario in the browser, including a failure case), and the offline rule (controls disabled when the server is down).
 
 ### E1 · Settings, linking, version warning, debug export — L
-**Refs:** FR-100, 101 (part), 102, 103, 104, TR-402, FR-1002. **Gate:** Q6, Q7.
-**Work:** Settings screen: server URL, link (register a new device as chosen in Q6), connection state, device id (not the token), versions, last sync, timings, log level, language/theme, test-server setting, debug export (unmasked, with the warning). Version/`clientLevel` check on connect (warn only). Server URL changeable in the UI. `SESSION_INVALID` shows "link again".
+**Refs:** FR-100, 101 (part), 102, 103, 104, TR-402, FR-1002. **Decided:** Q6, Q6b, Q6c, Q7, Q9 (§3).
+**Work:** Settings screen: server URL, link (log in once as an existing parent, create "Dashboard" with `ADD_USER`, register as a new device, Q6/Q6b; with the test-server switch on, create a new family, Q6c), connection state, device id (not the token), versions, last sync, timings, log level, language/theme, test-server setting, debug export (unmasked, with the warning). Version/`clientLevel` check on connect (warn only). Server URL changeable in the UI. `SESSION_INVALID` shows "link again".
 **Result:**
-- E: first start without a link shows only the settings/link screen; entering the fake's URL links the device; the overview then loads.
+- E: first start without a link shows only the settings/link screen; entering the fake's URL and the credentials of an existing parent creates the parent "Dashboard" (`ADD_USER` is the first action, confirmed), registers a new device and the overview loads; the parent's password is not in the database or the logs at info level.
+- E: on a fresh fake server with no family and the switch "This is a test server" off, the link screen offers no "create family"; with the switch on it creates a family whose first parent is "Dashboard".
 - I: the link survives a restart and a cache reset.
-- E: a server with an unexpected `apiLevel`/version shows a warning banner but stays usable (Q7 range).
+- E: a server with `apiLevel` 7 or 9 shows no warning; any other value shows a warning banner but stays usable (Q7).
 - E: the token is never present in any page, script or API response (test scans responses).
 - E: debug export downloads a file and the warning appears first.
 
@@ -303,7 +308,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 - I: the fake rejects the action → the UI reverts and shows the error (links to E4).
 
 ### E4 · Markers, conflicts, rollback — M
-**Refs:** FR-205, 206, 208, 209, UI-007. **Gate:** Q3.
+**Refs:** FR-205, 206, 208, 209, UI-007. **Decided:** Q3 (§3).
 **Work:** Items added by the user show "waiting for server" until confirmed and disappear on failure; entities the server no longer reports are kept and flagged "no longer on server" with a clean-up action; conflict warning when the data being edited changed on the server meanwhile (mechanism per Q3); every action shows pending / confirmed / failed.
 **Result:**
 - E: with the fake held slow, a new rule shows the marker; on confirmation the marker goes; on rejection the item vanishes with an error.
@@ -312,15 +317,15 @@ Every feature step is a **vertical slice**: domain action → service → route 
 - U: after a full resync the flags are consistent (no flagged entity that the server still reports).
 
 ### E5 · Blocked times — M
-**Refs:** FR-304. **Gate:** Q4.
-**Work:** Weekly schedule view/editor (slots per weekday) at the level decided in Q4, using the verified `times` encoding from B2.
+**Refs:** FR-304. **Decided:** Q4 (§3).
+**Work:** Weekly schedule view/editor (slots per weekday) per category (Q4), using the verified `times` encoding from B2.
 **Result:**
 - C/U: encoding round trip for random schedules.
 - I: edit → cache equals the schedule after the pull; a schedule created in the fake is rendered correctly.
 - E: block Mon–Fri 22:00–07:00 by clicking the grid; reload shows the same.
 
 ### E6 · Categories — M
-**Refs:** FR-400, 401, 402. **Gate:** Q5.
+**Refs:** FR-400, 401, 402. **Decided:** Q5 (§3).
 **Work:** Create, rename, delete (confirm states the number of apps and rules removed), order and parent category, and the settings chosen in Q5.
 **Result:**
 - C/I: each action round trip.
@@ -344,36 +349,36 @@ Every feature step is a **vertical slice**: domain action → service → route 
 - E: +30 then −15 shows 15 extra minutes; subtracting more than available stops at zero; "block 1 hour" shows the end time; the block disappears at the end time (fake clock).
 
 ### E9 · Used time — M
-**Refs:** FR-600, 601, FR-602 (not offered). **Gate:** Q10.
-**Work:** First verify what days the server returns (server code and fake), then: today per category against the limit; history per day (7 and 30 days) as a list and a bar chart.
+**Refs:** FR-600, 601, FR-602 (not offered). **Decided:** Q10 (§3).
+**Work:** Today per category against the limit; the dashboard records its **own daily totals** from each pull so the history grows to 30 days (Q10; lost on a cache reset, Q10b); history per day (7 and 30 days) as a list and a bar chart.
 **Result:**
 - U: aggregation (today, 7-day, 30-day) for fixtures including day boundaries and time zones.
 - I: the pull of `usedTimes` fills the table; E: list and chart show the same numbers for the seeded data.
-- If the server returns fewer than 30 days: the requirement is changed first (gate), not the test.
+- U/I: each pull adds or updates the day's total; after a scripted 40-day sequence of pulls the history shows exactly the last 30 days; after a cache reset the history starts again (Q10b).
 
 ### E10 · Password actions and the "Dashboard" parent — M
-**Refs:** FR-101, 900, 901, 902, TR-102. **Gate:** Q6, Q13.
-**Work:** Password modal per action, only for server-required actions (change parent password, `SET_KEEP_SIGNED_IN` with HMAC); the password is never stored (whether it may appear in the unmasked log is question Q13); view of the "Dashboard" parent state (keep-signed-in, signed-out warning after `SET_DEVICE_USER`).
+**Refs:** FR-101, 900, 901, 902, TR-102. **Decided:** Q6, Q13 (§3).
+**Work:** Password modal per action, only for server-required actions (change parent password, `SET_KEEP_SIGNED_IN` with HMAC); the password is never stored; it is masked in the log at info level and higher and appears only at debug level (Q13); view of the "Dashboard" parent state (keep-signed-in, signed-out warning after `SET_DEVICE_USER`).
 **Result:**
 - C/I: the password HMAC action is accepted by the fake (which checks the HMAC with the verified method).
-- E: wrong password → `INVALID_INPUT`-class message, nothing changes; correct → success; the modal is not shown for rules, categories or extra time.
+- E: wrong password → `INVALID_PASSWORD` (403) message, nothing changes; correct → success; the modal is not shown for rules, categories or extra time.
 - E/I: simulate `sign out` → banner and "link again".
-- U: the password value does not appear in the database or in any stored session file (and, depending on Q13, not in the log).
+- U: the password value does not appear in the database or in any stored session file; with log level info it is not in the log (token, hashes and second hash neither); with level debug it is (Q13).
 
 ### E11 · Test section — M
-**Refs:** FR-800, 801. **Gate:** Q11, Q6.
-**Work:** Separate section to create family members on a local test server: `ADD_USER` for children and parents (DH container), shown immediately with the marker (E4); available according to the test-server setting.
+**Refs:** FR-800, 801. **Decided:** Q11, Q6 (§3).
+**Work:** Separate section to create family members on a local test server: `ADD_USER` for children and parents (DH container), shown immediately with the marker (E4); available only when the switch "This is a test server" is on (Q9); `debug_database.html` is part of the section (Q11).
 **Result:**
 - I: add a child → `ADD_USER` is the first action pushed; a non-confirmed push returns 502 and shows an error; add a parent → the fake decrypts the container.
-- E: with the test-server setting off the section is not available (hidden or disabled per Q11); on, users can be added and appear.
+- E: with the switch off the menu item is absent and the section's routes answer 404; with the switch on, users can be added and appear; `debug_database.html` is reachable only there.
 
 ### E12 · Audit log — S
-**Refs:** FR-1100, 1101. **Gate:** Q12.
-**Work:** Every change through the dashboard is stored (action type, child, result, time) and shown where Q12 decides; entries older than 30 days are removed automatically.
+**Refs:** FR-1100, 1101. **Decided:** Q12 (§3).
+**Work:** Every change through the dashboard is stored (action type, child, result, time) and shown as the tab "Changes" in child detail (Q12); entries without a child are stored too (where they are shown is decided when this step is detailed); entries older than 30 days are removed automatically.
 **Result:**
 - I: each feature's action creates one entry with the right result (confirmed / not confirmed).
 - U: the purge removes entries older than 30 days and keeps newer ones (fake clock, boundary at exactly 30 days).
-- E: the list shows the entries of a scripted session.
+- E: the tab "Changes" of a child shows the entries of a scripted session, newest first, with the right result per entry.
 
 ### E13 · *Optional:* disable limits until a time (FR-505) — S
 **Refs:** FR-505 (Should). **Gate:** decision whether wanted.
@@ -406,7 +411,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 
 ## 10. Phase G – Finish
 
-### G1 · Cut-over **[deviation, gate K0]**
+### G1 · Cut-over **[deviation, approved K0]**
 **Refs:** TR-312.
 **Work:** Make the new package the entry point (`py -3 app.py` and the s6 service); delete the old `dashboardV2/` application and its tests, plus the archived duplicate docs.
 **Result:** full suite green; `py -3 app.py` starts the new dashboard (M); a test imports every remaining module; no reference to the removed package remains (import-graph test).
@@ -449,7 +454,6 @@ Every feature step is a **vertical slice**: domain action → service → route 
 | TR-502 | A7, D1, E-steps | | TR-503, 504 | G2 |
 | SEC-001 | A3 | | SEC-002 | A6 |
 | SEC-003 | B1, E1 | | SEC-004 | A3 |
-| TR-203 | R1 (remove) | | | |
 
 Not built on purpose (Won't): FR-602, FR-703, UI-008, TR-204.
 

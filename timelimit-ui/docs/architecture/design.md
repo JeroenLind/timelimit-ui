@@ -2,7 +2,7 @@
 
 | Item | Value |
 |------|-------|
-| Version | 3.0 (draft for approval) |
+| Version | 3.1 (draft for approval; 3.0 plus the answers of 2026-11-07) |
 | Based on | `docs/requirements/requirements.md` v3.0 and the architecture walkthrough of 2026-11-05/06 |
 | Replaces | the 2026-09 design overview (kept as `docs/archive/design-v1-2026-09.md`; it describes a "CRDT" sync and an offline queue that do not exist) |
 | Protocol | `docs/ServerAPI.md` (verified against the server and two Android clients) |
@@ -127,7 +127,7 @@ Gap: no version exchange (`ClientDataStatus` has no versions, D10); no pull afte
 
 - **SQLite**, one file per installation, in the data folder (section 8). The server is the source of truth; the file is a cache plus the link to the server.
 - **Cache key:** the **family id** from the server (not the device token). The token is an ordinary column.
-- **Cache content (target):** devices, users, categories, category apps, rules, blocked times per user, used time per day, tasks, installed apps of child devices, version ids per part.
+- **Cache content (target):** devices, users, categories, category apps, rules, blocked times per category, used time per day (the dashboard builds its own daily totals so the history grows to 30 days; they are lost on a cache reset), installed apps of child devices, version ids per part. **Tasks are not stored** (no screen in v1).
 - **Kept for the link (never dropped):** device token, own device id, family id, the sequence counter, settings.
 - **Schema changes:** no migration chain. On a schema change the cache is dropped and fully re-synced. **The sequence counter and the link must survive a reset**: a counter that goes back to 0 makes the server skip actions silently.
 - Users and other entities the server no longer reports are kept and flagged "no longer on server" until cleaned up.
@@ -146,17 +146,31 @@ Gap: tables are keyed by `device_auth_token`; migrations are ad hoc `PRAGMA tabl
 | `SECRET_KEY` | Generated randomly on first start and stored next to the database; environment variable overrides |
 | Web attacks | No CSRF/Origin/DNS-rebinding protection in v1 (accepted; the only barrier is the localhost default) |
 | Files | No extra protection of token files (user folder); data folder is gitignored |
-| Logs | Not masked (local use); the debug export is unmasked too and the UI warns before sharing |
+| Logs | Secrets (tokens, hashes, typed password, second hash) are **masked at info level and higher**; only at **debug level** everything is unmasked, also in the debug export; the UI warns before sharing |
 | Transport | HTTPS required when the server is not on the local network; HTTP allowed for localhost/LAN test servers |
 
-Risks to revisit before the HA add-on: leaked logs expose the token; with `0.0.0.0` and no login anyone on that network can operate the dashboard.
+Risks to revisit before the HA add-on: a debug-level log or export exposes the token; with `0.0.0.0` and no login anyone on that network can operate the dashboard.
 
 Gap: `SECRET_KEY` has a fixed default (`dev-secret-key-change-in-production`).
 
 ## 6. Failure handling
 
 - **One error envelope** for all API routes: `{status:"error", code, message, requestId}`; fixed codes; matching HTTP status (502/504 for server problems).
-- **Error classes shown to the user:** `SERVER_UNREACHABLE`, `ACTION_NOT_CONFIRMED`, `INVALID_INPUT`, `SESSION_INVALID` (401: "link the device again").
+- **Error codes** (fixed list):
+
+| Code | HTTP | Meaning |
+|------|------|---------|
+| `INVALID_INPUT` | 400 | invalid input (field message) |
+| `SESSION_INVALID` | 401 | token invalid / device signed out ("link the device again") |
+| `INVALID_PASSWORD` | 403 | parent password wrong |
+| `NOT_FOUND` | 404 | unknown item |
+| `NOT_LINKED` | 409 | no link with a server yet |
+| `CONFLICT` | 409 | server data differs from the version being edited (the browser sends the version it started with) |
+| `READ_ONLY_OFFLINE` | 503 | change refused: server unreachable |
+| `SERVER_UNREACHABLE` | 502 | server not reachable |
+| `SERVER_TIMEOUT` | 504 | server did not answer in time |
+| `ACTION_NOT_CONFIRMED` | 502 | server did not accept the action (`shouldDoFullSync`) |
+| `INTERNAL_ERROR` | 500 | unexpected error |
 - **Timeouts everywhere:** browser `fetch` through `AbortController` (default 10 s); backend → server configurable, 3 s for the health check.
 - **Server unreachable:** offline banner, read-only view from the cache, change controls disabled, no queued requests, reconnect polling with back-off (default 10 s → 30 s) plus a retry button; on recovery a sync runs.
 - Timings are configurable; the old values are the defaults.
@@ -166,10 +180,10 @@ Gap: **the server-down logic does not exist in the JavaScript** (`checkServerHea
 ## 7. Frontend
 
 - **Jinja templates + vanilla JavaScript in ES modules** (api, state, views, i18n). No build step, no npm.
-- Screens: children overview, child detail, settings, test section. First-run linking and the parent-password actions live in settings and modals; the old form pages (create-family, login-as-parent, recover/set-parent-password) are removed.
+- Screens: children overview, child detail (with a tab "Changes" showing the audit log), settings, test section. First-run linking and the parent-password actions live in settings and modals; the old form pages (create-family, login-as-parent, recover/set-parent-password) are removed. The test section (including the former `debug_database.html`) exists only when the "This is a test server" switch in settings is on; otherwise its menu item is absent and its routes answer 404.
 - Navigation: fixed sidebar on desktop, hamburger menu on small screens.
 - **Styling:** shared CSS with variables, no inline styles; the dark theme follows the system (`prefers-color-scheme`) with a manual override.
-- **i18n:** `nl.json` and `en.json`; a missing key falls back to English; language chosen in settings.
+- **i18n:** `nl.json` and `en.json`; a missing key falls back to English; language chosen in settings. Default language: the browser language when it is Dutch or English, otherwise English. Default theme: the system.
 - Layout works on desktop, phone and tablet. No WCAG target (basic ARIA only).
 
 Gap: one 1865-line `dashboardV2.js`, 1626-line CSS, 128 inline styles in `dashboardV2.html`, separate `<style>` blocks per page, no theme, no i18n. `debug_database.html` moves into the test section or behind debug level.
@@ -204,15 +218,17 @@ Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29
 
 ## 10. Build order (changes to the proposal in the requirements)
 
+0. **Strategy (decided 2026-11-07):** the new dashboard is built **next to the old one** in a new package `dashboard/` (sub-folders `routes/`, `services/`, `repository/`, `domain/`, `sync/`, `client/`, `static/`, `templates/`). `action_builder`, `action_pusher` and `crypto_utils` are reused; the old `dashboardV2/` is deleted at the end (cut-over).
 1. **Foundation:** per-test isolation and the 29 failing tests; error envelope; server-down handling and timeouts; settings/data folder; `SECRET_KEY`.
 2. **Sync:** `SyncService` with worker, version exchange (D10/D11), full-sync handling, cache keyed by family id, sequence counter kept across resets.
 3. **Cleanup:** switch the s6 service to `dashboard-v2`, then delete the legacy UI layer and scripts.
-4. **Features:** rules and blocked times, categories and apps, extra time and temporary blocking, used time.
-5. **Frontend:** ES modules, themes, i18n, sidebar/hamburger, Playwright tests.
+4. **Frontend base (decided 2026-11-07: before the features):** themes, i18n, sidebar/hamburger, dialogs, Playwright set-up.
+5. **Features:** rules, blocked times (per category), categories and apps, extra time and temporary blocking, used time (own daily totals), settings and linking, password actions, test section, audit log.
 6. **HA add-on:** aarch64 image, options, ingress, GitHub Actions.
+7. **Cut-over:** make `dashboard/` the entry point and delete the old `dashboardV2/`.
 
 ## 11. Open points
 
 1. The HA server add-on builds the official `master` unpinned; decide whether to pin a version.
-2. Whether `debug_database.html` stays (test section or debug level only).
-3. Security before HA: unmasked logs and no CSRF protection are accepted for localhost; revisit when the dashboard becomes reachable beyond the laptop.
+2. Security before HA: no CSRF protection, and debug-level logs/exports are unmasked; revisit when the dashboard becomes reachable beyond the laptop.
+3. Audit-log entries without a child (settings, test section): where they are shown.
