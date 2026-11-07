@@ -4,6 +4,7 @@
 pytest>=8.0
 pytest-timeout>=2.3
 pytest-xdist>=3.5
+playwright>=1.40  # browser tests (plan D1+); after install: py -3 -m playwright install chromium
 ruff>=0.6
 mypy>=1.10
 pre-commit>=3.7
