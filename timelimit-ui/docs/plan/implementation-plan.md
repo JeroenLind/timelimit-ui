@@ -119,7 +119,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | W5 | E3a | Rule changed or deleted on the server meanwhile | **Do not touch it**, show a notice; the parent decides. |
 | W6 | E3a | Edit or delete in the dashboard while off | **Restore first**, then apply the change; short notice. |
 
-Derived by me from these answers and written into FR-307 for your confirmation: (e) switching on again earlier the same day is allowed; (f) not offered for a rule that does not apply today, and if today's bit is the only one the mask becomes 0 until the restore; (g) the list shows "off for today" with the restore time and every switch-off and restore is audit-logged. Design consequences: the restore timer is a fourth trigger in the sync engine (diagram: "Timers"), and the pending restores are kept across a cache reset like the link.
+Derived from these answers, written into FR-307 and **confirmed by you on 2026-11-07**: (e) switching on again earlier the same day is allowed; (f) not offered for a rule that does not apply today, and if today's bit is the only one the mask becomes 0 until the restore; (g) the list shows "off for today" with the restore time and every switch-off and restore is audit-logged. Design consequences: the restore timer is a fourth trigger in the sync engine (diagram: "Timers"), and the pending restores are kept across a cache reset like the link.
 
 **Still open (not blocking the start):** FR-505 (E13) is built only if you ask for it; audit-log entries without a child (E12); pinning the server version in the HA server add-on (design §11).
 
