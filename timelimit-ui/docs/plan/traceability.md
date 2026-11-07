@@ -75,8 +75,8 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-312 | M | C1, C2, G1 | – | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
 | TR-400 | M | A3 | – | Configurable log level (debug/info/warn/error). |
 | TR-401 | M | A3 | – | Log rotation with limited size and file count. |
-| TR-500 | M | A2 | – | pytest unit tests, isolated (own temporary database and log folder per test), parallel wit |
-| TR-501 | M | A5, B2 | – | Contract tests: every action the dashboard can produce is validated against the schemas ge |
+| TR-500 | M | A2 | dashboard/tests/test_isolation.py | pytest unit tests, isolated (own temporary database and log folder per test), parallel wit |
+| TR-501 | M | A5, B2 | dashboard/tests/kept/test_action_builder.py (partial; completed in B2) | Contract tests: every action the dashboard can produce is validated against the schemas ge |
 | TR-502 | M | A7, D1, E-steps | – | Browser/UI tests (Playwright) for the main screens: overview, child detail, rule dialog, h |
 | TR-504 | M | G2 | – | Documentation stays in sync: this document, docs/ServerAPI.md, and design notes are update |
 | TR-510 | M | A0 | – | One tool for style and lint: ruff (lint and format), configured in pyproject.toml. ruff ch |

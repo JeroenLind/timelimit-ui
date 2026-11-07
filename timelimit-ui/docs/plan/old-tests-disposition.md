@@ -14,6 +14,8 @@ Counts are the number of `test_` functions found by text search in `rootfs/usr/b
 
 ## K · keep
 
+Moved in step A2 to `rootfs/usr/bin/dashboard/tests/kept/` (the modules they test stay in their old place until B2/B4; `kept/conftest.py` sets the environment). The legacy conftest marks everything left in `dashboardV2/tests/` with `legacy`.
+
 | File | Tests | Step / note |
 |---|---|---|
 | `test_action_builder.py` | 21 | B2 |

@@ -24,19 +24,15 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 |------|--------|--------|
 | A0 Development standards | done | 26c47d3 |
 | A1 Baseline and working method | done | 1aa7330, 3b3463e |
-| A2 Isolated tests, legacy suite apart | next | |
-| A3 .. G2 | not started | |
+| A2 Isolated tests, legacy suite apart | done | bef8a74 (wip), closing commit below |
+| A3 Configuration, data folder, secret key, logging, clock, `Secret` | next | |
+| A4 .. G2 | not started | |
 
 ## Current step
-**A2** (not started). Checklist:
-- [ ] new-suite fixture: own temporary database and log folder per test
-- [ ] split old tests by `old-tests-disposition.md` (K moves, rest stays as `legacy` marker/folder)
-- [ ] test: every old test file listed exactly once
-- [ ] new suite green serially and with `-n auto`, same pass count
-- [ ] test: a run leaves no file in the repository tree
-- [ ] 30 s timeout active; demo of a hanging test
-- [ ] closing commit `A2: ...`, update this file, project docs and memory
+**A3** (not started). Read plan step A3 and design §5/§8 first; write the checklist here when starting.
 
 ## Notes
+- A2 result: new suite 106 tests green serially and with `-n auto`; the 77 kept tests live in `dashboard/tests/kept`; the legacy suite (1248 tests) runs apart with `py -3 tools/baseline.py` or `pytest rootfs/usr/bin/dashboardV2/tests -m legacy`.
+- `test_action_builder.py` used to skip silently when the protocol reference was missing; it now fails.
 - Windows failure list of the old suite is still to be recorded (`py -3 tools/baseline.py --record`).
 - Tag `pre-rebuild` is local only (pushing tags fails from the cloud).
