@@ -29,7 +29,20 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A4 .. G2 | not started | |
 
 ## Current step
-**A3** (not started). Read plan step A3 and design §5/§8 first; write the checklist here when starting.
+**A3** Configuration, data folder, secret key, logging, `Clock`, `Secret`. Decisions taken while implementing
+(inside the design, listed so they can be challenged): data folder default = `data/` next to `app.py` (the
+`dashboard/` folder), override with `DASHBOARD_DATA_DIR` (the add-on sets `/data` in F2); env names are
+`DASHBOARD_<SETTING>`; optional `config.json` in the data folder; stdlib `logging` with a JSON formatter (no
+new dependency); `Secret` and `Clock`/`FakeClock` live in `domain/`, `SystemClock` in `services/`; entry
+points `py -3 app.py` (inside `dashboard/`) and `py -3 -m dashboard`; one route `GET /api/health`.
+- [ ] domain: `Secret`, `mask()`, `Clock`, `FakeClock` (+ tests)
+- [ ] `services/clock.py` `SystemClock`
+- [ ] `config.py`: settings, precedence env > file > default, validation (+ precedence table test)
+- [ ] secret key created once, kept, env override (+ test)
+- [ ] `logs.py`: JSON lines, level, rotation, masking (+ tests)
+- [ ] factory, `routes/health.py`, `main.py`, `app.py`, `__main__.py`; bind test (127.0.0.1, other interface refused)
+- [ ] `.gitignore` `data/`; docs (design §8 note, standards), progress, project docs, memory; closing commit `A3: ...`
+- [ ] M (you): `py -3 app.py` on Windows creates `data/` and starts on 8100
 
 ## Notes
 - A2 result: new suite 106 tests green serially and with `-n auto`; the 77 kept tests live in `dashboard/tests/kept`; the legacy suite (1248 tests) runs apart with `py -3 tools/baseline.py` or `pytest rootfs/usr/bin/dashboardV2/tests -m legacy`.
