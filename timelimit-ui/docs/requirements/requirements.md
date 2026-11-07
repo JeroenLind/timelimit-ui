@@ -211,6 +211,21 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | – |
 | TR-504 | M | Documentation stays in sync: this document, `docs/ServerAPI.md`, and design notes are updated with every feature or fix. | – |
 
+### 3.6 Development standards (added 2026-11-07)
+
+| ID | Pri | Requirement | Status |
+|----|-----|-------------|--------|
+| TR-510 | M | **One tool for style and lint:** `ruff` (lint and format), configured in `pyproject.toml`. `ruff check` and `ruff format --check` pass on the new package. | Open |
+| TR-511 | M | **Line endings:** the repository uses LF (`.gitattributes` and `.editorconfig`); shell scripts and s6 services never get CRLF. | Open |
+| TR-512 | M | **Time and time zones:** the domain layer only uses time-zone-aware times and receives the current time from an injected clock (never calls `now()` itself), so midnight logic (FR-307) is testable without waiting. | Open |
+| TR-513 | M | **Secrets in code:** tokens, hashes and typed passwords pass through one `Secret` type / masking function; log masking (TR-402) is implemented only there. | Open |
+| TR-514 | M | **Timeouts on all I/O:** every HTTP call has an explicit timeout; a test fails on any call without one. | Open |
+| TR-515 | S | **Type hints** on public functions of `domain/`, `services/` and `client/`; `mypy` checks `domain/` and `client/` first. | Open |
+| TR-516 | S | **Reproducible dependencies:** `requirements.txt` keeps loose ranges (Windows); a generated constraints file pins the versions for the HA image. | Open |
+| TR-517 | S | **Pre-commit:** a local hook runs `ruff` and the fast unit tests (no Playwright); one command (`py -3 tools/check.py`) runs lint, type check and the full suite. | Open |
+| TR-518 | S | **Commit convention:** short descriptive messages with the agreed trailers; one commit per plan step. | Open |
+| TR-519 | S | **Decision log:** `docs/decisions/` holds short decision records (context, choice, consequences) from a template; existing decisions of the plan are backfilled as records. | Open |
+
 ---
 
 ## 4. Non-functional requirements
@@ -277,7 +292,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 ## 8. Build order (proposal, after approval)
 
-See `docs/architecture/design.md` section 10 for the current build order. Summary: 1. foundation (TR-500 isolation, TR-307 error envelope, server-down handling, TR-306); 2. sync (TR-103, TR-309, TR-310, FR-200..202); 3. cleanup (TR-312, after the s6 switch); 4. features; 5. frontend (TR-311); 6. HA add-on (TR-302).
+See `docs/architecture/design.md` section 10 for the current build order. Summary: 1. foundation (development standards TR-510..519, TR-500 isolation, TR-307 error envelope, server-down handling, TR-306); 2. sync (TR-103, TR-309, TR-310, FR-200..202); 3. cleanup (TR-312, after the s6 switch); 4. features; 5. frontend (TR-311); 6. HA add-on (TR-302).
 
 Original proposal: 1. Test isolation (TR-500) and sync correctness (TR-103, FR-200..202, TR-201).
 2. Rules, blocked times, categories and apps (FR-300..305, FR-400..404).

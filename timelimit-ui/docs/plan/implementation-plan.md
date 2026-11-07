@@ -43,9 +43,10 @@
 
 | Phase | Step | Result in one line | Size | Decided in §3 |
 |-------|------|--------------------|------|------|
-| A Foundation | A1 | Baseline and working method fixed | S | K0, Q2, R1 |
+| A Foundation | A0 | Development standards: lint, line endings, check command, hooks, decision log | M | T1 |
+| | A1 | Baseline and working method fixed | S | K0, Q2, R1 |
 | | A2 | Isolated, green, parallel test suite | M | |
-| | A3 | Configuration, data folder, secret key, logging | M | Q9 |
+| | A3 | Configuration, data folder, secret key, logging, clock and `Secret` type | M | Q9, T1 |
 | | A4 | One error envelope for all API routes | M | Q3 |
 | | A5 | Fake TimeLimit server (test double) | L | |
 | | A6 | Server client with timeouts, gzip, error mapping | M | |
@@ -109,6 +110,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | S1 | E1 | Default server and selection | Dropdown in settings: **Official server** (`https://api.timelimit.io`) or **Alternative server**; nothing selected on first start. |
 | S2 | E1 | Alternative server fields | Protocol (http/https, default **http**), address and port; stored persistently. |
 | S3 | A3, B1, E1 | Switching servers | **Each server has its own profile** (link, cache, counter, pending restores); switching back restores it untouched. |
+| T1 | A0, A3, A6, B7, F2 | Development standards | **All ten** proposed standards are included (TR-510..TR-519): ruff, LF endings, injected clock, `Secret` type, timeouts everywhere, type hints with mypy, constraints file, pre-commit, commit convention, decision log. |
 | R2 | B1, B3 | Tasks | **Not stored** in v1 (no UI). B3 checks what the server sends when the tasks version is omitted. |
 
 **Rule off for today (new requirement FR-307, asked 2026-11-07):**
@@ -130,6 +132,16 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 
 ## 4. Phase A – Foundation (design §10.1)
 
+### A0 · Development standards — M
+**Refs:** TR-510, 511, 515, 516 (tool part), 517, 518, 519. **Decided:** T1 (§3).
+**Work:** `pyproject.toml` with `ruff` (lint and format) and `mypy` (strict on `domain/` and `client/`); `.editorconfig` and `.gitattributes` (LF); `tools/check.py` (ruff, ruff format check, mypy, pytest) as the one entry command; `.pre-commit-config.yaml` (ruff plus the fast unit tests without Playwright); `docs/development/standards.md` (commit convention with the trailers, one commit per step); `docs/decisions/` with a template and the decisions of §3 backfilled as short records; a script that generates the constraints file with `pip-tools`.
+**Result (testable):**
+- `py -3 tools/check.py` runs on the empty `dashboard/` package and exits 0; a deliberate style error, type error or failing test makes it exit non-zero (shown once).
+- A test checks that no tracked text file in the repository contains CRLF (outside binary and explicitly excluded files).
+- The pre-commit hook rejects a commit with a ruff error and accepts a clean one.
+- The constraints script produces a file from `requirements.txt`; a test checks that every package in `requirements.txt` appears in it.
+- A test checks that every decision row of §3 has a record in `docs/decisions/`.
+
 ### A1 · Baseline and working method — S
 **Refs:** TR-504, `.roo/rules`. **Decided:** K0, Q2, R1 (§3).
 **Work:** Tag the current commit (`pre-rebuild`). Record the baseline test run (1325 tests, 29 failed, 369 s). Add a dev requirements file (pytest, pytest-xdist, playwright). Create the new package `dashboard/` with the sub-folders of Q2. Create `docs/plan/traceability.md` (requirement → step → test), filled as steps complete.
@@ -147,13 +159,14 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 - Per-test timeout 30 s is active; a deliberately hanging test is killed in the demo.
 
 ### A3 · Configuration, data folder, secret key, logging — M
-**Refs:** TR-300, 301, 305, 306, 400, 401, SEC-001, SEC-004. **Decided:** Q9 (§3).
-**Work:** One configuration module: precedence *environment > config file > default*; data folder (`data/` next to the app, `/data` in HA); default `127.0.0.1:8100`; masking of secrets in logs at info level and higher, unmasked only at debug (Q13); secret key generated on first start and kept; log level and rotation; timing settings with their defaults (health timeout 3 s, back-off 10→30 s, sync target 5 s, browser timeout 10 s); the setting "This is a test server" (default off, Q9). `data/` goes into `.gitignore`.
+**Refs:** TR-300, 301, 305, 306, 400, 401, 512, 513, SEC-001, SEC-004. **Decided:** Q9, T1 (§3).
+**Work:** Also here: a `Clock` interface (real and fake, time-zone aware; TR-512) and the `Secret` wrapper / `mask()` function through which tokens, hashes and typed passwords pass (TR-513). One configuration module: precedence *environment > config file > default*; data folder (`data/` next to the app, `/data` in HA); default `127.0.0.1:8100`; masking of secrets in logs at info level and higher, unmasked only at debug (Q13); secret key generated on first start and kept; log level and rotation; timing settings with their defaults (health timeout 3 s, back-off 10→30 s, sync target 5 s, browser timeout 10 s); the setting "This is a test server" (default off, Q9). `data/` goes into `.gitignore`.
 **Result:**
 - U: precedence table (env wins, then file, then default) for every setting; invalid values give a clear error at start.
 - U/I: the secret key is created once and identical after a restart; changing the env var overrides it.
 - I: starting the app binds `127.0.0.1:8100`; a connection from another interface is refused (bind test on an ephemeral port).
 - I: log files rotate at the configured size and file count.
+- U: the fake `Clock` returns a time-zone-aware time and a naive time is refused; `Secret` shows a mask in `repr()`, `str()` and log output at info level and reveals only through `reveal()`.
 - M: `py -3 app.py` on Windows creates `data/` and starts on 8100.
 
 ### A4 · One error envelope for all API routes — M
@@ -174,12 +187,13 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 - M (optional, once): the same conformance scenarios run against your local test server and differences are listed in `ServerAPI.md` (not required to pass step A5).
 
 ### A6 · Server client — M
-**Refs:** TR-100, 103 (client part), 104, 106, 303, SEC-002, FR-1000.
+**Refs:** TR-100, 103 (client part), 104, 106, 303, 514, SEC-002, FR-1000.
 **Work:** The only module that does HTTP to the TimeLimit server. Configurable timeouts, `clientLevel` 7, gzip with the retry on HTTP 411, mapping of network/HTTP failures to the error classes (`SERVER_UNREACHABLE`, `SESSION_INVALID`, …), HTTPS rule (HTTP only for localhost/LAN).
 **Result:**
 - I: against the fake: timeout after the configured time (fake made slow), connection refused → `SERVER_UNREACHABLE`, 401 → `SESSION_INVALID`, 411 → retry with `Content-Length`.
 - U: a non-local `http://` URL is rejected with a clear message; `localhost` and LAN addresses are accepted.
 - Every request carries `clientLevel` 7 (asserted on the fake).
+- U: every HTTP call goes through one function that always passes a timeout (the check that enforces it is in B7).
 
 ### A7 · Frontend skeleton with server-down handling — M
 **Refs:** TR-303, TR-311 (first part), FR-1000..1003, UI-002 (hamburger kept), NFR-003.
@@ -252,7 +266,7 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 
 ### B7 · Architecture test — S
 **Refs:** TR-308, `design.md` §2.
-**Work:** One test that reads the import graph (static analysis, not text search for names) and enforces the layer table of `design.md` §2.1: Routes do not import the repository or server client; only the repository imports `sqlite3`; only the server client imports the HTTP library; the domain imports nothing with I/O.
+**Work:** One test that reads the import graph (static analysis, not text search for names) and enforces the layer table of `design.md` §2.1, plus three code-standard rules (TR-512, 513, 514): the domain never calls `now()`/`time.time()` directly, secrets are never formatted into log calls without the `Secret` type, and every HTTP call has a timeout. The layer rules: Routes do not import the repository or server client; only the repository imports `sqlite3`; only the server client imports the HTTP library; the domain imports nothing with I/O.
 **Result:**
 - The test passes on the new package; introducing a forbidden import in a scratch change makes it fail (shown once in the demo).
 
@@ -327,7 +341,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 - I: the fake rejects the action → the UI reverts and shows the error (links to E4).
 
 ### E3a · Rule off for today — M
-**Refs:** FR-307, FR-1100. **Decided:** W1–W6 (§3). Needs E3 and B5; the timer part needs B5/B6.
+**Refs:** FR-307, FR-1100, TR-512. **Decided:** W1–W6 (§3). Needs E3 and B5; the timer part needs B5/B6.
 **Work:** In the rule list a button "off for today" (not offered when the rule does not apply today). Switching off pushes `UPDATE_TIMELIMIT_RULE` with today's bit removed and stores a pending restore (rule id, day bit, original days, the state that was set, due time). A timer (a trigger of the sync engine) restores at the dashboard's midnight; at start, overdue restores run at once with a notice. At restore the rule on the server is compared with the state that was set: different or missing → nothing is changed and a notice is shown. Editing or deleting such a rule restores it first. Warning when the child's time zone differs. State "off for today" with the restore time in the list; switch-off and restore are audit-logged.
 **Result:**
 - C/U: the days mask without today's bit for all 7 weekdays and for masks with one bit (result 0), validated against the schema; a rule that does not apply today is refused before sending.
@@ -427,8 +441,8 @@ Every feature step is a **vertical slice**: domain action → service → route 
 **Result:** E: the whole E-suite runs a second time through a test reverse proxy that serves the app under `/api/hassio_ingress/<token>/`; no request goes to the root path (the proxy logs any request outside the prefix and the test fails on it).
 
 ### F2 · aarch64 add-on with options — M
-**Refs:** TR-302, TR-301, `design.md` §8.
-**Work:** `config.yaml`: aarch64, ingress, options (log level, listen address `0.0.0.0` set by the add-on; the server is chosen in the settings screen, design §8.1), data in `/data`. s6 service starts the new dashboard.
+**Refs:** TR-302, TR-301, 516, `design.md` §8.
+**Work:** The image build installs from the generated constraints file (A0). `config.yaml`: aarch64, ingress, options (log level, listen address `0.0.0.0` set by the add-on; the server is chosen in the settings screen, design §8.1), data in `/data`. s6 service starts the new dashboard.
 **Result:**
 - U: the options → configuration mapping is tested with sample `options.json`.
 - U: a schema check of `config.yaml` (HA add-on schema validator).
@@ -485,6 +499,9 @@ Every feature step is a **vertical slice**: domain action → service → route 
 | TR-303 | A6, A7 | | TR-312 | C1, C2, G1 |
 | TR-400, 401 | A3 | | TR-402 (S) | E1 |
 | TR-500 | A2 | | TR-501 | A5, B2 |
+| TR-510, 511, 517, 518, 519 | A0 | | TR-512, 513 | A3, B7 |
+| TR-514 | A6, B7 | | TR-515 | A0 (config), all steps |
+| TR-516 | A0, F2 | | | |
 | TR-502 | A7, D1, E-steps | | TR-503, 504 | G2 |
 | SEC-001 | A3 | | SEC-002 | A6 |
 | SEC-003 | B1, E1 | | SEC-004 | A3 |

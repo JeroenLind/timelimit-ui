@@ -222,10 +222,18 @@ Gap: `config.yaml` says `amd64` only and has a hard-coded server URL; the Docker
 
 Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29 failed** (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing), 369 s.
 
+### 9.1 Development standards (TR-510..TR-519)
+- **Tooling:** `pyproject.toml` configures `ruff` (lint and format) and `mypy` (strict on `domain/` and `client/`, later wider). `.editorconfig` and `.gitattributes` fix LF line endings. One command, `py -3 tools/check.py`, runs lint, type check and the full suite; the pre-commit hook runs `ruff` plus the fast unit tests.
+- **Clock:** the domain never calls `now()`; it takes a `Clock` (a small interface with `now()` returning a time-zone-aware time). Services get the real clock, tests a fake one. FR-307 (midnight restore) depends on this.
+- **Secrets:** one `Secret` wrapper / `mask()` function; `repr()` and logging show a mask, the real value only through an explicit `reveal()`. Debug level (Q13) is the only place that reveals.
+- **Timeouts:** the server client is the only HTTP user and always passes a timeout; the architecture test (B7) also fails on a call without one.
+- **Dependencies:** loose ranges in `requirements.txt`; a constraints file generated with `pip-tools` pins the HA image build.
+- **Records:** commit messages are short and descriptive with the agreed trailers, one commit per plan step; decisions are recorded in `docs/decisions/` (template: context, choice, consequences).
+
 ## 10. Build order (changes to the proposal in the requirements)
 
 0. **Strategy (decided 2026-11-07):** the new dashboard is built **next to the old one** in a new package `dashboard/` (sub-folders `routes/`, `services/`, `repository/`, `domain/`, `sync/`, `client/`, `static/`, `templates/`). `action_builder`, `action_pusher` and `crypto_utils` are reused; the old `dashboardV2/` is deleted at the end (cut-over).
-1. **Foundation:** per-test isolation and the 29 failing tests; error envelope; server-down handling and timeouts; settings/data folder; `SECRET_KEY`.
+1. **Foundation:** development standards (§9.1: ruff, mypy, LF, check command, hooks, decision log); per-test isolation and the 29 failing tests; error envelope; server-down handling and timeouts; settings/data folder; `SECRET_KEY`.
 2. **Sync:** `SyncService` with worker, version exchange (D10/D11), full-sync handling, cache keyed by server profile and family id, sequence counter kept across resets.
 3. **Cleanup:** switch the s6 service to `dashboard-v2`, then delete the legacy UI layer and scripts.
 4. **Frontend base (decided 2026-11-07: before the features):** themes, i18n, sidebar/hamburger, dialogs, Playwright set-up.
