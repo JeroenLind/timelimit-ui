@@ -217,7 +217,8 @@ Gap: `config.yaml` says `amd64` only and has a hard-coded server URL; the Docker
 - **Layers:** pytest unit tests for domain, services and repositories; **contract tests** that validate every produced action against the schemas generated from the server; **Playwright** tests for the main screens (overview, child detail, rule dialog, hamburger menu, offline banner).
 - Tests that only grep source text for a function name are replaced by behaviour tests.
 - Speed: `pytest-xdist` in parallel, 30 s timeout per test, no automatic retries; tests of deleted code are removed.
-- **Definition of done:** the complete suite is green, including unrelated tests. Run stops at the first failure (`-x`) during work.
+- **Old tests:** until the cut-over the old suite runs apart as a "legacy suite"; each old test file is classified keep / rewrite / specification / drop in `docs/plan/old-tests-disposition.md`. Only the kept tests must be green; the rest disappears with its code.
+- **Definition of done:** the complete suite is green, including unrelated tests. Until the cut-over this means the new suite plus the kept old tests. Run stops at the first failure (`-x`) during work.
 - A live test against a real server is optional (local test server).
 
 Gap: all tests share `test_isolation.db`; the last full run had 1325 tests, **29 failed** (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing), 369 s.

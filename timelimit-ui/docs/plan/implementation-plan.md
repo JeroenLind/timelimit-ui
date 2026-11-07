@@ -45,7 +45,7 @@
 |-------|------|--------------------|------|------|
 | A Foundation | A0 | Development standards: lint, line endings, check command, hooks, decision log | M | T1 |
 | | A1 | Baseline and working method fixed | S | K0, Q2, R1 |
-| | A2 | Isolated, green, parallel test suite | M | |
+| | A2 | Isolated, green, parallel test suite; old tests classified (legacy suite apart) | M | T2 |
 | | A3 | Configuration, data folder, secret key, logging, clock and `Secret` type | M | Q9, T1 |
 | | A4 | One error envelope for all API routes | M | Q3 |
 | | A5 | Fake TimeLimit server (test double) | L | |
@@ -110,6 +110,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | S1 | E1 | Default server and selection | Dropdown in settings: **Official server** (`https://api.timelimit.io`) or **Alternative server**; nothing selected on first start. |
 | S2 | E1 | Alternative server fields | Protocol (http/https, default **http**), address and port; stored persistently. |
 | S3 | A3, B1, E1 | Switching servers | **Each server has its own profile** (link, cache, counter, pending restores); switching back restores it untouched. |
+| T2 | A2, C2, G1 | Old tests until the cut-over | The old suite runs **apart** as the "legacy suite"; only the kept modules (class K) must be green. Definition of done applies to the new suite plus the kept tests; legacy failures do not block and disappear with their code. Classification per file: `old-tests-disposition.md`. |
 | T1 | A0, A3, A6, B7, F2 | Development standards | **All ten** proposed standards are included (TR-510..TR-519): ruff, LF endings, injected clock, `Secret` type, timeouts everywhere, type hints with mypy, constraints file, pre-commit, commit convention, decision log. |
 | R2 | B1, B3 | Tasks | **Not stored** in v1 (no UI). B3 checks what the server sends when the tasks version is omitted. |
 
@@ -151,10 +152,12 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 - `traceability.md` lists every Must requirement with its planned step (a test checks that every Must ID of `requirements.md` appears in it).
 
 ### A2 · Isolated, green, parallel tests — M
-**Refs:** TR-500, `design.md` §9.
-**Work:** Fixture giving every test its own temporary database and log folder; remove the shared `test_isolation.db`; fix the 29 failing tests (triage: isolation → fixture; the rest → fix the test or the code). A test that contradicts the new requirements is **not** rewritten silently: it is listed and we go back to the requirements.
+**Refs:** TR-500, `design.md` §9. **Decided:** T2 (§3).
+**Work:** Fixture giving every test its own temporary database and log folder for the **new** test tree; remove the shared `test_isolation.db`. Split the old tests with `docs/plan/old-tests-disposition.md` (K keep, R rewrite, S specification, X drop): class K moves into the new test tree and must be green; the rest stays in a separate "legacy" folder/marker, run apart with `pytest -m legacy` and not repaired (T2). A legacy test that fails is only listed. A test that contradicts the new requirements is **not** rewritten silently: it is listed and we go back to the requirements.
 **Result:**
-- Full suite green **serially and with `-n auto`**, same pass count both times.
+- The new suite (including the kept K tests) is green **serially and with `-n auto`**, same pass count both times.
+- `docs/plan/old-tests-disposition.md` lists every old test file exactly once (a test compares the list with the files on disk).
+- The legacy suite runs apart with its own command and its failures are listed, not blocking.
 - Running the suite leaves no file in the repository tree (a test asserts the tree is unchanged: no `*.db`, no `logs/`).
 - Per-test timeout 30 s is active; a deliberately hanging test is killed in the demo.
 
@@ -284,7 +287,7 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 
 ### C2 · Legacy UI layer and one-off scripts removed — S
 **Refs:** TR-312.
-**Work:** Delete `frontend.py`, `web_server.py`, `api_client.py`, `check_server.py` (in `rootfs/usr/bin`), `add_time_limit_rules*.py`, `update_database.py`, `verify_bcrypt.py`, `test_hash_verify*.py`, the loose `test_*.py` in the repository root, and the tests that only test those files.
+**Work:** Delete the class-X test files that belong to the removed code (`old-tests-disposition.md`), `frontend.py`, `web_server.py`, `api_client.py`, `check_server.py` (in `rootfs/usr/bin`), `add_time_limit_rules*.py`, `update_database.py`, `verify_bcrypt.py`, `test_hash_verify*.py`, the loose `test_*.py` in the repository root, and the tests that only test those files.
 **Result:**
 - Full suite green; no import of a removed module anywhere (a test imports every remaining module).
 - The suite count drops by exactly the removed tests (listed in the commit message).
@@ -460,7 +463,7 @@ Every feature step is a **vertical slice**: domain action → service → route 
 
 ### G1 · Cut-over **[deviation, approved K0]**
 **Refs:** TR-312.
-**Work:** Make the new package the entry point (`py -3 app.py` and the s6 service); delete the old `dashboardV2/` application and its tests, plus the archived duplicate docs.
+**Work:** Make the new package the entry point (`py -3 app.py` and the s6 service); delete the old `dashboardV2/` application and its tests (the legacy suite ends here), plus the archived duplicate docs. Each R and S file is checked off against the new tests before it goes (`old-tests-disposition.md`).
 **Result:** full suite green; `py -3 app.py` starts the new dashboard (M); a test imports every remaining module; no reference to the removed package remains (import-graph test).
 
 ### G2 · Acceptance — M

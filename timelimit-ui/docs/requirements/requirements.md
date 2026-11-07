@@ -205,7 +205,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests; tests that only grep source text are replaced by behaviour tests; tests of deleted code are removed. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
+| TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests (until the cut-over the old tests run apart as a legacy suite, see `docs/plan/old-tests-disposition.md`); tests that only grep source text are replaced by behaviour tests; tests of deleted code are removed. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
 | TR-501 | M | **Contract tests**: every action the dashboard can produce is validated against the schemas generated from the server. | Partial |
 | TR-502 | M | **Browser/UI tests** (Playwright) for the main screens: overview, child detail, rule dialog, hamburger menu, offline banner. | Open |
 | TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | – |
