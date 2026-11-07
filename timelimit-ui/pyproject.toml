@@ -1,0 +1,41 @@
+# Tooling configuration for the new dashboard (plan step A0).
+# One command runs everything:  py -3 tools/check.py   (see docs/development/standards.md)
+
+[project]
+name = "timelimit-dashboard"
+version = "0.0.0"
+requires-python = ">=3.10"
+
+[tool.ruff]
+# Ruff defaults on purpose (no own rule selection); only the target and scope are set.
+target-version = "py310"
+src = ["rootfs/usr/bin"]
+# The legacy code is not linted: it is deleted at the cut-over (plan G1).
+extend-exclude = [
+    "rootfs/usr/bin/dashboardV2",
+    "rootfs/usr/bin/frontend.py",
+    "rootfs/usr/bin/web_server.py",
+    "rootfs/usr/bin/api_client.py",
+    "rootfs/usr/bin/check_server.py",
+    "rootfs/usr/bin/crypto_utils.py",
+]
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "rootfs/usr/bin"
+explicit_package_bases = true
+files = ["rootfs/usr/bin/dashboard"]
+warn_unused_configs = true
+
+# Strict where the code is pure or the only door to the outside (TR-515).
+[[tool.mypy.overrides]]
+module = ["dashboard.domain.*", "dashboard.client.*"]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["rootfs/usr/bin/dashboard", "tools/tests"]
+timeout = 30
+markers = [
+    "legacy: old dashboardV2 tests, run apart until the cut-over (plan T2)",
+    "ui: Playwright browser tests (not run by the pre-commit hook)",
+]

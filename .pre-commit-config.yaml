@@ -1,0 +1,10 @@
+# Install once:  py -3 -m pre_commit install
+repos:
+  - repo: local
+    hooks:
+      - id: dashboard-check
+        name: ruff, mypy and fast unit tests
+        entry: python timelimit-ui/tools/check.py --fast
+        language: system
+        pass_filenames: false
+        always_run: true
