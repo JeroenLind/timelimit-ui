@@ -27,11 +27,29 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A2 Isolated tests, legacy suite apart | done | bef8a74 (wip), closing commit below |
 | A3 Configuration, data folder, secret key, logging, clock, `Secret` | done except the Windows check (M) | closing commit below |
 | A4 One error envelope | done | closing commit below |
-| A5 Fake TimeLimit server | next | |
+| A5 Fake TimeLimit server | in progress | wip commits |
 | A6 .. G2 | not started | |
 
 ## Current step
-**A5** (not started). **Still open from A3 (yours):** the Windows check (`py -3 app.py` in `rootfs/usr/bin/dashboard`, health URL on 8100) and `py -3 tools/baseline.py --record`. Read plan step A5 and `docs/protocol/` first; write the checklist here when starting.
+**A5** Fake TimeLimit server (test double), in `rootfs/usr/bin/dashboard/tests/fakeserver/`. Source of truth: the
+server checkout `/home/claude/ref/MichaelSp_timelimit-server` (read-only, commit fe90617, apiLevel 9) and `docs/ServerAPI.md`.
+Decisions inside the plan: the strict request schemas are extracted from the server's `src/api/validator.ts`
+(`tools/extract_server_schemas.py`, output `fakeserver/server_schemas.json`); the semantic checks of actions
+(6-character ids, bitmask length, ranges) are re-implemented from `src/action/*.ts`; only the actions the dashboard
+sends are simulated, any other schema-valid action is recorded in `fake.unsimulated` and fails silently (a test
+fails on a non-empty list) so gaps are loud; dev dependencies jsonschema, python-socketio, simple-websocket,
+websocket-client.
+- [x] schema extractor + `server_schemas.json` (22 validators, 106 definitions)
+- [ ] `fakeserver/schemas.py` (validators, response schema built from the definitions)
+- [ ] state + REST: /time, /auth/*, /parent/*, /child/add-device (mail login, create-family, sign-in-into-family, add-device token, remove-device, recover-parent-password)
+- [ ] sync: pull-status (versions, clientLevel gates), push-actions (limit 50, silent failures, sequence rules, integrity device/password/childDevice, broadcast)
+- [ ] simulated actions (see list in `fakeserver/actions.py`)
+- [ ] Socket.IO `devicelogin` / `should sync`; fault injection (down, slow, reject next action)
+- [ ] conformance suite incl. the two HMAC vectors; startup < 1 s on an ephemeral port
+- [ ] closing commit `A5: ...`, progress, project docs, memory
+- [ ] M (optional, yours): run the conformance scenarios against your local test server
+
+**Still open from A3 (yours):** open `http://127.0.0.1:8100/api/health` (not `/`; `/` correctly answers 404 for now) and run `py -3 tools/baseline.py --record`.
 
 ## Notes
 - A4 result: `domain/errors.py` (codes + `DashboardError`), `routes/errors.py` (status table, envelope, request id, handlers); a test fails when a route in `routes/` builds an error response by hand. Non-API paths keep Flask's normal pages. Unknown `/api/` paths and wrong methods/bodies answer with the envelope (405/413/415 map to `INVALID_INPUT` 400).

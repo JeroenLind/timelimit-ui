@@ -1,0 +1,3551 @@
+{
+ "definitions": {
+  "AppRecommendation": {
+   "enum": [
+    "blacklist",
+    "none",
+    "whitelist"
+   ],
+   "type": "string"
+  },
+  "CategoryDataStatus": {
+   "additionalProperties": false,
+   "properties": {
+    "apps": {
+     "type": "string"
+    },
+    "base": {
+     "type": "string"
+    },
+    "rules": {
+     "type": "string"
+    },
+    "tasks": {
+     "type": "string"
+    },
+    "usedTime": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "apps",
+    "base",
+    "rules",
+    "usedTime"
+   ],
+   "type": "object"
+  },
+  "ClientDataStatus": {
+   "additionalProperties": false,
+   "properties": {
+    "apps": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "type": "object"
+    },
+    "categories": {
+     "additionalProperties": {
+      "$ref": "#/definitions/CategoryDataStatus"
+     },
+     "type": "object"
+    },
+    "clientLevel": {
+     "type": "number"
+    },
+    "devices": {
+     "type": "string"
+    },
+    "devicesDetail": {
+     "additionalProperties": {
+      "$ref": "#/definitions/DeviceDataStatus"
+     },
+     "type": "object"
+    },
+    "dh": {
+     "type": "string"
+    },
+    "kr": {
+     "type": "number"
+    },
+    "kri": {
+     "type": "number"
+    },
+    "u2f": {
+     "type": "string"
+    },
+    "users": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "apps",
+    "categories",
+    "devices",
+    "users"
+   ],
+   "type": "object"
+  },
+  "ClientPushChangesRequestAction": {
+   "additionalProperties": false,
+   "properties": {
+    "encodedAction": {
+     "type": "string"
+    },
+    "integrity": {
+     "type": "string"
+    },
+    "sequenceNumber": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "appLogic",
+      "child",
+      "parent"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "encodedAction",
+    "integrity",
+    "sequenceNumber",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "DeviceDataStatus": {
+   "additionalProperties": false,
+   "properties": {
+    "appsB": {
+     "type": "string"
+    },
+    "appsD": {
+     "type": "string"
+    }
+   },
+   "type": "object"
+  },
+  "EncryptableParentPassword": {
+   "additionalProperties": false,
+   "properties": {
+    "encrypted": {
+     "type": "boolean"
+    },
+    "hash": {
+     "type": "string"
+    },
+    "secondHash": {
+     "type": "string"
+    },
+    "secondSalt": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "hash",
+    "secondHash",
+    "secondSalt"
+   ],
+   "type": "object"
+  },
+  "NewDeviceInfo": {
+   "additionalProperties": false,
+   "properties": {
+    "model": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "model"
+   ],
+   "type": "object"
+  },
+  "NewPermissionStatus": {
+   "enum": [
+    "granted",
+    "not granted",
+    "not supported"
+   ],
+   "type": "string"
+  },
+  "PingEvent": {
+   "enum": [
+    "clear",
+    "ping",
+    "pong"
+   ],
+   "type": "string"
+  },
+  "PlaintextParentPassword": {
+   "additionalProperties": false,
+   "properties": {
+    "hash": {
+     "type": "string"
+    },
+    "secondHash": {
+     "type": "string"
+    },
+    "secondSalt": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "hash",
+    "secondHash",
+    "secondSalt"
+   ],
+   "type": "object"
+  },
+  "ProtectionLevel": {
+   "enum": [
+    "device owner",
+    "none",
+    "password device admin",
+    "simple device admin"
+   ],
+   "type": "string"
+  },
+  "RuntimePermissionStatus": {
+   "enum": [
+    "granted",
+    "not granted",
+    "not required"
+   ],
+   "type": "string"
+  },
+  "SerialiezdTriedDisablingDeviceAdminAction": {
+   "additionalProperties": false,
+   "properties": {
+    "type": {
+     "enum": [
+      "TRIED_DISABLING_DEVICE_ADMIN"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerialiizedUpdateNetworkTimeVerificationAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "disabled",
+      "enabled",
+      "if possible"
+     ],
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_NETWORK_TIME_VERIFICATION"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "mode",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializeResetCategoryNetworkIdsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "RESET_CATEGORY_NETWORK_IDS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddCategoryAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "packageNames": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "ADD_CATEGORY_APPS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "packageNames",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddCategoryNetworkIdAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "hashedNetworkId": {
+     "type": "string"
+    },
+    "itemId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "ADD_CATEGORY_NETWORK_ID"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "hashedNetworkId",
+    "itemId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddInstalledAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "apps": {
+     "items": {
+      "$ref": "#/definitions/SerializedInstalledApp"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "ADD_INSTALLED_APPS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "apps",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddParentU2fKeyAction": {
+   "additionalProperties": false,
+   "properties": {
+    "keyHandle": {
+     "type": "string"
+    },
+    "publicKey": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "ADD_PARENT_U2F"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "keyHandle",
+    "publicKey",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddUsedTimeAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "day": {
+     "type": "number"
+    },
+    "extraTimeToSubtract": {
+     "type": "number"
+    },
+    "timeToAdd": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "ADD_USED_TIME"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "day",
+    "extraTimeToSubtract",
+    "timeToAdd",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddUsedTimeActionVersion2": {
+   "additionalProperties": false,
+   "properties": {
+    "d": {
+     "type": "number"
+    },
+    "i": {
+     "items": {
+      "additionalProperties": false,
+      "properties": {
+       "as": {
+        "items": {
+         "items": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "number"
+          }
+         ],
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "categoryId": {
+        "type": "string"
+       },
+       "etts": {
+        "type": "number"
+       },
+       "sdl": {
+        "items": {
+         "items": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "number"
+          },
+          {
+           "type": "number"
+          },
+          {
+           "type": "number"
+          }
+         ],
+         "maxItems": 4,
+         "minItems": 4,
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "tta": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "categoryId",
+       "etts",
+       "tta"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "t": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "ADD_USED_TIME_V2"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "d",
+    "i",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedAddUserAction": {
+   "additionalProperties": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "password": {
+     "$ref": "#/definitions/EncryptableParentPassword"
+    },
+    "timeZone": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "ADD_USER"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    },
+    "userType": {
+     "enum": [
+      "child",
+      "parent"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "name",
+    "timeZone",
+    "type",
+    "userId",
+    "userType"
+   ],
+   "type": "object"
+  },
+  "SerializedAppActivityItem": {
+   "additionalProperties": false,
+   "properties": {
+    "c": {
+     "type": "string"
+    },
+    "p": {
+     "type": "string"
+    },
+    "t": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "c",
+    "p",
+    "t"
+   ],
+   "type": "object"
+  },
+  "SerializedChangeParentPasswordAction": {
+   "additionalProperties": false,
+   "properties": {
+    "hash": {
+     "type": "string"
+    },
+    "integrity": {
+     "type": "string"
+    },
+    "secondHashEncrypted": {
+     "type": "string"
+    },
+    "secondSalt": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "CHANGE_PARENT_PASSWORD"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "hash",
+    "integrity",
+    "secondHashEncrypted",
+    "secondSalt",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedChildChangePasswordAction": {
+   "additionalProperties": false,
+   "properties": {
+    "password": {
+     "$ref": "#/definitions/EncryptableParentPassword"
+    },
+    "type": {
+     "enum": [
+      "CHILD_CHANGE_PASSWORD"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "password",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedChildSignInAction": {
+   "additionalProperties": false,
+   "properties": {
+    "type": {
+     "enum": [
+      "CHILD_SIGN_IN"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedCreateCategoryAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "childId": {
+     "type": "string"
+    },
+    "title": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "CREATE_CATEGORY"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "childId",
+    "title",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedCreateTimelimtRuleAction": {
+   "additionalProperties": false,
+   "properties": {
+    "rule": {
+     "$ref": "#/definitions/SerializedTimeLimitRule"
+    },
+    "type": {
+     "enum": [
+      "CREATE_TIMELIMIT_RULE"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "rule",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedDeleteCategoryAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "DELETE_CATEGORY"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedDeleteChildTaskAction": {
+   "additionalProperties": false,
+   "properties": {
+    "taskId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "DELETE_CHILD_TASK"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "taskId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedDeleteTimeLimitRuleAction": {
+   "additionalProperties": false,
+   "properties": {
+    "ruleId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "DELETE_TIMELIMIT_RULE"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "ruleId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedFinishKeyRequestAction": {
+   "additionalProperties": false,
+   "properties": {
+    "dsn": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "FINISH_KEY_REQUEST"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "dsn",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedForceSyncAction": {
+   "additionalProperties": false,
+   "properties": {
+    "type": {
+     "enum": [
+      "FORCE_SYNC"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedIgnoreManipulationAction": {
+   "additionalProperties": false,
+   "properties": {
+    "accessibilityService": {
+     "type": "boolean"
+    },
+    "admin": {
+     "type": "boolean"
+    },
+    "adminA": {
+     "type": "boolean"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "downgrade": {
+     "type": "boolean"
+    },
+    "hadManipulation": {
+     "type": "boolean"
+    },
+    "ignoreHadManipulationFlags": {
+     "type": "number"
+    },
+    "ignoreManipulationFlags": {
+     "type": "number"
+    },
+    "notification": {
+     "type": "boolean"
+    },
+    "overlay": {
+     "type": "boolean"
+    },
+    "reboot": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "IGNORE_MANIPULATION"
+     ],
+     "type": "string"
+    },
+    "usageStats": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "admin",
+    "adminA",
+    "deviceId",
+    "downgrade",
+    "hadManipulation",
+    "notification",
+    "type",
+    "usageStats"
+   ],
+   "type": "object"
+  },
+  "SerializedIncrementCategoryExtraTimeAction": {
+   "additionalProperties": false,
+   "properties": {
+    "addedExtraTime": {
+     "type": "number"
+    },
+    "categoryId": {
+     "type": "string"
+    },
+    "day": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "INCREMENT_CATEGORY_EXTRATIME"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "addedExtraTime",
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedInstalledApp": {
+   "additionalProperties": false,
+   "properties": {
+    "isLaunchable": {
+     "type": "boolean"
+    },
+    "packageName": {
+     "type": "string"
+    },
+    "recommendation": {
+     "$ref": "#/definitions/AppRecommendation"
+    },
+    "title": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "isLaunchable",
+    "packageName",
+    "recommendation",
+    "title"
+   ],
+   "type": "object"
+  },
+  "SerializedMarkTaskPendingAction": {
+   "additionalProperties": false,
+   "properties": {
+    "taskId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "MARK_TASK_PENDING"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "taskId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedPingAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "event": {
+     "$ref": "#/definitions/PingEvent"
+    },
+    "token": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "PING"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "event",
+    "token",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedRemoveCategoryAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "packageNames": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "REMOVE_CATEGORY_APPS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "packageNames",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedRemoveInstalledAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "packageNames": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "REMOVE_INSTALLED_APPS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "packageNames",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedRemoveParentU2fKeyAction": {
+   "additionalProperties": false,
+   "properties": {
+    "keyHandle": {
+     "type": "string"
+    },
+    "publicKey": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "REMOVE_PARENT_U2F"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "keyHandle",
+    "publicKey",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedRemoveUserAction": {
+   "additionalProperties": false,
+   "properties": {
+    "authentication": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "REMOVE_USER"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedRenameChildAction": {
+   "additionalProperties": false,
+   "properties": {
+    "childId": {
+     "type": "string"
+    },
+    "newName": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "RENAME_CHILD"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "childId",
+    "newName",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedReplyToKeyRequestAction": {
+   "additionalProperties": false,
+   "properties": {
+    "encryptedKey": {
+     "type": "string"
+    },
+    "rsn": {
+     "type": "number"
+    },
+    "signature": {
+     "type": "string"
+    },
+    "tempKey": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "REPLY_TO_KEY_REQUEST"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "encryptedKey",
+    "rsn",
+    "signature",
+    "tempKey",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedReportU2fLoginAction": {
+   "additionalProperties": false,
+   "properties": {
+    "type": {
+     "enum": [
+      "REPORT_U2F_LOGIN"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedReviewChildTaskAction": {
+   "additionalProperties": false,
+   "properties": {
+    "day": {
+     "type": "number"
+    },
+    "ok": {
+     "type": "boolean"
+    },
+    "taskId": {
+     "type": "string"
+    },
+    "time": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "REVIEW_CHILD_TASK"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "ok",
+    "taskId",
+    "time",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSendKeyRequestAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "dataType": {
+     "type": "number"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "dsn": {
+     "type": "number"
+    },
+    "signature": {
+     "type": "string"
+    },
+    "tempKey": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SEND_KEY_REQUEST"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "dataType",
+    "dsn",
+    "signature",
+    "tempKey",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetCategoryExtraTimeAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "day": {
+     "type": "number"
+    },
+    "newExtraTime": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "SET_CATEGORY_EXTRA_TIME"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "newExtraTime",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetCategoryForUnassignedAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "childId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SET_CATEGORY_FOR_UNASSIGNED_APPS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "childId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetChildPasswordAction": {
+   "additionalProperties": false,
+   "properties": {
+    "childId": {
+     "type": "string"
+    },
+    "newPassword": {
+     "$ref": "#/definitions/EncryptableParentPassword"
+    },
+    "type": {
+     "enum": [
+      "SET_CHILD_PASSWORD"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "childId",
+    "newPassword",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetConsiderRebootManipulationAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "enable": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "SET_CONSIDER_REBOOT_MANIPULATION"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "enable",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetDeviceDefaultUserAction": {
+   "additionalProperties": false,
+   "properties": {
+    "defaultUserId": {
+     "type": "string"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SET_DEVICE_DEFAULT_USER"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "defaultUserId",
+    "deviceId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetDeviceDefaultUserTimeoutAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "timeout": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "SET_DEVICE_DEFAULT_USER_TIMEOUT"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "timeout",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetDeviceUserAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SET_DEVICE_USER"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedSetKeepSignedInAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "keepSignedIn": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "SET_KEEP_SIGNED_IN"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "keepSignedIn",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetParentCategoryAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "parentCategory": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SET_PARENT_CATEGORY"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "parentCategory",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetRelaxPrimaryDeviceAction": {
+   "additionalProperties": false,
+   "properties": {
+    "relax": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "SET_RELAX_PRIMARY_DEVICE"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "relax",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedSetSendDeviceConnected": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "enable": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "SET_SEND_DEVICE_CONNECTED"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "enable",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetUserDisableLimitsUntilAction": {
+   "additionalProperties": false,
+   "properties": {
+    "childId": {
+     "type": "string"
+    },
+    "time": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "SET_USER_DISABLE_LIMITS_UNTIL"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "childId",
+    "time",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedSetUserTimezoneAction": {
+   "additionalProperties": false,
+   "properties": {
+    "timezone": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "SET_USER_TIMEZONE"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "timezone",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedSignOutAtDeviceAction": {
+   "additionalProperties": false,
+   "properties": {
+    "type": {
+     "enum": [
+      "SIGN_OUT_AT_DEVICE"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedTimeLimitRule": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "days": {
+     "type": "number"
+    },
+    "dur": {
+     "type": "number"
+    },
+    "e": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "extraTime": {
+     "type": "boolean"
+    },
+    "pause": {
+     "type": "number"
+    },
+    "perDay": {
+     "type": "boolean"
+    },
+    "ruleId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "time": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "categoryId",
+    "days",
+    "extraTime",
+    "ruleId",
+    "time"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdatCategoryDisableLimitsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "endTime": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_DISABLE_LIMITS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "endTime",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateAppActivitiesAction": {
+   "additionalProperties": false,
+   "properties": {
+    "removed": {
+     "items": {
+      "items": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_APP_ACTIVITIES"
+     ],
+     "type": "string"
+    },
+    "updatedOrAdded": {
+     "items": {
+      "$ref": "#/definitions/SerializedAppActivityItem"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "removed",
+    "type",
+    "updatedOrAdded"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryBatteryLimitAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "chargeLimit": {
+     "type": "number"
+    },
+    "mobileLimit": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_BATTERY_LIMIT"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryBlockAllNotificationsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "blockDelay": {
+     "type": "number"
+    },
+    "blocked": {
+     "type": "boolean"
+    },
+    "categoryId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_BLOCK_ALL_NOTIFICATIONS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "blocked",
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryBlockedTimesAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "times": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_BLOCKED_TIMES"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "times",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryFlagsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "modified": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_FLAGS"
+     ],
+     "type": "string"
+    },
+    "values": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "categoryId",
+    "modified",
+    "type",
+    "values"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategorySortingAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryIds": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_SORTING"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryIds",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryTemporarilyBlockedAction": {
+   "additionalProperties": false,
+   "properties": {
+    "blocked": {
+     "type": "boolean"
+    },
+    "categoryId": {
+     "type": "string"
+    },
+    "endTime": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_TEMPORARILY_BLOCKED"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "blocked",
+    "categoryId",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryTimeWarningsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "enable": {
+     "type": "boolean"
+    },
+    "flags": {
+     "type": "number"
+    },
+    "minutes": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_TIME_WARNINGS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "enable",
+    "flags",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateCategoryTitleAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "newTitle": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CATEGORY_TITLE"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "newTitle",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateChildTaskAction": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "extraTimeDuration": {
+     "type": "number"
+    },
+    "isNew": {
+     "type": "boolean"
+    },
+    "taskId": {
+     "type": "string"
+    },
+    "taskTitle": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_CHILD_TASK"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "extraTimeDuration",
+    "isNew",
+    "taskId",
+    "taskTitle",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateDeviceNameAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_DEVICE_NAME"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "name",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateDeviceStatusAction": {
+   "additionalProperties": false,
+   "properties": {
+    "accessibilityServiceEnabled": {
+     "type": "boolean"
+    },
+    "addedManipulationFlags": {
+     "type": "number"
+    },
+    "appVersion": {
+     "type": "number"
+    },
+    "didReboot": {
+     "type": "boolean"
+    },
+    "isQOrLaterNow": {
+     "type": "boolean"
+    },
+    "notificationAccess": {
+     "enum": [
+      "granted",
+      "not granted",
+      "not supported"
+     ],
+     "type": "string"
+    },
+    "overlayPermission": {
+     "enum": [
+      "granted",
+      "not granted",
+      "not required"
+     ],
+     "type": "string"
+    },
+    "platformLevel": {
+     "type": "number"
+    },
+    "platformType": {
+     "type": "string"
+    },
+    "protectionLevel": {
+     "enum": [
+      "device owner",
+      "none",
+      "password device admin",
+      "simple device admin"
+     ],
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_DEVICE_STATUS"
+     ],
+     "type": "string"
+    },
+    "usageStats": {
+     "enum": [
+      "granted",
+      "not granted",
+      "not required"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateEnableActivityLevelBlockingAction": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "enable": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_ENABLE_ACTIVITY_LEVEL_BLOCKING"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "enable",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateInstalledAppsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "b": {
+     "type": "string"
+    },
+    "d": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_INSTALLED_APPS"
+     ],
+     "type": "string"
+    },
+    "w": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "type",
+    "w"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateParentNotificationFlagsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "flags": {
+     "type": "number"
+    },
+    "parentId": {
+     "type": "string"
+    },
+    "set": {
+     "type": "boolean"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_PARENT_NOTIFICATION_FLAGS"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "flags",
+    "parentId",
+    "set",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateTimelimitRuleAction": {
+   "additionalProperties": false,
+   "properties": {
+    "days": {
+     "type": "number"
+    },
+    "dur": {
+     "type": "number"
+    },
+    "e": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "extraTime": {
+     "type": "boolean"
+    },
+    "pause": {
+     "type": "number"
+    },
+    "perDay": {
+     "type": "boolean"
+    },
+    "ruleId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "time": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_TIMELIMIT_RULE"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "days",
+    "extraTime",
+    "ruleId",
+    "time",
+    "type"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateUserFlagsAction": {
+   "additionalProperties": false,
+   "properties": {
+    "modified": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_USER_FLAGS"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    },
+    "values": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "modified",
+    "type",
+    "userId",
+    "values"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateUserLimitLoginCategory": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_USER_LIMIT_LOGIN_CATEGORY"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedUpdateUserLimitLoginPreBlockDuration": {
+   "additionalProperties": false,
+   "properties": {
+    "preBlockDuration": {
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "UPDATE_USER_LIMIT_LOGIN_PRE_BLOCK_DURATION"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "preBlockDuration",
+    "type",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "SerializedUploadDevicePublicKeyAction": {
+   "additionalProperties": false,
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "UPLOAD_DEVICE_PUBLIC_KEY"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "key",
+    "type"
+   ],
+   "type": "object"
+  },
+  "ServerCategoryNetworkId": {
+   "additionalProperties": false,
+   "properties": {
+    "hashedNetworkId": {
+     "type": "string"
+    },
+    "itemId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "hashedNetworkId",
+    "itemId"
+   ],
+   "type": "object"
+  },
+  "ServerCryptContainer": {
+   "additionalProperties": false,
+   "properties": {
+    "data": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "data",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerDeviceData": {
+   "additionalProperties": false,
+   "properties": {
+    "activityLevelBlocking": {
+     "type": "boolean"
+    },
+    "addedAt": {
+     "type": "number"
+    },
+    "asEnabled": {
+     "type": "boolean"
+    },
+    "cAppVersion": {
+     "type": "number"
+    },
+    "cNotificationAccess": {
+     "$ref": "#/definitions/NewPermissionStatus"
+    },
+    "cOverlay": {
+     "$ref": "#/definitions/RuntimePermissionStatus"
+    },
+    "cProtectionLevel": {
+     "$ref": "#/definitions/ProtectionLevel"
+    },
+    "cUsageStats": {
+     "$ref": "#/definitions/RuntimePermissionStatus"
+    },
+    "currentUserId": {
+     "type": "string"
+    },
+    "defUser": {
+     "type": "string"
+    },
+    "defUserTimeout": {
+     "type": "number"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "hAppVersion": {
+     "type": "number"
+    },
+    "hNotificationAccess": {
+     "$ref": "#/definitions/NewPermissionStatus"
+    },
+    "hOverlay": {
+     "$ref": "#/definitions/RuntimePermissionStatus"
+    },
+    "hProtectionLevel": {
+     "$ref": "#/definitions/ProtectionLevel"
+    },
+    "hUsageStats": {
+     "$ref": "#/definitions/RuntimePermissionStatus"
+    },
+    "hadManipulation": {
+     "type": "boolean"
+    },
+    "hadManipulationFlags": {
+     "type": "number"
+    },
+    "isUserKeptSignedIn": {
+     "type": "boolean"
+    },
+    "mFlags": {
+     "type": "number"
+    },
+    "model": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "networkTime": {
+     "enum": [
+      "disabled",
+      "enabled",
+      "if possible"
+     ],
+     "type": "string"
+    },
+    "pLevel": {
+     "type": "number"
+    },
+    "pType": {
+     "type": "string"
+    },
+    "pk": {
+     "type": "string"
+    },
+    "qOrLater": {
+     "type": "boolean"
+    },
+    "reboot": {
+     "type": "boolean"
+    },
+    "rebootIsManipulation": {
+     "type": "boolean"
+    },
+    "reportUninstall": {
+     "type": "boolean"
+    },
+    "showDeviceConnected": {
+     "type": "boolean"
+    },
+    "tDisablingAdmin": {
+     "type": "boolean"
+    },
+    "wasAsEnabled": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "activityLevelBlocking",
+    "addedAt",
+    "asEnabled",
+    "cAppVersion",
+    "cNotificationAccess",
+    "cOverlay",
+    "cProtectionLevel",
+    "cUsageStats",
+    "currentUserId",
+    "defUser",
+    "defUserTimeout",
+    "deviceId",
+    "hAppVersion",
+    "hNotificationAccess",
+    "hOverlay",
+    "hProtectionLevel",
+    "hUsageStats",
+    "hadManipulation",
+    "hadManipulationFlags",
+    "isUserKeptSignedIn",
+    "mFlags",
+    "model",
+    "name",
+    "networkTime",
+    "pLevel",
+    "qOrLater",
+    "reboot",
+    "rebootIsManipulation",
+    "reportUninstall",
+    "showDeviceConnected",
+    "tDisablingAdmin",
+    "wasAsEnabled"
+   ],
+   "type": "object"
+  },
+  "ServerDeviceList": {
+   "additionalProperties": false,
+   "properties": {
+    "data": {
+     "items": {
+      "$ref": "#/definitions/ServerDeviceData"
+     },
+     "type": "array"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "data",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerDhKey": {
+   "additionalProperties": false,
+   "properties": {
+    "k": {
+     "type": "string"
+    },
+    "v": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "k",
+    "v"
+   ],
+   "type": "object"
+  },
+  "ServerExtendedDeviceData": {
+   "additionalProperties": false,
+   "properties": {
+    "appsBase": {
+     "$ref": "#/definitions/ServerCryptContainer"
+    },
+    "appsDiff": {
+     "$ref": "#/definitions/ServerCryptContainer"
+    },
+    "deviceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId"
+   ],
+   "type": "object"
+  },
+  "ServerInstalledAppsData": {
+   "additionalProperties": false,
+   "properties": {
+    "activities": {
+     "items": {
+      "$ref": "#/definitions/SerializedAppActivityItem"
+     },
+     "type": "array"
+    },
+    "apps": {
+     "items": {
+      "$ref": "#/definitions/SerializedInstalledApp"
+     },
+     "type": "array"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "activities",
+    "apps",
+    "deviceId",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerKeyRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "senId": {
+     "type": "string"
+    },
+    "senSeq": {
+     "type": "number"
+    },
+    "signature": {
+     "type": "string"
+    },
+    "srvSeq": {
+     "type": "number"
+    },
+    "tempKey": {
+     "type": "string"
+    },
+    "type": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "senId",
+    "senSeq",
+    "signature",
+    "srvSeq",
+    "tempKey",
+    "type"
+   ],
+   "type": "object"
+  },
+  "ServerKeyResponse": {
+   "additionalProperties": false,
+   "properties": {
+    "cryptKey": {
+     "type": "string"
+    },
+    "rqSeq": {
+     "type": "number"
+    },
+    "sender": {
+     "type": "string"
+    },
+    "signature": {
+     "type": "string"
+    },
+    "srvSeq": {
+     "type": "number"
+    },
+    "tempKey": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "cryptKey",
+    "rqSeq",
+    "sender",
+    "signature",
+    "srvSeq",
+    "tempKey"
+   ],
+   "type": "object"
+  },
+  "ServerPing": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "ping",
+      "pong"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceId",
+    "token",
+    "type"
+   ],
+   "type": "object"
+  },
+  "ServerSessionDurationItem": {
+   "additionalProperties": false,
+   "properties": {
+    "d": {
+     "description": "the duration of the last/ current session (lastSessionDuration)",
+     "type": "number"
+    },
+    "em": {
+     "description": "the end minute of the day of the session/ the rule\nwhich created this session (endMinuteOfDay)",
+     "type": "number"
+    },
+    "l": {
+     "description": "the timestamp of the last usage of this session (lastUsage)",
+     "type": "number"
+    },
+    "md": {
+     "description": "the maximum duration of a session (maxSessionDuration)",
+     "type": "number"
+    },
+    "sm": {
+     "description": "the start minute of the day of the session/ the rule\nwhich created this session (startMinuteOfDay)",
+     "type": "number"
+    },
+    "spd": {
+     "description": "the pause duration after a session (sessionPauseDuration)",
+     "type": "number"
+    }
+   },
+   "required": [
+    "d",
+    "em",
+    "l",
+    "md",
+    "sm",
+    "spd"
+   ],
+   "type": "object"
+  },
+  "ServerTimeLimitRule": {
+   "additionalProperties": false,
+   "properties": {
+    "dayMask": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "extraTime": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "maxTime": {
+     "type": "number"
+    },
+    "pause": {
+     "type": "number"
+    },
+    "perDay": {
+     "type": "boolean"
+    },
+    "session": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "dayMask",
+    "end",
+    "extraTime",
+    "id",
+    "maxTime",
+    "pause",
+    "perDay",
+    "session",
+    "start"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedCategoryAssignedApps": {
+   "additionalProperties": false,
+   "properties": {
+    "apps": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "categoryId": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "apps",
+    "categoryId",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedCategoryBaseData": {
+   "additionalProperties": false,
+   "properties": {
+    "atw": {
+     "items": {
+      "type": "number"
+     },
+     "type": "array"
+    },
+    "blockAllNotifications": {
+     "type": "boolean"
+    },
+    "blockNotificationDelay": {
+     "type": "number"
+    },
+    "blockedTimes": {
+     "type": "string"
+    },
+    "categoryId": {
+     "type": "string"
+    },
+    "childId": {
+     "type": "string"
+    },
+    "dlu": {
+     "type": "number"
+    },
+    "extraTime": {
+     "type": "number"
+    },
+    "extraTimeDay": {
+     "type": "number"
+    },
+    "flags": {
+     "type": "number"
+    },
+    "mblCharging": {
+     "type": "number"
+    },
+    "mblMobile": {
+     "type": "number"
+    },
+    "networks": {
+     "items": {
+      "$ref": "#/definitions/ServerCategoryNetworkId"
+     },
+     "type": "array"
+    },
+    "parentCategoryId": {
+     "type": "string"
+    },
+    "sort": {
+     "type": "number"
+    },
+    "tempBlockTime": {
+     "type": "number"
+    },
+    "tempBlocked": {
+     "type": "boolean"
+    },
+    "timeWarnings": {
+     "type": "number"
+    },
+    "title": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "atw",
+    "blockAllNotifications",
+    "blockNotificationDelay",
+    "blockedTimes",
+    "categoryId",
+    "childId",
+    "dlu",
+    "extraTime",
+    "extraTimeDay",
+    "flags",
+    "mblCharging",
+    "mblMobile",
+    "networks",
+    "parentCategoryId",
+    "sort",
+    "tempBlockTime",
+    "tempBlocked",
+    "timeWarnings",
+    "title",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedCategoryTask": {
+   "additionalProperties": false,
+   "properties": {
+    "d": {
+     "type": "number"
+    },
+    "i": {
+     "type": "string"
+    },
+    "l": {
+     "type": "number"
+    },
+    "p": {
+     "type": "boolean"
+    },
+    "t": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "d",
+    "i",
+    "l",
+    "p",
+    "t"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedCategoryTasks": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "tasks": {
+     "items": {
+      "$ref": "#/definitions/ServerUpdatedCategoryTask"
+     },
+     "type": "array"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "tasks",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedCategoryUsedTimes": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "sessionDurations": {
+     "items": {
+      "$ref": "#/definitions/ServerSessionDurationItem"
+     },
+     "type": "array"
+    },
+    "times": {
+     "items": {
+      "$ref": "#/definitions/ServerUsedTimeItem"
+     },
+     "type": "array"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "sessionDurations",
+    "times",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerUpdatedTimeLimitRules": {
+   "additionalProperties": false,
+   "properties": {
+    "categoryId": {
+     "type": "string"
+    },
+    "rules": {
+     "items": {
+      "$ref": "#/definitions/ServerTimeLimitRule"
+     },
+     "type": "array"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "categoryId",
+    "rules",
+    "version"
+   ],
+   "type": "object"
+  },
+  "ServerUsedTimeItem": {
+   "additionalProperties": false,
+   "properties": {
+    "day": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "time": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "day",
+    "end",
+    "start",
+    "time"
+   ],
+   "type": "object"
+  },
+  "ServerUserEntry": {
+   "additionalProperties": false,
+   "properties": {
+    "blockedTimes": {
+     "type": "string"
+    },
+    "categoryForNotAssignedApps": {
+     "type": "string"
+    },
+    "currentDevice": {
+     "type": "string"
+    },
+    "disableLimitsUntil": {
+     "type": "number"
+    },
+    "flags": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "llc": {
+     "type": "string"
+    },
+    "mail": {
+     "type": "string"
+    },
+    "mailNotificationFlags": {
+     "type": "number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "password": {
+     "type": "string"
+    },
+    "pbd": {
+     "type": "number"
+    },
+    "relaxPrimaryDevice": {
+     "type": "boolean"
+    },
+    "secondPasswordSalt": {
+     "type": "string"
+    },
+    "timeZone": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "child",
+      "parent"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "blockedTimes",
+    "categoryForNotAssignedApps",
+    "currentDevice",
+    "disableLimitsUntil",
+    "flags",
+    "id",
+    "mail",
+    "mailNotificationFlags",
+    "name",
+    "password",
+    "relaxPrimaryDevice",
+    "secondPasswordSalt",
+    "timeZone",
+    "type"
+   ],
+   "type": "object"
+  },
+  "ServerUserList": {
+   "additionalProperties": false,
+   "properties": {
+    "data": {
+     "items": {
+      "$ref": "#/definitions/ServerUserEntry"
+     },
+     "type": "array"
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "data",
+    "version"
+   ],
+   "type": "object"
+  },
+  "U2fData": {
+   "additionalProperties": false,
+   "properties": {
+    "d": {
+     "items": {
+      "$ref": "#/definitions/U2fItem"
+     },
+     "type": "array"
+    },
+    "v": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "d",
+    "v"
+   ],
+   "type": "object"
+  },
+  "U2fItem": {
+   "additionalProperties": false,
+   "properties": {
+    "a": {
+     "type": "number"
+    },
+    "h": {
+     "type": "string"
+    },
+    "p": {
+     "type": "string"
+    },
+    "u": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "a",
+    "h",
+    "p",
+    "u"
+   ],
+   "type": "object"
+  }
+ },
+ "source": "timelimit-server src/api/validator.ts @ fe90617adfe389d9cc91430b768b029b3c2d3c3a",
+ "validators": {
+  "isCanDoPurchaseRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "any",
+      "googleplay"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken"
+   ],
+   "type": "object"
+  },
+  "isClientPullChangesRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "status": {
+     "$ref": "#/definitions/ClientDataStatus"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "status"
+   ],
+   "type": "object"
+  },
+  "isClientPushChangesRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "actions": {
+     "items": {
+      "$ref": "#/definitions/ClientPushChangesRequestAction"
+     },
+     "type": "array"
+    },
+    "deviceAuthToken": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "actions",
+    "deviceAuthToken"
+   ],
+   "type": "object"
+  },
+  "isCreateFamilyByMailTokenRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "clientLevel": {
+     "type": "number"
+    },
+    "deviceName": {
+     "type": "string"
+    },
+    "mailAuthToken": {
+     "type": "string"
+    },
+    "parentDevice": {
+     "$ref": "#/definitions/NewDeviceInfo"
+    },
+    "parentName": {
+     "type": "string"
+    },
+    "parentPassword": {
+     "$ref": "#/definitions/PlaintextParentPassword"
+    },
+    "timeZone": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceName",
+    "mailAuthToken",
+    "parentDevice",
+    "parentName",
+    "parentPassword",
+    "timeZone"
+   ],
+   "type": "object"
+  },
+  "isCreateRegisterDeviceTokenRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "parentId": {
+     "type": "string"
+    },
+    "parentPasswordSecondHash": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "parentId",
+    "parentPasswordSecondHash"
+   ],
+   "type": "object"
+  },
+  "isDeleteAccountPayload": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "mailAuthTokens": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "mailAuthTokens"
+   ],
+   "type": "object"
+  },
+  "isFinishPurchaseByGooglePlayRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "receipt": {
+     "type": "string"
+    },
+    "signature": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "receipt",
+    "signature"
+   ],
+   "type": "object"
+  },
+  "isIdentityTokenPayload": {
+   "additionalProperties": false,
+   "properties": {
+    "exp": {
+     "type": "number"
+    },
+    "familyId": {
+     "type": "string"
+    },
+    "mail": {
+     "type": "string"
+    },
+    "purpose": {
+     "enum": [
+      "purchase"
+     ],
+     "type": "string"
+    },
+    "userId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "exp",
+    "familyId",
+    "mail",
+    "purpose",
+    "userId"
+   ],
+   "type": "object"
+  },
+  "isLinkParentMailAddressRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "mailAuthToken": {
+     "type": "string"
+    },
+    "parentPasswordSecondHash": {
+     "type": "string"
+    },
+    "parentUserId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "mailAuthToken",
+    "parentPasswordSecondHash",
+    "parentUserId"
+   ],
+   "type": "object"
+  },
+  "isMailAuthTokenRequestBody": {
+   "additionalProperties": false,
+   "properties": {
+    "mailAuthToken": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "mailAuthToken"
+   ],
+   "type": "object"
+  },
+  "isRecoverParentPasswordRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "mailAuthToken": {
+     "type": "string"
+    },
+    "password": {
+     "$ref": "#/definitions/PlaintextParentPassword"
+    }
+   },
+   "required": [
+    "mailAuthToken",
+    "password"
+   ],
+   "type": "object"
+  },
+  "isRegisterChildDeviceRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "childDevice": {
+     "$ref": "#/definitions/NewDeviceInfo"
+    },
+    "clientLevel": {
+     "type": "number"
+    },
+    "deviceName": {
+     "type": "string"
+    },
+    "registerToken": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "childDevice",
+    "deviceName",
+    "registerToken"
+   ],
+   "type": "object"
+  },
+  "isRemoveDeviceRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "deviceId": {
+     "type": "string"
+    },
+    "parentPasswordSecondHash": {
+     "type": "string"
+    },
+    "parentUserId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "deviceId",
+    "parentPasswordSecondHash",
+    "parentUserId"
+   ],
+   "type": "object"
+  },
+  "isRequestIdentityTokenRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "parentPasswordSecondHash": {
+     "type": "string"
+    },
+    "parentUserId": {
+     "type": "string"
+    },
+    "purpose": {
+     "enum": [
+      "purchase"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken",
+    "parentPasswordSecondHash",
+    "parentUserId",
+    "purpose"
+   ],
+   "type": "object"
+  },
+  "isRequestWithAuthToken": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "deviceAuthToken"
+   ],
+   "type": "object"
+  },
+  "isSendMailLoginCodeRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "deviceAuthToken": {
+     "type": "string"
+    },
+    "locale": {
+     "type": "string"
+    },
+    "mail": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "locale",
+    "mail"
+   ],
+   "type": "object"
+  },
+  "isSerializedAppLogicAction": {
+   "anyOf": [
+    {
+     "$ref": "#/definitions/SerializedAddInstalledAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedAddUsedTimeAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedAddUsedTimeActionVersion2"
+    },
+    {
+     "$ref": "#/definitions/SerializedFinishKeyRequestAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedForceSyncAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedReplyToKeyRequestAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedMarkTaskPendingAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedPingAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateInstalledAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedRemoveInstalledAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSendKeyRequestAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSignOutAtDeviceAction"
+    },
+    {
+     "$ref": "#/definitions/SerialiezdTriedDisablingDeviceAdminAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateAppActivitiesAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateDeviceStatusAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUploadDevicePublicKeyAction"
+    }
+   ]
+  },
+  "isSerializedChildAction": {
+   "anyOf": [
+    {
+     "$ref": "#/definitions/SerializedChildChangePasswordAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedChildSignInAction"
+    }
+   ]
+  },
+  "isSerializedParentAction": {
+   "anyOf": [
+    {
+     "$ref": "#/definitions/SerializedAddCategoryAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedAddCategoryNetworkIdAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedAddParentU2fKeyAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedAddUserAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedChangeParentPasswordAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedCreateCategoryAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedCreateTimelimtRuleAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedDeleteCategoryAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedDeleteChildTaskAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedDeleteTimeLimitRuleAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedIgnoreManipulationAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedIncrementCategoryExtraTimeAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedRemoveCategoryAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedRemoveParentU2fKeyAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedRemoveUserAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedRenameChildAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedReportU2fLoginAction"
+    },
+    {
+     "$ref": "#/definitions/SerializeResetCategoryNetworkIdsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedReviewChildTaskAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetCategoryExtraTimeAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetCategoryForUnassignedAppsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetChildPasswordAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetConsiderRebootManipulationAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetDeviceDefaultUserAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetDeviceDefaultUserTimeoutAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetDeviceUserAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetKeepSignedInAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetParentCategoryAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetRelaxPrimaryDeviceAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetSendDeviceConnected"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetUserDisableLimitsUntilAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedSetUserTimezoneAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryBatteryLimitAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryBlockAllNotificationsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryBlockedTimesAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdatCategoryDisableLimitsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryFlagsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategorySortingAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryTemporarilyBlockedAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryTimeWarningsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateCategoryTitleAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateChildTaskAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateDeviceNameAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateEnableActivityLevelBlockingAction"
+    },
+    {
+     "$ref": "#/definitions/SerialiizedUpdateNetworkTimeVerificationAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateParentNotificationFlagsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateTimelimitRuleAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateUserFlagsAction"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateUserLimitLoginCategory"
+    },
+    {
+     "$ref": "#/definitions/SerializedUpdateUserLimitLoginPreBlockDuration"
+    }
+   ]
+  },
+  "isSignInByMailCodeRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "mailLoginToken": {
+     "type": "string"
+    },
+    "receivedCode": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "mailLoginToken",
+    "receivedCode"
+   ],
+   "type": "object"
+  },
+  "isSignIntoFamilyRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "clientLevel": {
+     "type": "number"
+    },
+    "deviceName": {
+     "type": "string"
+    },
+    "mailAuthToken": {
+     "type": "string"
+    },
+    "parentDevice": {
+     "$ref": "#/definitions/NewDeviceInfo"
+    }
+   },
+   "required": [
+    "deviceName",
+    "mailAuthToken",
+    "parentDevice"
+   ],
+   "type": "object"
+  },
+  "isUpdatePrimaryDeviceRequest": {
+   "additionalProperties": false,
+   "properties": {
+    "action": {
+     "enum": [
+      "set this device",
+      "unset this device"
+     ],
+     "type": "string"
+    },
+    "authToken": {
+     "type": "string"
+    },
+    "currentUserId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "action",
+    "authToken",
+    "currentUserId"
+   ],
+   "type": "object"
+  }
+ }
+}
