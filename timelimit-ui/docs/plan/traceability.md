@@ -6,14 +6,14 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 |---|---|---|---|---|
 | FR-100 | M | E1 | – | On first start the dashboard shows a settings screen where the server is selected with a d |
 | FR-101 | M | E1 | – | The dashboard device is signed in as a separate parent user "Dashboard" (never as a person |
-| FR-103 | M | E1 | – | Only one family per installation. Switching family means resetting the installation. |
+| FR-103 | M | E1 | dashboard/tests/test_repository.py | Only one family per installation. Switching family means resetting the installation. |
 | FR-200 | M | B4, B5 | – | Sync starts automatically when the dashboard starts and after every change, without user a |
 | FR-201 | M | B3 | – | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, app |
 | FR-202 | M | B3 | – | After shouldDoFullSync the dashboard forgets all versions, fully re-pulls, refreshes the U |
 | FR-203 | M | B4, B5 | – | The server never reports a failed action (HTTP 200, shouldDoFullSync:true). The dashboard  |
 | FR-204 | M | B4, B5 | – | Sequence numbers are persistent per device, start at 0, and are reserved before sending. M |
 | FR-205 | M | E4 | – | A newly added item (e.g. a user in the test section) is shown immediately with the marker  |
-| FR-206 | M | E4 | – | Users and other entities that the server no longer reports are kept and flagged "no longer |
+| FR-206 | M | E4 | dashboard/tests/test_repository.py | Users and other entities that the server no longer reports are kept and flagged "no longer |
 | FR-207 | M | B6 | – | A change by another parent or by the app appears instantly through the server WebSocket (s |
 | FR-208 | M | E4 | – | Conflicts: last writer wins. If the data being edited changed on the server in the meantim |
 | FR-209 | M | E4 | – | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (m |
@@ -53,15 +53,15 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | NFR-004 | M | A4, D1 | – | Usability: all texts are available in Dutch and English; errors are clear and say what to  |
 | SEC-001 | M | A3 | dashboard/tests/test_start.py | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
 | SEC-002 | M | A6 | dashboard/tests/test_client.py | The server connection uses HTTPS when the server is not on the local network. Plain HTTP i |
-| SEC-003 | M | B1, E1 | – | The device auth token is stored only on the local disk (database and session file), never  |
+| SEC-003 | M | B1, E1 | dashboard/tests/test_repository.py | The device auth token is stored only on the local disk (database and session file), never  |
 | TR-100 | M | B2 | – | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
 | TR-101 | M | B2 | – | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters [0-9a-zA-Z]; e |
 | TR-102 | M | B2 | – | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+devi |
 | TR-103 | M | B3 | – | ClientDataStatus contains all versions and per-category data (D10). |
 | TR-104 | M | A6 | dashboard/tests/test_client.py | The dashboard sends clientLevel 7 and only uses features available at that level. |
-| TR-200 | M | B1 | – | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
-| TR-201 | M | B1 | – | Database access is thread-safe; writes that change several tables use one transaction. syn |
-| TR-202 | M | B1 | – | No parent passwords are stored. Only the device auth token (and own ids) are stored locall |
+| TR-200 | M | B1 | dashboard/tests/test_repository.py | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
+| TR-201 | M | B1 | dashboard/tests/test_repository.py | Database access is thread-safe; writes that change several tables use one transaction. syn |
+| TR-202 | M | B1 | dashboard/tests/test_repository.py | No parent passwords are stored. Only the device auth token (and own ids) are stored locall |
 | TR-300 | M | A3 | dashboard/tests/test_start.py | Python 3.10+; requirements.txt with loose version ranges. Starts with py -3 app.py on Wind |
 | TR-301 | M | A3 | dashboard/tests/test_config.py | All settings (port, data directory, log level, timings) come from a config file/environmen |
 | TR-303 | M | A6, A7 | dashboard/tests/test_client.py, dashboard/tests/test_ui_offline.py | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
@@ -70,7 +70,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
 | TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | – | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
-| TR-310 | M | B1 | – | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
+| TR-310 | M | B1 | dashboard/tests/test_repository.py | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
 | TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py (first part) | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
 | TR-312 | M | C1, C2, G1 | – | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
 | TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |

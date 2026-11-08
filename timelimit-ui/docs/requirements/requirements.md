@@ -49,7 +49,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-203 | M | The server never reports a failed action (HTTP 200, `shouldDoFullSync:true`). The dashboard treats an action as **confirmed only** when the server does not request a full sync. Unconfirmed actions are reported to the user and rolled back in the UI. | Done (pusher) |
 | FR-204 | M | Sequence numbers are persistent per device, start at 0, and are reserved before sending. Max 25 actions per request. | Done |
 | FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Rework |
-| FR-206 | M | Users and other entities that the server no longer reports are **kept** and flagged "no longer on server" until the parent cleans them up. | Rework |
+| FR-206 | M | Users and other entities that the server no longer reports are **kept** and flagged "no longer on server" until the parent cleans them up. | Done (B1, storage) |
 | FR-207 | M | A change by another parent or by the app appears **instantly** through the server WebSocket (`should sync`). If the socket is unavailable the dashboard polls (interval configurable). | Open |
 | FR-208 | M | Conflicts: last writer wins. If the data being edited changed on the server in the meantime, the UI shows a warning before saving. | Open |
 | FR-209 | M | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (message contains the reason when known). | Partial |
@@ -170,8 +170,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **server profile** plus the **family id** from the server. | Rework |
-| TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Rework |
+| TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **server profile** plus the **family id** from the server. | Done (B1) |
+| TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Done (B1) |
 | TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally, in the database and in the session file with backup. | Done |
 | TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | – |
 
@@ -189,7 +189,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Open |
 | TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Open |
 | TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
-| TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Open |
+| TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Done (B1) |
 | TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Open |
 | TR-312 | M | The legacy UI layer (`frontend.py`, `web_server.py`, `api_client.py`, `check_server.py`) and the one-off scripts are removed, after the s6 service is switched. | Open |
 

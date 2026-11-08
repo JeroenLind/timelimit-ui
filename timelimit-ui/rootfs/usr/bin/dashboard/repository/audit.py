@@ -48,7 +48,7 @@ class AuditRepository:
                 ),
             )
 
-    def list(
+    def entries(
         self, profile_key: str, *, child_id: str | None = None, limit: int = 200
     ) -> list[AuditEntry]:
         sql = "SELECT * FROM audit_log WHERE profile_key=?"
