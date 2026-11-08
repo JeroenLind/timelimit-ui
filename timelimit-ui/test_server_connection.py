@@ -7,7 +7,7 @@ import time
 import sys
 import os
 
-
 def test_server_connection(server_url="http://localhost:8080"):
     """Test connection to TimeLimit server"""
     print(f"Testing connection to {server_url}")
+    

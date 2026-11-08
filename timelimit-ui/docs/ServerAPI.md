@@ -591,13 +591,9 @@ How to push an action from dashboard code:
 from action_builder import create_timelimit_rule, new_id
 from action_pusher import push_parent_actions
 
-result = push_parent_actions(
-    client,
-    device_auth_token,
-    own_device_id,
-    [create_timelimit_rule(new_id(), category_id, time_ms=3600000)],
-)
-if not result.confirmed:  # request failed, or the server skipped an action silently
+result = push_parent_actions(client, device_auth_token, own_device_id,
+                             [create_timelimit_rule(new_id(), category_id, time_ms=3600000)])
+if not result.confirmed:      # request failed, or the server skipped an action silently
     print(result.summary)
 ```
 

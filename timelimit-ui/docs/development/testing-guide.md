@@ -78,15 +78,13 @@ addopts = -v --tb=short --timeout=30
 import pytest
 from app import app, db
 
-
 @pytest.fixture
 def client():
     """Create a test client for the app."""
-    app.config["TESTING"] = True
+    app.config['TESTING'] = True
     with app.test_client() as client:
         with app.app_context():
             yield client
-
 
 @pytest.fixture
 def db():
@@ -103,18 +101,17 @@ def db():
 ```python
 def test_get_session_status(client):
     """Test session status endpoint."""
-    response = client.get("/api/session/status")
+    response = client.get('/api/session/status')
     assert response.status_code == 200
     data = response.get_json()
-    assert "authenticated" in data
-    assert "server_url" in data
-
+    assert 'authenticated' in data
+    assert 'server_url' in data
 
 def test_get_session_status_unauthenticated(client):
     """Test session status when not authenticated."""
-    response = client.get("/api/session/status")
+    response = client.get('/api/session/status')
     data = response.get_json()
-    assert data["authenticated"] == False
+    assert data['authenticated'] == False
 ```
 
 ### Database Operation Tests
@@ -122,21 +119,21 @@ def test_get_session_status_unauthenticated(client):
 ```python
 def test_create_family(db):
     """Test family creation."""
-    device_auth_token = "test_token_123"
-    mail = "test@example.com"
-
+    device_auth_token = 'test_token_123'
+    mail = 'test@example.com'
+    
     create_family(
         db=db,
         device_auth_token=device_auth_token,
         mail=mail,
-        parent_password_hash="$2a$10$hash1",
-        parent_password_second_hash="$2a$10$hash2",
-        parent_password_second_salt="salt123",
+        parent_password_hash='$2a$10$hash1',
+        parent_password_second_hash='$2a$10$hash2',
+        parent_password_second_salt='salt123'
     )
-
+    
     family = get_family(db, device_auth_token)
     assert family is not None
-    assert family["mail"] == mail
+    assert family['mail'] == mail
 ```
 
 ### Authentication Flow Tests
@@ -145,18 +142,20 @@ def test_create_family(db):
 def test_create_family_flow(client):
     """Test complete create family flow."""
     # Step 1: Send mail login code
-    response = client.post(
-        "/create-family", data={"step": "1", "mail": "test@example.com"}
-    )
+    response = client.post('/create-family', data={
+        'step': '1',
+        'mail': 'test@example.com'
+    })
     assert response.status_code == 302  # Redirect
-
+    
     # Step 2: Sign in by mail code
     with client.session_transaction() as sess:
-        sess["mail_login_token"] = "test_token"
-
-    response = client.post(
-        "/create-family", data={"step": "2", "receivedCode": "word1 word2 word3"}
-    )
+        sess['mail_login_token'] = 'test_token'
+    
+    response = client.post('/create-family', data={
+        'step': '2',
+        'receivedCode': 'word1 word2 word3'
+    })
     assert response.status_code == 302
 ```
 
@@ -235,9 +234,9 @@ Test individual functions and methods in isolation.
 ```python
 def test_format_days():
     """Test days bitmask formatting."""
-    assert formatDays(127) == "Every day"
-    assert formatDays(1) == "Mon"
-    assert formatDays(3) == "Mon, Tue"
+    assert formatDays(127) == 'Every day'
+    assert formatDays(1) == 'Mon'
+    assert formatDays(3) == 'Mon, Tue'
 ```
 
 ### Integration Tests
@@ -274,21 +273,20 @@ def test_e2e_create_family_and_sync(client):
 ```python
 from unittest.mock import patch, MagicMock
 
-
-@patch("app.AuthClient")
+@patch('app.AuthClient')
 def test_api_time_with_mock(mock_client_class, client):
     """Test time API with mocked AuthClient."""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
-
+    
     mock_response = MagicMock()
     mock_response.success = True
-    mock_response.data = {"ms": 1234567890}
+    mock_response.data = {'ms': 1234567890}
     mock_client.get_server_time.return_value = mock_response
-
-    response = client.post("/api/time")
+    
+    response = client.post('/api/time')
     assert response.status_code == 200
-    assert response.get_json()["status"] == "ok"
+    assert response.get_json()['status'] == 'ok'
 ```
 
 ---
@@ -302,15 +300,19 @@ def test_api_time_with_mock(mock_client_class, client):
 def authenticated_client(client):
     """Client with authenticated session."""
     with client.session_transaction() as sess:
-        sess["device_auth_token"] = "test_token"
-        sess["own_device_id"] = "device_123"
+        sess['device_auth_token'] = 'test_token'
+        sess['own_device_id'] = 'device_123'
     return client
-
 
 @pytest.fixture
 def sample_user():
     """Sample user data."""
-    return {"id": "user_123", "name": "Test User", "type": "child", "mail": None}
+    return {
+        'id': 'user_123',
+        'name': 'Test User',
+        'type': 'child',
+        'mail': None
+    }
 ```
 
 ---
@@ -331,16 +333,12 @@ def sample_user():
 ```python
 import pytest
 
-
-@pytest.mark.parametrize(
-    "days,expected",
-    [
-        (127, "Every day"),
-        (1, "Mon"),
-        (3, "Mon, Tue"),
-        (64, "Sun"),
-    ],
-)
+@pytest.mark.parametrize("days,expected", [
+    (127, 'Every day'),
+    (1, 'Mon'),
+    (3, 'Mon, Tue'),
+    (64, 'Sun'),
+])
 def test_format_days_parameterized(days, expected):
     """Test days formatting with multiple inputs."""
     assert formatDays(days) == expected

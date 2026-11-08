@@ -128,11 +128,10 @@ import requests
 import json
 import time
 
-
 def test_server_connection(server_url="http://localhost:8080"):
     """Test connection to TimeLimit server"""
     print(f"Testing connection to {server_url}")
-
+    
     # Test basic connectivity
     try:
         response = requests.get(f"{server_url}/health", timeout=5)
@@ -142,11 +141,10 @@ def test_server_connection(server_url="http://localhost:8080"):
         print(f"Connection failed: {e}")
         return False
 
-
 def test_ui_endpoints():
     """Test UI endpoints"""
     ui_url = "http://localhost:8099"
-
+    
     # Test UI server
     try:
         response = requests.get(ui_url, timeout=5)
@@ -156,16 +154,15 @@ def test_ui_endpoints():
         print(f"UI server connection failed: {e}")
         return False
 
-
 if __name__ == "__main__":
     print("=== TimeLimit UI Local Development Test ===")
-
+    
     # Test server connection
     server_ok = test_server_connection()
-
+    
     # Test UI server
     ui_ok = test_ui_endpoints()
-
+    
     if server_ok and ui_ok:
         print("✅ All tests passed!")
     else:

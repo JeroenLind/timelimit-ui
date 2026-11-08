@@ -17,7 +17,7 @@ Modify the web server to use an environment variable (`TLUI_ROOTFS_PATH`) as the
 Add environment variable setup to point to the rootfs directory:
 ```python
 # Set base path for rootfs simulation
-os.environ["TLUI_ROOTFS_PATH"] = r"C:\git\timelimit-ui\timelimit-ui\rootfs"
+os.environ['TLUI_ROOTFS_PATH'] = r'C:\git\timelimit-ui\timelimit-ui\rootfs'
 ```
 
 ### 2. Modify web_server.py

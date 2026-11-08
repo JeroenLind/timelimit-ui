@@ -835,13 +835,11 @@ Changed `post_set_parent_password()` in `app.py` to use `generate_family_hashes(
 ```python
 # Before (incorrect - produces $2b$ prefix):
 salt = bcrypt.gensalt(rounds=12)
-parent_password_second_hash = bcrypt.hashpw(password.encode("utf-8"), salt).decode(
-    "utf-8"
-)
+parent_password_second_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 # After (correct - produces $2a$ prefix):
 password_data = generate_family_hashes(password)
-parent_password_second_hash = password_data["secondHash"]
+parent_password_second_hash = password_data['secondHash']
 ```
 
 **Verification:**
