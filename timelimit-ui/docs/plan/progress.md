@@ -25,7 +25,7 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A0 Development standards | done | 26c47d3 |
 | A1 Baseline and working method | done | 1aa7330, 3b3463e |
 | A2 Isolated tests, legacy suite apart | done | bef8a74 (wip), closing commit below |
-| A3 Configuration, data folder, secret key, logging, clock, `Secret` | done except the Windows check (M) | closing commit below |
+| A3 Configuration, data folder, secret key, logging, clock, `Secret` | done (Windows check passed 2026-11-08: /api/health ok) | closing commit below |
 | A4 One error envelope | done | closing commit below |
 | A5 Fake TimeLimit server | in progress | wip commits |
 | A6 .. G2 | not started | |
@@ -57,5 +57,5 @@ websocket-client.
 - Werkzeug exits the process itself when the port is taken; `build_server` probes first so `main` can report it.
 - A2 result: new suite 106 tests green serially and with `-n auto`; the 77 kept tests live in `dashboard/tests/kept`; the legacy suite (1248 tests) runs apart with `py -3 tools/baseline.py` or `pytest rootfs/usr/bin/dashboardV2/tests -m legacy`.
 - `test_action_builder.py` used to skip silently when the protocol reference was missing; it now fails.
-- Windows failure list of the old suite is still to be recorded (`py -3 tools/baseline.py --record`).
+- Windows baseline recorded 2026-11-08: 1244 passed, 4 failed (same 4 as Linux).
 - Tag `pre-rebuild` is local only (pushing tags fails from the cloud).
