@@ -154,6 +154,10 @@ class World:
         self.mail_auth: dict[str, str] = {}  # mailAuthToken -> mail
         self.old_device_tokens: set[str] = set()
         self.inbox: list[tuple[str, str]] = []  # (mail, code) of "sent" mails
+        self.client_levels: list[
+            int | None
+        ] = []  # clientLevel of requests that carry one
+        self.request_encodings: list[str] = []  # Content-Encoding of every request
         self.unsimulated: list[
             str
         ] = []  # schema-valid actions the fake does not implement

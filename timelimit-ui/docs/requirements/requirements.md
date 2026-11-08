@@ -164,7 +164,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Open |
 | TR-104 | M | The dashboard sends clientLevel 7 and only uses features available at that level. | Done |
 | TR-105 | S | WebSocket (Socket.IO) per `docs/ServerAPI.md` section 6: `devicelogin`, `should sync`, `sign out`. | Open |
-| TR-106 | S | Requests are gzip-compressed with retry on HTTP 411, like the Android app. | Open |
+| TR-106 | S | Requests are gzip-compressed with retry on HTTP 411, like the Android app. | Done (A6) |
 
 ### 3.2 Data and storage
 

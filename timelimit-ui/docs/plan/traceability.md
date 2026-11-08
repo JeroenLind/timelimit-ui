@@ -52,19 +52,19 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | NFR-003 | M | A7 | – | Performance: the browser stays responsive when the server is down (no growing request queu |
 | NFR-004 | M | A4, D1 | – | Usability: all texts are available in Dutch and English; errors are clear and say what to  |
 | SEC-001 | M | A3 | dashboard/tests/test_start.py | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
-| SEC-002 | M | A6 | – | The server connection uses HTTPS when the server is not on the local network. Plain HTTP i |
+| SEC-002 | M | A6 | dashboard/tests/test_client.py | The server connection uses HTTPS when the server is not on the local network. Plain HTTP i |
 | SEC-003 | M | B1, E1 | – | The device auth token is stored only on the local disk (database and session file), never  |
 | TR-100 | M | B2 | – | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
 | TR-101 | M | B2 | – | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters [0-9a-zA-Z]; e |
 | TR-102 | M | B2 | – | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+devi |
 | TR-103 | M | B3 | – | ClientDataStatus contains all versions and per-category data (D10). |
-| TR-104 | M | A6 | – | The dashboard sends clientLevel 7 and only uses features available at that level. |
+| TR-104 | M | A6 | dashboard/tests/test_client.py | The dashboard sends clientLevel 7 and only uses features available at that level. |
 | TR-200 | M | B1 | – | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
 | TR-201 | M | B1 | – | Database access is thread-safe; writes that change several tables use one transaction. syn |
 | TR-202 | M | B1 | – | No parent passwords are stored. Only the device auth token (and own ids) are stored locall |
 | TR-300 | M | A3 | dashboard/tests/test_start.py | Python 3.10+; requirements.txt with loose version ranges. Starts with py -3 app.py on Wind |
 | TR-301 | M | A3 | dashboard/tests/test_config.py | All settings (port, data directory, log level, timings) come from a config file/environmen |
-| TR-303 | M | A6, A7 | – | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
+| TR-303 | M | A6, A7 | dashboard/tests/test_client.py | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
 | TR-305 | M | A3 | dashboard/tests/test_start.py, test_config.py | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
 | TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
 | TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
@@ -83,7 +83,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-511 | M | A0 | – | Line endings: the repository uses LF (.gitattributes and .editorconfig); shell scripts and |
 | TR-512 | M | A3, B7 | dashboard/tests/test_secret_clock.py | Time and time zones: the domain layer only uses time-zone-aware times and receives the cur |
 | TR-513 | M | A3, B7 | dashboard/tests/test_secret_clock.py, test_logs.py | Secrets in code: tokens, hashes and typed passwords pass through one Secret type / masking |
-| TR-514 | M | A6, B7 | – | Timeouts on all I/O: every HTTP call has an explicit timeout; a test fails on any call wit |
+| TR-514 | M | A6, B7 | dashboard/tests/test_client.py | Timeouts on all I/O: every HTTP call has an explicit timeout; a test fails on any call wit |
 | UI-001 | M | E1, E11, E2 | – | Screens: children overview, child detail, settings, test section. |
 | UI-002 | M | D1 | – | Navigation: fixed sidebar on desktop, hamburger menu on small screens. The menu opens/clos |
 | UI-003 | M | D1 | – | Layout works on desktop browsers, phones and tablets. |

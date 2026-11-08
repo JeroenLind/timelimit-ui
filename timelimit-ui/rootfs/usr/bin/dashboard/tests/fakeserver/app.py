@@ -6,6 +6,8 @@ Faults for tests are injected through ``Faults`` (see ``FakeTimeLimitServer``).
 
 from __future__ import annotations
 
+import gzip
+import json
 import threading
 import time
 from dataclasses import dataclass, field
@@ -83,6 +85,7 @@ def create_app(
     @app.before_request
     def inject_faults() -> Response | None:
         calls.append((request.method, request.path))
+        world.request_encodings.append(request.headers.get("Content-Encoding", ""))
         if faults.delay_seconds:
             time.sleep(faults.delay_seconds)
         if faults.drop_connection:
@@ -96,7 +99,16 @@ def create_app(
         return html_error(exc.status)
 
     def body(validator: str) -> dict[str, Any]:
-        data = request.get_json(silent=True)
+        raw = request.get_data()
+        if request.headers.get("Content-Encoding") == "gzip":
+            try:
+                raw = gzip.decompress(raw)
+            except OSError as exc:
+                raise HttpError(400) from exc
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            raise HttpError(400) from exc
         if not schemas.is_valid(validator, data):
             raise HttpError(400)
         assert isinstance(data, dict)
@@ -168,6 +180,7 @@ def create_app(
     @app.post("/parent/create-family")
     def create_family() -> Response:
         data = body("isCreateFamilyByMailTokenRequest")
+        world.client_levels.append(data.get("clientLevel"))
         with world.lock:
             family, device = world.create_family(data)
             return new_device_answer(
@@ -229,6 +242,7 @@ def create_app(
     @app.post("/sync/pull-status")
     def pull_status() -> Response:
         data = body("isClientPullChangesRequest")
+        world.client_levels.append(data["status"].get("clientLevel"))
         with world.lock:
             family, device = world.family_of_token(data["deviceAuthToken"])
             device.last_connectivity = int(time.time() * 1000)

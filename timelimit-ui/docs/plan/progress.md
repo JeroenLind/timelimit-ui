@@ -28,13 +28,16 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A3 Configuration, data folder, secret key, logging, clock, `Secret` | done (Windows check passed 2026-11-08: /api/health ok) | closing commit below |
 | A4 One error envelope | done | closing commit below |
 | A5 Fake TimeLimit server | done | closing commit `A5: ...` |
-| A6 .. G2 | not started | |
+| A6 Server client | done | closing commit `A6: ...` |
+| A7 .. G2 | not started | |
 
 ## Current step
-**A6** Server client (the only module that does HTTP to the TimeLimit server): timeouts, gzip with the retry on 411, `clientLevel` 7, error mapping, HTTPS rule. Tests run against `fake_server` (fixture in `tests/conftest.py`; faults via `fake.faults`: `delay_seconds`, `fail_next`, `drop_connection`; `fake.stop()/start()` = server down/up).
-- [ ] client module + tests, closing commit `A6: ...`, progress, project docs, memory
+**A7** Frontend skeleton with server-down handling (health check on page load with timeout, banner, retry with back-off; FR-1000..1003, TR-303 browser side). The client module is `dashboard/client/server.py` (`TimeLimitClient`, `validate_server_url`).
+- [ ] A7 implementation, closing commit `A7: ...`, progress, project docs, memory
+- [ ] Windows check after A7 (first page in the browser): I will ask for it then.
 
 ## Notes
+- A6 result: `client/server.py`: one `_request` function (always a timeout, gzip body, one retry without compression on 411, error mapping: timeout -> SERVER_TIMEOUT, no connection -> SERVER_UNREACHABLE, 401 SESSION_INVALID, 403 INVALID_PASSWORD, 404/410 NOT_FOUND, 409 CONFLICT, 429/5xx SERVER_UNREACHABLE, other 4xx INTERNAL_ERROR; `ServerHttpError` keeps the status so callers can tell a wrong mail code 403 from an exhausted one 410). `clientLevel` 7 is added by the client on every call that accepts it (the server schemas reject it elsewhere). Plain http only for localhost, loopback, private/link-local addresses, `.local`/`.lan` names and dot-less host names; no DNS lookups. Tests: `tests/test_client.py` (41), including a scan that only `client/server.py` imports an HTTP library.
 - A5 result: `tests/fakeserver/` (schemas.py, state.py, integrity.py, actions.py, app.py, `FakeTimeLimitServer`), 30 conformance tests (`tests/test_fakeserver.py`, 2 s). Findings from the server source, now pinned by tests: `ClientDataStatus` requires `apps` (object), `categories`, `devices`, `users`, otherwise 400; extra time and temporary-block actions fail silently without the family's premium version; a failed action consumes its sequence number and a reused number is ignored without a full-sync request; more than 50 actions per push = 400; pull answers contain `tasks` only for `clientLevel` >= 3; the rule `e` (expiresAt) is sent by one server variant only (`FakeTimeLimitServer(rule_expiry=True)`). Not simulated (listed loudly via `fake.unsimulated`): child actions, key requests, pings, `devices2`. Never run `ruff format .` (it reformats the legacy files); format named paths.
 - A4 result: `domain/errors.py` (codes + `DashboardError`), `routes/errors.py` (status table, envelope, request id, handlers); a test fails when a route in `routes/` builds an error response by hand. Non-API paths keep Flask's normal pages. Unknown `/api/` paths and wrong methods/bodies answer with the envelope (405/413/415 map to `INVALID_INPUT` 400).
 - A3 result: 190 tests green (serial and parallel); decisions taken inside the design are listed in the A3 commit and in `docs/architecture/design.md` §8 (data folder next to `app.py`, `DASHBOARD_<NAME>` variables, `config.json`, stdlib logging).
