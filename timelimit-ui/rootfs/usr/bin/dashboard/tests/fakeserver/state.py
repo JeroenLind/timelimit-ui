@@ -138,11 +138,17 @@ class World:
     """All state of the fake server. One lock guards everything (the real server uses transactions)."""
 
     def __init__(
-        self, *, api_level: int = API_LEVEL_DEFAULT, premium: bool = True
+        self,
+        *,
+        api_level: int = API_LEVEL_DEFAULT,
+        premium: bool = True,
+        rule_expiry: bool = False,
     ) -> None:
         self.lock = threading.RLock()
         self.api_level = api_level
         self.premium = premium
+        # Reference server B sends `e` (expiresAt) in time limit rules, reference A does not.
+        self.rule_expiry = rule_expiry
         self.families: dict[str, Family] = {}
         self.mail_logins: dict[str, MailLogin] = {}
         self.mail_auth: dict[str, str] = {}  # mailAuthToken -> mail
@@ -353,7 +359,7 @@ class World:
                     }
                 )
             if mine is None or mine.get("rules") != cat.rules_version:
-                rules.append(_rules_entry(cat))
+                rules.append(_rules_entry(cat, with_expiry=self.rule_expiry))
             if mine is None or mine.get("usedTime") != cat.used_times_version:
                 used.append(_used_entry(cat))
             if mine is None or mine.get("tasks") != cat.tasks_version:
@@ -454,7 +460,7 @@ def _base_entry(c: Category) -> dict[str, Any]:
     }
 
 
-def _rules_entry(c: Category) -> dict[str, Any]:
+def _rules_entry(c: Category, *, with_expiry: bool) -> dict[str, Any]:
     rules = []
     for r in c.rules.values():
         item: dict[str, Any] = {
@@ -468,6 +474,8 @@ def _rules_entry(c: Category) -> dict[str, Any]:
             "pause": r.pause,
             "perDay": r.per_day,
         }
+        if with_expiry and r.expires is not None:
+            item["e"] = r.expires
         rules.append(item)
     return {"categoryId": c.category_id, "rules": rules, "version": c.rules_version}
 

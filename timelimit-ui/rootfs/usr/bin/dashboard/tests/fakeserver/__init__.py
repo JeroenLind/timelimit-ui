@@ -16,9 +16,15 @@ __all__ = ["FakeTimeLimitServer"]
 
 class FakeTimeLimitServer:
     def __init__(
-        self, *, api_level: int = API_LEVEL_DEFAULT, premium: bool = True
+        self,
+        *,
+        api_level: int = API_LEVEL_DEFAULT,
+        premium: bool = True,
+        rule_expiry: bool = False,
     ) -> None:
-        self.world = World(api_level=api_level, premium=premium)
+        self.world = World(
+            api_level=api_level, premium=premium, rule_expiry=rule_expiry
+        )
         self.faults = Faults()
         self.calls: list[tuple[str, str]] = []
         self._app, self._sio = create_app(self.world, self.faults, self.calls)

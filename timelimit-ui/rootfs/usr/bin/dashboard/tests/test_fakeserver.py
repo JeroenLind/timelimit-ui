@@ -777,3 +777,24 @@ def test_every_answer_is_valid_for_a_strict_client(api: Api) -> None:
         }
     )
     assert schemas.status_errors(api.pull()) == []
+
+
+def test_rule_expiry_is_only_sent_by_the_server_variant_that_has_it() -> None:
+    rule = {
+        "type": "CREATE_TIMELIMIT_RULE",
+        "rule": {
+            "ruleId": "rule01",
+            "categoryId": "cat001",
+            "time": 1,
+            "days": 1,
+            "extraTime": True,
+            "e": 5,
+        },
+    }
+    for variant, expected in ((False, None), (True, 5)):
+        with FakeTimeLimitServer(rule_expiry=variant) as server:
+            api = Api(server)
+            api.create_family()
+            make_child(api)
+            api.push(rule)
+            assert api.pull()["rules"][0]["rules"][0].get("e") == expected

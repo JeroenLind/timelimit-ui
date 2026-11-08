@@ -46,6 +46,19 @@ def html_error(status: int) -> Response:
     return Response(body, status=status, mimetype="text/html")
 
 
+def strip_expiry(status: dict[str, Any]) -> dict[str, Any]:
+    """Copy of a status without rule ``e``: the variant with expiry is not in reference A's schema."""
+    copy = dict(status)
+    copy["rules"] = [
+        {
+            **entry,
+            "rules": [{k: v for k, v in r.items() if k != "e"} for r in entry["rules"]],
+        }
+        for entry in status.get("rules", [])
+    ]
+    return copy
+
+
 def create_app(
     world: World, faults: Faults, calls: list[tuple[str, str]]
 ) -> tuple[Flask, socketio.Server]:
@@ -93,7 +106,9 @@ def create_app(
         return world.server_status(family, {"clientLevel": client_level or 0})
 
     def checked(status: dict[str, Any]) -> dict[str, Any]:
-        problems = schemas.status_errors(status)
+        problems = schemas.status_errors(
+            strip_expiry(status) if world.rule_expiry else status
+        )
         assert not problems, (
             problems
         )  # the fake must never send what a strict client would reject
