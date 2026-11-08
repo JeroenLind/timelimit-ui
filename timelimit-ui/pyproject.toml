@@ -42,3 +42,7 @@ markers = [
     "legacy: old dashboardV2 tests, run apart until the cut-over (plan T2)",
     "ui: Playwright browser tests (not run by the pre-commit hook)",
 ]
+
+[[tool.mypy.overrides]]
+module = ["socketio.*"]
+ignore_missing_imports = true

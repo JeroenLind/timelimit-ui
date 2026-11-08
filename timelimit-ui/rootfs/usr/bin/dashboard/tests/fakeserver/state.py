@@ -468,8 +468,6 @@ def _rules_entry(c: Category) -> dict[str, Any]:
             "pause": r.pause,
             "perDay": r.per_day,
         }
-        if r.expires is not None:
-            item["e"] = r.expires
         rules.append(item)
     return {"categoryId": c.category_id, "rules": rules, "version": c.rules_version}
 

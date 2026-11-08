@@ -30,3 +30,19 @@ def log_dir(data_dir: Path) -> Path:
     folder = data_dir / "logs"
     folder.mkdir()
     return folder
+
+
+@pytest.fixture
+def fake_server():  # type: ignore[no-untyped-def]
+    """A fake TimeLimit server on an ephemeral port (plan A5); asserts no unsimulated action was used."""
+    from .fakeserver import FakeTimeLimitServer
+
+    server = FakeTimeLimitServer()
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
+    assert server.unsimulated == [], (
+        f"actions the fake does not simulate: {server.unsimulated}"
+    )
