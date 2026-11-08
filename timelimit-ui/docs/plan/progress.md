@@ -35,7 +35,7 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 ## Current step
 **B1** Repository and cache schema (SQLite, versions, per-server profile). Read the B1 section of the plan first.
 - [ ] B1 implementation, closing commit `B1: ...`, progress, project docs, memory
-- [ ] Windows check of A7 (open the page, stop/start the server): asked of the user, result pending.
+- [x] Windows check of A7 passed 2026-11-08 (user: everything works as described).
 
 ## Notes
 - A7 result: server-side `services/connection.py` (probe with the health timeout, never raises; `require_online()` gives READ_ONLY_OFFLINE for the later change routes), `routes/server.py` (`GET /api/server/status` -> up/down/not_configured + code), `routes/pages.py` (overview page, placeholder list from `services/overview.py` until the cache exists in B1). Frontend: `templates/base.html`, `overview.html`, `static/js/{api,state,i18n,connection,overview,main}.js`, `static/css/{theme,layout}.css`, `static/i18n/{en,nl}.json`. Behaviour: check on load, poll every `health_interval` (new setting, default 5 s) while up, back-off `backoff_initial` -> `backoff_max` while down, retry button, controls with `data-change-control` disabled while down, `body[data-server]`, banner `data-code`. `server_url` setting (env `DASHBOARD_SERVER_URL` or `config.json`) is temporary until the settings screen (design 8.1). 10 browser tests (`-m ui`, Playwright) + 7 backend tests; total 305 green.
