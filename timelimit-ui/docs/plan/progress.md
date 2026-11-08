@@ -26,13 +26,15 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A1 Baseline and working method | done | 1aa7330, 3b3463e |
 | A2 Isolated tests, legacy suite apart | done | bef8a74 (wip), closing commit below |
 | A3 Configuration, data folder, secret key, logging, clock, `Secret` | done except the Windows check (M) | closing commit below |
-| A4 One error envelope | next | |
-| A5 .. G2 | not started | |
+| A4 One error envelope | done | closing commit below |
+| A5 Fake TimeLimit server | next | |
+| A6 .. G2 | not started | |
 
 ## Current step
-**A4** (not started). Waiting for the Windows check of A3 (M): `py -3 app.py` inside `rootfs/usr/bin/dashboard` creates `data/` and starts on http://127.0.0.1:8100/api/health. Read plan step A4 and design §6 first; write the checklist here when starting.
+**A5** (not started). **Still open from A3 (yours):** the Windows check (`py -3 app.py` in `rootfs/usr/bin/dashboard`, health URL on 8100) and `py -3 tools/baseline.py --record`. Read plan step A5 and `docs/protocol/` first; write the checklist here when starting.
 
 ## Notes
+- A4 result: `domain/errors.py` (codes + `DashboardError`), `routes/errors.py` (status table, envelope, request id, handlers); a test fails when a route in `routes/` builds an error response by hand. Non-API paths keep Flask's normal pages. Unknown `/api/` paths and wrong methods/bodies answer with the envelope (405/413/415 map to `INVALID_INPUT` 400).
 - A3 result: 190 tests green (serial and parallel); decisions taken inside the design are listed in the A3 commit and in `docs/architecture/design.md` §8 (data folder next to `app.py`, `DASHBOARD_<NAME>` variables, `config.json`, stdlib logging).
 - Werkzeug exits the process itself when the port is taken; `build_server` probes first so `main` can report it.
 - A2 result: new suite 106 tests green serially and with `-n auto`; the 77 kept tests live in `dashboard/tests/kept`; the legacy suite (1248 tests) runs apart with `py -3 tools/baseline.py` or `pytest rootfs/usr/bin/dashboardV2/tests -m legacy`.

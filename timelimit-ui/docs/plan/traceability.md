@@ -67,7 +67,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-303 | M | A6, A7 | – | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
 | TR-305 | M | A3 | dashboard/tests/test_start.py, test_config.py | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
 | TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
-| TR-307 | M | A4 | – | All API routes return one error envelope {status:"error", code, message, requestId} with t |
+| TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
 | TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | – | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | – | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |

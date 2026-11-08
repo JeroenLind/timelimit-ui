@@ -8,6 +8,7 @@ from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
 from dashboard.routes import health
+from dashboard.routes.errors import register_error_handling
 from dashboard.services.clock import SystemClock
 
 
@@ -21,5 +22,6 @@ def create_app(
         "settings": settings,
         "clock": clock or SystemClock(),
     }
+    register_error_handling(app)
     app.register_blueprint(health.bp)
     return app
