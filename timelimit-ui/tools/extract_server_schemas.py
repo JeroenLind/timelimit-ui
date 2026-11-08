@@ -57,10 +57,16 @@ def extract(validator_ts: str) -> tuple[dict, dict]:
         found = validator_ts.find("export const is", cursor)
         if found < 0:
             break
-        name = validator_ts[found + len("export const ") : validator_ts.index(":", found)]
+        name = validator_ts[
+            found + len("export const ") : validator_ts.index(":", found)
+        ]
         compile_at = validator_ts.index("ajv.compile(", found) + len("ajv.compile(")
-        body, cursor = _balanced_object(validator_ts, validator_ts.index("{", compile_at))
-        schema = json.loads(body.replace('"definitions": definitions', '"definitions": {}'))
+        body, cursor = _balanced_object(
+            validator_ts, validator_ts.index("{", compile_at)
+        )
+        schema = json.loads(
+            body.replace('"definitions": definitions', '"definitions": {}')
+        )
         schema.pop("definitions", None)
         schema.pop("$schema", None)
         validators[name] = schema
@@ -73,16 +79,23 @@ def main(argv: list[str]) -> int:
         return 2
     server = Path(argv[0])
     output = Path(argv[1]) if len(argv) > 1 else DEFAULT_OUTPUT
-    definitions, validators = extract((server / "src/api/validator.ts").read_text(encoding="utf-8"))
+    definitions, validators = extract(
+        (server / "src/api/validator.ts").read_text(encoding="utf-8")
+    )
     commit = subprocess.run(
-        ["git", "-C", str(server), "rev-parse", "HEAD"], capture_output=True, text=True, check=False
+        ["git", "-C", str(server), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
     ).stdout.strip()
     document = {
         "source": f"timelimit-server src/api/validator.ts @ {commit or 'unknown'}",
         "definitions": definitions,
         "validators": validators,
     }
-    output.write_text(json.dumps(document, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(document, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(f"{len(definitions)} definitions, {len(validators)} validators -> {output}")
     return 0
 

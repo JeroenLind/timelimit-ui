@@ -79,6 +79,7 @@ The TimeLimit UI is a web-based dashboard application for managing TimeLimit rul
 **Key Changes:**
 ```python
 import logging
+
 LOG_DIR = "/data/logs"
 LOG_FILE = "/data/logs/timelimit-ui.log"
 
@@ -86,11 +87,8 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stderr)
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler(sys.stderr)],
 )
 ```
 

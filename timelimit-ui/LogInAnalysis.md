@@ -118,21 +118,21 @@ After implementing the `pull_status` ClientDataStatus payload fix, signing in to
    - The code tries to extract `familyId` from multiple locations, all of which are empty:
    ```python
    # Extract family_id from response
-   initial_data = response.data.get('initialData', {})
-   family_id = initial_data.get('familyId')
-   
+   initial_data = response.data.get("initialData", {})
+   family_id = initial_data.get("familyId")
+
    # If family_id not in initialData, check data field
    if not family_id:
-       data_field = response.data.get('data', {})
-       family_id = data_field.get('familyId')
-   
+       data_field = response.data.get("data", {})
+       family_id = data_field.get("familyId")
+
    # If still not found, perform pull_status to get family_id
    if not family_id:
        pull_response = client.pull_status(...)
-       family_id = pull_response.data.get('familyId')
+       family_id = pull_response.data.get("familyId")
        if not family_id:
-           data_field = pull_response.data.get('data', {})
-           family_id = data_field.get('familyId')
+           data_field = pull_response.data.get("data", {})
+           family_id = data_field.get("familyId")
    ```
 
 2. **`auth_client.py`** (lines 677-743):
@@ -158,11 +158,7 @@ The Android app doesn't use `familyId` at all - it only stores `deviceAuthToken`
 
 The tests mock `pull_status` to return `familyId`:
 ```python
-mock_pull_response.data = {
-    'familyId': 'test-family-id',
-    'users': [],
-    'devices': []
-}
+mock_pull_response.data = {"familyId": "test-family-id", "users": [], "devices": []}
 ```
 
 But the actual server doesn't return `familyId` in the `pull_status` response.

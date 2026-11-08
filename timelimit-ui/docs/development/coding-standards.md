@@ -38,8 +38,8 @@ Use type hints for all function parameters and return values:
 ```python
 from typing import Optional, List, Dict, Any
 
-def get_user_by_id(db: Database, user_id: str) -> Optional[Dict[str, Any]]:
-    ...
+
+def get_user_by_id(db: Database, user_id: str) -> Optional[Dict[str, Any]]: ...
 ```
 
 ### Imports
@@ -200,13 +200,13 @@ def _run_migrations(self) -> None:
     with self._lock:
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
         # Check if column exists
         cursor.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in cursor.fetchall()]
-        
-        if 'new_column' not in columns:
-            cursor.execute('ALTER TABLE users ADD COLUMN new_column TEXT')
+
+        if "new_column" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN new_column TEXT")
             conn.commit()
 ```
 
@@ -231,8 +231,8 @@ Use structured logging with context:
 logger.info(
     "User created successfully",
     user_id=user_id,
-    device_auth_token=device_auth_token[:8] + '...',
-    request_id=request_id
+    device_auth_token=device_auth_token[:8] + "...",
+    request_id=request_id,
 )
 ```
 
@@ -255,11 +255,10 @@ JSON format with the following fields:
 - Test classes: `Test<ClassName>`
 
 ```python
-def test_create_user_success():
-    ...
+def test_create_user_success(): ...
 
-def test_create_user_missing_name():
-    ...
+
+def test_create_user_missing_name(): ...
 ```
 
 ### Test Structure
@@ -268,14 +267,14 @@ def test_create_user_missing_name():
 def test_user_creation(client, db):
     """Test user creation with valid data."""
     # Arrange
-    user_data = {'name': 'Test User'}
-    
+    user_data = {"name": "Test User"}
+
     # Act
-    response = client.post('/api/users', json=user_data)
-    
+    response = client.post("/api/users", json=user_data)
+
     # Assert
     assert response.status_code == 201
-    assert response.get_json()['status'] == 'ok'
+    assert response.get_json()["status"] == "ok"
 ```
 
 ### Fixtures
@@ -287,7 +286,7 @@ Use fixtures for test setup:
 def authenticated_client(client):
     """Client with authenticated session."""
     with client.session_transaction() as sess:
-        sess['device_auth_token'] = 'test_token'
+        sess["device_auth_token"] = "test_token"
     return client
 ```
 
@@ -314,13 +313,13 @@ Always validate user input:
 
 ```python
 # Email validation
-email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 if not re.match(email_pattern, mail):
-    return error('Invalid email format')
+    return error("Invalid email format")
 
 # Password length
 if len(password) < 8:
-    return error('Password must be at least 8 characters')
+    return error("Password must be at least 8 characters")
 ```
 
 ### SQL Injection Prevention
@@ -329,10 +328,10 @@ Use parameterized queries:
 
 ```python
 # Good
-cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 
 # Bad
-cursor.execute(f'SELECT * FROM users WHERE id = {user_id}')
+cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
 ```
 
 ---

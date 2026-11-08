@@ -198,10 +198,10 @@ Modified `timelimit-ui/rootfs/usr/bin/dashboardV2/tests/conftest.py` to set `DAT
 ```python
 def pytest_configure(config):
     # ... existing log path settings ...
-    
+
     # CRITICAL: Set DATABASE_PATH to a test database BEFORE any imports
-    test_db_path = os.path.join(tests_dir, 'test_isolation.db')
-    os.environ['DATABASE_PATH'] = test_db_path
+    test_db_path = os.path.join(tests_dir, "test_isolation.db")
+    os.environ["DATABASE_PATH"] = test_db_path
 ```
 
 #### 2. Enhanced client Fixture
@@ -219,12 +219,14 @@ Created a factory fixture for creating isolated test databases:
 @pytest.fixture
 def test_database_factory(tmp_path):
     """Factory fixture that provides isolated test databases."""
-    def _create_test_db(db_name='test_db'):
-        db_path = str(tmp_path / f'{db_name}.db')
+
+    def _create_test_db(db_name="test_db"):
+        db_path = str(tmp_path / f"{db_name}.db")
         reset_database()
         db = Database(db_path=db_path)
         db.init_db()
         return db, db_path
+
     yield _create_test_db
     reset_database()
 ```
@@ -296,12 +298,12 @@ export const RegisterChildDeviceRequest = {
 
 The `add_device()` function was sending:
 ```python
-data['deviceModel'] = device_model  # Incorrect - sending as string
+data["deviceModel"] = device_model  # Incorrect - sending as string
 ```
 
 But the server expects:
 ```python
-data['childDevice'] = {'model': device_model}  # Correct - object with model field
+data["childDevice"] = {"model": device_model}  # Correct - object with model field
 ```
 
 Additionally, the function was only sending fields if they were provided (not None), but the server requires all fields to be present.
@@ -313,10 +315,11 @@ Changed the `add_device()` function in `auth_client.py` to:
 
 ```python
 data = {
-    'registerToken': register_token,
-    'deviceName': device_name or 'Unknown Device',
-    'childDevice': {'model': device_model or 'Unknown'},
-    'clientLevel': client_level or 7  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
+    "registerToken": register_token,
+    "deviceName": device_name or "Unknown Device",
+    "childDevice": {"model": device_model or "Unknown"},
+    "clientLevel": client_level
+    or 7,  # Matches Android app's ClientDataStatus.CLIENT_LEVEL_VALUE
 }
 ```
 
@@ -327,12 +330,12 @@ def create_add_device_token(
     self,
     device_auth_token: str,
     parent_id: str,  # Added this parameter
-    parent_password_second_hash: str
+    parent_password_second_hash: str,
 ) -> APIResponse:
     data = {
-        'deviceAuthToken': device_auth_token,
-        'parentId': parent_id,  # Added to request body
-        'parentPasswordSecondHash': parent_password_second_hash
+        "deviceAuthToken": device_auth_token,
+        "parentId": parent_id,  # Added to request body
+        "parentPasswordSecondHash": parent_password_second_hash,
     }
 ```
 
@@ -429,10 +432,10 @@ Added `mail=mail` parameter to the `upsert_family_password_hash()` call:
 upsert_family_password_hash(
     db=db,
     device_auth_token=device_auth_token,
-    parent_password_hash=password_data.get('hash'),
-    parent_password_second_hash=password_data.get('secondHash'),
-    parent_password_second_salt=password_data.get('secondSalt'),
-    mail=mail  # Added this parameter
+    parent_password_hash=password_data.get("hash"),
+    parent_password_second_hash=password_data.get("secondHash"),
+    parent_password_second_salt=password_data.get("secondSalt"),
+    mail=mail,  # Added this parameter
 )
 ```
 
@@ -441,16 +444,16 @@ Added mail to session and passed it to `set_persisted_device_auth_token()`:
 
 ```python
 # Store device auth token in session
-session['device_auth_token'] = response.data.get('device_auth_token')
-session['own_device_id'] = response.data.get('own_device_id')
-session['mail'] = email  # Store mail in session for family email display
+session["device_auth_token"] = response.data.get("device_auth_token")
+session["own_device_id"] = response.data.get("own_device_id")
+session["mail"] = email  # Store mail in session for family email display
 
 # Persist auth token to file for session restoration after restart (with mail)
-if response.data.get('deviceAuthToken'):
+if response.data.get("deviceAuthToken"):
     set_persisted_device_auth_token(
-        response.data.get('device_auth_token'),
-        response.data.get('own_device_id'),
-        email
+        response.data.get("device_auth_token"),
+        response.data.get("own_device_id"),
+        email,
     )
 ```
 
@@ -460,15 +463,17 @@ Added logic to check session for mail value when database has "pending@unknown":
 ```python
 # If family email is still pending@unknown, check session for mail value
 # This handles the case where sync hasn't completed yet or user just logged in
-if family_email == 'pending@unknown':
-    session_mail = session.get('mail')
-    if session_mail and session_mail != 'pending@unknown':
+if family_email == "pending@unknown":
+    session_mail = session.get("mail")
+    if session_mail and session_mail != "pending@unknown":
         family_email = session_mail
         logger.debug(
             "Family email retrieved from session",
             request_id=request_id,
-            device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None,
-            mail=session_mail
+            device_auth_token=device_auth_token[:8] + "..."
+            if device_auth_token
+            else None,
+            mail=session_mail,
         )
 ```
 
@@ -818,7 +823,7 @@ Added code to store `parent_password_second_hash` in the session after a success
 # Store parent password second hash in session for subsequent operations
 # (e.g., adding users to family)
 if parent_password_second_hash:
-    session['parent_password_second_hash'] = parent_password_second_hash
+    session["parent_password_second_hash"] = parent_password_second_hash
 ```
 
 ### Files Modified
@@ -861,7 +866,7 @@ pull_response = client.pull_status(device_auth_token=device_auth_token)
 # Step 4: Save users to database
 # Users are saved with the parent's device_auth_token so they can be retrieved
 # by the dashboard when querying with the parent's token
-users_data = pull_response.data.get('users', {}).get('data', [])
+users_data = pull_response.data.get("users", {}).get("data", [])
 if users_data:
     save_users(db=db, device_auth_token=device_auth_token, users_data=users_data)
 ```
@@ -907,33 +912,41 @@ This matches the Android app's behavior documented in `context_android_app.md`:
 # This can happen when the client's version hashes don't match the server's state
 # In this case, retry with empty versions to force a full sync
 server_data = response.data
-has_devices = isinstance(server_data, dict) and 'devices' in server_data and 'data' in server_data.get('devices', {})
-has_users = isinstance(server_data, dict) and 'users' in server_data and 'data' in server_data.get('users', {})
+has_devices = (
+    isinstance(server_data, dict)
+    and "devices" in server_data
+    and "data" in server_data.get("devices", {})
+)
+has_users = (
+    isinstance(server_data, dict)
+    and "users" in server_data
+    and "data" in server_data.get("users", {})
+)
 
 if not has_devices and not has_users:
     logger.debug(
         "Server returned empty data - retrying with empty versions for full sync",
         request_id=request_id,
-        device_auth_token=device_auth_token[:8] + '...' if device_auth_token else None
+        device_auth_token=device_auth_token[:8] + "..." if device_auth_token else None,
     )
     # Close the current client
     client.close()
-    
+
     # Create new client and retry with empty versions
     client = AuthClient(base_url=server_url)
     empty_status = self._build_client_data_status(None)
     response = client.pull_status(device_auth_token, empty_status)
-    
+
     if not response.success:
         logger.warning(
             "Sync failed on retry with empty versions",
             request_id=request_id,
             error_code=response.error_code,
-            error_message=response.error_message
+            error_message=response.error_message,
         )
         client.close()
         return False
-    
+
     server_data = response.data
 ```
 
