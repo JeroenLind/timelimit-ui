@@ -51,7 +51,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | NFR-002 | M | B5 | – | Reliability: sync failures are retried with back-off (TR-304) and never leave the UI froze |
 | NFR-003 | M | A7 | – | Performance: the browser stays responsive when the server is down (no growing request queu |
 | NFR-004 | M | A4, D1 | – | Usability: all texts are available in Dutch and English; errors are clear and say what to  |
-| SEC-001 | M | A3 | – | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
+| SEC-001 | M | A3 | dashboard/tests/test_start.py | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
 | SEC-002 | M | A6 | – | The server connection uses HTTPS when the server is not on the local network. Plain HTTP i |
 | SEC-003 | M | B1, E1 | – | The device auth token is stored only on the local disk (database and session file), never  |
 | TR-100 | M | B2 | – | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
@@ -62,27 +62,27 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-200 | M | B1 | – | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
 | TR-201 | M | B1 | – | Database access is thread-safe; writes that change several tables use one transaction. syn |
 | TR-202 | M | B1 | – | No parent passwords are stored. Only the device auth token (and own ids) are stored locall |
-| TR-300 | M | A3 | – | Python 3.10+; requirements.txt with loose version ranges. Starts with py -3 app.py on Wind |
-| TR-301 | M | A3 | – | All settings (port, data directory, log level, timings) come from a config file/environmen |
+| TR-300 | M | A3 | dashboard/tests/test_start.py | Python 3.10+; requirements.txt with loose version ranges. Starts with py -3 app.py on Wind |
+| TR-301 | M | A3 | dashboard/tests/test_config.py | All settings (port, data directory, log level, timings) come from a config file/environmen |
 | TR-303 | M | A6, A7 | – | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
-| TR-305 | M | A3 | – | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
-| TR-306 | M | A3 | – | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
+| TR-305 | M | A3 | dashboard/tests/test_start.py, test_config.py | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
+| TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
 | TR-307 | M | A4 | – | All API routes return one error envelope {status:"error", code, message, requestId} with t |
 | TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | – | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | – | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
 | TR-311 | M | A7, D1 | – | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
 | TR-312 | M | C1, C2, G1 | – | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
-| TR-400 | M | A3 | – | Configurable log level (debug/info/warn/error). |
-| TR-401 | M | A3 | – | Log rotation with limited size and file count. |
+| TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |
+| TR-401 | M | A3 | dashboard/tests/test_logs.py | Log rotation with limited size and file count. |
 | TR-500 | M | A2 | dashboard/tests/test_isolation.py | pytest unit tests, isolated (own temporary database and log folder per test), parallel wit |
 | TR-501 | M | A5, B2 | dashboard/tests/kept/test_action_builder.py (partial; completed in B2) | Contract tests: every action the dashboard can produce is validated against the schemas ge |
 | TR-502 | M | A7, D1, E-steps | – | Browser/UI tests (Playwright) for the main screens: overview, child detail, rule dialog, h |
 | TR-504 | M | G2 | – | Documentation stays in sync: this document, docs/ServerAPI.md, and design notes are update |
 | TR-510 | M | A0 | – | One tool for style and lint: ruff (lint and format), configured in pyproject.toml. ruff ch |
 | TR-511 | M | A0 | – | Line endings: the repository uses LF (.gitattributes and .editorconfig); shell scripts and |
-| TR-512 | M | A3, B7 | – | Time and time zones: the domain layer only uses time-zone-aware times and receives the cur |
-| TR-513 | M | A3, B7 | – | Secrets in code: tokens, hashes and typed passwords pass through one Secret type / masking |
+| TR-512 | M | A3, B7 | dashboard/tests/test_secret_clock.py | Time and time zones: the domain layer only uses time-zone-aware times and receives the cur |
+| TR-513 | M | A3, B7 | dashboard/tests/test_secret_clock.py, test_logs.py | Secrets in code: tokens, hashes and typed passwords pass through one Secret type / masking |
 | TR-514 | M | A6, B7 | – | Timeouts on all I/O: every HTTP call has an explicit timeout; a test fails on any call wit |
 | UI-001 | M | E1, E11, E2 | – | Screens: children overview, child detail, settings, test section. |
 | UI-002 | M | D1 | – | Navigation: fixed sidebar on desktop, hamburger menu on small screens. The menu opens/clos |

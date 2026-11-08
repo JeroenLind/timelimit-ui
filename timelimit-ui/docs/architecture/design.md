@@ -198,6 +198,8 @@ Gap: one 1865-line `dashboardV2.js`, 1626-line CSS, 128 inline styles in `dashbo
 | Build | none (a local script if ever needed) | GitHub Actions → image on `ghcr.io`, version from one source |
 | Architecture | – | **aarch64** (his HA) |
 
+- **Data folder:** `data/` next to `app.py` (the `dashboard/` folder), or the folder in `DASHBOARD_DATA_DIR` (the add-on sets `/data`). It holds the database, `secret_key`, `logs/` and an optional `config.json`.
+- **Settings:** environment variable `DASHBOARD_<NAME>` > `config.json` > default; an invalid value stops the start with a message naming the setting. `config.py` holds the defaults (host 127.0.0.1, port 8100, log level info, rotation 10 MB × 5, health timeout 3 s, back-off 10 → 30 s, sync target 5 s, browser timeout 10 s, server timeout 10 s, test-server switch off).
 - Add-on options: log level, listen address (set by the add-on). The server is chosen in the settings screen (§8.1), not in the add-on options.
 
 ### 8.1 Server selection

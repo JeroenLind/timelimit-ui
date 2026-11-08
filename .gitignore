@@ -68,3 +68,6 @@ KeyFamilyData.md
 
 # Local notes with credentials (never commit)
 timelimit-ui/docs/password info.md
+
+# Data folder of the new dashboard (database, secret key, logs, config.json)
+data/

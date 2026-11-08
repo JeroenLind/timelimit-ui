@@ -25,26 +25,16 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | A0 Development standards | done | 26c47d3 |
 | A1 Baseline and working method | done | 1aa7330, 3b3463e |
 | A2 Isolated tests, legacy suite apart | done | bef8a74 (wip), closing commit below |
-| A3 Configuration, data folder, secret key, logging, clock, `Secret` | next | |
-| A4 .. G2 | not started | |
+| A3 Configuration, data folder, secret key, logging, clock, `Secret` | done except the Windows check (M) | closing commit below |
+| A4 One error envelope | next | |
+| A5 .. G2 | not started | |
 
 ## Current step
-**A3** Configuration, data folder, secret key, logging, `Clock`, `Secret`. Decisions taken while implementing
-(inside the design, listed so they can be challenged): data folder default = `data/` next to `app.py` (the
-`dashboard/` folder), override with `DASHBOARD_DATA_DIR` (the add-on sets `/data` in F2); env names are
-`DASHBOARD_<SETTING>`; optional `config.json` in the data folder; stdlib `logging` with a JSON formatter (no
-new dependency); `Secret` and `Clock`/`FakeClock` live in `domain/`, `SystemClock` in `services/`; entry
-points `py -3 app.py` (inside `dashboard/`) and `py -3 -m dashboard`; one route `GET /api/health`.
-- [ ] domain: `Secret`, `mask()`, `Clock`, `FakeClock` (+ tests)
-- [ ] `services/clock.py` `SystemClock`
-- [ ] `config.py`: settings, precedence env > file > default, validation (+ precedence table test)
-- [ ] secret key created once, kept, env override (+ test)
-- [ ] `logs.py`: JSON lines, level, rotation, masking (+ tests)
-- [ ] factory, `routes/health.py`, `main.py`, `app.py`, `__main__.py`; bind test (127.0.0.1, other interface refused)
-- [ ] `.gitignore` `data/`; docs (design §8 note, standards), progress, project docs, memory; closing commit `A3: ...`
-- [ ] M (you): `py -3 app.py` on Windows creates `data/` and starts on 8100
+**A4** (not started). Waiting for the Windows check of A3 (M): `py -3 app.py` inside `rootfs/usr/bin/dashboard` creates `data/` and starts on http://127.0.0.1:8100/api/health. Read plan step A4 and design §6 first; write the checklist here when starting.
 
 ## Notes
+- A3 result: 190 tests green (serial and parallel); decisions taken inside the design are listed in the A3 commit and in `docs/architecture/design.md` §8 (data folder next to `app.py`, `DASHBOARD_<NAME>` variables, `config.json`, stdlib logging).
+- Werkzeug exits the process itself when the port is taken; `build_server` probes first so `main` can report it.
 - A2 result: new suite 106 tests green serially and with `-n auto`; the 77 kept tests live in `dashboard/tests/kept`; the legacy suite (1248 tests) runs apart with `py -3 tools/baseline.py` or `pytest rootfs/usr/bin/dashboardV2/tests -m legacy`.
 - `test_action_builder.py` used to skip silently when the protocol reference was missing; it now fails.
 - Windows failure list of the old suite is still to be recorded (`py -3 tools/baseline.py --record`).
