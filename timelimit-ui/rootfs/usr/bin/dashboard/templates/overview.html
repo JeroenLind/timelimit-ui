@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <h2 data-i18n="overview.title">Overview</h2>
+  <ul id="overview-list" class="card-list"></ul>
+  <p id="overview-empty" data-i18n="overview.empty" hidden>Nothing to show yet.</p>
+  <button type="button" id="refresh-overview" data-change-control data-i18n="overview.refresh">Refresh from server</button>
+</section>
+{% endblock %}

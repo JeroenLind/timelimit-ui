@@ -34,12 +34,19 @@ TABLE: dict[str, tuple[Any, Any, str, Any]] = {
     "log_max_bytes": (10 * 1024 * 1024, 2048, "4096", 4096),
     "log_backup_count": (5, 2, "3", 3),
     "health_timeout": (3.0, 1.5, "2.5", 2.5),
+    "health_interval": (5.0, 2, "4", 4.0),
     "backoff_initial": (10.0, 5, "6", 6.0),
     "backoff_max": (30.0, 40, "50", 50.0),
     "sync_target": (5.0, 7, "8", 8.0),
     "browser_timeout": (10.0, 11, "12", 12.0),
     "server_timeout": (10.0, 13, "14", 14.0),
     "test_server": (False, True, "false", False),
+    "server_url": (
+        "",
+        "https://a.example.org",
+        "http://localhost:8080/",
+        "http://localhost:8080",
+    ),
 }
 FILE_EXPECTED = {
     "host": "0.0.0.0",
@@ -48,12 +55,14 @@ FILE_EXPECTED = {
     "log_max_bytes": 2048,
     "log_backup_count": 2,
     "health_timeout": 1.5,
+    "health_interval": 2.0,
     "backoff_initial": 5.0,
     "backoff_max": 40.0,
     "sync_target": 7.0,
     "browser_timeout": 11.0,
     "server_timeout": 13.0,
     "test_server": True,
+    "server_url": "https://a.example.org",
 }
 
 
@@ -120,6 +129,8 @@ def test_file_and_environment_mix_per_setting(tmp_path: Path) -> None:
         ("health_timeout", "nan"),
         ("sync_target", "inf"),
         ("test_server", "maybe"),
+        ("server_url", "http://example.org"),
+        ("health_interval", "0"),
     ],
 )
 def test_invalid_environment_value_names_the_setting(

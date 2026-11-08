@@ -1,0 +1,16 @@
+{
+  "app.title": "TimeLimit Dashboard",
+  "nav.menu": "Menu",
+  "nav.overview": "Overview",
+  "overview.title": "Overview",
+  "overview.empty": "Nothing to show yet.",
+  "overview.refresh": "Refresh from server",
+  "banner.retry": "Retry connection",
+  "banner.down": "The server cannot be reached. You see the last known data; changes are disabled.",
+  "banner.not_configured": "No server is set up yet. Choose a server in the settings.",
+  "error.SERVER_UNREACHABLE": "The server cannot be reached.",
+  "error.SERVER_TIMEOUT": "The server did not answer in time.",
+  "error.READ_ONLY_OFFLINE": "The server is offline; changes are disabled.",
+  "error.INTERNAL_ERROR": "Something went wrong.",
+  "error.unknown": "Something went wrong."
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TimeLimit Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+  <script type="application/json" id="timings">{{ timings | tojson }}</script>
+</head>
+<body>
+  <header class="topbar">
+    <button type="button" class="menu-toggle" id="menu-toggle" aria-controls="sidebar" aria-expanded="false" data-i18n-aria="nav.menu">&#9776;</button>
+    <h1 class="app-title" data-i18n="app.title">TimeLimit Dashboard</h1>
+  </header>
+  <div class="shell">
+    <nav class="sidebar" id="sidebar" aria-label="Main">
+      <a class="nav-link" href="/" aria-current="page" data-i18n="nav.overview">Overview</a>
+    </nav>
+    <main class="content">
+      <div id="server-banner" class="banner" role="status" aria-live="polite" hidden data-state="unknown">
+        <span id="server-banner-text"></span>
+        <button type="button" id="retry-connection" data-i18n="banner.retry">Retry connection</button>
+      </div>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

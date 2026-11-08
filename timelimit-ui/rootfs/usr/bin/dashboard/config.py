@@ -22,6 +22,8 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
+from dashboard.client.server import validate_server_url
+from dashboard.domain.errors import DashboardError
 from dashboard.domain.secret import Secret
 
 ENV_PREFIX = "DASHBOARD_"
@@ -84,6 +86,17 @@ def _parse_seconds(raw: Any) -> float:
     return value
 
 
+def _parse_server_url(raw: Any) -> str:
+    """Empty = no server chosen yet; otherwise the SEC-002 rules decide."""
+    text = str(raw).strip()
+    if not text:
+        return ""
+    try:
+        return validate_server_url(text)
+    except DashboardError as error:
+        raise ValueError(error.message) from None
+
+
 def _parse_host(raw: Any) -> str:
     text = str(raw).strip()
     if not text:
@@ -109,12 +122,15 @@ class Settings:
     log_max_bytes: int = 10 * 1024 * 1024
     log_backup_count: int = 5
     health_timeout: float = 3.0
+    health_interval: float = 5.0
     backoff_initial: float = 10.0
     backoff_max: float = 30.0
     sync_target: float = 5.0
     browser_timeout: float = 10.0
     server_timeout: float = 10.0
     test_server: bool = False
+    # Temporary until the settings screen with the server dropdown exists (design 8.1).
+    server_url: str = ""
 
     @property
     def log_dir(self) -> Path:
@@ -133,12 +149,14 @@ PARSERS: dict[str, Callable[[Any], Any]] = {
     "log_max_bytes": _parse_int(1),
     "log_backup_count": _parse_int(1),
     "health_timeout": _parse_seconds,
+    "health_interval": _parse_seconds,
     "backoff_initial": _parse_seconds,
     "backoff_max": _parse_seconds,
     "sync_target": _parse_seconds,
     "browser_timeout": _parse_seconds,
     "server_timeout": _parse_seconds,
     "test_server": _parse_bool,
+    "server_url": _parse_server_url,
 }
 
 

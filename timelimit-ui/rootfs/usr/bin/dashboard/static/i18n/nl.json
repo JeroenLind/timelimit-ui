@@ -1,0 +1,16 @@
+{
+  "app.title": "TimeLimit Dashboard",
+  "nav.menu": "Menu",
+  "nav.overview": "Overzicht",
+  "overview.title": "Overzicht",
+  "overview.empty": "Nog niets om te tonen.",
+  "overview.refresh": "Opnieuw ophalen van de server",
+  "banner.retry": "Verbinding opnieuw proberen",
+  "banner.down": "De server is niet bereikbaar. Je ziet de laatst bekende gegevens; wijzigen is uitgeschakeld.",
+  "banner.not_configured": "Er is nog geen server ingesteld. Kies een server in de instellingen.",
+  "error.SERVER_UNREACHABLE": "De server is niet bereikbaar.",
+  "error.SERVER_TIMEOUT": "De server antwoordde niet op tijd.",
+  "error.READ_ONLY_OFFLINE": "De server is offline; wijzigen is uitgeschakeld.",
+  "error.INTERNAL_ERROR": "Er ging iets mis.",
+  "error.unknown": "Er ging iets mis."
+}

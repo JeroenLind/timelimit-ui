@@ -7,9 +7,10 @@ from flask import Flask
 from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
-from dashboard.routes import health
+from dashboard.routes import health, pages, server
 from dashboard.routes.errors import register_error_handling
 from dashboard.services.clock import SystemClock
+from dashboard.services.connection import ConnectionService
 
 
 def create_app(
@@ -21,7 +22,10 @@ def create_app(
     app.extensions["dashboard"] = {
         "settings": settings,
         "clock": clock or SystemClock(),
+        "connection": ConnectionService(settings),
     }
     register_error_handling(app)
     app.register_blueprint(health.bp)
+    app.register_blueprint(server.bp)
+    app.register_blueprint(pages.bp)
     return app
