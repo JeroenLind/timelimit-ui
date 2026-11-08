@@ -138,10 +138,10 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-1000 | M | Health check on page load with a configurable timeout (default 3 s). | Open (JS missing) |
-| FR-1001 | M | When the server is unreachable: offline banner, **read-only view from the cache**, all change controls disabled, SSE/WebSocket closed, no requests queued. | Open (JS missing) |
-| FR-1002 | M | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and a "Retry connection" button. | Open (JS missing) |
-| FR-1003 | M | When the server is back, controls are re-enabled and data is refreshed with a sync. | Open (JS missing) |
+| FR-1000 | M | Health check on page load with a configurable timeout (default 3 s). | Done (A7) |
+| FR-1001 | M | When the server is unreachable: offline banner, **read-only view from the cache**, all change controls disabled, SSE/WebSocket closed, no requests queued. | Done (A7) |
+| FR-1002 | M | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and a "Retry connection" button. | Done (A7) |
+| FR-1003 | M | When the server is back, controls are re-enabled and data is refreshed with a sync. | Done (A7) |
 
 ### 2.12 Audit log
 

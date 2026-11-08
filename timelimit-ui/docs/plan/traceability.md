@@ -41,10 +41,10 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-801 | M | E11 | – | Adding a user pushes ADD_USER first; a 502 is shown when the server does not confirm. Pare |
 | FR-900 | M | B4, E3 | – | Rules, categories, extra time and blocking use device integrity: no password prompt. |
 | FR-901 | M | E10 | – | A password prompt (modal, per action, password never stored) appears only for server-requi |
-| FR-1000 | M | A7 | – | Health check on page load with a configurable timeout (default 3 s). |
-| FR-1001 | M | A7 | – | When the server is unreachable: offline banner, read-only view from the cache, all change  |
-| FR-1002 | M | A7 | – | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and  |
-| FR-1003 | M | A7 | – | When the server is back, controls are re-enabled and data is refreshed with a sync. |
+| FR-1000 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | Health check on page load with a configurable timeout (default 3 s). |
+| FR-1001 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | When the server is unreachable: offline banner, read-only view from the cache, all change  |
+| FR-1002 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | Reconnection polling with exponential backoff (default 10 s → 30 s max, configurable) and  |
+| FR-1003 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | When the server is back, controls are re-enabled and data is refreshed with a sync. |
 | FR-1100 | M | E12 | – | Every change made through the dashboard (action type, child, result, time) is logged and s |
 | FR-1101 | M | E12 | – | Entries older than 30 days are removed automatically. |
 | NFR-001 | M | B5 | – | Sync target: a change is visible within 5 s on a local network. The target is configurable |
@@ -64,14 +64,14 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-202 | M | B1 | – | No parent passwords are stored. Only the device auth token (and own ids) are stored locall |
 | TR-300 | M | A3 | dashboard/tests/test_start.py | Python 3.10+; requirements.txt with loose version ranges. Starts with py -3 app.py on Wind |
 | TR-301 | M | A3 | dashboard/tests/test_config.py | All settings (port, data directory, log level, timings) come from a config file/environmen |
-| TR-303 | M | A6, A7 | dashboard/tests/test_client.py | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
+| TR-303 | M | A6, A7 | dashboard/tests/test_client.py, dashboard/tests/test_ui_offline.py | Timeouts: all outgoing server requests and all browser fetch calls have a timeout (AbortCo |
 | TR-305 | M | A3 | dashboard/tests/test_start.py, test_config.py | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
 | TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
 | TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
 | TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | – | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | – | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
-| TR-311 | M | A7, D1 | – | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
+| TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py (first part) | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
 | TR-312 | M | C1, C2, G1 | – | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
 | TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |
 | TR-401 | M | A3 | dashboard/tests/test_logs.py | Log rotation with limited size and file count. |
