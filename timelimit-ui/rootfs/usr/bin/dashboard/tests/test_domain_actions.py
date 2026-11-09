@@ -524,3 +524,10 @@ def test_app_logic_item_has_no_integrity() -> None:
 
 def test_day_mask_default_is_every_day() -> None:
     assert act.create_timelimit_rule("rul001", C1, 1)["rule"]["days"] == ALL_DAYS_MASK
+
+
+def test_traceability_lists_every_v1_action() -> None:
+    table = Path(__file__).resolve().parents[5] / "docs" / "plan" / "traceability.md"
+    text = table.read_text(encoding="utf-8")
+    missing = [wire for wire in VALID if f"| `{wire}` |" not in text]
+    assert missing == []

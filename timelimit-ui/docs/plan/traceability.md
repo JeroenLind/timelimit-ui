@@ -54,9 +54,9 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | SEC-001 | M | A3 | dashboard/tests/test_start.py | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
 | SEC-002 | M | A6 | dashboard/tests/test_client.py | The server connection uses HTTPS when the server is not on the local network. Plain HTTP i |
 | SEC-003 | M | B1, E1 | dashboard/tests/test_repository.py | The device auth token is stored only on the local disk (database and session file), never  |
-| TR-100 | M | B2 | – | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
-| TR-101 | M | B2 | – | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters [0-9a-zA-Z]; e |
-| TR-102 | M | B2 | – | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+devi |
+| TR-100 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
+| TR-101 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters [0-9a-zA-Z]; e |
+| TR-102 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+devi |
 | TR-103 | M | B3 | – | ClientDataStatus contains all versions and per-category data (D10). |
 | TR-104 | M | A6 | dashboard/tests/test_client.py | The dashboard sends clientLevel 7 and only uses features available at that level. |
 | TR-200 | M | B1 | dashboard/tests/test_repository.py | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
@@ -76,7 +76,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |
 | TR-401 | M | A3 | dashboard/tests/test_logs.py | Log rotation with limited size and file count. |
 | TR-500 | M | A2 | dashboard/tests/test_isolation.py | pytest unit tests, isolated (own temporary database and log folder per test), parallel wit |
-| TR-501 | M | A5, B2 | dashboard/tests/test_fakeserver.py, dashboard/tests/kept/test_action_builder.py (partial; completed in B2) | Contract tests: every action the dashboard can produce is validated against the schemas ge |
+| TR-501 | M | A5, B2 | dashboard/tests/test_fakeserver.py, dashboard/tests/test_domain_actions.py | Contract tests: every action the dashboard can produce is validated against the schemas ge |
 | TR-502 | M | A7, D1, E-steps | – | Browser/UI tests (Playwright) for the main screens: overview, child detail, rule dialog, h |
 | TR-504 | M | G2 | – | Documentation stays in sync: this document, docs/ServerAPI.md, and design notes are update |
 | TR-510 | M | A0 | – | One tool for style and lint: ruff (lint and format), configured in pyproject.toml. ruff ch |
@@ -91,3 +91,40 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | UI-005 | M | D1 | – | Languages: Dutch and English, selectable in settings. Default: the browser language when i |
 | UI-006 | M | D1 | – | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. |
 | UI-007 | M | E4 | – | Every action shows its state: pending, confirmed, failed. |
+
+
+## v1 action coverage (B2)
+
+Every parent action the dashboard sends in v1 has a builder in `dashboard/domain/actions.py`, a valid case checked against the server schema and invalid cases that raise `ActionError`. `test_every_v1_type_has_a_builder_and_is_a_known_server_action` fails when a server parent action is neither built nor explicitly out of v1; `test_traceability_lists_every_v1_action` fails when this table is out of date. Bitmasks: `dashboard/tests/test_domain_bitmask.py`; integrity and password containers: `dashboard/tests/test_domain_integrity.py`.
+
+| Action type | Requirements | Builder | Test |
+|---|---|---|---|
+| `CREATE_TIMELIMIT_RULE` | FR-300, FR-303 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_TIMELIMIT_RULE` | FR-300, FR-303, FR-307 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `DELETE_TIMELIMIT_RULE` | FR-300 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `CREATE_CATEGORY` | FR-400 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `DELETE_CATEGORY` | FR-400 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_TITLE` | FR-400 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_PARENT_CATEGORY` | FR-401 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_SORTING` | FR-401 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_BLOCKED_TIMES` | FR-304 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_FLAGS` | FR-402 (1) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_TIME_WARNINGS` | FR-402 (2) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_BLOCK_ALL_NOTIFICATIONS` | FR-402 (2) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_BATTERY_LIMIT` | FR-402 (3) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `ADD_CATEGORY_NETWORK_ID` | FR-402 (3) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `RESET_CATEGORY_NETWORK_IDS` | FR-402 (3) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_CATEGORY_FOR_UNASSIGNED_APPS` | FR-402 (4) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_DISABLE_LIMITS` | FR-402 (4) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_USER_DISABLE_LIMITS_UNTIL` | FR-505 (optional) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `INCREMENT_CATEGORY_EXTRATIME` | FR-500, FR-501 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_CATEGORY_EXTRA_TIME` | FR-502 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `UPDATE_CATEGORY_TEMPORARILY_BLOCKED` | FR-503, FR-504 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `ADD_CATEGORY_APPS` | FR-403 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `REMOVE_CATEGORY_APPS` | FR-403 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `ADD_USER` | FR-800, FR-801 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `REMOVE_USER` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `RENAME_CHILD` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_USER_TIMEZONE` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_KEEP_SIGNED_IN` | FR-901, FR-902 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `CHANGE_PARENT_PASSWORD` | FR-901 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |

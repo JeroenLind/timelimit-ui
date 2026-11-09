@@ -111,7 +111,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | FR-800 | M | A clearly separated "Test" section lets the parent create family members (`ADD_USER`) for a **local test server that is not linked to an app**. A switch **"This is a test server"** in settings (default off) enables it; with the switch off the menu item is absent and its routes answer 404. The page `debug_database.html` is part of this section. | Partial |
-| FR-801 | M | Adding a user pushes `ADD_USER` first; a 502 is shown when the server does not confirm. Parent users need the DH-encrypted password container. | Done (child) / Open (parent) |
+| FR-801 | M | Adding a user pushes `ADD_USER` first; a 502 is shown when the server does not confirm. Parent users need the DH-encrypted password container. | Done (child) / Partial (parent: builder and container B2, flow E10) |
 
 ### 2.9 Parent security
 
@@ -206,7 +206,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests (until the cut-over the old tests run apart as a legacy suite, see `docs/plan/old-tests-disposition.md`); tests that only grep source text are replaced by behaviour tests; tests of deleted code are removed. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
-| TR-501 | M | **Contract tests**: every action the dashboard can produce is validated against the schemas generated from the server. | Partial |
+| TR-501 | M | **Contract tests**: every action the dashboard can produce is validated against the schemas generated from the server. | Done (A5, B2) |
 | TR-502 | M | **Browser/UI tests** (Playwright) for the main screens: overview, child detail, rule dialog, hamburger menu, offline banner. | Open |
 | TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | – |
 | TR-504 | M | Documentation stays in sync: this document, `docs/ServerAPI.md`, and design notes are updated with every feature or fix. | – |

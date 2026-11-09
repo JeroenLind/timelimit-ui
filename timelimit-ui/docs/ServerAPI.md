@@ -529,6 +529,23 @@ Things to know that the table cannot show:
 - A `parent` action sent as `appLogic` is rejected (the server cannot parse it as an app-logic action). This fails silently, see [5.3](#53-push-actions).
 - Extra or missing fields make the action invalid; the server validates each action against its schema.
 
+Value formats and limits verified in the server source (B2; the dashboard builders in `dashboard/domain/actions.py` enforce them and are contract-tested against the server schemas):
+
+| Item | Format |
+|---|---|
+| Day mask (`days` of a rule) | bit 0 = Monday … bit 6 = Sunday, 0–127, 127 = every day |
+| `UPDATE_CATEGORY_BLOCKED_TIMES.times` | Comma separated pairs `start,end` of **minutes of the week** (Monday 00:00 = 0, maximum 10080). The end is exclusive. All numbers must be **strictly increasing**, so pairs that touch (`0,10,10,20`) or overlap are rejected. The empty string means nothing is blocked. Source `util/bitmask.ts` |
+| `INCREMENT_CATEGORY_EXTRATIME` / `SET_CATEGORY_EXTRA_TIME` | `day`: `-1` = every day (default), otherwise the **day of epoch** (days since 1970-01-01) of the child's date, which limits the extra time to that day. `addedExtraTime` / `newExtraTime` ≥ 0 (milliseconds). Needs premium |
+| `UPDATE_CATEGORY_TEMPORARILY_BLOCKED` | `endTime` is only allowed with `blocked: true`. `blocked: true` needs premium |
+| `UPDATE_CATEGORY_FLAGS` | `modified` = bits to change, `values` = new values (a subset of `modified`). The server knows **one** flag: bit 1 = `hasBlockedNetworkList`; anything above is rejected |
+| `UPDATE_CATEGORY_TIME_WARNINGS` | `flags` ⊆ 31 (bits 1,2,4,8,16); `minutes` 1 … 10078 (`60*24*7-2`) |
+| `UPDATE_CATEGORY_BATTERY_LIMIT` | `chargeLimit`, `mobileLimit` 0–100 percent; an omitted field clears that limit |
+| `UPDATE_CATEGORY_BLOCK_ALL_NOTIFICATIONS` | `blockDelay` ≥ 0 or omitted |
+| `ADD_CATEGORY_NETWORK_ID` | `hashedNetworkId`: exactly 8 hex characters |
+| `SET_PARENT_CATEGORY`, `SET_CATEGORY_FOR_UNASSIGNED_APPS` | an id, or the empty string for "none" |
+| `SET_USER_TIMEZONE` | the field is `timezone` (all lower case), unlike `ADD_USER.timeZone` |
+| `SET_USER_DISABLE_LIMITS_UNTIL.time`, `UPDATE_CATEGORY_DISABLE_LIMITS.endTime` | epoch milliseconds ≥ 0; 0 switches it off |
+
 ---
 
 ## 8. Crypto
@@ -543,7 +560,17 @@ Things to know that the table cannot show:
 | Container format | `base64(iv \|\| ciphertext \|\| tag) "." base64(ownPublicKey) "." keyId` |
 | AAD | `ParentPassword:{hash}:{secondSalt}` |
 
-Used for `EncryptableParentPassword` (changing a parent password, adding a parent user). The dashboard does not need it for the flows in [5.5](#55-typical-flows). Earlier project notes said "first 32 bytes" and "secp25619"; both were wrong (16 bytes, secp256r1/prime256v1).
+The table above is the **DH container**, used only for `EncryptableParentPassword` with `encrypted: true`, i.e. `ADD_USER` of a parent (the second hash is the encrypted part; the AAD binds `hash` and `secondSalt`). The client takes the server's public key and its version id from the `dh` entry (`k`, `v`) of the pull-status response, creates an ephemeral P-256 key pair and sends its own public key inside the container. Built by `encrypt_parent_password` in `dashboard/domain/integrity.py`.
+
+`CHANGE_PARENT_PASSWORD` uses a **different, older scheme** (source `action/changeparentpassword.ts`):
+
+| Item | Value |
+|---|---|
+| `secondHashEncrypted` | hex of `iv (16 bytes) ‖ salt (16 bytes, written as 32 hex characters) ‖ ciphertext`; more than 70 hex characters |
+| Cipher | AES-128-CTR, no padding; key = first 16 bytes of `sha512(oldSecondHash + salt)` where `salt` is the 32-character hex text |
+| `integrity` | hex `sha512(oldSecondHash + userId + hash + secondSalt + secondHashEncrypted)` (128 characters) |
+
+The dashboard does not need either for the device-method flows in [5.5](#55-typical-flows). Earlier project notes said "first 32 bytes" and "secp25619"; both were wrong (16 bytes, secp256r1/prime256v1).
 
 ---
 
