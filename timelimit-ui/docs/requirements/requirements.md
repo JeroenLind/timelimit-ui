@@ -44,8 +44,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | FR-200 | M | Sync starts **automatically** when the dashboard starts and after every change, without user action. A sync round is: push pending actions, then pull. | Partial (no pull after push) |
-| FR-201 | M | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, apps, used times, tasks); the server returns only differing parts. The dashboard applies **all** returned parts to its cache. After each pull the cache equals the server state. | Rework (D10/D11) |
-| FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Rework |
+| FR-201 | M | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, apps, used times, tasks); the server returns only differing parts. The dashboard applies **all** returned parts to its cache. After each pull the cache equals the server state. | Partial (pull B3, push B4) |
+| FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Partial (pull side B3; push side B4) |
 | FR-203 | M | The server never reports a failed action (HTTP 200, `shouldDoFullSync:true`). The dashboard treats an action as **confirmed only** when the server does not request a full sync. Unconfirmed actions are reported to the user and rolled back in the UI. | Done (pusher) |
 | FR-204 | M | Sequence numbers are persistent per device, start at 0, and are reserved before sending. Max 25 actions per request. | Done |
 | FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Rework |
@@ -161,7 +161,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-100 | M | All server calls follow `docs/ServerAPI.md`. The server code wins over the document. | – |
 | TR-101 | M | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters `[0-9a-zA-Z]`; `encodedAction` is a JSON **string**; integrity covers exactly that string. All actions are built by `action_builder.py` and validated before a sequence number is reserved. | Done |
 | TR-102 | M | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+deviceId ‖ len+encodedAction. Verified with test vectors. | Done |
-| TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Open |
+| TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Done (B3) |
 | TR-104 | M | The dashboard sends clientLevel 7 and only uses features available at that level. | Done |
 | TR-105 | S | WebSocket (Socket.IO) per `docs/ServerAPI.md` section 6: `devicelogin`, `should sync`, `sign out`. | Open |
 | TR-106 | S | Requests are gzip-compressed with retry on HTTP 411, like the Android app. | Done (A6) |

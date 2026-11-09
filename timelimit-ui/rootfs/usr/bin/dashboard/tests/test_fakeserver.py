@@ -333,6 +333,7 @@ def test_pull_sends_only_what_changed(api: Api) -> None:
         **blank_status(),
         "devices": first["devices"]["version"],
         "users": first["users"]["version"],
+        "apps": {a["deviceId"]: a["version"] for a in first["apps"]},
         "categories": {
             "cat001": {
                 "base": first["categoryBase"][0]["version"],

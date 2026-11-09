@@ -81,18 +81,12 @@ class CacheRepository:
 
     # -- versions --------------------------------------------------------------------------------------
     def _set_version(self, scope: Scope, name: str, value: str) -> None:
-        conn = self._db.connection()
-        if (
-            conn.execute(
-                "UPDATE versions SET value=? WHERE profile_key=? AND family_id=? AND name=?",
-                (value, *scope.args, name),
-            ).rowcount
-            == 0
-        ):
-            conn.execute(
-                "INSERT INTO versions (profile_key, family_id, name, value) VALUES (?, ?, ?, ?)",
-                (*scope.args, name, value),
-            )
+        # One atomic statement: update-then-insert let two threads both insert (found in B3).
+        self._db.connection().execute(
+            "INSERT INTO versions (profile_key, family_id, name, value) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT (profile_key, family_id, name) DO UPDATE SET value=excluded.value",
+            (*scope.args, name, value),
+        )
 
     def version(self, scope: Scope, name: str) -> str:
         row = (
@@ -105,26 +99,54 @@ class CacheRepository:
         )
         return str(row["value"]) if row else ""
 
+    # -- bookkeeping that is not a version of server data ---------------------------------------------
+    def set_meta(self, scope: Scope, name: str, value: str) -> None:
+        """Small facts about the cache (server info, the "full resync" notice). Not sent to the server."""
+        self._set_version(scope, f"meta:{name}", value)
+
+    def meta(self, scope: Scope, name: str) -> str:
+        return self.version(scope, f"meta:{name}")
+
+    def forget_versions(self, scope: Scope) -> None:
+        """After ``shouldDoFullSync`` (FR-202): the next pull asks for everything. The data stays in place
+        until the answer replaces it, so a failed pull leaves the cache usable."""
+        with self._db.transaction() as conn:
+            conn.execute(
+                "DELETE FROM versions WHERE profile_key=? AND family_id=? AND name NOT LIKE 'meta:%'",
+                scope.args,
+            )
+            conn.execute(
+                "UPDATE categories SET base_version='', apps_version='', rules_version='',"
+                " used_time_version='' WHERE profile_key=? AND family_id=?",
+                scope.args,
+            )
+
     # -- devices and users ---------------------------------------------------------------------------------
     def set_devices(
         self, scope: Scope, devices: Iterable[dict[str, Any]], version: str
     ) -> None:
-        self._replace_entities(
-            scope,
-            "devices",
-            "device_id",
-            {d["deviceId"]: d for d in devices},
-            mark_missing=True,
-        )
-        self._set_version(scope, "devices", version)
+        with self._db.transaction():
+            self._replace_entities(
+                scope,
+                "devices",
+                "device_id",
+                {d["deviceId"]: d for d in devices},
+                mark_missing=True,
+            )
+            self._set_version(scope, "devices", version)
 
     def set_users(
         self, scope: Scope, users: Iterable[dict[str, Any]], version: str
     ) -> None:
-        self._replace_entities(
-            scope, "users", "user_id", {u["id"]: u for u in users}, mark_missing=True
-        )
-        self._set_version(scope, "users", version)
+        with self._db.transaction():
+            self._replace_entities(
+                scope,
+                "users",
+                "user_id",
+                {u["id"]: u for u in users},
+                mark_missing=True,
+            )
+            self._set_version(scope, "users", version)
 
     def devices(self, scope: Scope) -> list[CachedItem]:
         return self._items(scope, "devices", "device_id")

@@ -64,6 +64,8 @@ class Device:
     next_sequence_number: int = 0
     added_at: int = field(default_factory=lambda: int(time.time() * 1000))
     last_connectivity: int = 0
+    installed_apps: list[dict[str, Any]] = field(default_factory=list)
+    apps_version: str = field(default_factory=version_id)
 
 
 @dataclass
@@ -345,6 +347,19 @@ class World:
                 "version": family.user_list_version,
                 "data": [_user_entry(u) for u in family.users.values()],
             }
+        known_apps: dict[str, Any] = client.get("apps") or {}
+        apps_out = [
+            {
+                "deviceId": d.device_id,
+                "version": d.apps_version,
+                "apps": list(d.installed_apps),
+                "activities": [],
+            }
+            for d in family.devices.values()
+            if known_apps.get(d.device_id) != d.apps_version
+        ]
+        if apps_out:
+            out["apps"] = apps_out
         known: dict[str, Any] = client.get("categories") or {}
         removed = [cid for cid in known if cid not in family.categories]
         if removed:

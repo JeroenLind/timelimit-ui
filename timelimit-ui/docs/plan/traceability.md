@@ -8,8 +8,8 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-101 | M | E1 | – | The dashboard device is signed in as a separate parent user "Dashboard" (never as a person |
 | FR-103 | M | E1 | dashboard/tests/test_repository.py | Only one family per installation. Switching family means resetting the installation. |
 | FR-200 | M | B4, B5 | – | Sync starts automatically when the dashboard starts and after every change, without user a |
-| FR-201 | M | B3 | – | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, app |
-| FR-202 | M | B3 | – | After shouldDoFullSync the dashboard forgets all versions, fully re-pulls, refreshes the U |
+| FR-201 | M | B3 | dashboard/tests/test_pull.py | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, app |
+| FR-202 | M | B3 | dashboard/tests/test_pull.py | After shouldDoFullSync the dashboard forgets all versions, fully re-pulls, refreshes the U |
 | FR-203 | M | B4, B5 | – | The server never reports a failed action (HTTP 200, shouldDoFullSync:true). The dashboard  |
 | FR-204 | M | B4, B5 | – | Sequence numbers are persistent per device, start at 0, and are reserved before sending. M |
 | FR-205 | M | E4 | – | A newly added item (e.g. a user in the test section) is shown immediately with the marker  |
@@ -57,7 +57,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-100 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | All server calls follow docs/ServerAPI.md. The server code wins over the document. |
 | TR-101 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters [0-9a-zA-Z]; e |
 | TR-102 | M | B2 | dashboard/tests/test_domain_actions.py, dashboard/tests/test_domain_integrity.py | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+devi |
-| TR-103 | M | B3 | – | ClientDataStatus contains all versions and per-category data (D10). |
+| TR-103 | M | B3 | dashboard/tests/test_pull.py | ClientDataStatus contains all versions and per-category data (D10). |
 | TR-104 | M | A6 | dashboard/tests/test_client.py | The dashboard sends clientLevel 7 and only uses features available at that level. |
 | TR-200 | M | B1 | dashboard/tests/test_repository.py | SQLite is the cache. One file in the data folder (data/ next to the app on Windows, /data  |
 | TR-201 | M | B1 | dashboard/tests/test_repository.py | Database access is thread-safe; writes that change several tables use one transaction. syn |
