@@ -7,11 +7,11 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-100 | M | E1 | – | On first start the dashboard shows a settings screen where the server is selected with a d |
 | FR-101 | M | E1 | – | The dashboard device is signed in as a separate parent user "Dashboard" (never as a person |
 | FR-103 | M | E1 | dashboard/tests/test_repository.py | Only one family per installation. Switching family means resetting the installation. |
-| FR-200 | M | B4, B5 | – | Sync starts automatically when the dashboard starts and after every change, without user a |
+| FR-200 | M | B4, B5 | dashboard/tests/test_push.py (B4) | Sync starts automatically when the dashboard starts and after every change, without user a |
 | FR-201 | M | B3 | dashboard/tests/test_pull.py | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, app |
 | FR-202 | M | B3 | dashboard/tests/test_pull.py | After shouldDoFullSync the dashboard forgets all versions, fully re-pulls, refreshes the U |
-| FR-203 | M | B4, B5 | – | The server never reports a failed action (HTTP 200, shouldDoFullSync:true). The dashboard  |
-| FR-204 | M | B4, B5 | – | Sequence numbers are persistent per device, start at 0, and are reserved before sending. M |
+| FR-203 | M | B4, B5 | dashboard/tests/test_push.py (B4) | The server never reports a failed action (HTTP 200, shouldDoFullSync:true). The dashboard  |
+| FR-204 | M | B4, B5 | dashboard/tests/test_push.py (B4) | Sequence numbers are persistent per device, start at 0, and are reserved before sending. M |
 | FR-205 | M | E4 | – | A newly added item (e.g. a user in the test section) is shown immediately with the marker  |
 | FR-206 | M | E4 | dashboard/tests/test_repository.py | Users and other entities that the server no longer reports are kept and flagged "no longer |
 | FR-207 | M | B6 | – | A change by another parent or by the app appears instantly through the server WebSocket (s |

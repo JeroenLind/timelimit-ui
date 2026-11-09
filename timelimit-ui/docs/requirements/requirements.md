@@ -43,7 +43,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-200 | M | Sync starts **automatically** when the dashboard starts and after every change, without user action. A sync round is: push pending actions, then pull. | Partial (no pull after push) |
+| FR-200 | M | Sync starts **automatically** when the dashboard starts and after every change, without user action. A sync round is: push pending actions, then pull. | Partial (push and pull B4; automatic worker B5) |
 | FR-201 | M | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, apps, used times, tasks); the server returns only differing parts. The dashboard applies **all** returned parts to its cache. After each pull the cache equals the server state. | Partial (pull B3, push B4) |
 | FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Partial (pull side B3; push side B4) |
 | FR-203 | M | The server never reports a failed action (HTTP 200, `shouldDoFullSync:true`). The dashboard treats an action as **confirmed only** when the server does not request a full sync. Unconfirmed actions are reported to the user and rolled back in the UI. | Done (pusher) |
