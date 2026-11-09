@@ -11,6 +11,7 @@ Formats verified in the server source (``util/bitmask.ts``, ``action/*``):
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from datetime import date, datetime, tzinfo
 
 MINUTES_PER_DAY = 1440
 MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
@@ -123,3 +124,14 @@ def week_minute(weekday: int, minute_of_day: int) -> int:
             f"minute of day must be 0..{MINUTES_PER_DAY}, got {minute_of_day!r}"
         )
     return weekday * MINUTES_PER_DAY + minute_of_day
+
+
+def day_of_epoch(moment: datetime, zone: tzinfo) -> int:
+    """Days since 1970-01-01 of ``moment`` in ``zone``; the ``day`` of extra time for "today only".
+
+    The Android app sends ``dayOfEpoch`` of the child's date (``-1`` means every day). ``moment`` must be
+    time-zone aware and comes from the injected clock.
+    """
+    if moment.tzinfo is None:
+        raise BitmaskError("moment must be time-zone aware")
+    return (moment.astimezone(zone).date() - date(1970, 1, 1)).days

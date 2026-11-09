@@ -102,7 +102,7 @@ def decrypt_second_hash(*, old_second_hash: str, encrypted: str) -> str:
     decryptor = Cipher(algorithms.AES(key), modes.CTR(iv)).decryptor()
     return (
         decryptor.update(bytes.fromhex(encrypted[64:])) + decryptor.finalize()
-    ).decode("utf-8")
+    ).decode("utf-8", errors="replace")
 
 
 def change_password_integrity(

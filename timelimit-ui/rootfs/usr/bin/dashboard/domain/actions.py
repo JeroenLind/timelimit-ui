@@ -22,7 +22,12 @@ import string
 from collections.abc import Iterable
 from typing import Any
 
-from dashboard.domain.bitmask import ALL_DAYS_MASK, Interval, format_blocked_times
+from dashboard.domain.bitmask import (
+    ALL_DAYS_MASK,
+    BitmaskError,
+    Interval,
+    format_blocked_times,
+)
 from dashboard.domain.integrity import password_integrity
 
 Action = dict[str, Any]
@@ -242,10 +247,14 @@ def update_category_blocked_times(
     category_id: str, intervals: list[Interval]
 ) -> Action:
     """``intervals``: (start, end) minutes of the week; see :mod:`dashboard.domain.bitmask`."""
+    try:
+        times = format_blocked_times(intervals)
+    except BitmaskError as error:
+        raise ActionError(str(error)) from error
     return {
         "type": "UPDATE_CATEGORY_BLOCKED_TIMES",
         "categoryId": _id("categoryId", category_id),
-        "times": format_blocked_times(intervals),
+        "times": times,
     }
 
 
@@ -519,7 +528,7 @@ def set_user_timezone(user_id: str, time_zone: str) -> Action:
     return {
         "type": "SET_USER_TIMEZONE",
         "userId": _id("userId", user_id),
-        "timeZone": _text("timeZone", time_zone),
+        "timezone": _text("timezone", time_zone),
     }
 
 
