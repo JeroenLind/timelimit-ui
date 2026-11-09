@@ -40,6 +40,9 @@ class Faults:
     delay_seconds: float = 0.0
     fail_next: list[int] = field(default_factory=list)  # statuses for the next requests
     drop_connection: bool = False  # close the connection without answering
+    refuse_socket: bool = (
+        False  # reject new Socket.IO connections (the HTTP API keeps working)
+    )
     active: int = 0  # requests being handled right now
     max_parallel: int = (
         0  # highest value `active` reached (tests assert serial use of the server)
@@ -78,6 +81,21 @@ def create_app(
             if tok == token:
                 sio.emit(event, data, to=sid)
 
+    @sio.on("connect")  # type: ignore[untyped-decorator]
+    def connect(sid: str, environ: Any, auth: Any = None) -> bool:
+        world.socket_connects.append(time.monotonic())
+        if faults.refuse_socket:
+            # Rejecting alone leaves the engine.io long poll open for ~25 s, which would block a client
+            # that wants to close; close the transport as a real refusing proxy would.
+
+            def close_later() -> None:
+                time.sleep(0.05)
+                sio.eio.disconnect(sid)
+
+            sio.start_background_task(close_later)
+            return False
+        return True
+
     @sio.on("devicelogin")  # type: ignore[untyped-decorator]
     def devicelogin(sid: str, token: Any, ack: Any = None) -> None:
         if isinstance(token, str):
@@ -86,6 +104,9 @@ def create_app(
     @sio.on("disconnect")  # type: ignore[untyped-decorator]
     def disconnect(sid: str, *_: Any) -> None:
         rooms.pop(sid, None)
+
+    app.extensions["emit_to_token"] = emit_to_token
+    app.extensions["socket_rooms"] = rooms
 
     @app.before_request
     def inject_faults() -> Response | None:

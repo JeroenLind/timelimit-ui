@@ -14,7 +14,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-204 | M | B4, B5 | dashboard/tests/test_push.py (B4) | Sequence numbers are persistent per device, start at 0, and are reserved before sending. M |
 | FR-205 | M | E4 | – | A newly added item (e.g. a user in the test section) is shown immediately with the marker  |
 | FR-206 | M | E4 | dashboard/tests/test_repository.py | Users and other entities that the server no longer reports are kept and flagged "no longer |
-| FR-207 | M | B6 | – | A change by another parent or by the app appears instantly through the server WebSocket (s |
+| FR-207 | M | B6 | dashboard/tests/test_live.py (B6) | A change by another parent or by the app appears instantly through the server WebSocket (s |
 | FR-208 | M | E4 | – | Conflicts: last writer wins. If the data being edited changed on the server in the meantim |
 | FR-209 | M | E4 | – | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (m |
 | FR-300 | M | E3 | – | Per category, parents can create, view, edit and delete rules (CREATE/UPDATE/DELETE_TIMELI |

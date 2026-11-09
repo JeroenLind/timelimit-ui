@@ -126,6 +126,7 @@ class Settings:
     backoff_initial: float = 10.0
     backoff_max: float = 30.0
     sync_target: float = 5.0
+    poll_interval: float = 30.0
     retry_delay: float = 0.25
     retry_count: int = 2
     browser_timeout: float = 10.0
@@ -155,6 +156,7 @@ PARSERS: dict[str, Callable[[Any], Any]] = {
     "backoff_initial": _parse_seconds,
     "backoff_max": _parse_seconds,
     "sync_target": _parse_seconds,
+    "poll_interval": _parse_seconds,
     "retry_delay": _parse_seconds,
     "retry_count": _parse_int(0, 10),
     "browser_timeout": _parse_seconds,

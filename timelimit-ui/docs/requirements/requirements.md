@@ -50,7 +50,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-204 | M | Sequence numbers are persistent per device, start at 0, and are reserved before sending. Max 25 actions per request. | Done |
 | FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Rework |
 | FR-206 | M | Users and other entities that the server no longer reports are **kept** and flagged "no longer on server" until the parent cleans them up. | Done (B1, storage) |
-| FR-207 | M | A change by another parent or by the app appears **instantly** through the server WebSocket (`should sync`). If the socket is unavailable the dashboard polls (interval configurable). | Open |
+| FR-207 | M | A change by another parent or by the app appears **instantly** through the server WebSocket (`should sync`). If the socket is unavailable the dashboard polls (interval configurable). | Done (backend B6; browser use in E-steps) |
 | FR-208 | M | Conflicts: last writer wins. If the data being edited changed on the server in the meantime, the UI shows a warning before saving. | Open |
 | FR-209 | M | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (message contains the reason when known). | Partial |
 
@@ -163,7 +163,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-102 | M | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+deviceId ‖ len+encodedAction. Verified with test vectors. | Done |
 | TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Done (B3) |
 | TR-104 | M | The dashboard sends clientLevel 7 and only uses features available at that level. | Done |
-| TR-105 | S | WebSocket (Socket.IO) per `docs/ServerAPI.md` section 6: `devicelogin`, `should sync`, `sign out`. | Open |
+| TR-105 | S | WebSocket (Socket.IO) per `docs/ServerAPI.md` section 6: `devicelogin`, `should sync`, `sign out`. | Done (backend B6; browser use in E-steps) |
 | TR-106 | S | Requests are gzip-compressed with retry on HTTP 411, like the Android app. | Done (A6) |
 
 ### 3.2 Data and storage

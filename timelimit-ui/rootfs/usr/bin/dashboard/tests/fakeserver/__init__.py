@@ -39,6 +39,25 @@ class FakeTimeLimitServer:
     def url(self) -> str:
         return f"http://127.0.0.1:{self._port}"
 
+    def should_sync(self, device_token: str, *, important: bool = False) -> None:
+        """Send ``should sync`` to the socket of one device (as after a change by another device)."""
+        self._app.extensions["emit_to_token"](
+            device_token, "should sync", {"isImportant": important}
+        )
+
+    def sign_out(self, device_token: str) -> None:
+        """Send ``sign out`` as the server does when a device was removed."""
+        self._app.extensions["emit_to_token"](device_token, "sign out")
+
+    def kick_sockets(self) -> None:
+        """Close every open socket from the server side (the clients see a disconnect)."""
+        for sid in list(self._app.extensions["socket_rooms"]):
+            self._sio.disconnect(sid)
+
+    @property
+    def socket_clients(self) -> int:
+        return len(self._app.extensions["socket_rooms"])
+
     @property
     def inbox(self) -> list[tuple[str, str]]:
         """(mail address, login code) of every mail the fake 'sent'."""

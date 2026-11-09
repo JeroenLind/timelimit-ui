@@ -154,6 +154,9 @@ class World:
         self.families: dict[str, Family] = {}
         self.mail_logins: dict[str, MailLogin] = {}
         self.mail_auth: dict[str, str] = {}  # mailAuthToken -> mail
+        self.socket_connects: list[
+            float
+        ] = []  # monotonic time of every Socket.IO connect attempt
         self.old_device_tokens: set[str] = set()
         self.inbox: list[tuple[str, str]] = []  # (mail, code) of "sent" mails
         self.client_levels: list[
