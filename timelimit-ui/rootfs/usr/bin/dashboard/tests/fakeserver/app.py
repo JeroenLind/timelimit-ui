@@ -40,6 +40,11 @@ class Faults:
     delay_seconds: float = 0.0
     fail_next: list[int] = field(default_factory=list)  # statuses for the next requests
     drop_connection: bool = False  # close the connection without answering
+    active: int = 0  # requests being handled right now
+    max_parallel: int = (
+        0  # highest value `active` reached (tests assert serial use of the server)
+    )
+    lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 def html_error(status: int) -> Response:
@@ -85,6 +90,9 @@ def create_app(
     @app.before_request
     def inject_faults() -> Response | None:
         calls.append((request.method, request.path))
+        with faults.lock:
+            faults.active += 1
+            faults.max_parallel = max(faults.max_parallel, faults.active)
         world.request_encodings.append(request.headers.get("Content-Encoding", ""))
         if faults.delay_seconds:
             time.sleep(faults.delay_seconds)
@@ -93,6 +101,11 @@ def create_app(
         if faults.fail_next:
             return html_error(faults.fail_next.pop(0))
         return None
+
+    @app.teardown_request
+    def request_done(_: BaseException | None) -> None:
+        with faults.lock:
+            faults.active -= 1
 
     @app.errorhandler(HttpError)
     def on_http_error(exc: HttpError) -> Response:

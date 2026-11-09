@@ -48,7 +48,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-1100 | M | E12 | – | Every change made through the dashboard (action type, child, result, time) is logged and s |
 | FR-1101 | M | E12 | – | Entries older than 30 days are removed automatically. |
 | NFR-001 | M | B5 | – | Sync target: a change is visible within 5 s on a local network. The target is configurable |
-| NFR-002 | M | B5 | – | Reliability: sync failures are retried with back-off (TR-304) and never leave the UI froze |
+| NFR-002 | M | B5 | dashboard/tests/test_worker.py (B5) | Reliability: sync failures are retried with back-off (TR-304) and never leave the UI froze |
 | NFR-003 | M | A7 | – | Performance: the browser stays responsive when the server is down (no growing request queu |
 | NFR-004 | M | A4, D1 | – | Usability: all texts are available in Dutch and English; errors are clear and say what to  |
 | SEC-001 | M | A3 | dashboard/tests/test_start.py | The dashboard listens on localhost by default (127.0.0.1) and has no login. Remote access  |
@@ -69,7 +69,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
 | TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
 | TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
-| TR-309 | M | B5 | – | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
+| TR-309 | M | B5 | dashboard/tests/test_worker.py (B5) | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | dashboard/tests/test_repository.py | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
 | TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py (first part) | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
 | TR-312 | M | C1, C2, G1 | – | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
