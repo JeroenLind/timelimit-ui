@@ -68,7 +68,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-305 | M | A3 | dashboard/tests/test_start.py, test_config.py | Default port 8100 (configurable) and default listen address 127.0.0.1; the HA add-on sets  |
 | TR-306 | M | A3 | dashboard/tests/test_config.py | SECRET_KEY is generated randomly on first start and stored next to the database; an enviro |
 | TR-307 | M | A4 | dashboard/tests/test_errors.py | All API routes return one error envelope {status:"error", code, message, requestId} with t |
-| TR-308 | M | B7 | – | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
+| TR-308 | M | B7 | dashboard/tests/test_architecture.py (B7) | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | dashboard/tests/test_worker.py (B5) | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | dashboard/tests/test_repository.py | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
 | TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py (first part) | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |

@@ -187,7 +187,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |
 | TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Open |
 | TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Open |
-| TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Open |
+| TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Done (B7: enforced by test) |
 | TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
 | TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Done (B1) |
 | TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Open |
@@ -217,9 +217,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | TR-510 | M | **One tool for style and lint:** `ruff` (lint and format), configured in `pyproject.toml`. `ruff check` and `ruff format --check` pass on the new package. | Open |
 | TR-511 | M | **Line endings:** the repository uses LF (`.gitattributes` and `.editorconfig`); shell scripts and s6 services never get CRLF. | Open |
-| TR-512 | M | **Time and time zones:** the domain layer only uses time-zone-aware times and receives the current time from an injected clock (never calls `now()` itself), so midnight logic (FR-307) is testable without waiting. | Open |
-| TR-513 | M | **Secrets in code:** tokens, hashes and typed passwords pass through one `Secret` type / masking function; log masking (TR-402) is implemented only there. | Open |
-| TR-514 | M | **Timeouts on all I/O:** every HTTP call has an explicit timeout; a test fails on any call without one. | Open |
+| TR-512 | M | **Time and time zones:** the domain layer only uses time-zone-aware times and receives the current time from an injected clock (never calls `now()` itself), so midnight logic (FR-307) is testable without waiting. | Done (B7: enforced by test) |
+| TR-513 | M | **Secrets in code:** tokens, hashes and typed passwords pass through one `Secret` type / masking function; log masking (TR-402) is implemented only there. | Done (B7: enforced by test) |
+| TR-514 | M | **Timeouts on all I/O:** every HTTP call has an explicit timeout; a test fails on any call without one. | Done (B7: enforced by test) |
 | TR-515 | S | **Type hints** on public functions of `domain/`, `services/` and `client/`; `mypy` checks `domain/` and `client/` first. | Open |
 | TR-516 | S | **Reproducible dependencies:** `requirements.txt` keeps loose ranges (Windows); a generated constraints file pins the versions for the HA image. | Open |
 | TR-517 | S | **Pre-commit:** a local hook runs `ruff` and the fast unit tests (no Playwright); one command (`py -3 tools/check.py`) runs lint, type check and the full suite. | Open |
