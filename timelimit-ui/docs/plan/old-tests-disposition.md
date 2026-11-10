@@ -62,7 +62,6 @@ Moved in step A2 to `rootfs/usr/bin/dashboard/tests/kept/` (the modules they tes
 | File | Tests | Reason |
 |---|---|---|
 | `test_visual_responsive.py` | 97 | reads source text (94 checks); replaced by Playwright (TR-502) |
-| `test_landing.py` | 47 | old landing page |
 | `test_login_as_parent.py` | 41 | old form page (replaced by settings screen) |
 | `test_recover_parent_password.py` | 34 | old form page |
 | `test_create_family.py` | 31 | old form page |
@@ -85,3 +84,5 @@ K 61 · R 472 · S 472 · X 345 · together 1350 tests in this folder. Outside t
 - A class changes only here, with a short reason.
 - A file is deleted in the same step that deletes the code it tests (C2 or G1), never earlier.
 - Before deleting a class S or R file, its scenarios are checked off against the new tests (a short list in the step's pull request/commit message).
+
+**Removed in C2:** `test_landing.py` (47 tests; it tested `dashboard.html`, which was deleted) and the whole `test/` folder (54 tests) plus the three loose `test_*.py` scripts in the repository root. The legacy suite now collects 1201 tests (1248 − 47). The other X files stay until G1 because they test the legacy `dashboardV2` app, which is deleted as a whole then.

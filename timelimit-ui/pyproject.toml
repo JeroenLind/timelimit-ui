@@ -10,13 +10,9 @@ requires-python = ">=3.10"
 # Ruff defaults on purpose (no own rule selection); only the target and scope are set.
 target-version = "py310"
 src = ["rootfs/usr/bin"]
-# The legacy code is not linted: it is deleted at the cut-over (plan G1).
+# The legacy dashboardV2 code is not linted: it is deleted at the cut-over (plan G1).
 extend-exclude = [
     "rootfs/usr/bin/dashboardV2",
-    "rootfs/usr/bin/frontend.py",
-    "rootfs/usr/bin/web_server.py",
-    "rootfs/usr/bin/api_client.py",
-    "rootfs/usr/bin/check_server.py",
     "rootfs/usr/bin/crypto_utils.py",
 ]
 

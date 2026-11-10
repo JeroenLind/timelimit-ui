@@ -1,6 +1,6 @@
 {
-  "note": "Old dashboardV2 suite (legacy), run from rootfs/usr/bin/dashboardV2 with: pytest tests -q. Written by tools/baseline.py --record. The 77 kept tests (class K) moved to dashboard/tests/kept in step A2, so 1325 - 77 = 1248 remain.",
-  "collected": 1248,
+  "note": "Old dashboardV2 suite (legacy), run from rootfs/usr/bin/dashboardV2 with: pytest tests -q. Written by tools/baseline.py --record. The 77 kept tests (class K) moved to dashboard/tests/kept in step A2, so 1325 - 77 = 1248 remain. C2 removed test_landing.py (47) with dashboard.html, so 1201 remain.",
+  "collected": 1201,
   "platforms": {
     "linux": {
       "recorded": "2026-11-07, cloud container, Python 3.13",

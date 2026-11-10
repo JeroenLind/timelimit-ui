@@ -191,7 +191,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
 | TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Done (B1) |
 | TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Open |
-| TR-312 | M | The legacy UI layer (`frontend.py`, `web_server.py`, `api_client.py`, `check_server.py`) and the one-off scripts are removed, after the s6 service is switched. | Partial (C1 service switch; legacy removal C2) |
+| TR-312 | M | The legacy UI layer (`frontend.py`, `web_server.py`, `api_client.py`, `check_server.py`) and the one-off scripts are removed, after the s6 service is switched. | Done (C1, C2) |
 
 ### 3.4 Logging and diagnostics
 

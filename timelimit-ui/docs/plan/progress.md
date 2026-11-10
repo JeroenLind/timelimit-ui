@@ -38,11 +38,12 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 | B6 Socket listener, polling, SSE hub | done | closing commit `B6: ...` |
 | B7 Architecture test | done | closing commit `B7: ...`; phase B finished |
 | C1 HA s6 service starts the dashboard | done | closing commit `C1: ...`; image build not tried |
-| C2 .. G2 | not started | |
+| C2 Legacy UI layer and one-off scripts removed | done | closing commit `C2: ...` |
+| D1 .. G2 | not started | |
 
 ## Current step
-**C2** Legacy UI layer and one-off scripts removed. Read the C2 section of the plan first.
-- [ ] C2 implementation, closing commit `C2: ...`, progress, project docs, memory
+**D1** Theme, i18n, navigation, dialogs. Read the D1 section of the plan first.
+- [ ] D1 implementation, closing commit `D1: ...`, progress, project docs, memory
 
 ## Notes
 - C1 result: s6 service `dashboard-v2` is enabled (`user/contents.d/dashboard-v2`), the `web-server` service directory and its enable file are removed, the Dockerfile has no legacy reference and now installs what the started app (`dashboardV2/app.py`, port 8099 = ingress port) imports: it needed Flask, Werkzeug, structlog and APScheduler, which the old image did not have, so the switch would have crashed the add-on without it (pip with `--break-system-packages`, bounds as in `dashboardV2/requirements.txt`). 6 tests in `tests/test_addon_files.py`. NOT verified: building the image and starting it in Home Assistant (step type M); `config.yaml` is still amd64 only (step F2 makes it aarch64). The Dockerfile pip list moves to the constraints file in F2.
@@ -63,3 +64,4 @@ limits, a lost session). Update it in the same commit as the work. Plan: `implem
 - `test_action_builder.py` used to skip silently when the protocol reference was missing; it now fails.
 - Windows baseline recorded 2026-11-08: 1244 passed, 4 failed (same 4 as Linux).
 - Tag `pre-rebuild` is local only (pushing tags fails from the cloud).
+- C2 result: removed frontend.py, web_server.py, api_client.py, check_server.py (+ html/js/css assets, dashboard.html), the one-off scripts in dashboardV2, the three loose root tests, the `test/` folder (54 tests) and `dashboardV2/tests/test_landing.py` (47 tests, tested dashboard.html). Legacy suite now collects 1201 (1248 − 47). New suite 609 green (2 new tests in `tests/test_imports.py`). Kept: `crypto_utils.py`, all of `dashboardV2` (deleted as a whole in G1) incl. `scripts/analyze_logs` (no decision needed until G1). The legacy app's `/dashboard.html` route now returns 404; it disappears in G1. Other X test files stay until G1.
