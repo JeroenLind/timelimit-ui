@@ -51,6 +51,7 @@ export function startConnection(timings, { onBack }) {
   }
 
   retry.addEventListener("click", check);
+  document.addEventListener("dashboard:language", () => render(getState()));
   applyTranslations(banner);
   return check();
 }

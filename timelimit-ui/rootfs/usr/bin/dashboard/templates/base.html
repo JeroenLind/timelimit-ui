@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TimeLimit Dashboard</title>
+  <script src="{{ url_for('static', filename='js/early-theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
   <script type="application/json" id="timings">{{ timings | tojson }}</script>
@@ -12,9 +13,27 @@
   <header class="topbar">
     <button type="button" class="menu-toggle" id="menu-toggle" aria-controls="sidebar" aria-expanded="false" data-i18n-aria="nav.menu">&#9776;</button>
     <h1 class="app-title" data-i18n="app.title">TimeLimit Dashboard</h1>
+    <div class="prefs">
+      <label><span data-i18n="prefs.theme">Theme</span>
+        <select id="theme-select">
+          <option value="auto" data-i18n="prefs.theme.auto">System</option>
+          <option value="light" data-i18n="prefs.theme.light">Light</option>
+          <option value="dark" data-i18n="prefs.theme.dark">Dark</option>
+        </select>
+      </label>
+      <label><span data-i18n="prefs.language">Language</span>
+        <select id="language-select">
+          <option value="auto" data-i18n="prefs.language.auto">Browser</option>
+          <option value="nl" data-i18n="prefs.language.nl">Nederlands</option>
+          <option value="en" data-i18n="prefs.language.en">English</option>
+        </select>
+      </label>
+    </div>
   </header>
+  <div class="overlay" id="nav-overlay" hidden></div>
   <div class="shell">
-    <nav class="sidebar" id="sidebar" aria-label="Main">
+    <nav class="sidebar" id="sidebar" aria-label="Main" data-i18n-aria="nav.main">
+      <button type="button" class="nav-close" id="nav-close" data-i18n="nav.close">Close menu</button>
       <a class="nav-link" href="/" aria-current="page" data-i18n="nav.overview">Overview</a>
     </nav>
     <main class="content">
@@ -25,6 +44,14 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <h2 id="confirm-title" data-dialog-title></h2>
+    <p id="confirm-message" data-dialog-message></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" data-dialog-cancel></button>
+      <button type="button" data-dialog-ok></button>
+    </div>
+  </dialog>
   <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

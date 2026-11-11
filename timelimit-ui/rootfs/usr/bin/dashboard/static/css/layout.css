@@ -2,7 +2,18 @@
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
 .topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .app-title { margin: 0; font-size: 1.1rem; }
-.menu-toggle { display: none; }
+.menu-toggle, .nav-close { display: none; }
+.prefs { margin-left: auto; display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; }
+.prefs label { display: flex; align-items: center; gap: 6px; }
+select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+button.secondary { background: var(--surface); color: var(--text); }
+button[data-danger="true"] { background: var(--danger); color: var(--danger-text); }
+.overlay { position: fixed; inset: 0; z-index: 4; background: var(--overlay); }
+.overlay[hidden] { display: none; }
+dialog { max-width: min(420px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+dialog::backdrop { background: var(--overlay); }
+dialog h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .shell { display: flex; min-height: calc(100vh - 49px); }
 .sidebar { width: 200px; padding: 16px; background: var(--surface); border-right: 1px solid var(--border); }
 .nav-link { display: block; padding: 6px 8px; color: var(--text); text-decoration: none; border-radius: 6px; }
@@ -18,7 +29,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .banner[data-state="not_configured"] { background: var(--info-bg); color: var(--info-text); }
 
 @media (max-width: 720px) {
-  .menu-toggle { display: inline-block; }
-  .sidebar { display: none; position: absolute; top: 49px; left: 0; right: 0; width: auto; z-index: 5; border-right: 0; border-bottom: 1px solid var(--border); }
+  .menu-toggle { display: inline-block; position: relative; z-index: 6; }
+  .nav-close { display: block; margin: 0 0 12px auto; }
+  .topbar { flex-wrap: wrap; }
+  .prefs { width: 100%; margin-left: 0; }
+  .content { padding: 12px; }
+  .sidebar { display: none; position: fixed; top: 0; left: 0; bottom: 0; width: min(260px, 80vw); z-index: 5; overflow-y: auto; }
   .sidebar[data-open="true"] { display: block; }
 }

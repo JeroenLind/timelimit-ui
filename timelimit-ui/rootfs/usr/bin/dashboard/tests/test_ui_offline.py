@@ -145,7 +145,7 @@ def test_dutch_browser_gets_dutch_texts_and_missing_keys_fall_back(
     page = context.new_page()
     page.set_default_timeout(5000)
     page.goto(live_app_factory().url + "/")
-    expect(page.locator("h2")).to_have_text("Overzicht")
+    expect(page.locator("main h2")).to_have_text("Overzicht")
     assert page.evaluate("document.documentElement.lang") == "nl"
     context.close()
 

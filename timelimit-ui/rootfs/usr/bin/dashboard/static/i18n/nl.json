@@ -12,5 +12,17 @@
   "error.SERVER_TIMEOUT": "De server antwoordde niet op tijd.",
   "error.READ_ONLY_OFFLINE": "De server is offline; wijzigen is uitgeschakeld.",
   "error.INTERNAL_ERROR": "Er ging iets mis.",
-  "error.unknown": "Er ging iets mis."
+  "error.unknown": "Er ging iets mis.",
+  "nav.close": "Menu sluiten",
+  "nav.main": "Hoofdnavigatie",
+  "prefs.theme": "Thema",
+  "prefs.theme.auto": "Systeem",
+  "prefs.theme.light": "Licht",
+  "prefs.theme.dark": "Donker",
+  "prefs.language": "Taal",
+  "prefs.language.auto": "Browser",
+  "prefs.language.nl": "Nederlands",
+  "prefs.language.en": "English",
+  "dialog.confirm": "Bevestigen",
+  "dialog.cancel": "Annuleren"
 }

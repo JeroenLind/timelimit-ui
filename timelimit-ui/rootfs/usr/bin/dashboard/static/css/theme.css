@@ -10,6 +10,9 @@
   --warn-text: #5b4300;
   --info-bg: #e5efff;
   --info-text: #0b2e66;
+  --danger: #c62828;
+  --danger-text: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.45);
   color-scheme: light;
 }
 
@@ -26,6 +29,9 @@
     --warn-text: #ffe9a8;
     --info-bg: #14305c;
     --info-text: #cfe0ff;
+    --danger: #ef6b6b;
+    --danger-text: #1a0a0a;
+    --overlay: rgba(0, 0, 0, 0.65);
     color-scheme: dark;
   }
 }
@@ -42,5 +48,8 @@
   --warn-text: #ffe9a8;
   --info-bg: #14305c;
   --info-text: #cfe0ff;
+  --danger: #ef6b6b;
+  --danger-text: #1a0a0a;
+  --overlay: rgba(0, 0, 0, 0.65);
   color-scheme: dark;
 }

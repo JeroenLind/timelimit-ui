@@ -1,18 +1,26 @@
 import { configureApi } from "./api.js";
 import { startConnection } from "./connection.js";
-import { initI18n } from "./i18n.js";
+import { initI18n, languageChoice, setLanguage } from "./i18n.js";
+import { initNav } from "./nav.js";
 import { refreshOverview } from "./overview.js";
+import { applyTheme, readPref, THEMES, writePref } from "./prefs.js";
 
 const timings = JSON.parse(document.getElementById("timings").textContent);
 configureApi(timings);
 
-const toggle = document.getElementById("menu-toggle");
-const sidebar = document.getElementById("sidebar");
-toggle.addEventListener("click", () => {
-  const open = sidebar.dataset.open !== "true";
-  sidebar.dataset.open = String(open);
-  toggle.setAttribute("aria-expanded", String(open));
+initNav();
+
+const themeSelect = document.getElementById("theme-select");
+themeSelect.value = readPref("theme", THEMES);
+applyTheme(themeSelect.value);
+themeSelect.addEventListener("change", () => {
+  writePref("theme", themeSelect.value);
+  applyTheme(themeSelect.value);
 });
+
+const languageSelect = document.getElementById("language-select");
+languageSelect.value = languageChoice();
+languageSelect.addEventListener("change", () => setLanguage(languageSelect.value));
 
 document.getElementById("refresh-overview").addEventListener("click", refreshOverview);
 

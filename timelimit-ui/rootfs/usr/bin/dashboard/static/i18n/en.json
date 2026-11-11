@@ -12,5 +12,17 @@
   "error.SERVER_TIMEOUT": "The server did not answer in time.",
   "error.READ_ONLY_OFFLINE": "The server is offline; changes are disabled.",
   "error.INTERNAL_ERROR": "Something went wrong.",
-  "error.unknown": "Something went wrong."
+  "error.unknown": "Something went wrong.",
+  "nav.close": "Close menu",
+  "nav.main": "Main navigation",
+  "prefs.theme": "Theme",
+  "prefs.theme.auto": "System",
+  "prefs.theme.light": "Light",
+  "prefs.theme.dark": "Dark",
+  "prefs.language": "Language",
+  "prefs.language.auto": "Browser",
+  "prefs.language.nl": "Nederlands",
+  "prefs.language.en": "English",
+  "dialog.confirm": "Confirm",
+  "dialog.cancel": "Cancel"
 }

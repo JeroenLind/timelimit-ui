@@ -126,11 +126,11 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | UI-001 | M | Screens: children overview, child detail, settings, test section. | Partial |
-| UI-002 | M | Navigation: **fixed sidebar on desktop**, **hamburger menu on small screens**. The menu opens/closes with the button, the close button, the overlay and Escape; `aria-expanded`/`aria-hidden` are kept correct and focus returns to the button. (Replaces FR-007; BUG-004 as regression test.) | Done (hamburger) / Rework (sidebar) |
-| UI-003 | M | Layout works on desktop browsers, phones and tablets. | Partial |
-| UI-004 | M | Dark theme (and light). | Open |
-| UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Open |
-| UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Open |
+| UI-002 | M | Navigation: **fixed sidebar on desktop**, **hamburger menu on small screens**. The menu opens/closes with the button, the close button, the overlay and Escape; `aria-expanded`/`aria-hidden` are kept correct and focus returns to the button. (Replaces FR-007; BUG-004 as regression test.) | Done (D1) |
+| UI-003 | M | Layout works on desktop browsers, phones and tablets. | Done (D1) |
+| UI-004 | M | Dark theme (and light). | Done (D1) |
+| UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Partial (D1: switch in the top bar; moves into settings in E1) |
+| UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Partial (D1: dialog component; used by the delete actions in E-steps) |
 | UI-007 | M | Every action shows its state: pending, confirmed, failed. | Partial |
 | UI-008 | W | No screen reader / WCAG target in v1 (basic ARIA only, as in UI-002). | – |
 

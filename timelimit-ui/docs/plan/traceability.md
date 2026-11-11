@@ -71,7 +71,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-308 | M | B7 | dashboard/tests/test_architecture.py (B7) | Layers: routes (thin) → services → repository (only layer with SQL); one server-client mod |
 | TR-309 | M | B5 | dashboard/tests/test_worker.py (B5) | One sync worker thread with a queue; a user change is push then immediate pull, the reques |
 | TR-310 | M | B1 | dashboard/tests/test_repository.py | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, sett |
-| TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py (first part) | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
+| TR-311 | M | A7, D1 | dashboard/tests/test_ui_offline.py, test_ui_base.py, test_frontend_base.py | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles |
 | TR-312 | M | C1, C2, G1 | dashboard/tests/test_addon_files.py (C1), dashboard/tests/test_imports.py (C2) | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
 | TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |
 | TR-401 | M | A3 | dashboard/tests/test_logs.py | Log rotation with limited size and file count. |
@@ -85,11 +85,11 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-513 | M | A3, B7 | dashboard/tests/test_secret_clock.py, test_logs.py | Secrets in code: tokens, hashes and typed passwords pass through one Secret type / masking |
 | TR-514 | M | A6, B7 | dashboard/tests/test_client.py | Timeouts on all I/O: every HTTP call has an explicit timeout; a test fails on any call wit |
 | UI-001 | M | E1, E11, E2 | – | Screens: children overview, child detail, settings, test section. |
-| UI-002 | M | D1 | – | Navigation: fixed sidebar on desktop, hamburger menu on small screens. The menu opens/clos |
-| UI-003 | M | D1 | – | Layout works on desktop browsers, phones and tablets. |
-| UI-004 | M | D1 | – | Dark theme (and light). |
-| UI-005 | M | D1 | – | Languages: Dutch and English, selectable in settings. Default: the browser language when i |
-| UI-006 | M | D1 | – | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. |
+| UI-002 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Navigation: fixed sidebar on desktop, hamburger menu on small screens. The menu opens/clos |
+| UI-003 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Layout works on desktop browsers, phones and tablets. |
+| UI-004 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Dark theme (and light). |
+| UI-005 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Languages: Dutch and English, selectable in settings. Default: the browser language when i |
+| UI-006 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. |
 | UI-007 | M | E4 | – | Every action shows its state: pending, confirmed, failed. |
 
 
