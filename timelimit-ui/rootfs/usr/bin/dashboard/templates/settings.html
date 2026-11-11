@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="settings-page">
+  <h2 data-i18n="settings.title">Settings</h2>
+  <p id="settings-error" class="form-error" role="alert" hidden></p>
+
+  <section class="panel" aria-labelledby="server-heading">
+    <h3 id="server-heading" data-i18n="settings.server">Server</h3>
+    <div class="field">
+      <label for="server-mode" data-i18n="settings.server.choose">Server</label>
+      <select id="server-mode">
+        <option value="official" data-i18n="settings.server.official">Official server</option>
+        <option value="alternative" data-i18n="settings.server.alternative">Alternative server</option>
+      </select>
+    </div>
+    <div id="alt-fields" hidden>
+      <div class="field">
+        <label for="server-protocol" data-i18n="settings.server.protocol">Protocol</label>
+        <select id="server-protocol"><option value="http">http</option><option value="https">https</option></select>
+      </div>
+      <div class="field">
+        <label for="server-address" data-i18n="settings.server.address">Address</label>
+        <input id="server-address" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="server-port" data-i18n="settings.server.port">Port</label>
+        <input id="server-port" type="number" min="1" max="65535">
+      </div>
+    </div>
+    <button type="button" id="server-save" data-i18n="settings.server.save">Use this server</button>
+    <p class="muted" id="server-url"></p>
+    <label class="check"><input type="checkbox" id="test-server"> <span data-i18n="settings.test_server">This is a test server</span></label>
+  </section>
+
+  <section class="panel" aria-labelledby="link-heading" id="link-section">
+    <h3 id="link-heading" data-i18n="settings.link">Link to the family</h3>
+    <p id="link-state" data-state=""></p>
+    <form id="mail-form" hidden>
+      <div class="field">
+        <label for="link-mail" data-i18n="link.mail">Mail address of a parent</label>
+        <input id="link-mail" type="email" autocomplete="off">
+      </div>
+      <button type="submit" id="mail-send" data-i18n="link.send_code">Send code</button>
+    </form>
+    <form id="code-form" hidden>
+      <div class="field">
+        <label for="link-code" data-i18n="link.code">Code from the mail</label>
+        <input id="link-code" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <button type="submit" id="code-confirm" data-i18n="link.confirm">Confirm code</button>
+    </form>
+    <form id="password-form" hidden>
+      <p id="password-help" class="muted"></p>
+      <div class="field">
+        <label for="link-password" data-i18n="link.password">Password of this parent</label>
+        <input id="link-password" type="password" autocomplete="off">
+      </div>
+      <button type="submit" id="link-submit"></button>
+    </form>
+    <div id="linked-box" hidden>
+      <p><span data-i18n="settings.device_id">Device id</span>: <code id="device-id"></code></p>
+      <button type="button" id="unlink" class="secondary" data-i18n="link.unlink">Unlink</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="info-heading">
+    <h3 id="info-heading" data-i18n="settings.info">Status</h3>
+    <dl class="info-list">
+      <dt data-i18n="settings.version">Dashboard version</dt><dd id="info-version"></dd>
+      <dt data-i18n="settings.api_level">Server api level</dt><dd id="info-api"></dd>
+      <dt data-i18n="settings.last_sync">Last sync</dt><dd id="info-sync"></dd>
+      <dt data-i18n="settings.live">Live updates</dt><dd id="info-live"></dd>
+      <dt data-i18n="settings.log_level">Log level</dt><dd id="info-log"></dd>
+      <dt data-i18n="settings.timings">Timings (seconds)</dt><dd id="info-timings"></dd>
+    </dl>
+  </section>
+
+  <section class="panel" aria-labelledby="prefs-heading">
+    <h3 id="prefs-heading" data-i18n="settings.prefs">Appearance</h3>
+    <div class="field">
+      <label for="theme-select" data-i18n="prefs.theme">Theme</label>
+      <select id="theme-select">
+        <option value="auto" data-i18n="prefs.theme.auto">System</option>
+        <option value="light" data-i18n="prefs.theme.light">Light</option>
+        <option value="dark" data-i18n="prefs.theme.dark">Dark</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="language-select" data-i18n="prefs.language">Language</label>
+      <select id="language-select">
+        <option value="auto" data-i18n="prefs.language.auto">Browser</option>
+        <option value="nl" data-i18n="prefs.language.nl">Nederlands</option>
+        <option value="en" data-i18n="prefs.language.en">English</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="debug-heading">
+    <h3 id="debug-heading" data-i18n="settings.debug">Debug export</h3>
+    <p class="muted" data-i18n="settings.debug.help">A text file with the settings and the end of the log, for support.</p>
+    <button type="button" id="debug-export" class="secondary" data-i18n="settings.debug.button">Download debug export</button>
+  </section>
+</div>
+{% endblock %}

@@ -12,6 +12,7 @@ from dashboard.client.server import TimeLimitClient
 from dashboard.config import Settings
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.logs import fields, get_logger
+from dashboard.services.profiles import ServerProfiles
 
 log = get_logger("connection")
 
@@ -30,21 +31,35 @@ class ServerStatus:
 
 
 class ConnectionService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, profiles: ServerProfiles | None = None
+    ) -> None:
         self._settings = settings
-        self._client = (
-            TimeLimitClient(settings.server_url, timeout=settings.health_timeout)
-            if settings.server_url
-            else None
-        )
+        self._profiles = profiles
+        self._clients: dict[str, TimeLimitClient] = {}
         self._last: str | None = None
+
+    def _client_for_active_server(self) -> TimeLimitClient | None:
+        url = (
+            self._profiles.url()
+            if self._profiles is not None
+            else self._settings.server_url
+        )
+        if not url:
+            return None
+        if url not in self._clients:
+            self._clients[url] = TimeLimitClient(
+                url, timeout=self._settings.health_timeout
+            )
+        return self._clients[url]
 
     def status(self) -> ServerStatus:
         """Probe the server now. Logs only when the state changes."""
-        if self._client is None:
+        client = self._client_for_active_server()
+        if client is None:
             return ServerStatus(NOT_CONFIGURED)
         try:
-            self._client.server_time()
+            client.server_time()
             result = ServerStatus(UP)
         except DashboardError as error:
             result = ServerStatus(DOWN, error.code.value)

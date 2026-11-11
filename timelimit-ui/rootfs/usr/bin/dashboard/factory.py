@@ -7,10 +7,15 @@ from flask import Flask
 from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
-from dashboard.routes import health, pages, server, stream
+from dashboard.routes import health, link, pages, server, stream
+from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
 from dashboard.services.clock import SystemClock
 from dashboard.services.connection import ConnectionService
+from dashboard.services.link import LinkService
+from dashboard.services.profiles import ServerProfiles
+from dashboard.services.settings import SettingsService
+from dashboard.sync.backend import Backend
 from dashboard.sync.hub import EventHub
 
 
@@ -20,15 +25,29 @@ def create_app(
     """Create the app. Tests pass their own settings and a fake clock."""
     app = Flask("dashboard", static_folder="static", template_folder="templates")
     app.config["SECRET_KEY"] = secret_key.reveal()
+    clock = clock or SystemClock()
+    hub = EventHub()
+    backend = Backend(settings, hub, clock)
+    profiles = ServerProfiles(backend.store, settings)
+    link_service = LinkService(backend, profiles)
     app.extensions["dashboard"] = {
         "settings": settings,
-        "clock": clock or SystemClock(),
-        "connection": ConnectionService(settings),
-        "hub": EventHub(),
+        "clock": clock,
+        "connection": ConnectionService(settings, profiles),
+        "hub": hub,
+        "backend": backend,
+        "profiles": profiles,
+        "link": link_service,
+        "settings_service": SettingsService(
+            settings, backend, profiles, link_service, clock
+        ),
     }
     register_error_handling(app)
     app.register_blueprint(health.bp)
     app.register_blueprint(server.bp)
     app.register_blueprint(stream.bp)
+    app.register_blueprint(settings_routes.bp)
+    app.register_blueprint(link.bp)
     app.register_blueprint(pages.bp)
+    link_service.resume()
     return app

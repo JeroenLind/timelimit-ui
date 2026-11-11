@@ -68,6 +68,7 @@ class LiveApp:
         self._thread.start()
 
     def stop(self) -> None:
+        self.app.extensions["dashboard"]["backend"].close()
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)

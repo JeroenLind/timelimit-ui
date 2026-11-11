@@ -13,34 +13,20 @@
   <header class="topbar">
     <button type="button" class="menu-toggle" id="menu-toggle" aria-controls="sidebar" aria-expanded="false" data-i18n-aria="nav.menu">&#9776;</button>
     <h1 class="app-title" data-i18n="app.title">TimeLimit Dashboard</h1>
-    <div class="prefs">
-      <label><span data-i18n="prefs.theme">Theme</span>
-        <select id="theme-select">
-          <option value="auto" data-i18n="prefs.theme.auto">System</option>
-          <option value="light" data-i18n="prefs.theme.light">Light</option>
-          <option value="dark" data-i18n="prefs.theme.dark">Dark</option>
-        </select>
-      </label>
-      <label><span data-i18n="prefs.language">Language</span>
-        <select id="language-select">
-          <option value="auto" data-i18n="prefs.language.auto">Browser</option>
-          <option value="nl" data-i18n="prefs.language.nl">Nederlands</option>
-          <option value="en" data-i18n="prefs.language.en">English</option>
-        </select>
-      </label>
-    </div>
   </header>
   <div class="overlay" id="nav-overlay" hidden></div>
   <div class="shell">
     <nav class="sidebar" id="sidebar" aria-label="Main" data-i18n-aria="nav.main">
       <button type="button" class="nav-close" id="nav-close" data-i18n="nav.close">Close menu</button>
-      <a class="nav-link" href="/" aria-current="page" data-i18n="nav.overview">Overview</a>
+      <a class="nav-link" href="/" data-i18n="nav.overview">Overview</a>
+      <a class="nav-link" href="/settings" data-i18n="nav.settings">Settings</a>
     </nav>
     <main class="content">
       <div id="server-banner" class="banner" role="status" aria-live="polite" hidden data-state="unknown">
         <span id="server-banner-text"></span>
         <button type="button" id="retry-connection" data-i18n="banner.retry">Retry connection</button>
       </div>
+      <div id="notices" aria-live="polite"></div>
       {% block content %}{% endblock %}
     </main>
   </div>

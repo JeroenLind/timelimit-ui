@@ -22,6 +22,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
+from dashboard.client.server import OFFICIAL_SERVER_URL as OFFICIAL_SERVER_URL
 from dashboard.client.server import validate_server_url
 from dashboard.domain.errors import DashboardError
 from dashboard.domain.secret import Secret
@@ -95,6 +96,11 @@ def _parse_server_url(raw: Any) -> str:
         return validate_server_url(text)
     except DashboardError as error:
         raise ValueError(error.message) from None
+
+
+def normalize_server_url(raw: str) -> str:
+    """The SEC-002 check for a server address chosen in the settings screen (raises ``ValueError``)."""
+    return _parse_server_url(raw)
 
 
 def _parse_host(raw: Any) -> str:

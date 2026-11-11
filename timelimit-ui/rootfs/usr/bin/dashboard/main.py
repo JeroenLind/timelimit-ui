@@ -72,5 +72,6 @@ def main() -> int:
         log.info("stopped")
     finally:
         server.server_close()
+        app.extensions["dashboard"]["backend"].close()
         shutdown_logging()
     return 0

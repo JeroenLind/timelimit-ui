@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dashboard.client.server import TimeLimitClient
+from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
 from dashboard.repository.cache import CacheRepository, Scope
 from dashboard.repository.db import Database
@@ -96,11 +97,16 @@ def apply_server_status(
 
 class Puller:
     def __init__(
-        self, client: TimeLimitClient, cache: CacheRepository, db: Database
+        self,
+        client: TimeLimitClient,
+        cache: CacheRepository,
+        db: Database,
+        clock: Clock | None = None,
     ) -> None:
         self._client = client
         self._cache = cache
         self._db = db
+        self._clock = clock
 
     def pull(
         self, profile_key: str, device_token: Secret, family_id: str
@@ -137,6 +143,12 @@ class Puller:
         answer = self._client.pull_status(device_token, status)
         with self._db.transaction():
             changed = apply_server_status(self._cache, scope, answer)
+            if self._clock is not None:
+                self._cache.set_meta(
+                    scope,
+                    "last_sync_ms",
+                    str(int(self._clock.now().timestamp() * 1000)),
+                )
         return PullResult(
             scope=scope,
             changed=changed,

@@ -37,3 +37,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .sidebar { display: none; position: fixed; top: 0; left: 0; bottom: 0; width: min(260px, 80vw); z-index: 5; overflow-y: auto; }
   .sidebar[data-open="true"] { display: block; }
 }
+
+.panel { margin: 0 0 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.panel h3 { margin: 0 0 8px; font-size: 1rem; }
+.field { display: grid; gap: 4px; margin-bottom: 10px; max-width: 360px; }
+.field label { font-size: 0.85rem; color: var(--muted); }
+input[type="text"], input[type="email"], input[type="password"], input[type="number"] { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.muted { color: var(--muted); font-size: 0.85rem; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.form-error { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); }
+.form-error[hidden], form[hidden], div[hidden] { display: none; }
+.info-list { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.info-list dt { color: var(--muted); }
+.info-list dd { margin: 0; word-break: break-word; }
+.banner[data-state="notice"] { background: var(--warn-bg); color: var(--warn-text); }
