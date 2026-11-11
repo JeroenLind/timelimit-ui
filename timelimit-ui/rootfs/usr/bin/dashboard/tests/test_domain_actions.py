@@ -196,6 +196,7 @@ VALID: dict[str, list[Case]] = {
     ],
     "RENAME_CHILD": [(act.rename_child, {"child_id": U1, "new_name": "Kid"})],
     "SET_USER_TIMEZONE": [(act.set_user_timezone, {"user_id": U1, "time_zone": "UTC"})],
+    "SET_DEVICE_USER": [(act.set_device_user, {"device_id": D1, "user_id": U1})],
     "SET_KEEP_SIGNED_IN": [
         (act.set_keep_signed_in, {"device_id": D1, "keep_signed_in": True})
     ],
@@ -348,6 +349,7 @@ INVALID: list[tuple[Callable[..., dict[str, Any]], dict[str, Any]]] = [
     (act.remove_user, {"user_id": U1, "authentication": ""}),
     (act.rename_child, {"child_id": U1, "new_name": ""}),
     (act.set_user_timezone, {"user_id": U1, "time_zone": ""}),
+    (act.set_device_user, {"device_id": D1, "user_id": "short"}),
     (act.set_keep_signed_in, {"device_id": D1, "keep_signed_in": "true"}),
     (
         act.change_parent_password,
@@ -429,7 +431,6 @@ def test_every_v1_type_has_a_builder_and_is_a_known_server_action() -> None:
         "SET_CONSIDER_REBOOT_MANIPULATION",
         "SET_DEVICE_DEFAULT_USER",
         "SET_DEVICE_DEFAULT_USER_TIMEOUT",
-        "SET_DEVICE_USER",
         "SET_RELAX_PRIMARY_DEVICE",
         "SET_SEND_DEVICE_CONNECTED",
         "UPDATE_DEVICE_NAME",

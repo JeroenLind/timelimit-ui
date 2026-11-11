@@ -6,11 +6,16 @@ only sent when the client's version differs.
 
 from __future__ import annotations
 
+import base64
 import secrets
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 API_LEVEL_DEFAULT = 9
 
@@ -147,6 +152,9 @@ class World:
         rule_expiry: bool = False,
     ) -> None:
         self.lock = threading.RLock()
+        # The server's DH key for the encrypted parent password (ServerAPI section 8): P-256, 4 char id.
+        self.dh_private = ec.generate_private_key(ec.SECP256R1())
+        self.dh_key_id = "k" + secrets.token_hex(2)[:3]
         self.api_level = api_level
         self.premium = premium
         # Reference server B sends `e` (expiresAt) in time limit rules, reference A does not.
@@ -169,6 +177,34 @@ class World:
         self.rejected_actions: list[
             str
         ] = []  # actions that failed silently (for tests)
+
+    # -- DH key --------------------------------------------------------------------------------
+    def dh_entry(self) -> dict[str, str]:
+        public = self.dh_private.public_key().public_bytes(
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        return {"k": base64.b64encode(public).decode("ascii"), "v": self.dh_key_id}
+
+    def decrypt_second_hash(self, container: str, hash_: str, salt: str) -> str:
+        """Open the ``base64(iv|ct|tag).base64(SPKI).keyId`` container of a parent ``ADD_USER``."""
+        try:
+            sealed_b64, public_b64, key_id = container.split(".")
+            if key_id != self.dh_key_id:
+                raise ValueError("unknown key id")
+            sealed = base64.b64decode(sealed_b64, validate=True)
+            client_key = serialization.load_der_public_key(
+                base64.b64decode(public_b64, validate=True)
+            )
+            assert isinstance(client_key, ec.EllipticCurvePublicKey)
+            shared = self.dh_private.exchange(ec.ECDH(), client_key)
+            aad = f"ParentPassword:{hash_}:{salt}".encode("ascii")
+            return (
+                AESGCM(shared[:16])
+                .decrypt(sealed[:12], sealed[12:], aad)
+                .decode("ascii")
+            )
+        except Exception as error:
+            raise HttpError(400) from error
 
     # -- lookups -----------------------------------------------------------------------------
     def family_of_token(self, token: str) -> tuple[Family, Device]:
@@ -340,6 +376,8 @@ class World:
             ),
             "apiLevel": self.api_level,
         }
+        if level >= 5 and client.get("dh") != self.dh_key_id:
+            out["dh"] = self.dh_entry()
         if family.device_list_version != client.get("devices"):
             out["devices"] = {
                 "version": family.device_list_version,

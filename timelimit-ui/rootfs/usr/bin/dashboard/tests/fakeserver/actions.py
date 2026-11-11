@@ -131,7 +131,12 @@ def _find_rule(family: Family, rule_id: str) -> tuple[Category, Rule]:
 
 
 def _apply(
-    world: World, family: Family, parent: User | None, a: dict[str, Any], out: Outcome
+    world: World,
+    family: Family,
+    parent: User | None,
+    a: dict[str, Any],
+    out: Outcome,
+    integrity_kind: str = "",
 ) -> None:
     kind = a["type"]
     if kind == "ADD_USER":
@@ -139,16 +144,42 @@ def _apply(
         if user_id in family.users:
             raise ActionFailed("user exists")
         pw = a.get("password") or {}
+        second_hash = pw.get("secondHash", "")
+        if pw.get("encrypted"):
+            second_hash = world.decrypt_second_hash(
+                second_hash, pw.get("hash", ""), pw.get("secondSalt", "")
+            )
         family.users[user_id] = User(
             user_id=user_id,
             name=a["name"],
             type=a["userType"],
             password_hash=pw.get("hash", ""),
-            second_hash=pw.get("secondHash", ""),
+            second_hash=second_hash,
             second_salt=pw.get("secondSalt", ""),
             time_zone=a["timeZone"],
         )
         family.user_list_version = version_id()
+        out.triggered_level = max(out.triggered_level, 1)
+    elif kind == "SET_DEVICE_USER":
+        device = family.devices.get(a["deviceId"])
+        if device is None:
+            raise ActionFailed("missing device")
+        if a["userId"] and a["userId"] not in family.users:
+            raise ActionFailed("missing user")
+        device.current_user_id = a["userId"]
+        device.keep_signed_in = False
+        family.device_list_version = version_id()
+        out.triggered_level = max(out.triggered_level, 1)
+    elif kind == "SET_KEEP_SIGNED_IN":
+        device = family.devices.get(a["deviceId"])
+        if device is None:
+            raise ActionFailed("missing device")
+        if integrity_kind != "password":
+            raise ActionFailed("keep-signed-in needs the password")
+        if device.current_user_id != (parent.user_id if parent else ""):
+            raise ActionFailed("device is not signed in as this parent")
+        device.keep_signed_in = bool(a["keepSignedIn"])
+        family.device_list_version = version_id()
         out.triggered_level = max(out.triggered_level, 1)
     elif kind == "REMOVE_USER":
         user = family.users.get(_id(a["userId"]))
@@ -359,7 +390,12 @@ def apply_action(
             device_ok=device.keep_signed_in and device.current_user_id == user.user_id,
         ):
             raise ActionFailed("integrity")
-        _apply(world, family, user, action, out)
+        kind = (
+            "password"
+            if request["integrity"].startswith("password:")
+            else request["integrity"]
+        )
+        _apply(world, family, user, action, out, kind)
     except ActionFailed as exc:
         family.users, family.categories, family.user_list_version = snapshot
         family.device_list_version = list_versions[0]

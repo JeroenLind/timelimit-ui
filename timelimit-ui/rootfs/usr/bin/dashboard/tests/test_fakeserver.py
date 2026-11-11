@@ -334,6 +334,7 @@ def test_pull_sends_only_what_changed(api: Api) -> None:
         "devices": first["devices"]["version"],
         "users": first["users"]["version"],
         "apps": {a["deviceId"]: a["version"] for a in first["apps"]},
+        "dh": first["dh"]["v"],
         "categories": {
             "cat001": {
                 "base": first["categoryBase"][0]["version"],
@@ -347,6 +348,7 @@ def test_pull_sends_only_what_changed(api: Api) -> None:
     second = api.pull(status)
     assert set(second) == {"fullVersion", "apiLevel"}
     assert "tasks" in first
+    assert first["dh"]["v"] and first["dh"]["k"]  # level 5 and up gets the server's DH key
     assert "tasks" not in api.pull(blank_status(2))
 
 

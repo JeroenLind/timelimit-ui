@@ -86,6 +86,9 @@ def apply_server_status(
             scope, entry["deviceId"], entry["apps"], entry["version"]
         )
         changed.add("installed_apps")
+    if status.get("dh"):
+        cache.set_dh_key(scope, status["dh"]["k"], status["dh"]["v"])
+        changed.add("dh")
     cache.set_meta(scope, "api_level", str(status["apiLevel"]))
     cache.set_meta(scope, "full_version_until", str(status["fullVersion"]))
     return changed

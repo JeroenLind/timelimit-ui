@@ -126,5 +126,6 @@ Every parent action the dashboard sends in v1 has a builder in `dashboard/domain
 | `REMOVE_USER` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
 | `RENAME_CHILD` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
 | `SET_USER_TIMEZONE` | FR-800 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
+| `SET_DEVICE_USER` | FR-101 (E1 link flow) | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
 | `SET_KEEP_SIGNED_IN` | FR-901, FR-902 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |
 | `CHANGE_PARENT_PASSWORD` | FR-901 | `dashboard/domain/actions.py` | `dashboard/tests/test_domain_actions.py` |

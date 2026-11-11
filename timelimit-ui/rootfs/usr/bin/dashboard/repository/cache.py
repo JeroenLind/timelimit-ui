@@ -443,12 +443,26 @@ class CacheRepository:
                 scope.args,
             )
         }
-        return {
+        status: dict[str, Any] = {
             "devices": self.version(scope, "devices"),
             "users": self.version(scope, "users"),
             "apps": apps,
             "categories": categories,
         }
+        dh_version = self.version(scope, "dh")
+        if dh_version:
+            status["dh"] = dh_version
+        return status
+
+    # -- the server's DH key (for the encrypted password of a new parent) ---------------------------------------
+    def set_dh_key(self, scope: Scope, public_key: str, key_id: str) -> None:
+        self.set_meta(scope, "dh_public_key", public_key)
+        self._set_version(scope, "dh", key_id)
+
+    def dh_key(self, scope: Scope) -> tuple[str, str] | None:
+        """``(public key, key id)`` the server sent, or None when it never did."""
+        key, key_id = self.meta(scope, "dh_public_key"), self.version(scope, "dh")
+        return (key, key_id) if key and key_id else None
 
     # -- cleanup ---------------------------------------------------------------------------------------------------------------
     def purge_missing(self, scope: Scope) -> int:

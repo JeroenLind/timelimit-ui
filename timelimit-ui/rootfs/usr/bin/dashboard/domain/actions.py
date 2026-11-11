@@ -532,6 +532,15 @@ def set_user_timezone(user_id: str, time_zone: str) -> Action:
     }
 
 
+def set_device_user(device_id: str, user_id: str) -> Action:
+    """``SET_DEVICE_USER``: sign a device in as another user. The server also clears keep-signed-in."""
+    return {
+        "type": "SET_DEVICE_USER",
+        "deviceId": _id("deviceId", device_id),
+        "userId": _id("userId", user_id),
+    }
+
+
 def set_keep_signed_in(device_id: str, keep_signed_in: bool) -> Action:
     return {
         "type": "SET_KEEP_SIGNED_IN",
