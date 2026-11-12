@@ -58,13 +58,13 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-300 | M | Per category, parents can create, view, edit and delete rules (`CREATE/UPDATE/DELETE_TIMELIMIT_RULE`). A rule has: allowed time, days, optional time window (start/end), optional maximum session length and pause, optional per-day flag, optional expiry. | Partial |
-| FR-301 | M | Days use the bitmask Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64 (0–127; 127 = every day). The UI uses checkboxes; the bitmask is calculated in one place only. | Done |
-| FR-302 | M | Time is entered in minutes (0 = no time allowed), time windows as HH:MM 24 h (0–1439 minutes of the day, start ≤ end). Input is validated before sending. | Done |
-| FR-303 | M | Creating a rule uses the nested `rule` object; updating uses flat fields without `categoryId` (see ServerAPI.md 5.2). Rules pulled from the server (including `e`) are shown correctly. | Done (push) / Rework (pull) |
+| FR-300 | M | Per category, parents can create, view, edit and delete rules (`CREATE/UPDATE/DELETE_TIMELIMIT_RULE`). A rule has: allowed time, days, optional time window (start/end), optional maximum session length and pause, optional per-day flag, optional expiry. | Done (E3) |
+| FR-301 | M | Days use the bitmask Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64 (0–127; 127 = every day). The UI uses checkboxes; the bitmask is calculated in one place only. | Done (E3) |
+| FR-302 | M | Time is entered in minutes (0 = no time allowed), time windows as HH:MM 24 h (0–1439 minutes of the day, start ≤ end). Input is validated before sending. | Done (E3) |
+| FR-303 | M | Creating a rule uses the nested `rule` object; updating uses flat fields without `categoryId` (see ServerAPI.md 5.2). Rules pulled from the server (including `e`) are shown correctly. | Done (E3) |
 | FR-304 | M | **Weekly blocked-time schedule** per **category** (as the server stores it: slots per weekday, `UPDATE_CATEGORY_BLOCKED_TIMES`) can be viewed and edited. | Open |
-| FR-305 | M | Deleting a rule asks for confirmation. | Open |
-| FR-306 | S | The rule table shows: child, category, days, limit, window, session limit; one row per rule, sorted by category. | Partial |
+| FR-305 | M | Deleting a rule asks for confirmation. | Done (E3) |
+| FR-306 | S | The rule table shows: child, category, days, limit, window, session limit; one row per rule, sorted by category. | Done (E3) |
 | FR-307 | M | **Rule off for today.** A parent can switch a time limit rule off for the **current day only**. The dashboard does this by removing today's weekday bit from the rule's days mask (`UPDATE_TIMELIMIT_RULE`, every other field unchanged), so for the server it looks as if a parent changed the rule; at midnight the bit is put back with a second `UPDATE_TIMELIMIT_RULE`. (a) "Today" and "midnight" follow the time zone of the machine running the dashboard; when the child's time zone on the server differs, a warning names both zones and the function stays available. (b) The pending restore (rule id, the day bit, the original days, the state the dashboard set, due time) is stored in the database and survives a cache reset; it is executed at midnight while the dashboard runs, and on the next start every overdue restore runs **immediately** and a notice reports what was done. (c) At restore the dashboard compares the rule on the server with the state it set; if it differs or the rule no longer exists it changes nothing and shows a notice (the parent decides). (d) Editing or deleting such a rule in the dashboard first restores it (today's bit back), then applies the change; "off for today" ends with a short notice. (e) The parent can switch the rule on again earlier the same day. (f) Not offered for a rule that does not apply today (its weekday bit is not set); if today's bit is the only one set, the days mask becomes 0 until the restore. (g) The rule list shows the state "off for today" with the restore time; every switch-off and restore is audit-logged (FR-1100). | Open |
 
 ### 2.4 Categories and apps
@@ -117,7 +117,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-900 | M | Rules, categories, extra time and blocking use device integrity: **no password prompt**. | Done |
+| FR-900 | M | Rules, categories, extra time and blocking use device integrity: **no password prompt**. | Done (B4, E3) |
 | FR-901 | M | A password prompt (modal, per action, password never stored) appears only for server-required actions: change parent password, keep-signed-in (`SET_KEEP_SIGNED_IN`, HMAC). | Open |
 | FR-902 | S | The "Dashboard" parent can be inspected: keep-signed-in state is visible; a warning shows when the device was signed out (`SET_DEVICE_USER`). | Open |
 

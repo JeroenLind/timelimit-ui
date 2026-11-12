@@ -19,12 +19,12 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-207 | M | B6 | dashboard/tests/test_live.py (B6) | A change by another parent or by the app appears instantly through the server WebSocket (s |
 | FR-208 | M | E4 | – | Conflicts: last writer wins. If the data being edited changed on the server in the meantim |
 | FR-209 | M | E4 | – | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (m |
-| FR-300 | M | E3 | – | Per category, parents can create, view, edit and delete rules (CREATE/UPDATE/DELETE_TIMELI |
-| FR-301 | M | E3 | – | Days use the bitmask Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64 (0–127; 127 = ever |
-| FR-302 | M | E3 | – | Time is entered in minutes (0 = no time allowed), time windows as HH:MM 24 h (0–1439 minut |
-| FR-303 | M | E3 | – | Creating a rule uses the nested rule object; updating uses flat fields without categoryId  |
+| FR-300 | M | E3 | dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Per category, parents can create, view, edit and delete rules (CREATE/UPDATE/DELETE_TIMELI |
+| FR-301 | M | E3 | dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Days use the bitmask Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64 (0–127; 127 = ever |
+| FR-302 | M | E3 | dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Time is entered in minutes (0 = no time allowed), time windows as HH:MM 24 h (0–1439 minut |
+| FR-303 | M | E3 | dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Creating a rule uses the nested rule object; updating uses flat fields without categoryId  |
 | FR-304 | M | E5 | – | Weekly blocked-time schedule per category (as the server stores it: slots per weekday, UPD |
-| FR-305 | M | E3 | – | Deleting a rule asks for confirmation. |
+| FR-305 | M | E3 | dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Deleting a rule asks for confirmation. |
 | FR-307 | M | E3a | – | Rule off for today. A parent can switch a time limit rule off for the current day only. Th |
 | FR-400 | M | E6 | – | Create, rename and delete categories per child. Deleting asks for confirmation and states  |
 | FR-401 | M | E6 | – | Set the order and the parent category of a category. |
@@ -42,7 +42,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-702 | S | E2 | dashboard/tests/test_children.py, dashboard/tests/test_ui_children.py | Child devices shown read only. |
 | FR-800 | M | E11 | – | A clearly separated "Test" section lets the parent create family members (ADD_USER) for a  |
 | FR-801 | M | E11 | – | Adding a user pushes ADD_USER first; a 502 is shown when the server does not confirm. Pare |
-| FR-900 | M | B4, E3 | – | Rules, categories, extra time and blocking use device integrity: no password prompt. |
+| FR-900 | M | B4, E3 | dashboard/tests/test_push.py, dashboard/tests/test_rules.py, dashboard/tests/test_ui_rules.py | Rules, categories, extra time and blocking use device integrity: no password prompt. |
 | FR-901 | M | E10 | – | A password prompt (modal, per action, password never stored) appears only for server-requi |
 | FR-1000 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | Health check on page load with a configurable timeout (default 3 s). |
 | FR-1001 | M | A7 | dashboard/tests/test_connection.py, dashboard/tests/test_ui_offline.py | When the server is unreachable: offline banner, read-only view from the cache, all change  |

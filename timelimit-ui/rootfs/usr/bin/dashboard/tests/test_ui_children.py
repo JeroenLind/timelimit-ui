@@ -66,8 +66,11 @@ def test_tabs_work_with_the_arrow_keys(page: Page, live_app_factory: Any) -> Non
     expect(page.locator("#tab-categories")).to_have_attribute("aria-selected", "true")
     page.focus("#tab-categories")
     page.keyboard.press("ArrowRight")
+    expect(page.locator("#tab-rules")).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("ArrowRight")
     expect(page.locator("#tab-devices")).to_have_attribute("aria-selected", "true")
     expect(page.locator("#panel-devices")).to_be_visible()
+    page.keyboard.press("ArrowLeft")
     page.keyboard.press("ArrowLeft")
     expect(page.locator("#tab-categories")).to_have_attribute("aria-selected", "true")
 

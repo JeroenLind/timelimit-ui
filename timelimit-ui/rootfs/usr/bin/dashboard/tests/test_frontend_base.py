@@ -27,7 +27,9 @@ def test_every_key_used_in_templates_exists() -> None:
         used |= set(
             re.findall(r'data-i18n(?:-aria)?="([^"]+)"', template.read_text("utf-8"))
         )
+    used = {k for k in used if "{{" not in k}  # generated keys are checked below
     assert used - keys("en") == set()
+    assert {f"day.{n}" for n in range(7)} <= keys("en")
 
 
 def test_no_inline_style_attribute_in_any_template() -> None:
