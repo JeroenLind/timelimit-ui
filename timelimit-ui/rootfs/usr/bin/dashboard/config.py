@@ -22,7 +22,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-from dashboard.client.server import OFFICIAL_SERVER_URL as OFFICIAL_SERVER_URL  # noqa: PLC0414 (re-exported)
+from dashboard.client.server import (
+    OFFICIAL_SERVER_URL as OFFICIAL_SERVER_URL,  # noqa: PLC0414 (re-exported)
+)
 from dashboard.client.server import validate_server_url
 from dashboard.domain.errors import DashboardError
 from dashboard.domain.secret import Secret

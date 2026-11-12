@@ -14,7 +14,7 @@ from datetime import tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from dashboard.domain.bitmask import day_of_epoch
+from dashboard.domain.bitmask import day_of_epoch, days_from_mask
 from dashboard.domain.clock import Clock
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
@@ -31,6 +31,25 @@ def _zone(name: str) -> tzinfo:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError, OSError):
         return ZoneInfo("UTC")
+
+
+def _rule_view(item: CachedItem) -> dict[str, Any]:
+    """A time limit rule as the browser needs it (minutes instead of milliseconds, days as 0..6)."""
+    d = item.data
+    has_window = (int(d.get("start", 0)), int(d.get("end", 1439))) != (0, 1439)
+    return {
+        "id": str(d["id"]),
+        "days": days_from_mask(int(d.get("dayMask", 0))),
+        "minutes": int(d.get("maxTime", 0)) // 60000,
+        "extra_time": bool(d.get("extraTime")),
+        "start": int(d.get("start", 0)) if has_window else None,
+        "end": int(d.get("end", 1439)) if has_window else None,
+        "session_minutes": int(d.get("session", 0)) // 60000 or None,
+        "pause_minutes": int(d.get("pause", 0)) // 60000 or None,
+        "per_day": bool(d.get("perDay")),
+        "expires_at": d.get("e"),
+        "on_server": item.on_server,
+    }
 
 
 class ChildrenService:
@@ -58,6 +77,7 @@ class ChildrenService:
         data = item.data
         cid = str(data["categoryId"])
         cache = self._backend.cache
+        rules = cache.rules(scope, cid)
         extra_day = int(data.get("extraTimeDay", -1))
         extra = int(data.get("extraTime", 0)) if extra_day in (-1, today) else 0
         block_end = int(data.get("tempBlockTime", 0))
@@ -76,7 +96,8 @@ class ChildrenService:
             "temp_blocked_until": block_end if blocked and block_end else None,
             "limits_disabled": int(data.get("dlu", 0)) > now_ms,
             "app_count": len(cache.category_apps(scope, cid)),
-            "rule_count": len(cache.rules(scope, cid)),
+            "rule_count": len(rules),
+            "rules": [_rule_view(r) for r in rules],
         }
 
     def _child_summary(

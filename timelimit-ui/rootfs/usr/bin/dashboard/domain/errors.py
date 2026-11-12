@@ -28,7 +28,10 @@ class ErrorCode(str, Enum):
 class DashboardError(Exception):
     """An error with one of the fixed codes and a message that is safe to show to the user."""
 
-    def __init__(self, code: ErrorCode, message: str) -> None:
+    def __init__(self, code: ErrorCode, message: str, field: str | None = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        self.field = (
+            field  # the form field an INVALID_INPUT is about, when there is one
+        )

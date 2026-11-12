@@ -54,16 +54,19 @@ def current_request_id() -> str:
     return str(getattr(g, "request_id", None) or uuid.uuid4().hex)
 
 
-def error_response(code: ErrorCode, message: str) -> Response:
+def error_response(code: ErrorCode, message: str, field: str | None = None) -> Response:
     """The envelope for ``code``; the one place that builds an error body."""
-    response = jsonify(
-        {
-            "status": "error",
-            "code": code.value,
-            "message": message,
-            "requestId": current_request_id(),
-        }
-    )
+    body = {
+        "status": "error",
+        "code": code.value,
+        "message": message,
+        "requestId": current_request_id(),
+    }
+    if field:
+        body["field"] = (
+            field  # only for an INVALID_INPUT that belongs to one form field
+        )
+    response = jsonify(body)
     response.status_code = HTTP_STATUS[code]
     return response
 
@@ -108,7 +111,7 @@ def register_error_handling(app: Flask) -> None:
                 requestId=current_request_id(), code=error.code.value, status=status
             ),
         )
-        return error_response(error.code, error.message)
+        return error_response(error.code, error.message, error.field)
 
     @app.errorhandler(HTTPException)
     def _http_error(error: HTTPException) -> Response | HTTPException:
