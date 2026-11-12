@@ -101,9 +101,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-700 | M | Overview of all children: status, today's used time, quick actions (extra time, block). | Partial |
-| FR-701 | M | Child detail screen: categories, rules, apps, blocked times, used time. | Partial |
-| FR-702 | S | Child devices are shown **read only**: model, last connection, current user. | Open |
+| FR-700 | M | Overview of all children: status, today's used time, quick actions (extra time, block). | Partial (E2: status and used time; quick actions in E7/E8) |
+| FR-701 | M | Child detail screen: categories, rules, apps, blocked times, used time. | Partial (E2: shell, categories, devices; rest in E3-E9) |
+| FR-702 | S | Child devices are shown **read only**: model, name, date added; the devices of the child are those where it is the current user. The server sends no last connection to parents, so that is not shown. | Done (E2) |
 | FR-703 | W | No add/remove of children or parents in production (done in the app). | – |
 
 ### 2.8 Test section (separate)

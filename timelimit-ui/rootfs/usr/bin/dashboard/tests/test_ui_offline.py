@@ -37,7 +37,7 @@ def test_server_up_shows_no_banner_and_enabled_controls(
     open_page(page, live_app_factory())
     expect(page.locator(BANNER)).to_be_hidden()
     expect(page.locator(CONTROL)).to_be_enabled()
-    assert page.locator("body").get_attribute("data-server") == "up"
+    expect(page.locator("body")).to_have_attribute("data-server", "up")
 
 
 def test_server_down_shows_the_banner_and_disables_changes(
@@ -63,7 +63,7 @@ def test_server_back_removes_the_banner_and_refreshes_the_data(
     refreshes: list[str] = []
     page.on(
         "request",
-        lambda r: refreshes.append(r.url) if r.url.endswith("/api/overview") else None,
+        lambda r: refreshes.append(r.url) if r.url.endswith("/api/children") else None,
     )
     open_page(page, live_app_factory())
     fake_server.stop()

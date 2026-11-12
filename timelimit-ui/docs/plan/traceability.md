@@ -37,8 +37,9 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | FR-503 | M | E8 | – | A category can be temporarily blocked until a chosen time. |
 | FR-600 | M | E9 | – | Show today's used time per category and child, against the limit. |
 | FR-601 | M | E9 | – | Show the history per day (7 and 30 days) per category as a list and a bar chart. The dashb |
-| FR-700 | M | E2 | – | Overview of all children: status, today's used time, quick actions (extra time, block). |
-| FR-701 | M | E2 | – | Child detail screen: categories, rules, apps, blocked times, used time. |
+| FR-700 | M | E2 | dashboard/tests/test_children.py, dashboard/tests/test_ui_children.py | Overview of all children: status, today's used time, quick actions (extra time, block). |
+| FR-701 | M | E2 | dashboard/tests/test_children.py, dashboard/tests/test_ui_children.py | Child detail screen: categories, rules, apps, blocked times, used time. |
+| FR-702 | S | E2 | dashboard/tests/test_children.py, dashboard/tests/test_ui_children.py | Child devices shown read only. |
 | FR-800 | M | E11 | – | A clearly separated "Test" section lets the parent create family members (ADD_USER) for a  |
 | FR-801 | M | E11 | – | Adding a user pushes ADD_USER first; a 502 is shown when the server does not confirm. Pare |
 | FR-900 | M | B4, E3 | – | Rules, categories, extra time and blocking use device integrity: no password prompt. |
@@ -87,7 +88,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-512 | M | A3, B7 | dashboard/tests/test_secret_clock.py | Time and time zones: the domain layer only uses time-zone-aware times and receives the cur |
 | TR-513 | M | A3, B7 | dashboard/tests/test_secret_clock.py, test_logs.py | Secrets in code: tokens, hashes and typed passwords pass through one Secret type / masking |
 | TR-514 | M | A6, B7 | dashboard/tests/test_client.py | Timeouts on all I/O: every HTTP call has an explicit timeout; a test fails on any call wit |
-| UI-001 | M | E1, E11, E2 | – | Screens: children overview, child detail, settings, test section. |
+| UI-001 | M | E1, E11, E2 | dashboard/tests/test_children.py, dashboard/tests/test_ui_children.py, dashboard/tests/test_ui_settings.py | Screens: children overview, child detail, settings, test section. |
 | UI-002 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Navigation: fixed sidebar on desktop, hamburger menu on small screens. The menu opens/clos |
 | UI-003 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Layout works on desktop browsers, phones and tablets. |
 | UI-004 | M | D1 | dashboard/tests/test_ui_base.py, test_frontend_base.py | Dark theme (and light). |

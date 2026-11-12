@@ -62,9 +62,8 @@ def test_tabs_work_with_the_arrow_keys(page: Page, live_app_factory: Any) -> Non
     live = live_app_factory()
     open_overview(page, live)
     page.click('#overview-list a:has-text("Anna")')
-    expect(page.locator("#tab-categories")).to_have_attribute(
-        "aria-selected", "true"
-    )  # script is ready
+    expect(page.locator("#tab-categories")).to_be_visible()  # data loaded, script ready
+    expect(page.locator("#tab-categories")).to_have_attribute("aria-selected", "true")
     page.focus("#tab-categories")
     page.keyboard.press("ArrowRight")
     expect(page.locator("#tab-devices")).to_have_attribute("aria-selected", "true")
@@ -74,14 +73,24 @@ def test_tabs_work_with_the_arrow_keys(page: Page, live_app_factory: Any) -> Non
 
 
 def tell_the_device(live: Any, fake_server: Any) -> None:
-    """What the real server does after a change by someone else: send "should sync" to the device."""
+    """What the real server does after a change by someone else: send "should sync" to the device.
+
+    The device may still be logging in on its socket, so the message is repeated for a few seconds
+    (extra pulls are harmless)."""
+    import threading
     import time
 
-    end = time.monotonic() + 5
-    while fake_server.socket_clients < 1 and time.monotonic() < end:
-        time.sleep(0.05)
     backend = live.app.extensions["dashboard"]["backend"]
-    fake_server.should_sync(backend.links.get(fake_server.url).device_token.reveal())
+    token = backend.links.get(fake_server.url).device_token.reveal()
+
+    def repeat() -> None:
+        end = time.monotonic() + 4
+        while time.monotonic() < end:
+            if fake_server.socket_clients >= 1:
+                fake_server.should_sync(token)
+            time.sleep(0.25)
+
+    threading.Thread(target=repeat, daemon=True).start()
 
 
 def test_a_child_removed_on_the_server_shows_the_state_not_an_error(

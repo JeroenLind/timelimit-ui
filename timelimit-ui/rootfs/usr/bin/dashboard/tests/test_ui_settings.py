@@ -45,7 +45,9 @@ def test_first_start_goes_to_settings_and_joining_loads_the_overview(
     assert page.input_value("#link-password") == ""  # not kept in the form
     expect(page.locator("#linked-box")).to_be_visible()
     page.click('a[href="/"]')
-    expect(page.locator("#overview-list li")).to_have_count(2)
+    expect(
+        page.locator("#overview-empty")
+    ).to_be_visible()  # a new family has no children yet
 
 
 def test_a_wrong_password_shows_an_error_and_stays_on_the_form(
