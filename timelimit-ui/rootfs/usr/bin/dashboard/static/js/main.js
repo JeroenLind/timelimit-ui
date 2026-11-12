@@ -2,6 +2,8 @@ import { configureApi } from "./api.js";
 import { startConnection } from "./connection.js";
 import { initI18n, languageChoice, setLanguage } from "./i18n.js";
 import { initNav } from "./nav.js";
+import { initChild, refreshChild } from "./child.js";
+import { startEvents } from "./events.js";
 import { refreshNotices } from "./notices.js";
 import { refreshOverview } from "./overview.js";
 import { initSettings } from "./settings.js";
@@ -37,12 +39,24 @@ if (refresh) refresh.addEventListener("click", refreshOverview);
 
 await initI18n();
 const onSettings = Boolean(document.getElementById("settings-page"));
+const onChild = Boolean(document.getElementById("child-page"));
+// Every page reads from the cache, so it works while the server is down.
+const refreshPage = async () => {
+  if (onChild) await refreshChild();
+  else if (!onSettings) await refreshOverview();
+};
 if (onSettings) await initSettings();
-else await refreshOverview(); // from the cache: works while the server is down
+if (onChild) initChild();
+await refreshPage();
 await refreshNotices();
+document.addEventListener("dashboard:changed", () => {
+  refreshPage();
+  refreshNotices();
+});
+startEvents();
 await startConnection(timings, {
   onBack: async () => {
-    if (!onSettings) await refreshOverview();
+    await refreshPage();
     await refreshNotices();
   },
 });

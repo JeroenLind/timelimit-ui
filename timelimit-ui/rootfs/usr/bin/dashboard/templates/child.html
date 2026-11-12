@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="child-page" data-child-id="{{ child_id }}">
+  <p><a href="/" data-i18n="child.back">All children</a></p>
+  <p id="child-error" class="form-error" role="alert" hidden></p>
+  <div id="child-unknown" class="panel" hidden>
+    <h2 data-i18n="child.unknown.title">Child not found</h2>
+    <p data-i18n="child.unknown.text">This child is not known (any more).</p>
+  </div>
+  <div id="child-content" hidden>
+    <h2><span id="child-name"></span> <span id="child-status" class="badge"></span></h2>
+    <div id="child-gone" class="banner" data-state="notice" hidden>
+      <span data-i18n="child.gone">This child is no longer on the server. The data shown is the last known state.</span>
+    </div>
+    <p class="muted"><span data-i18n="child.used_today">Used today</span>: <strong id="child-used"></strong> · <span data-i18n="child.time_zone">Time zone</span>: <span id="child-zone"></span></p>
+
+    <div role="tablist" class="tabs" aria-label="Child">
+      <button type="button" role="tab" id="tab-categories" aria-controls="panel-categories" data-tab="categories" data-i18n="child.categories">Categories</button>
+      <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
+    </div>
+    <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
+      <p id="categories-empty" data-i18n="child.categories.empty" hidden>No categories.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th data-i18n="child.category">Category</th><th data-i18n="child.used_today">Used today</th>
+            <th data-i18n="child.extra_time">Extra time</th><th data-i18n="child.state">State</th>
+            <th data-i18n="child.apps">Apps</th><th data-i18n="child.rules">Rules</th>
+          </tr></thead>
+          <tbody id="categories-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" data-panel="devices" class="panel" hidden>
+      <p class="muted" data-i18n="child.devices.help">Read only. Devices on which this child is signed in.</p>
+      <p id="devices-empty" data-i18n="child.devices.empty" hidden>No devices.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th data-i18n="child.device.name">Name</th><th data-i18n="child.device.model">Model</th><th data-i18n="child.device.added">Added</th>
+          </tr></thead>
+          <tbody id="devices-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

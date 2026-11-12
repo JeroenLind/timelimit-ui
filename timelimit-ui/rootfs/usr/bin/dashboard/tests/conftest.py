@@ -101,6 +101,54 @@ def make_family(fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD) 
     )
 
 
+def seed_children(fake) -> dict[str, str]:  # type: ignore[no-untyped-def]
+    """Two children, three categories and two child devices in the existing family of ``fake``.
+
+    Anna (UTC): Games (2 apps, 1 rule, 65 min used today, +15 min extra time today) with the
+    sub-category Social (20 min used); Ben (UTC): School (nothing used). Returns the ids by name.
+    """
+    import time
+
+    from .fakeserver.state import Category, Device, Rule, User, version_id
+
+    family = next(iter(fake.world.families.values()))
+    today = int(time.time() // 86400)
+    ids: dict[str, str] = {}
+    with fake.world.lock:
+        for name in ("Anna", "Ben"):
+            user = User(
+                user_id=f"u{name.lower()}", name=name, type="child",
+                password_hash="", second_hash="", second_salt="", time_zone="UTC",
+            )  # fmt: skip
+            family.users[user.user_id] = user
+            ids[name] = user.user_id
+        games = Category(
+            "cgames",
+            ids["Anna"],
+            "Games",
+            extra_time=15 * 60000,
+            extra_time_day=today,
+            sort=0,
+        )
+        games.apps = ["com.game.one", "com.game.two"]
+        games.rules["r1"] = Rule("r1", False, 127, 3600000, 0, 1439, 0, 0, False)
+        games.used_times = {today: {(0, 1439): 65 * 60000}}
+        social = Category("csocial", ids["Anna"], "Social", parent_id="cgames", sort=0)
+        social.used_times = {today: {(0, 1439): 20 * 60000}}
+        school = Category("cschool", ids["Ben"], "School", sort=0)
+        for category in (games, social, school):
+            family.categories[category.category_id] = category
+        family.devices["dtablet"] = Device(
+            "dtablet", "Anna tablet", "Pixel Tablet", "t1", current_user_id=ids["Anna"]
+        )
+        family.devices["dphone"] = Device(
+            "dphone", "Ben phone", "Galaxy A54", "t2", current_user_id=ids["Ben"]
+        )
+        family.user_list_version = version_id()
+        family.device_list_version = version_id()
+    return ids
+
+
 def link_app(  # type: ignore[no-untyped-def]
     app, fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD
 ) -> None:
@@ -131,7 +179,7 @@ def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-de
 
     started: list[LiveApp] = []
 
-    def start(linked: bool = True, **overrides):  # type: ignore[no-untyped-def]
+    def start(linked: bool = True, seed: bool = True, **overrides):  # type: ignore[no-untyped-def]
         """Start the app; by default a family exists on the fake and the app is linked to it."""
         base = Settings(
             data_dir=data_dir,
@@ -146,6 +194,8 @@ def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-de
         started.append(live)
         if linked and live.app.extensions["dashboard"]["profiles"].url():
             make_family(fake_server)
+            if seed:
+                seed_children(fake_server)
             link_app(live.app, fake_server)
         return live
 

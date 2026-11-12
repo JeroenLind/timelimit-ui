@@ -345,7 +345,7 @@ def test_the_token_is_in_no_page_script_or_api_answer(
         "/settings",
         "/api/settings",
         "/api/notices",
-        "/api/overview",
+        "/api/children",
         "/api/server/status",
         "/api/health",
         "/api/settings/debug-export",

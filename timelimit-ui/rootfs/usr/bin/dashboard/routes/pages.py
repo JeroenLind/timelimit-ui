@@ -1,18 +1,17 @@
-"""The HTML pages and the read-only overview data (plan A7)."""
+"""The overview and settings pages (plan A7, E1)."""
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, redirect, render_template
+from flask import Blueprint, current_app, redirect, render_template
 from flask.typing import ResponseReturnValue
 
 from dashboard.config import Settings
 from dashboard.services.link import READY, SESSION_INVALID, LinkService
-from dashboard.services.overview import overview_items
 
 bp = Blueprint("pages", __name__)
 
 
-def _timings() -> dict[str, float]:
+def timings() -> dict[str, float]:
     settings: Settings = current_app.extensions["dashboard"]["settings"]
     return {
         "healthTimeout": settings.health_timeout,
@@ -29,15 +28,9 @@ def overview_page() -> ResponseReturnValue:
     link: LinkService = current_app.extensions["dashboard"]["link"]
     if link.state() not in (READY, SESSION_INVALID):
         return redirect("/settings")
-    return render_template("overview.html", timings=_timings())
+    return render_template("overview.html", timings=timings())
 
 
 @bp.get("/settings")
 def settings_page() -> ResponseReturnValue:
-    return render_template("settings.html", timings=_timings())
-
-
-@bp.get("/api/overview")
-def overview_data() -> ResponseReturnValue:
-    """Served from the cache, so it works while the server is down."""
-    return jsonify({"items": overview_items()})
+    return render_template("settings.html", timings=timings())
