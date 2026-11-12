@@ -4,9 +4,11 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 
 | Requirement | Pri | Step | Test | Summary |
 |---|---|---|---|---|
-| FR-100 | M | E1 | – | On first start the dashboard shows a settings screen where the server is selected with a d |
-| FR-101 | M | E1 | – | The dashboard device is signed in as a separate parent user "Dashboard" (never as a person |
-| FR-103 | M | E1 | dashboard/tests/test_repository.py | Only one family per installation. Switching family means resetting the installation. |
+| FR-100 | M | E1 | dashboard/tests/test_link.py, dashboard/tests/test_ui_settings.py | On first start the dashboard shows a settings screen where the server is selected with a d |
+| FR-101 | M | E1 | dashboard/tests/test_link.py, dashboard/tests/test_ui_settings.py | The dashboard device is signed in as a separate parent user "Dashboard" (never as a person |
+| FR-102 | S | E1 | dashboard/tests/test_link.py, dashboard/tests/test_ui_settings.py | Warn (never block) when the server apiLevel is not 7 or 9. |
+| FR-103 | M | E1 | dashboard/tests/test_repository.py, dashboard/tests/test_link.py | Only one family per installation. Switching family means resetting the installation. |
+| FR-104 | S | E1 | dashboard/tests/test_link.py, dashboard/tests/test_ui_settings.py | Settings screen: server, state, device id (not the token), version, last sync. |
 | FR-200 | M | B4, B5 | dashboard/tests/test_push.py (B4) | Sync starts automatically when the dashboard starts and after every change, without user a |
 | FR-201 | M | B3 | dashboard/tests/test_pull.py | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, app |
 | FR-202 | M | B3 | dashboard/tests/test_pull.py | After shouldDoFullSync the dashboard forgets all versions, fully re-pulls, refreshes the U |
@@ -75,6 +77,7 @@ Created in step A1 from `docs/plan/implementation-plan.md` §11. The *Test* colu
 | TR-312 | M | C1, C2, G1 | dashboard/tests/test_addon_files.py (C1), dashboard/tests/test_imports.py (C2) | The legacy UI layer (frontend.py, web_server.py, api_client.py, check_server.py) and the o |
 | TR-400 | M | A3 | dashboard/tests/test_logs.py | Configurable log level (debug/info/warn/error). |
 | TR-401 | M | A3 | dashboard/tests/test_logs.py | Log rotation with limited size and file count. |
+| TR-402 | S | A3, E1 | dashboard/tests/test_logs.py, dashboard/tests/test_link.py, dashboard/tests/test_ui_settings.py | Debug export; secrets masked at info level and higher. |
 | TR-500 | M | A2 | dashboard/tests/test_isolation.py | pytest unit tests, isolated (own temporary database and log folder per test), parallel wit |
 | TR-501 | M | A5, B2 | dashboard/tests/test_fakeserver.py, dashboard/tests/test_domain_actions.py | Contract tests: every action the dashboard can produce is validated against the schemas ge |
 | TR-502 | M | A7, D1, E-steps | – | Browser/UI tests (Playwright) for the main screens: overview, child detail, rule dialog, h |

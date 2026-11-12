@@ -162,8 +162,16 @@ def test_a_change_is_in_the_cache_within_the_sync_target(
 
 
 def test_stop_is_clean_and_fails_queued_jobs(worker: SyncWorker) -> None:
-    release = threading.Event()
-    blocker = worker.submit(release.wait)
+    release, started = threading.Event(), threading.Event()
+
+    def hold() -> bool:
+        started.set()
+        return release.wait()
+
+    blocker = worker.submit(hold)
+    assert started.wait(
+        2
+    )  # the job must be running: only a running job is finished by stop()
     queued = worker.submit(lambda: "never")
     threading.Timer(0.1, release.set).start()
     assert worker.stop(timeout=3.0)

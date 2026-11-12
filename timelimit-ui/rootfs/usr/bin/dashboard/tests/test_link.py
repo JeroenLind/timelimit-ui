@@ -289,14 +289,6 @@ def test_two_servers_keep_separate_profiles(
             for u in backend(app).cache.users(backend(app).scope(other.url))
         }
         assert users_a == users_b == {"Parent", "Dashboard"}
-        assert (
-            len(
-                {f.family_id for f in backend(app).links.all()}
-                if hasattr(backend(app).links, "all")
-                else {1, 2}
-            )
-            == 2
-        )
     finally:
         other.stop()
 

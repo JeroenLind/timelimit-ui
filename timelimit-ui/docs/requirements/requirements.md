@@ -33,11 +33,11 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-100 | M | On first start the dashboard shows a **settings screen** where the **server is selected** with a dropdown: **Official server** (`https://api.timelimit.io`) or **Alternative server** (protocol http/https with default http, address and port). The choice is stored persistently; each server keeps its own link, cache and pending restores, so switching never mixes data and actions only reach the active server. For a real family the dashboard logs in **once** as an existing parent (the password is used once and not stored), creates the parent **"Dashboard"** itself with `ADD_USER` (FR-801) and registers itself as a **new device** (no import of an older dashboard's link). With the test-server switch on (FR-800) the screen can also **create a new family** on a fresh test server; its first parent becomes "Dashboard". The device auth token is stored. | Partial |
-| FR-101 | M | The dashboard device is signed in as a separate parent user **"Dashboard"** (never as a person's own parent account). Its actions use device integrity (`integrity:"device"`). | Partial |
-| FR-102 | S | On connecting, the dashboard reads the server's `apiLevel` and **warns** (never blocks) when it is not 7 or 9 (the tested range). | Open |
+| FR-100 | M | On first start the dashboard shows a **settings screen** where the **server is selected** with a dropdown: **Official server** (`https://api.timelimit.io`) or **Alternative server** (protocol http/https with default http, address and port). The choice is stored persistently; each server keeps its own link, cache and pending restores, so switching never mixes data and actions only reach the active server. For a real family the dashboard logs in **once** as an existing parent (the password is used once and not stored), creates the parent **"Dashboard"** itself with `ADD_USER` (FR-801) and registers itself as a **new device** (no import of an older dashboard's link). With the test-server switch on (FR-800) the screen can also **create a new family** on a fresh test server; its first parent becomes "Dashboard". The device auth token is stored. | Done (E1) |
+| FR-101 | M | The dashboard device is signed in as a separate parent user **"Dashboard"** (never as a person's own parent account). Its actions use device integrity (`integrity:"device"`). | Done (E1) |
+| FR-102 | S | On connecting, the dashboard reads the server's `apiLevel` and **warns** (never blocks) when it is not 7 or 9 (the tested range). | Done (E1) |
 | FR-103 | M | Only one family per installation. Switching family means resetting the installation. | Done |
-| FR-104 | S | The settings screen shows server URL, connection state, device id (not the token), dashboard version, and last sync. | Partial |
+| FR-104 | S | The settings screen shows server URL, connection state, device id (not the token), dashboard version, and last sync. | Done (E1) |
 
 ### 2.2 Synchronisation (replaces FR-001, FR-003, FR-004, BUG-001, BUG-002, BUG-003)
 
@@ -199,7 +199,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | TR-400 | M | Configurable log level (debug/info/warn/error). | Done |
 | TR-401 | M | Log rotation with limited size and file count. | Done |
-| TR-402 | S | A **debug export** button in settings. Secrets (tokens, hashes, the typed password, the second hash) are **masked at info level and higher**; only at **debug level** everything is unmasked, also in the export; the UI warns before sharing. | Open |
+| TR-402 | S | A **debug export** button in settings. Secrets (tokens, hashes, the typed password, the second hash) are **masked at info level and higher**; only at **debug level** everything is unmasked, also in the export; the UI warns before sharing. | Done (A3, E1) |
 
 ### 3.5 Quality
 
