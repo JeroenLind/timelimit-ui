@@ -128,13 +128,12 @@ class ChildrenService:
 
     def detail(self, child_id: str) -> dict[str, Any]:
         scope = self._scope()
+        if scope is None:
+            raise DashboardError(ErrorCode.NOT_FOUND, "This child is not known.")
         child = next(
-            (c for c in self._children(scope) if c.data["id"] == child_id)
-            if scope
-            else (),
-            None,
+            (c for c in self._children(scope) if c.data["id"] == child_id), None
         )
-        if scope is None or child is None:
+        if child is None:
             raise DashboardError(ErrorCode.NOT_FOUND, "This child is not known.")
         now_ms = int(self._clock.now().timestamp() * 1000)
         summary, categories, today = self._child_summary(scope, child, now_ms)

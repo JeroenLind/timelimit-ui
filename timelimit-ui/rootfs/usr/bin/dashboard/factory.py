@@ -10,8 +10,8 @@ from dashboard.domain.secret import Secret
 from dashboard.routes import children, health, link, pages, server, stream
 from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
-from dashboard.services.clock import SystemClock
 from dashboard.services.children import ChildrenService
+from dashboard.services.clock import SystemClock
 from dashboard.services.connection import ConnectionService
 from dashboard.services.link import LinkService
 from dashboard.services.profiles import ServerProfiles

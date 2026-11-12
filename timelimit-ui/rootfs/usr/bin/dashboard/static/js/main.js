@@ -37,6 +37,7 @@ if (languageSelect) {
 const refresh = document.getElementById("refresh-overview");
 if (refresh) refresh.addEventListener("click", refreshOverview);
 
+if (document.getElementById("child-page")) initChild();
 await initI18n();
 const onSettings = Boolean(document.getElementById("settings-page"));
 const onChild = Boolean(document.getElementById("child-page"));
@@ -46,7 +47,7 @@ const refreshPage = async () => {
   else if (!onSettings) await refreshOverview();
 };
 if (onSettings) await initSettings();
-if (onChild) initChild();
+
 await refreshPage();
 await refreshNotices();
 document.addEventListener("dashboard:changed", () => {

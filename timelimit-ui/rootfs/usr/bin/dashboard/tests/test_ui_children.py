@@ -62,12 +62,26 @@ def test_tabs_work_with_the_arrow_keys(page: Page, live_app_factory: Any) -> Non
     live = live_app_factory()
     open_overview(page, live)
     page.click('#overview-list a:has-text("Anna")')
+    expect(page.locator("#tab-categories")).to_have_attribute(
+        "aria-selected", "true"
+    )  # script is ready
     page.focus("#tab-categories")
     page.keyboard.press("ArrowRight")
     expect(page.locator("#tab-devices")).to_have_attribute("aria-selected", "true")
     expect(page.locator("#panel-devices")).to_be_visible()
     page.keyboard.press("ArrowLeft")
     expect(page.locator("#tab-categories")).to_have_attribute("aria-selected", "true")
+
+
+def tell_the_device(live: Any, fake_server: Any) -> None:
+    """What the real server does after a change by someone else: send "should sync" to the device."""
+    import time
+
+    end = time.monotonic() + 5
+    while fake_server.socket_clients < 1 and time.monotonic() < end:
+        time.sleep(0.05)
+    backend = live.app.extensions["dashboard"]["backend"]
+    fake_server.should_sync(backend.links.get(fake_server.url).device_token.reveal())
 
 
 def test_a_child_removed_on_the_server_shows_the_state_not_an_error(
@@ -81,6 +95,7 @@ def test_a_child_removed_on_the_server_shows_the_state_not_an_error(
     expect(page.locator("#child-gone")).to_be_hidden()
     del family.users[ben_id]
     family.user_list_version = version_id()
+    tell_the_device(live, fake_server)
     expect(page.locator("#child-gone")).to_be_visible()  # live update, no reload
     assert page.locator("#child-error").is_hidden()
     page.reload()
@@ -107,6 +122,7 @@ def test_the_overview_follows_changes_made_elsewhere(
     (day,) = games.used_times
     games.used_times[day] = {(0, 1439): 125 * 60000}
     games.used_times_version = version_id()
+    tell_the_device(live, fake_server)
     expect(page.locator('#overview-list li:has-text("Anna")')).to_contain_text(
         "2 h 05 min"
     )

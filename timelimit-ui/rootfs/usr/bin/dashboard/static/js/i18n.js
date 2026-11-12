@@ -50,5 +50,7 @@ export function applyTranslations(root = document) {
   for (const element of root.querySelectorAll("[data-i18n-aria]")) {
     element.setAttribute("aria-label", t(element.dataset.i18nAria));
   }
-  document.dispatchEvent(new CustomEvent("dashboard:language"));
+  // Only a full-page translation announces a language change; partial ones (a banner, a box) are
+  // called from the listeners themselves and would loop.
+  if (root === document) document.dispatchEvent(new CustomEvent("dashboard:language"));
 }
