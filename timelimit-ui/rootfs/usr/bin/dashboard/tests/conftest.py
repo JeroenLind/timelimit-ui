@@ -74,6 +74,53 @@ class LiveApp:
         self._thread.join(timeout=5)
 
 
+PARENT_MAIL = "parent@example.org"
+PARENT_PASSWORD = "correct horse"
+
+
+def make_family(fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD) -> None:  # type: ignore[no-untyped-def]
+    """An existing family on the fake with one parent (the situation of a real family)."""
+    from dashboard.client.server import TimeLimitClient
+    from dashboard.domain import passwords
+
+    client = TimeLimitClient(fake.url, timeout=5.0)
+    login = client.send_login_code(mail, "en")
+    auth = client.sign_in_by_code(login, fake.inbox[-1][1])
+    hashes = passwords.new_password(password)
+    client.create_family(
+        mail_auth_token=auth,
+        parent_name="Parent",
+        device_name="Phone",
+        device_model="test",
+        time_zone="Europe/Amsterdam",
+        password={
+            "hash": hashes.hash,
+            "secondHash": hashes.second_hash,
+            "secondSalt": hashes.second_salt,
+        },
+    )
+
+
+def link_app(
+    app, fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD
+) -> None:  # type: ignore[no-untyped-def]
+    """Drive the link API of ``app`` (no browser) until the dashboard is ready."""
+    http = app.test_client()
+    assert (
+        http.post(
+            "/api/link/mail-code", json={"mail": mail, "locale": "en"}
+        ).status_code
+        == 200
+    )
+    code = fake.inbox[-1][1]
+    assert http.post("/api/link/confirm-code", json={"code": code}).status_code == 200
+    answer = http.post(
+        "/api/link/join", json={"password": password, "time_zone": "UTC"}
+    )
+    assert answer.status_code == 200, answer.get_json()
+    assert answer.get_json()["state"] == "ready"
+
+
 @pytest.fixture
 def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-def]
     """Start the dashboard against the fake server; keyword arguments override Settings fields."""
@@ -84,7 +131,8 @@ def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-de
 
     started: list[LiveApp] = []
 
-    def start(**overrides):  # type: ignore[no-untyped-def]
+    def start(linked: bool = True, **overrides):  # type: ignore[no-untyped-def]
+        """Start the app; by default a family exists on the fake and the app is linked to it."""
         base = Settings(
             data_dir=data_dir,
             server_url=fake_server.url,
@@ -96,6 +144,9 @@ def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-de
         )
         live = LiveApp(dataclasses.replace(base, **overrides), Secret("test-secret"))
         started.append(live)
+        if linked and live.app.extensions["dashboard"]["profiles"].url():
+            make_family(fake_server)
+            link_app(live.app, fake_server)
         return live
 
     yield start

@@ -348,7 +348,9 @@ def test_pull_sends_only_what_changed(api: Api) -> None:
     second = api.pull(status)
     assert set(second) == {"fullVersion", "apiLevel"}
     assert "tasks" in first
-    assert first["dh"]["v"] and first["dh"]["k"]  # level 5 and up gets the server's DH key
+    assert (
+        first["dh"]["v"] and first["dh"]["k"]
+    )  # level 5 and up gets the server's DH key
     assert "tasks" not in api.pull(blank_status(2))
 
 

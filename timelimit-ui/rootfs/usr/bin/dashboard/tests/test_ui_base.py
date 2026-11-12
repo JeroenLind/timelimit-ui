@@ -28,6 +28,11 @@ def open_app(page: Page, live: LiveApp) -> None:
     expect(page.locator("#overview-list li")).to_have_count(2)
 
 
+def open_settings(page: Page, live: LiveApp) -> None:
+    page.goto(live.url + "/settings")
+    expect(page.locator("#info-version")).not_to_be_empty()
+
+
 def test_desktop_shows_the_sidebar_and_no_hamburger(
     browser: Any, live_app_factory: Any
 ) -> None:
@@ -108,14 +113,14 @@ def test_manual_theme_wins_and_is_remembered(
 ) -> None:
     page = make_page(browser, color_scheme="dark")
     live = live_app_factory()
-    open_app(page, live)
+    open_settings(page, live)
     page.select_option("#theme-select", "light")
     assert (
         page.evaluate("getComputedStyle(document.body).backgroundColor")
         == "rgb(246, 247, 249)"
     )
     page.reload()
-    expect(page.locator("#overview-list li")).to_have_count(2)
+    expect(page.locator("#info-version")).not_to_be_empty()
     assert page.evaluate("document.documentElement.dataset.theme") == "light"
     assert page.locator("#theme-select").input_value() == "light"
     page.select_option("#theme-select", "auto")
@@ -135,14 +140,14 @@ def test_language_defaults_to_the_browser_and_switches(
     expect(german.locator("main h2")).to_have_text("Overview")  # not nl or en: English
 
     page = make_page(browser)
-    open_app(page, live)
-    expect(page.locator("main h2")).to_have_text("Overview")
+    open_settings(page, live)
+    expect(page.locator("main h2")).to_have_text("Settings")
     page.select_option("#language-select", "nl")
-    expect(page.locator("main h2")).to_have_text("Overzicht")
-    expect(page.locator("#refresh-overview")).not_to_have_text("Refresh from server")
+    expect(page.locator("main h2")).to_have_text("Instellingen")
+    expect(page.locator("#debug-export")).not_to_have_text("Download debug export")
     assert page.evaluate("document.documentElement.lang") == "nl"
     page.reload()
-    expect(page.locator("main h2")).to_have_text("Overzicht")
+    expect(page.locator("main h2")).to_have_text("Instellingen")
 
 
 def test_a_missing_key_shows_the_english_text(
