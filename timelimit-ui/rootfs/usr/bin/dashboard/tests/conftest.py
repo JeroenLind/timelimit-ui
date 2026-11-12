@@ -105,7 +105,7 @@ def seed_children(fake) -> dict[str, str]:  # type: ignore[no-untyped-def]
     """Two children, three categories and two child devices in the existing family of ``fake``.
 
     Anna (UTC): Games (2 apps, 1 rule, 65 min used today, +15 min extra time today) with the
-    sub-category Social (20 min used); Ben (UTC): School (nothing used). Returns the ids by name.
+    sub-category Social (20 min used); Ben (UTC): School (nothing used). Returns the ids by name (children and categories).
     """
     import time
 
@@ -131,13 +131,16 @@ def seed_children(fake) -> dict[str, str]:  # type: ignore[no-untyped-def]
             sort=0,
         )
         games.apps = ["com.game.one", "com.game.two"]
-        games.rules["r1"] = Rule("r1", False, 127, 3600000, 0, 1439, 0, 0, False)
+        games.rules["rule01"] = Rule(
+            "rule01", False, 127, 3600000, 0, 1439, 0, 0, False
+        )
         games.used_times = {today: {(0, 1439): 65 * 60000}}
         social = Category("csocial", ids["Anna"], "Social", parent_id="cgames", sort=0)
         social.used_times = {today: {(0, 1439): 20 * 60000}}
         school = Category("cschool", ids["Ben"], "School", sort=0)
         for category in (games, social, school):
             family.categories[category.category_id] = category
+            ids[category.title] = category.category_id
         family.devices["dtablet"] = Device(
             "dtablet", "Anna tablet", "Pixel Tablet", "t1", current_user_id=ids["Anna"]
         )

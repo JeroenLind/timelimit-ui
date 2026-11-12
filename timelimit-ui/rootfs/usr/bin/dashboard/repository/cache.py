@@ -323,6 +323,13 @@ class CacheRepository:
         )
         return [CachedItem(json.loads(r["data"]), bool(r["on_server"])) for r in rows]
 
+    def forget_rule(self, scope: Scope, rule_id: str) -> None:
+        """Remove one rule that is already flagged "no longer on server" (the parent deleted it herself)."""
+        self._db.connection().execute(
+            "DELETE FROM rules WHERE profile_key=? AND family_id=? AND rule_id=? AND on_server=0",
+            (*scope.args, rule_id),
+        )
+
     # -- used time ---------------------------------------------------------------------------------------------------
     def set_category_used_times(
         self,

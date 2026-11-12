@@ -285,6 +285,7 @@ def create_app(
     @app.post("/sync/push-actions")
     def push_actions() -> Response:
         data = body("isClientPushChangesRequest")
+        world.push_requests += 1
         if len(data["actions"]) > 50:
             raise HttpError(400)
         full_sync = False

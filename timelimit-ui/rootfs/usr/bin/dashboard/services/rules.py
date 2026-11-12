@@ -152,5 +152,10 @@ class RulesService:
         self._changes.push([actions.update_timelimit_rule(rule_id, **fields)])
 
     def delete(self, child_id: str, rule_id: str) -> None:
-        self._check_rule(self._scope(), child_id, rule_id)
+        scope = self._scope()
+        self._check_rule(scope, child_id, rule_id)
         self._changes.push([actions.delete_timelimit_rule(rule_id)])
+        # confirmed by the pull: the server no longer lists it, so it is flagged; she asked for this, so
+        # it is not kept as "no longer on server" (that is for changes made elsewhere, FR-206)
+        self._backend.cache.forget_rule(scope, rule_id)
+        self._backend.hub.publish({"type": "changed", "parts": ["rules"]})
