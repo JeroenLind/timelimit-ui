@@ -101,9 +101,9 @@ def make_family(fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD) 
     )
 
 
-def link_app(
+def link_app(  # type: ignore[no-untyped-def]
     app, fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     """Drive the link API of ``app`` (no browser) until the dashboard is ready."""
     http = app.test_client()
     assert (

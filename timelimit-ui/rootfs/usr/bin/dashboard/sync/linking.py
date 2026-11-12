@@ -122,6 +122,8 @@ class Linker:
         if link is None:
             return False
         scope = Scope(self._key, link.family_id)
+        if not self._cache.devices(scope):
+            return True  # cache just reset: the next pull refills it; the link itself is intact
         device = self._own_device(scope, link)
         user = self._dashboard_user(scope)
         return bool(

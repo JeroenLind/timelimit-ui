@@ -203,6 +203,8 @@ class LiveSync:
                     or time.monotonic() > deadline
                 ):
                     raise ConnectionError("the socket did not open")
+            if self._stop.is_set():
+                raise ConnectionError("stopped while connecting")
             client.emit("devicelogin", self._token.reveal())
             self._backoff.reset()
             self._set_connected(True)

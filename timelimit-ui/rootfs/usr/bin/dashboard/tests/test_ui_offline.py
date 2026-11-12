@@ -132,7 +132,9 @@ def test_without_a_server_a_notice_is_shown_but_nothing_is_disabled(
     page: Page, live_app_factory: Any
 ) -> None:
     live = live_app_factory(server_url="")
-    page.goto(live.url + "/")  # nothing chosen yet: the settings screen is the only page
+    page.goto(
+        live.url + "/"
+    )  # nothing chosen yet: the settings screen is the only page
     assert page.url.endswith("/settings")
     expect(page.locator(BANNER)).to_be_visible()
     assert page.locator(BANNER).get_attribute("data-state") == "not_configured"

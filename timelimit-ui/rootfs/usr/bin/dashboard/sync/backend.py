@@ -92,10 +92,12 @@ class Backend:
         self._live, self._live_url = live, url
         log.info("live sync started", extra=fields(server=url))
 
-    def stop_live(self) -> None:
+    def stop_live(self, timeout: float = 0.5) -> None:
+        """Stop live sync. A request must not wait for a socket that is still connecting: the threads see
+        the stop flag and end by themselves (they do nothing once it is set)."""
         live, self._live, self._live_url = self._live, None, ""
         if live is not None:
-            live.stop()
+            live.stop(timeout)
 
     def live_state(self, url: str) -> dict[str, object]:
         live = self._live if self._live_url == url else None
@@ -106,6 +108,6 @@ class Backend:
         }
 
     def close(self) -> None:
-        self.stop_live()
+        self.stop_live(timeout=5.0)
         self.worker.stop()
         self.db.close()
