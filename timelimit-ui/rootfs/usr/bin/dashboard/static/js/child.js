@@ -1,6 +1,7 @@
 import { apiFetch } from "./api.js";
 import { formatDuration, statusLabel } from "./format.js";
 import { t } from "./i18n.js";
+import { initRules, renderRules } from "./rules.js";
 
 const $ = (id) => document.getElementById(id);
 let data = null;
@@ -66,6 +67,7 @@ function render() {
   $("child-gone").hidden = child.on_server;
   document.title = `${child.name} - TimeLimit Dashboard`;
   renderCategories();
+  renderRules(data);
   renderDevices();
 }
 
@@ -110,6 +112,7 @@ export function initChild() {
       next.focus();
     });
   }
+  initRules(() => data);
   selectTab("categories");
   document.addEventListener("dashboard:language", render);
 }

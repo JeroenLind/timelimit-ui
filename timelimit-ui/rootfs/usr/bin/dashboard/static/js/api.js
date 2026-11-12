@@ -1,8 +1,9 @@
 // Every browser request goes through apiFetch: it always has a timeout (TR-303).
 
 export class ApiError extends Error {
-  constructor(code, message, status) {
+  constructor(code, message, status, field = null) {
     super(message);
+    this.field = field;
     this.code = code;
     this.status = status;
   }
@@ -32,7 +33,7 @@ export async function apiFetch(path, { method = "GET", body } = {}) {
     }
     if (!response.ok) {
       const code = data && data.code ? data.code : "INTERNAL_ERROR";
-      throw new ApiError(code, (data && data.message) || response.statusText, response.status);
+      throw new ApiError(code, (data && data.message) || response.statusText, response.status, (data && data.field) || null);
     }
     return data;
   } catch (error) {

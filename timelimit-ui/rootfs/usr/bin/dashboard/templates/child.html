@@ -16,6 +16,7 @@
 
     <div role="tablist" class="tabs" aria-label="Child">
       <button type="button" role="tab" id="tab-categories" aria-controls="panel-categories" data-tab="categories" data-i18n="child.categories">Categories</button>
+      <button type="button" role="tab" id="tab-rules" aria-controls="panel-rules" data-tab="rules" data-i18n="child.rules.tab">Rules</button>
       <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
     </div>
     <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
@@ -31,6 +32,11 @@
         </table>
       </div>
     </section>
+    <section role="tabpanel" id="panel-rules" aria-labelledby="tab-rules" data-panel="rules" class="panel" hidden>
+      <p id="rules-error" class="form-error" role="alert" hidden></p>
+      <p id="rules-empty" data-i18n="rules.no_categories" hidden>No categories yet, so there are no rules to set.</p>
+      <div id="rules-list"></div>
+    </section>
     <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" data-panel="devices" class="panel" hidden>
       <p class="muted" data-i18n="child.devices.help">Read only. Devices on which this child is signed in.</p>
       <p id="devices-empty" data-i18n="child.devices.empty" hidden>No devices.</p>
@@ -45,4 +51,33 @@
     </section>
   </div>
 </div>
+<dialog id="rule-dialog" aria-labelledby="rule-title">
+  <form id="rule-form" novalidate>
+    <h2 id="rule-title"></h2>
+    <fieldset class="days">
+      <legend data-i18n="rules.days">Days</legend>
+      {% for n in range(7) %}<label class="check"><input type="checkbox" name="day" value="{{ n }}"> <span data-i18n="day.{{ n }}">{{ n }}</span></label>{% endfor %}
+      <span class="field-error" data-error-for="days" hidden></span>
+    </fieldset>
+    <label class="field"><span data-i18n="rules.minutes">Allowed time (minutes)</span>
+      <input type="number" id="rule-minutes" name="minutes" min="0" max="1440" step="1" inputmode="numeric">
+      <span class="field-error" data-error-for="minutes" hidden></span></label>
+    <div class="row">
+      <label class="field"><span data-i18n="rules.start">From</span> <input type="time" id="rule-start" name="start"><span class="field-error" data-error-for="start" hidden></span></label>
+      <label class="field"><span data-i18n="rules.end">Until</span> <input type="time" id="rule-end" name="end"><span class="field-error" data-error-for="end" hidden></span></label>
+    </div>
+    <p class="muted" data-i18n="rules.window_help">Leave both empty for the whole day.</p>
+    <div class="row">
+      <label class="field"><span data-i18n="rules.session">Session (minutes)</span> <input type="number" id="rule-session" name="session_minutes" min="0" max="1440" step="1" inputmode="numeric"><span class="field-error" data-error-for="session_minutes" hidden></span></label>
+      <label class="field"><span data-i18n="rules.pause">Break (minutes)</span> <input type="number" id="rule-pause" name="pause_minutes" min="0" max="1440" step="1" inputmode="numeric"><span class="field-error" data-error-for="pause_minutes" hidden></span></label>
+    </div>
+    <label class="check"><input type="checkbox" id="rule-per-day" name="per_day"> <span data-i18n="rules.per_day">Count each selected day separately</span></label>
+    <label class="check"><input type="checkbox" id="rule-extra" name="extra_time"> <span data-i18n="rules.extra_time">Extra time may be used on top</span></label>
+    <p id="rule-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="rule-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" id="rule-save" data-change-control data-i18n="rules.save">Save</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}

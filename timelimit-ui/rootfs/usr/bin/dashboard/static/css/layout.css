@@ -66,3 +66,14 @@ td.indent[data-depth="1"] { padding-left: 28px; }
 td.indent[data-depth="2"] { padding-left: 46px; }
 td.indent[data-depth="3"] { padding-left: 64px; }
 
+.days { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 12px; }
+.check { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 6px 0; }
+.field { display: flex; flex-direction: column; gap: 2px; margin: 0 0 10px; }
+.field input { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); max-width: 12rem; }
+.field-error { color: var(--danger); font-size: 0.85rem; }
+.row { display: flex; flex-wrap: wrap; gap: 16px; }
+.rule-section { margin: 0 0 20px; }
+.rule-section h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.rule-actions { white-space: nowrap; }
+.rule-actions button { margin-right: 6px; padding: 2px 10px; }
+dialog form { min-width: min(360px, 80vw); }
