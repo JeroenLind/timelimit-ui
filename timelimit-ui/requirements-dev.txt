@@ -11,6 +11,5 @@ pre-commit>=3.7
 pip-tools>=7.4
 jsonschema>=4.20  # fake TimeLimit server: strict request schemas (plan A5)
 types-jsonschema>=4.20
-python-socketio>=5.10  # fake server and, later, the dashboard's socket listener
+python-socketio>=5.10  # fake server side of Socket.IO
 simple-websocket>=1.0
-websocket-client>=1.7
