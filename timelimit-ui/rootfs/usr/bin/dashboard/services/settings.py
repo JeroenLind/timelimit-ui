@@ -16,6 +16,7 @@ from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.services.link import SESSION_INVALID, LinkService
 from dashboard.services.profiles import ServerProfiles
+from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
 TESTED_API_LEVELS = (7, 9)  # Q7
@@ -43,7 +44,9 @@ class SettingsService:
         profiles: ServerProfiles,
         link: LinkService,
         clock: Clock,
+        rule_today: RuleTodayService,
     ) -> None:
+        self._rule_today = rule_today
         self._settings = settings
         self._backend = backend
         self._profiles = profiles
@@ -88,7 +91,7 @@ class SettingsService:
         level = self.api_level()
         if level is not None and level not in TESTED_API_LEVELS:
             found.append({"code": "VERSION_UNTESTED", "api_level": level})
-        return found
+        return [*found, *self._rule_today.notices()]
 
     # -- changing --------------------------------------------------------------------------------------------------------
     def select_server(

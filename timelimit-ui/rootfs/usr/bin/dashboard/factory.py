@@ -16,6 +16,7 @@ from dashboard.services.clock import SystemClock
 from dashboard.services.connection import ConnectionService
 from dashboard.services.link import LinkService
 from dashboard.services.profiles import ServerProfiles
+from dashboard.services.rule_today import RestoreTimer, RuleTodayService
 from dashboard.services.rules import RulesService
 from dashboard.services.settings import SettingsService
 from dashboard.sync.backend import Backend
@@ -35,19 +36,21 @@ def create_app(
     link_service = LinkService(backend, profiles)
     connection = ConnectionService(settings, profiles)
     changes = ChangeService(backend, profiles, connection)
+    rule_today = RuleTodayService(backend, profiles, changes, connection, clock)
     app.extensions["dashboard"] = {
         "settings": settings,
         "clock": clock,
         "connection": connection,
         "changes": changes,
-        "rules": RulesService(backend, profiles, changes),
+        "rules": RulesService(backend, profiles, changes, rule_today),
+        "rule_today": rule_today,
         "hub": hub,
         "backend": backend,
         "profiles": profiles,
         "link": link_service,
-        "children": ChildrenService(backend, profiles, clock),
+        "children": ChildrenService(backend, profiles, clock, rule_today),
         "settings_service": SettingsService(
-            settings, backend, profiles, link_service, clock
+            settings, backend, profiles, link_service, clock, rule_today
         ),
     }
     register_error_handling(app)
@@ -60,4 +63,7 @@ def create_app(
     app.register_blueprint(rules.bp)
     app.register_blueprint(pages.bp)
     link_service.resume()
+    timer = RestoreTimer(rule_today)
+    backend.on_close(timer.stop)
+    timer.start()  # first tick at once: overdue restores run at start (W4)
     return app

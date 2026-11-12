@@ -6,13 +6,17 @@ URL (the profile key is that URL). Live sync runs for at most one profile at a t
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from dashboard.client.server import TimeLimitClient
 from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.logs import fields, get_logger
+from dashboard.repository.audit import AuditRepository
 from dashboard.repository.cache import CacheRepository, Scope
 from dashboard.repository.db import Database
 from dashboard.repository.links import LinkRepository
+from dashboard.repository.restores import PendingRestoreRepository
 from dashboard.repository.session_file import SessionFile
 from dashboard.repository.settings_store import SettingsRepository
 from dashboard.sync.hub import EventHub
@@ -35,6 +39,9 @@ class Backend:
         self.links = LinkRepository(self.db, self.session_file)
         self.cache = CacheRepository(self.db)
         self.store = SettingsRepository(self.db)
+        self.restores = PendingRestoreRepository(self.db)
+        self.audit = AuditRepository(self.db)
+        self._closers: list[Callable[[], None]] = []
         self.worker = SyncWorker(
             retries=settings.retry_count, retry_delay=settings.retry_delay
         )
@@ -107,7 +114,13 @@ class Backend:
             "state": live.state if live else STATE_OK,
         }
 
+    def on_close(self, closer: Callable[[], None]) -> None:
+        """Something that must stop before the database closes (a timer thread)."""
+        self._closers.append(closer)
+
     def close(self) -> None:
+        for closer in self._closers:
+            closer()
         self.stop_live(timeout=5.0)
         self.worker.stop()
         self.db.close()

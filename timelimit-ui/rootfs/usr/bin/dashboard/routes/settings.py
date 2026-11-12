@@ -63,6 +63,12 @@ def notices() -> ResponseReturnValue:
     return jsonify({"notices": service().notices()})
 
 
+@bp.delete("/api/notices/<int:notice_id>")
+def dismiss_notice(notice_id: int) -> ResponseReturnValue:
+    current_app.extensions["dashboard"]["rule_today"].dismiss(notice_id)
+    return jsonify({"status": "ok"})
+
+
 @bp.get("/api/settings/debug-export")
 def debug_export() -> ResponseReturnValue:
     return Response(

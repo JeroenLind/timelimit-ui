@@ -10,7 +10,7 @@ user and the moment it was added.
 
 from __future__ import annotations
 
-from datetime import tzinfo
+from datetime import datetime, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -18,7 +18,9 @@ from dashboard.domain.bitmask import day_of_epoch, days_from_mask
 from dashboard.domain.clock import Clock
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
+from dashboard.repository.restores import PendingRestore
 from dashboard.services.profiles import ServerProfiles
+from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
 STATUS_OK = "ok"
@@ -33,13 +35,21 @@ def _zone(name: str) -> tzinfo:
         return ZoneInfo("UTC")
 
 
-def _rule_view(item: CachedItem) -> dict[str, Any]:
-    """A time limit rule as the browser needs it (minutes instead of milliseconds, days as 0..6)."""
+def _rule_view(
+    item: CachedItem, pending: PendingRestore | None = None, now: datetime | None = None
+) -> dict[str, Any]:
+    """A time limit rule as the browser needs it (minutes instead of milliseconds, days as 0..6).
+
+    A rule that is off for today shows its real days (today's bit is only missing on the server) and
+    ``off_today`` with the restore time; ``applies_today`` is about the weekday of the dashboard (W2)."""
     d = item.data
+    mask = int(d.get("dayMask", 0))
+    if pending is not None:
+        mask |= pending.day_bit
     has_window = (int(d.get("start", 0)), int(d.get("end", 1439))) != (0, 1439)
     return {
         "id": str(d["id"]),
-        "days": days_from_mask(int(d.get("dayMask", 0))),
+        "days": days_from_mask(mask),
         "minutes": int(d.get("maxTime", 0)) // 60000,
         "extra_time": bool(d.get("extraTime")),
         "start": int(d.get("start", 0)) if has_window else None,
@@ -49,13 +59,21 @@ def _rule_view(item: CachedItem) -> dict[str, Any]:
         "per_day": bool(d.get("perDay")),
         "expires_at": d.get("e"),
         "on_server": item.on_server,
+        "off_today": {"restore_at": pending.restore_at} if pending else None,
+        "applies_today": pending is not None
+        or (now is not None and bool(mask & (1 << now.weekday()))),
     }
 
 
 class ChildrenService:
     def __init__(
-        self, backend: Backend, profiles: ServerProfiles, clock: Clock
+        self,
+        backend: Backend,
+        profiles: ServerProfiles,
+        clock: Clock,
+        rule_today: RuleTodayService,
     ) -> None:
+        self._rule_today = rule_today
         self._backend = backend
         self._profiles = profiles
         self._clock = clock
@@ -72,8 +90,14 @@ class ChildrenService:
         )
 
     def _category_view(
-        self, scope: Scope, item: CachedItem, today: int, now_ms: int
+        self,
+        scope: Scope,
+        item: CachedItem,
+        today: int,
+        now_ms: int,
+        pending: dict[str, PendingRestore],
     ) -> dict[str, Any]:
+        now = self._clock.now()
         data = item.data
         cid = str(data["categoryId"])
         cache = self._backend.cache
@@ -97,7 +121,9 @@ class ChildrenService:
             "limits_disabled": int(data.get("dlu", 0)) > now_ms,
             "app_count": len(cache.category_apps(scope, cid)),
             "rule_count": len(rules),
-            "rules": [_rule_view(r) for r in rules],
+            "rules": [
+                _rule_view(r, pending.get(str(r.data.get("id"))), now) for r in rules
+            ],
         }
 
     def _child_summary(
@@ -105,9 +131,11 @@ class ChildrenService:
     ) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
         data = child.data
         zone = _zone(str(data.get("timeZone") or "UTC"))
-        today = day_of_epoch(self._clock.now(), zone)
+        now = self._clock.now()
+        today = day_of_epoch(now, zone)
+        pending = self._rule_today.pending_map()
         categories = [
-            self._category_view(scope, c, today, now_ms)
+            self._category_view(scope, c, today, now_ms, pending)
             for c in self._backend.cache.categories(scope, str(data["id"]))
         ]
         known = {c["id"] for c in categories}
@@ -198,3 +226,18 @@ def _tree_order(categories: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     walk("", 0, frozenset())
     return ordered
+
+
+def _zone_label(moment: datetime) -> str:
+    offset = moment.strftime("%z") or "+0000"
+    return f"{moment.tzname() or 'local time'} (UTC{offset[:3]}:{offset[3:]})"
+
+
+def _zone_warning(child_zone: tzinfo, now: datetime) -> dict[str, str] | None:
+    """The child's time zone differs from the dashboard's: "today" and midnight follow the dashboard (W3)."""
+    if child_zone.utcoffset(now) == now.utcoffset():
+        return None
+    return {
+        "child": _zone_label(now.astimezone(child_zone)),
+        "dashboard": _zone_label(now),
+    }

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS pending_restore (
     mask_set INTEGER NOT NULL,
     restore_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
+    rule_set TEXT NOT NULL DEFAULT '{}',
     UNIQUE (profile_key, rule_id)
 );
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -235,6 +236,7 @@ class Database:
             # executescript() would commit; run the statements one by one inside the transaction
             for statement in _statements(KEPT_SCHEMA):
                 conn.execute(statement)
+            self._add_missing_columns(conn)
             row = conn.execute(
                 "SELECT value FROM meta WHERE key='schema_version'"
             ).fetchone()
@@ -253,6 +255,17 @@ class Database:
                         "INSERT INTO meta (key, value) VALUES ('schema_version', ?)",
                         (str(SCHEMA_VERSION),),
                     )
+
+    @staticmethod
+    def _add_missing_columns(conn: sqlite3.Connection) -> None:
+        """Kept tables only ever get new columns: an older file gets them here, nothing is dropped."""
+        columns = {
+            r["name"] for r in conn.execute("PRAGMA table_info(pending_restore)")
+        }
+        if "rule_set" not in columns:
+            conn.execute(
+                "ALTER TABLE pending_restore ADD COLUMN rule_set TEXT NOT NULL DEFAULT '{}'"
+            )
 
     @staticmethod
     def _drop_cache(conn: sqlite3.Connection) -> None:

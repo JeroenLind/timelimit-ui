@@ -17,6 +17,9 @@ class PendingRestore:
     mask_set: int  # the mask the dashboard put on the server (to detect later changes by others, W5)
     restore_at: int  # ms since epoch
     created_at: int
+    rule_set: str = (
+        "{}"  # JSON of the rule as the dashboard set it (the state to compare with, W5)
+    )
 
 
 class PendingRestoreRepository:
@@ -31,17 +34,18 @@ class PendingRestoreRepository:
             item.mask_set,
             item.restore_at,
             item.created_at,
+            item.rule_set,
         )
         with self._db.transaction() as conn:
             updated = conn.execute(
-                "UPDATE pending_restore SET family_id=?, category_id=?, day_bit=?, mask_set=?, restore_at=?, created_at=?"
+                "UPDATE pending_restore SET family_id=?, category_id=?, day_bit=?, mask_set=?, restore_at=?, created_at=?, rule_set=?"
                 " WHERE profile_key=? AND rule_id=?",
                 (*values, item.profile_key, item.rule_id),
             ).rowcount
             if updated == 0:
                 conn.execute(
                     "INSERT INTO pending_restore (family_id, category_id, day_bit, mask_set, restore_at, created_at,"
-                    " profile_key, rule_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    " rule_set, profile_key, rule_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (*values, item.profile_key, item.rule_id),
                 )
 
@@ -51,6 +55,11 @@ class PendingRestoreRepository:
             (profile_key,),
         )
         return [_restore(r) for r in rows]
+
+    def get(self, profile_key: str, rule_id: str) -> PendingRestore | None:
+        return next(
+            (r for r in self.for_profile(profile_key) if r.rule_id == rule_id), None
+        )
 
     def due(self, profile_key: str, now_ms: int) -> list[PendingRestore]:
         return [r for r in self.for_profile(profile_key) if r.restore_at <= now_ms]
@@ -77,4 +86,5 @@ def _restore(row: object) -> PendingRestore:
         mask_set=int(r["mask_set"]),  # type: ignore[index]
         restore_at=int(r["restore_at"]),  # type: ignore[index]
         created_at=int(r["created_at"]),  # type: ignore[index]
+        rule_set=str(r["rule_set"]),  # type: ignore[index]
     )

@@ -148,6 +148,10 @@ def test_create_shows_the_rule_with_the_same_values_after_the_pull(
     shown = next(
         r for r in rules_of(app, ids["Anna"], ids["Games"]) if r["id"] == rule_id
     )
+    assert shown.pop("off_today") is None
+    shown.pop(
+        "applies_today"
+    )  # depends on the weekday of the machine; tested with a fake clock
     assert shown == {
         "id": rule_id,
         "days": [0, 1, 2, 3, 4],

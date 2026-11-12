@@ -16,6 +16,8 @@ from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import Scope
 from dashboard.services.changes import ChangeService
 from dashboard.services.profiles import ServerProfiles
+from dashboard.services.rule_lookup import find_rule
+from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
 _TIME = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
@@ -103,11 +105,16 @@ def parse_rule(body: object) -> dict[str, Any]:
 
 class RulesService:
     def __init__(
-        self, backend: Backend, profiles: ServerProfiles, changes: ChangeService
+        self,
+        backend: Backend,
+        profiles: ServerProfiles,
+        changes: ChangeService,
+        rule_today: RuleTodayService,
     ) -> None:
         self._backend = backend
         self._profiles = profiles
         self._changes = changes
+        self._rule_today = rule_today
 
     def _scope(self) -> Scope:
         scope = self._backend.scope(self._profiles.url())
@@ -124,18 +131,6 @@ class RulesService:
         ):
             raise DashboardError(ErrorCode.NOT_FOUND, "This category is not known.")
 
-    def _check_rule(self, scope: Scope, child_id: str, rule_id: str) -> None:
-        cache = self._backend.cache
-        for category in cache.categories(scope, child_id):
-            for rule in cache.rules(scope, str(category.data["categoryId"])):
-                if (
-                    rule.data.get("id") == rule_id
-                    and rule.on_server
-                    and category.on_server
-                ):
-                    return
-        raise DashboardError(ErrorCode.NOT_FOUND, "This rule is not known.")
-
     def create(self, child_id: str, category_id: str, body: object) -> str:
         fields = parse_rule(body)
         scope = self._scope()
@@ -148,13 +143,20 @@ class RulesService:
 
     def update(self, child_id: str, rule_id: str, body: object) -> None:
         fields = parse_rule(body)
-        self._check_rule(self._scope(), child_id, rule_id)
-        self._changes.push([actions.update_timelimit_rule(rule_id, **fields)])
+        _, rule = find_rule(self._backend, self._scope(), child_id, rule_id)
+        # a rule that is off for today is put back first, in the same push (W6)
+        before, pending = self._rule_today.actions_before_change(rule_id, rule)
+        self._changes.push([*before, actions.update_timelimit_rule(rule_id, **fields)])
+        if pending is not None:
+            self._rule_today.ended_by_change(pending)
 
     def delete(self, child_id: str, rule_id: str) -> None:
         scope = self._scope()
-        self._check_rule(scope, child_id, rule_id)
-        self._changes.push([actions.delete_timelimit_rule(rule_id)])
+        _, rule = find_rule(self._backend, scope, child_id, rule_id)
+        before, pending = self._rule_today.actions_before_change(rule_id, rule)
+        self._changes.push([*before, actions.delete_timelimit_rule(rule_id)])
+        if pending is not None:
+            self._rule_today.ended_by_change(pending)
         # confirmed by the pull: the server no longer lists it, so it is flagged; she asked for this, so
         # it is not kept as "no longer on server" (that is for changes made elsewhere, FR-206)
         self._backend.cache.forget_rule(scope, rule_id)
