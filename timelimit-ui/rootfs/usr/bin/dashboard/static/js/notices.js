@@ -6,7 +6,10 @@ import { applyTranslations, t } from "./i18n.js";
 let last = [];
 
 function text(notice) {
-  return t(`notice.${notice.code}`).replace("{level}", String(notice.api_level ?? ""));
+  return t(`notice.${notice.code}`)
+    .replace("{level}", String(notice.api_level ?? ""))
+    .replace("{child}", notice.child ?? "")
+    .replace("{category}", notice.category ?? "");
 }
 
 export function renderNotices() {
@@ -21,6 +24,21 @@ export function renderNotices() {
       const span = document.createElement("span");
       span.textContent = text(notice);
       banner.append(span);
+      if (notice.id !== undefined) {
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "secondary dismiss-notice";
+        close.dataset.i18n = "notice.dismiss";
+        close.addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/notices/${notice.id}`, { method: "DELETE" });
+          } catch {
+            /* the banner stays; the next refresh shows the truth */
+          }
+          await refreshNotices();
+        });
+        banner.append(close);
+      }
       if (notice.code === "SESSION_INVALID") {
         const link = document.createElement("a");
         link.href = "/settings";

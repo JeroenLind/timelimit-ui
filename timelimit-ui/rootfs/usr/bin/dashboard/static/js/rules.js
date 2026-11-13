@@ -53,6 +53,7 @@ function details(rule) {
   if (rule.session_minutes) bits.push(t("rules.session_text").replace("{session}", rule.session_minutes).replace("{pause}", rule.pause_minutes ?? 0));
   if (rule.per_day) bits.push(t("rules.per_day"));
   if (rule.expires_at) bits.push(t("rules.expires").replace("{date}", new Date(rule.expires_at).toLocaleDateString()));
+  if (rule.off_today) bits.push(t("rules.off_until").replace("{time}", new Date(rule.off_today.restore_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })));
   if (!rule.on_server) bits.push(t("child.not_on_server"));
   return bits.join(" · ");
 }
@@ -84,7 +85,15 @@ export function renderRules(data) {
         const actions = document.createElement("td");
         actions.className = "rule-actions";
         if (rule.on_server) {
+          const off = Boolean(rule.off_today);
+          const today = button(t(off ? "rules.on_again" : "rules.off_today"), () => toggleToday(rule), "secondary off-today");
+          if (!off && !rule.applies_today) {
+            today.disabled = true;
+            today.dataset.keepDisabled = "";
+            today.title = t("rules.not_today");
+          }
           actions.append(
+            today,
             button(t("rules.edit"), () => openDialog(category.id, rule), "secondary edit-rule"),
             button(t("rules.delete"), () => removeRule(rule), "secondary delete-rule"),
           );
@@ -209,6 +218,18 @@ async function removeRule(rule) {
     await apiFetch(`/api/children/${encodeURIComponent($("child-page").dataset.childId)}/rules/${encodeURIComponent(rule.id)}`, { method: "DELETE" });
   } catch (error) {
     $("rules-error").textContent = t(`error.${error.code}`);
+    $("rules-error").hidden = false;
+  }
+  document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+}
+
+async function toggleToday(rule) {
+  $("rules-error").hidden = true;
+  const url = `/api/children/${encodeURIComponent($("child-page").dataset.childId)}/rules/${encodeURIComponent(rule.id)}/off-today`;
+  try {
+    await apiFetch(url, { method: rule.off_today ? "DELETE" : "PUT" });
+  } catch (error) {
+    $("rules-error").textContent = error.field === "rule" ? error.message : t(`error.${error.code}`);
     $("rules-error").hidden = false;
   }
   document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));

@@ -101,7 +101,7 @@ def make_family(fake, mail: str = PARENT_MAIL, password: str = PARENT_PASSWORD) 
     )
 
 
-def seed_children(fake) -> dict[str, str]:  # type: ignore[no-untyped-def]
+def seed_children(fake, day: int | None = None) -> dict[str, str]:  # type: ignore[no-untyped-def]
     """Two children, three categories and two child devices in the existing family of ``fake``.
 
     Anna (UTC): Games (2 apps, 1 rule, 65 min used today, +15 min extra time today) with the
@@ -112,7 +112,9 @@ def seed_children(fake) -> dict[str, str]:  # type: ignore[no-untyped-def]
     from .fakeserver.state import Category, Device, Rule, User, version_id
 
     family = next(iter(fake.world.families.values()))
-    today = int(time.time() // 86400)
+    today = (
+        int(time.time() // 86400) if day is None else day
+    )  # a test with a fixed clock passes its day
     ids: dict[str, str] = {}
     with fake.world.lock:
         for name in ("Anna", "Ben"):

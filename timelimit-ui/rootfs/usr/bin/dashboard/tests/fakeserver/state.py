@@ -163,6 +163,7 @@ class World:
         self.mail_logins: dict[str, MailLogin] = {}
         self.mail_auth: dict[str, str] = {}  # mailAuthToken -> mail
         self.push_requests = 0  # number of push-actions requests received
+        self.action_types: list[str] = []  # type of every pushed action, in order
         self.socket_connects: list[
             float
         ] = []  # monotonic time of every Socket.IO connect attempt

@@ -293,6 +293,9 @@ def create_app(
         with world.lock:
             family, device = world.family_of_token(data["deviceAuthToken"])
             for action in data["actions"]:
+                world.action_types.append(
+                    json.loads(action["encodedAction"]).get("type")
+                )
                 outcome = apply_action(world, family, device.device_id, action)
                 full_sync = full_sync or outcome.full_sync
                 level = max(level, outcome.triggered_level)

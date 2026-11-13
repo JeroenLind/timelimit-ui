@@ -65,6 +65,11 @@ function render() {
   $("child-used").textContent = formatDuration(child.used_today_ms);
   $("child-zone").textContent = child.time_zone;
   $("child-gone").hidden = child.on_server;
+  const warning = child.time_zone_warning;
+  $("child-zone-warning").hidden = !warning;
+  if (warning) {
+    $("child-zone-warning-text").textContent = t("rules.zone_warning").replace("{child}", warning.child).replace("{dashboard}", warning.dashboard);
+  }
   document.title = `${child.name} - TimeLimit Dashboard`;
   renderCategories();
   renderRules(data);

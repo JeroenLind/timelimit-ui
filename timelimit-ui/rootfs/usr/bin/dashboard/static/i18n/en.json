@@ -154,5 +154,14 @@
   "day.3": "Thu",
   "day.4": "Fri",
   "day.5": "Sat",
-  "day.6": "Sun"
+  "day.6": "Sun",
+  "rules.off_today": "Off for today",
+  "rules.on_again": "On again",
+  "rules.off_until": "Off for today, back at {time}",
+  "rules.not_today": "This rule does not apply today.",
+  "rules.zone_warning": "{child} is the child's time zone, but this dashboard runs in {dashboard}. \"Off for today\" follows the dashboard's day and midnight.",
+  "notice.RULE_RESTORED_LATE": "A rule of {child} ({category}) was switched back on late, because the dashboard was not running at midnight.",
+  "notice.RULE_RESTORE_SKIPPED": "A rule of {child} ({category}) that was off for today was changed or removed elsewhere, so it was left as it is.",
+  "notice.RULE_OFF_ENDED": "The rule of {child} ({category}) is no longer off for today because you changed it.",
+  "notice.dismiss": "Dismiss"
 }

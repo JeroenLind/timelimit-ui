@@ -30,7 +30,7 @@ def linked(
 
     def build(clock: FakeClock | None = None) -> tuple[Flask, dict[str, str]]:
         make_family(fake_server)
-        ids = seed_children(fake_server)
+        ids = seed_children(fake_server, TODAY)
         settings = Settings(
             data_dir=data_dir, server_url=fake_server.url, server_timeout=3.0
         )

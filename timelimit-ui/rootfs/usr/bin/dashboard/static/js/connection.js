@@ -22,7 +22,7 @@ export function startConnection(timings, { onBack }) {
     text.textContent = server === "down" ? t("banner.down") : server === "not_configured" ? t("banner.not_configured") : "";
     const offline = server === "down";
     for (const control of document.querySelectorAll("[data-change-control]")) {
-      control.disabled = offline;
+      control.disabled = offline || "keepDisabled" in control.dataset;
     }
     document.body.dataset.server = server;
   }

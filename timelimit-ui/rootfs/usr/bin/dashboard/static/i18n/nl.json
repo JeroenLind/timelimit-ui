@@ -154,5 +154,14 @@
   "day.3": "do",
   "day.4": "vr",
   "day.5": "za",
-  "day.6": "zo"
+  "day.6": "zo",
+  "rules.off_today": "Vandaag uit",
+  "rules.on_again": "Weer aan",
+  "rules.off_until": "Vandaag uit, weer aan om {time}",
+  "rules.not_today": "Deze regel geldt vandaag niet.",
+  "rules.zone_warning": "{child} is de tijdzone van het kind, maar dit dashboard draait in {dashboard}. \"Vandaag uit\" volgt de dag en middernacht van het dashboard.",
+  "notice.RULE_RESTORED_LATE": "Een regel van {child} ({category}) is te laat weer aangezet, omdat het dashboard om middernacht niet draaide.",
+  "notice.RULE_RESTORE_SKIPPED": "Een regel van {child} ({category}) die vandaag uit stond is elders gewijzigd of verwijderd en is daarom met rust gelaten.",
+  "notice.RULE_OFF_ENDED": "De regel van {child} ({category}) staat niet meer uit voor vandaag, omdat je hem hebt gewijzigd.",
+  "notice.dismiss": "Sluiten"
 }

@@ -161,6 +161,7 @@ class ChildrenService:
             "used_today_ms": sum(c["used_today_ms"] for c in top),
             "category_count": len(categories),
             "device_count": len(devices),
+            "time_zone_warning": _zone_warning(zone, now),
         }
         return summary, categories, today
 
