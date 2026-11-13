@@ -310,6 +310,51 @@ def _apply(
                 target.extra_time_day = day
                 _bump_base(target)
         out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "SET_PARENT_CATEGORY":
+        cat = _category(family, _id(a["categoryId"]))
+        wanted_parent = a["parentCategory"]
+        if wanted_parent != "":
+            parent_cat = family.categories.get(wanted_parent)
+            if parent_cat is None or parent_cat.child_id != cat.child_id:
+                raise ActionFailed("missing category")
+            below: set[str] = set()
+            pending = [cat.category_id]
+            while pending:
+                current = pending.pop()
+                for member in family.categories.values():
+                    if member.parent_id == current and member.category_id not in below:
+                        below.add(member.category_id)
+                        pending.append(member.category_id)
+            if wanted_parent in below or wanted_parent == cat.category_id:
+                raise ActionFailed("a category can not be the parent of its own parent")
+        cat.parent_id = wanted_parent
+        _bump_base(cat)
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_SORTING":
+        for position, category_id in enumerate(a["categoryIds"]):
+            ordered = family.categories.get(category_id)
+            if ordered is not None:
+                ordered.sort = position
+                _bump_base(ordered)
+        out.triggered_level = max(out.triggered_level, 1)
+    elif kind == "SET_CATEGORY_FOR_UNASSIGNED_APPS":
+        owner = family.users.get(_id(a["childId"]))
+        if owner is None or owner.type != "child":
+            raise ActionFailed("missing user")
+        if a["categoryId"] != "":
+            chosen = family.categories.get(a["categoryId"])
+            if chosen is None or chosen.child_id != owner.user_id:
+                raise ActionFailed("category of another child or missing")
+        owner.category_for_unassigned = a["categoryId"]
+        family.user_list_version = version_id()
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_DISABLE_LIMITS":
+        if a["endTime"] != 0 and not family.has_full_version:
+            raise ActionFailed("premium version missing")
+        cat = _category(family, _id(a["categoryId"]))
+        cat.disable_limits_until = _int(a["endTime"])
+        _bump_base(cat)
+        out.triggered_level = max(out.triggered_level, 2)
     elif kind == "UPDATE_CATEGORY_TEMPORARILY_BLOCKED":
         if a["blocked"] and not family.has_full_version:
             raise ActionFailed("premium version missing")

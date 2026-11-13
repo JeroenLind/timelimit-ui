@@ -37,6 +37,7 @@ def cell(page: Page, day: int, hour: int, half: int = 0) -> Any:
 
 def drag(page: Page, day: int, start_hour: int, end_hour: int) -> None:
     """Paint the cells from start_hour up to (not including) end_hour on one day."""
+    cell(page, day, start_hour).scroll_into_view_if_needed()
     first = cell(page, day, start_hour).bounding_box()
     last = cell(page, day, end_hour - 1, 1).bounding_box()
     assert first and last

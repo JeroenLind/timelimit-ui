@@ -117,9 +117,9 @@ def test_temporary_block_and_disabled_limits_change_the_status(
 ) -> None:
     app, ids = linked()
     fam = family(fake_server)
-    fam.categories["csocial"].temp_blocked = True
-    fam.categories["csocial"].temp_block_end = int(NOW.timestamp() * 1000) + 600000
-    fam.categories["csocial"].base_version = version_id()
+    fam.categories["csocia"].temp_blocked = True
+    fam.categories["csocia"].temp_block_end = int(NOW.timestamp() * 1000) + 600000
+    fam.categories["csocia"].base_version = version_id()
     fam.users[ids["Ben"]].disable_limits_until = int(NOW.timestamp() * 1000) + 3600000
     fam.user_list_version = version_id()
     pull(app, fake_server)
@@ -141,7 +141,7 @@ def test_an_expired_temporary_block_is_not_shown(
     linked: Any, fake_server: FakeTimeLimitServer
 ) -> None:
     app, _ = linked()
-    cat = family(fake_server).categories["csocial"]
+    cat = family(fake_server).categories["csocia"]
     cat.temp_blocked, cat.temp_block_end, cat.base_version = (
         True,
         int(NOW.timestamp() * 1000) - 1000,

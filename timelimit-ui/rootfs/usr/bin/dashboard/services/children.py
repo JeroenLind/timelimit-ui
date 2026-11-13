@@ -134,6 +134,9 @@ class ChildrenService:
             "temp_blocked": blocked,
             "temp_blocked_until": block_end if blocked and block_end else None,
             "limits_disabled": int(data.get("dlu", 0)) > now_ms,
+            "limits_disabled_until": int(data["dlu"])
+            if int(data.get("dlu", 0)) > now_ms
+            else None,
             "app_count": len(cache.category_apps(scope, cid)),
             "rule_count": len(rules),
             "blocked_times": _blocked_times(data),
@@ -179,6 +182,7 @@ class ChildrenService:
             "category_count": len(categories),
             "device_count": len(devices),
             "time_zone_warning": _zone_warning(zone, now),
+            "category_for_unassigned": data.get("categoryForNotAssignedApps", "") or "",
         }
         return summary, categories, today
 

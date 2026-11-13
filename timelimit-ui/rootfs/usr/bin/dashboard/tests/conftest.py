@@ -119,7 +119,7 @@ def seed_children(fake, day: int | None = None) -> dict[str, str]:  # type: igno
     with fake.world.lock:
         for name in ("Anna", "Ben"):
             user = User(
-                user_id=f"u{name.lower()}", name=name, type="child",
+                user_id=f"u{name.lower():<5.5}".replace(" ", "0"), name=name, type="child",
                 password_hash="", second_hash="", second_salt="", time_zone="UTC",
             )  # fmt: skip
             family.users[user.user_id] = user
@@ -137,9 +137,9 @@ def seed_children(fake, day: int | None = None) -> dict[str, str]:  # type: igno
             "rule01", False, 127, 3600000, 0, 1439, 0, 0, False
         )
         games.used_times = {today: {(0, 1439): 65 * 60000}}
-        social = Category("csocial", ids["Anna"], "Social", parent_id="cgames", sort=0)
+        social = Category("csocia", ids["Anna"], "Social", parent_id="cgames", sort=0)
         social.used_times = {today: {(0, 1439): 20 * 60000}}
-        school = Category("cschool", ids["Ben"], "School", sort=0)
+        school = Category("cschol", ids["Ben"], "School", sort=0)
         for category in (games, social, school):
             family.categories[category.category_id] = category
             ids[category.title] = category.category_id

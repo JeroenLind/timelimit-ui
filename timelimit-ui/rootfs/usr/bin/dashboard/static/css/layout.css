@@ -97,3 +97,7 @@ tr[data-pending] { opacity: 0.6; }
 .blocked-tools { display: flex; gap: 4px; margin-left: 8px; }
 .blocked-actions { display: flex; gap: 8px; }
 button.small { padding: 2px 8px; font-size: 0.8rem; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; }
+.category-actions { white-space: nowrap; }
+.category-actions button { margin-right: 4px; }

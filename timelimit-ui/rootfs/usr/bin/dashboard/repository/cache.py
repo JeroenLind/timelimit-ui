@@ -225,6 +225,19 @@ class CacheRepository:
                     (*scope.args, category_id),
                 )
 
+    def forget_category(self, scope: Scope, category_id: str) -> None:
+        """Remove one category with everything below it that is already gone on the server (the parent deleted it herself)."""
+        with self._db.transaction() as conn:
+            for table in ("rules", "category_apps", "used_time", "own_used_time"):
+                conn.execute(
+                    f"DELETE FROM {table} WHERE profile_key=? AND family_id=? AND category_id=?",
+                    (*scope.args, category_id),
+                )
+            conn.execute(
+                "DELETE FROM categories WHERE profile_key=? AND family_id=? AND category_id=? AND on_server=0",
+                (*scope.args, category_id),
+            )
+
     def categories(self, scope: Scope, child_id: str | None = None) -> list[CachedItem]:
         sql = (
             "SELECT data, on_server FROM categories WHERE profile_key=? AND family_id=?"

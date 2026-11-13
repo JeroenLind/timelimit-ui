@@ -2,6 +2,7 @@ import { apiFetch } from "./api.js";
 import { formatDuration, statusLabel } from "./format.js";
 import { t } from "./i18n.js";
 import { initBlocked, renderBlocked } from "./blocked.js";
+import { initCategories, renderCategoryActions } from "./categories.js";
 import { initRules, renderRules } from "./rules.js";
 
 const $ = (id) => document.getElementById(id);
@@ -40,6 +41,7 @@ function renderCategories() {
     }),
   );
   $("categories-empty").hidden = data.categories.length > 0;
+  renderCategoryActions(data);
 }
 
 function renderDevices() {
@@ -121,6 +123,7 @@ export function initChild() {
   }
   initRules(() => data);
   initBlocked(() => data);
+  initCategories(() => data);
   selectTab("categories");
   document.addEventListener("dashboard:language", render);
 }

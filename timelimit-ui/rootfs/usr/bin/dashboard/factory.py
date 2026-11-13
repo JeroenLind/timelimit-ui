@@ -7,9 +7,19 @@ from flask import Flask
 from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
-from dashboard.routes import children, health, link, pages, rules, server, stream
+from dashboard.routes import (
+    categories,
+    children,
+    health,
+    link,
+    pages,
+    rules,
+    server,
+    stream,
+)
 from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
+from dashboard.services.categories import CategoriesService
 from dashboard.services.changes import ChangeService
 from dashboard.services.children import ChildrenService
 from dashboard.services.clock import SystemClock
@@ -43,6 +53,7 @@ def create_app(
         "connection": connection,
         "changes": changes,
         "rules": RulesService(backend, profiles, changes, rule_today),
+        "categories": CategoriesService(backend, profiles, changes, clock),
         "rule_today": rule_today,
         "hub": hub,
         "backend": backend,
@@ -61,6 +72,7 @@ def create_app(
     app.register_blueprint(link.bp)
     app.register_blueprint(children.bp)
     app.register_blueprint(rules.bp)
+    app.register_blueprint(categories.bp)
     app.register_blueprint(pages.bp)
     link_service.resume()
     timer = RestoreTimer(rule_today)

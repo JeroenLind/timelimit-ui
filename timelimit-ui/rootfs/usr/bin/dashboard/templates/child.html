@@ -24,6 +24,12 @@
       <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
     </div>
     <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
+      <p id="categories-error" class="form-error" role="alert" hidden></p>
+      <p class="toolbar">
+        <button type="button" id="category-add" data-change-control data-i18n="categories.add">Add category</button>
+        <label class="inline"><span data-i18n="categories.unassigned">Category for apps without one</span>
+          <select id="category-unassigned" data-change-control></select></label>
+      </p>
       <p id="categories-empty" data-i18n="child.categories.empty" hidden>No categories.</p>
       <div class="table-wrap">
         <table>
@@ -31,6 +37,7 @@
             <th data-i18n="child.category">Category</th><th data-i18n="child.used_today">Used today</th>
             <th data-i18n="child.extra_time">Extra time</th><th data-i18n="child.state">State</th>
             <th data-i18n="child.apps">Apps</th><th data-i18n="child.rules">Rules</th>
+            <th data-i18n="categories.actions">Actions</th>
           </tr></thead>
           <tbody id="categories-body"></tbody>
         </table>
@@ -68,6 +75,34 @@
     </section>
   </div>
 </div>
+<dialog id="category-dialog" aria-labelledby="category-title">
+  <form id="category-form" novalidate>
+    <h2 id="category-title"></h2>
+    <label class="field"><span data-i18n="categories.name">Name</span>
+      <input type="text" id="category-name" name="title" maxlength="50" autocomplete="off">
+      <span class="field-error" data-error-for="title" hidden></span></label>
+    <label class="field"><span data-i18n="categories.parent">Below</span>
+      <select id="category-parent" name="parent_id"></select>
+      <span class="field-error" data-error-for="parent_id" hidden></span></label>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="category-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" id="category-save" data-change-control data-i18n="rules.save">Save</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="limits-dialog" aria-labelledby="limits-title">
+  <form id="limits-form" novalidate>
+    <h2 id="limits-title" data-i18n="categories.limits.title">Switch limits off for a while</h2>
+    <p id="limits-category" class="muted"></p>
+    <label class="field"><span data-i18n="categories.limits.minutes">For how many minutes</span>
+      <input type="number" id="limits-minutes" min="1" max="10080" step="1" value="60" inputmode="numeric">
+      <span class="field-error" data-error-for="limit_minutes" hidden></span></label>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="limits-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" data-change-control data-i18n="categories.limits.apply">Switch off</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="rule-dialog" aria-labelledby="rule-title">
   <form id="rule-form" novalidate>
     <h2 id="rule-title"></h2>
