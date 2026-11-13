@@ -173,5 +173,20 @@
   "rules.conflict.confirm": "Save anyway",
   "rules.conflict.delete": "Delete anyway",
   "notice.ITEMS_MISSING": "{count} item(s) are no longer on the server. They are kept until you clean up.",
-  "notice.ITEMS_MISSING.action": "Clean up"
+  "notice.ITEMS_MISSING.action": "Clean up",
+  "child.blocked.tab": "Blocked times",
+  "blocked.help": "Blocked times apply every week. Click or drag over the cells; each cell is 30 minutes.",
+  "blocked.category": "Category",
+  "blocked.save": "Save",
+  "blocked.reset": "Reset",
+  "blocked.day_block": "All",
+  "blocked.day_clear": "None",
+  "blocked.cell_label": "{day} {time}",
+  "blocked.no_categories": "No categories yet, so there are no blocked times to set.",
+  "blocked.conflict.title": "Changed in the meantime",
+  "blocked.conflict.text": "The blocked times of this category were changed on the server after you opened them. Saving now overwrites that change.",
+  "blocked.conflict.confirm": "Save anyway",
+  "blocked.discard.title": "Discard changes?",
+  "blocked.discard": "You have unsaved changes to the blocked times. Switching category discards them.",
+  "blocked.discard.confirm": "Discard"
 }

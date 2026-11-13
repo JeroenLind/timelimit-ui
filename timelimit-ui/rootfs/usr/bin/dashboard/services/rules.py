@@ -11,12 +11,16 @@ import re
 from typing import Any
 
 from dashboard.domain import actions
-from dashboard.domain.bitmask import day_mask
+from dashboard.domain.bitmask import day_mask, merge_intervals
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import Scope
 from dashboard.services.changes import ChangeService
 from dashboard.services.profiles import ServerProfiles
-from dashboard.services.rule_lookup import check_version, find_rule
+from dashboard.services.rule_lookup import (
+    check_blocked_version,
+    check_version,
+    find_rule,
+)
 from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
@@ -130,6 +134,45 @@ class RulesService:
             c.data.get("categoryId") == category_id and c.on_server for c in categories
         ):
             raise DashboardError(ErrorCode.NOT_FOUND, "This category is not known.")
+
+    def set_blocked_times(self, child_id: str, category_id: str, body: object) -> None:
+        """Replace the weekly blocked times of a category (E5, FR-304).
+
+        ``body``: ``{"intervals": [[start, end], ...], "version"?}``, minutes of the week (Monday 00:00 = 0).
+        Touching or overlapping intervals are merged here, because the server refuses them.
+        """
+        if not isinstance(body, dict) or not isinstance(body.get("intervals"), list):
+            raise _invalid("intervals", "Send the blocked times as a list.")
+        pairs: list[tuple[int, int]] = []
+        for item in body["intervals"]:
+            if (
+                not isinstance(item, list | tuple)
+                or len(item) != 2
+                or any(isinstance(v, bool) or not isinstance(v, int) for v in item)
+            ):
+                raise _invalid(
+                    "intervals", "Each blocked time needs a start and an end."
+                )
+            pairs.append((item[0], item[1]))
+        scope = self._scope()
+        category = next(
+            (
+                c
+                for c in self._backend.cache.categories(scope, child_id)
+                if c.data.get("categoryId") == category_id and c.on_server
+            ),
+            None,
+        )
+        if category is None:
+            raise DashboardError(ErrorCode.NOT_FOUND, "This category is not known.")
+        check_blocked_version(category.data, body.get("version"))
+        try:
+            action = actions.update_category_blocked_times(
+                category_id, merge_intervals(pairs)
+            )
+        except actions.ActionError as error:
+            raise _invalid("intervals", str(error)) from error
+        self._changes.push([action])
 
     def create(self, child_id: str, category_id: str, body: object) -> str:
         fields = parse_rule(body)

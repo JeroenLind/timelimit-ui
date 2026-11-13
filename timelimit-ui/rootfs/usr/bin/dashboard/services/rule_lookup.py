@@ -42,3 +42,20 @@ def check_version(rule: dict[str, Any], expected: object) -> None:
             "This rule was changed on the server after you opened it.",
             "version",
         )
+
+
+def blocked_version(category: dict[str, Any]) -> str:
+    """Fingerprint of a category's blocked times (same idea as :func:`rule_version`)."""
+    text = str(category.get("blockedTimes", ""))
+    return hashlib.sha1(text.encode(), usedforsecurity=False).hexdigest()[:12]
+
+
+def check_blocked_version(category: dict[str, Any], expected: object) -> None:
+    if expected is None:
+        return
+    if not isinstance(expected, str) or expected != blocked_version(category):
+        raise DashboardError(
+            ErrorCode.CONFLICT,
+            "The blocked times were changed on the server after you opened them.",
+            "version",
+        )

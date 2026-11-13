@@ -173,5 +173,20 @@
   "rules.conflict.confirm": "Toch opslaan",
   "rules.conflict.delete": "Toch verwijderen",
   "notice.ITEMS_MISSING": "{count} item(s) staan niet meer op de server. Ze blijven bewaard tot je opruimt.",
-  "notice.ITEMS_MISSING.action": "Opruimen"
+  "notice.ITEMS_MISSING.action": "Opruimen",
+  "child.blocked.tab": "Geblokkeerde tijden",
+  "blocked.help": "Geblokkeerde tijden gelden elke week. Klik of sleep over de vakjes; elk vakje is 30 minuten.",
+  "blocked.category": "Categorie",
+  "blocked.save": "Opslaan",
+  "blocked.reset": "Herstellen",
+  "blocked.day_block": "Alles",
+  "blocked.day_clear": "Niets",
+  "blocked.cell_label": "{day} {time}",
+  "blocked.no_categories": "Nog geen categorieën, dus er zijn geen geblokkeerde tijden in te stellen.",
+  "blocked.conflict.title": "Intussen gewijzigd",
+  "blocked.conflict.text": "De geblokkeerde tijden van deze categorie zijn op de server gewijzigd nadat je ze opende. Opslaan overschrijft die wijziging.",
+  "blocked.conflict.confirm": "Toch opslaan",
+  "blocked.discard.title": "Wijzigingen weggooien?",
+  "blocked.discard": "Je hebt niet-opgeslagen wijzigingen in de geblokkeerde tijden. Van categorie wisselen gooit ze weg.",
+  "blocked.discard.confirm": "Weggooien"
 }

@@ -14,13 +14,18 @@ from datetime import datetime, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from dashboard.domain.bitmask import day_of_epoch, days_from_mask
+from dashboard.domain.bitmask import (
+    BitmaskError,
+    day_of_epoch,
+    days_from_mask,
+    parse_blocked_times,
+)
 from dashboard.domain.clock import Clock
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
 from dashboard.repository.restores import PendingRestore
 from dashboard.services.profiles import ServerProfiles
-from dashboard.services.rule_lookup import rule_version
+from dashboard.services.rule_lookup import blocked_version, rule_version
 from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
@@ -65,6 +70,14 @@ def _rule_view(
         "applies_today": pending is not None
         or (now is not None and bool(mask & (1 << now.weekday()))),
     }
+
+
+def _blocked_times(data: dict[str, Any]) -> list[list[int]]:
+    """Minutes of the week, ``[[start, end], ...]``; an unreadable value counts as nothing blocked."""
+    try:
+        return [list(p) for p in parse_blocked_times(str(data.get("blockedTimes", "")))]
+    except BitmaskError:
+        return []
 
 
 class ChildrenService:
@@ -123,6 +136,8 @@ class ChildrenService:
             "limits_disabled": int(data.get("dlu", 0)) > now_ms,
             "app_count": len(cache.category_apps(scope, cid)),
             "rule_count": len(rules),
+            "blocked_times": _blocked_times(data),
+            "blocked_version": blocked_version(data),
             "rules": [
                 _rule_view(r, pending.get(str(r.data.get("id"))), now) for r in rules
             ],

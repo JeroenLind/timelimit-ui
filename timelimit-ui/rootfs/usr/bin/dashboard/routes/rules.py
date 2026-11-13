@@ -49,3 +49,9 @@ def off_today(child_id: str, rule_id: str) -> ResponseReturnValue:
 def on_again(child_id: str, rule_id: str) -> ResponseReturnValue:
     outcome = today().switch_on(child_id, rule_id)
     return jsonify({"status": "ok", "outcome": outcome.outcome})
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/blocked-times")
+def set_blocked_times(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_blocked_times(child_id, category_id, request.get_json(silent=True))
+    return jsonify({"status": "ok"})

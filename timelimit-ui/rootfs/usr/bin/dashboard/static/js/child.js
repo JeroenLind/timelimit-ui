@@ -1,6 +1,7 @@
 import { apiFetch } from "./api.js";
 import { formatDuration, statusLabel } from "./format.js";
 import { t } from "./i18n.js";
+import { initBlocked, renderBlocked } from "./blocked.js";
 import { initRules, renderRules } from "./rules.js";
 
 const $ = (id) => document.getElementById(id);
@@ -73,6 +74,7 @@ function render() {
   document.title = `${child.name} - TimeLimit Dashboard`;
   renderCategories();
   renderRules(data);
+  renderBlocked(data);
   renderDevices();
 }
 
@@ -118,6 +120,7 @@ export function initChild() {
     });
   }
   initRules(() => data);
+  initBlocked(() => data);
   selectTab("categories");
   document.addEventListener("dashboard:language", render);
 }

@@ -20,6 +20,7 @@
     <div role="tablist" class="tabs" aria-label="Child">
       <button type="button" role="tab" id="tab-categories" aria-controls="panel-categories" data-tab="categories" data-i18n="child.categories">Categories</button>
       <button type="button" role="tab" id="tab-rules" aria-controls="panel-rules" data-tab="rules" data-i18n="child.rules.tab">Rules</button>
+      <button type="button" role="tab" id="tab-blocked" aria-controls="panel-blocked" data-tab="blocked" data-i18n="child.blocked.tab">Blocked times</button>
       <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
     </div>
     <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
@@ -39,6 +40,19 @@
       <p id="rules-error" class="form-error" role="alert" hidden></p>
       <p id="rules-empty" data-i18n="rules.no_categories" hidden>No categories yet, so there are no rules to set.</p>
       <div id="rules-list"></div>
+    </section>
+    <section role="tabpanel" id="panel-blocked" aria-labelledby="tab-blocked" data-panel="blocked" class="panel" hidden>
+      <p id="blocked-empty" data-i18n="blocked.no_categories" hidden>No categories yet.</p>
+      <div id="blocked-editor">
+        <p class="muted" data-i18n="blocked.help">Blocked times apply every week. Click or drag over the cells; each cell is 30 minutes.</p>
+        <p><label for="blocked-category" data-i18n="blocked.category">Category</label> <select id="blocked-category"></select></p>
+        <div class="blocked-scroll"><div id="blocked-grid" role="grid" aria-label="Blocked times"></div></div>
+        <p id="blocked-error" class="form-error" role="alert" hidden></p>
+        <p class="blocked-actions">
+          <button type="button" id="blocked-save" data-change-control data-i18n="blocked.save" disabled>Save</button>
+          <button type="button" id="blocked-reset" class="secondary" data-i18n="blocked.reset" disabled>Reset</button>
+        </p>
+      </div>
     </section>
     <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" data-panel="devices" class="panel" hidden>
       <p class="muted" data-i18n="child.devices.help">Read only. Devices on which this child is signed in.</p>

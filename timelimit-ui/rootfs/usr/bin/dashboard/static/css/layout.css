@@ -85,3 +85,15 @@ dialog form { min-width: min(360px, 80vw); }
 .action-status[data-state="failed"] { background: var(--warn-bg); color: var(--warn-text); }
 tr[data-pending] { opacity: 0.6; }
 .pending-marker { font-style: italic; }
+
+.blocked-scroll { overflow-x: auto; max-width: 100%; }
+#blocked-grid { display: grid; gap: 2px; min-width: max-content; }
+.blocked-row { display: grid; grid-template-columns: 3rem repeat(48, 14px) auto; gap: 1px; align-items: center; }
+.blocked-hour { grid-column: span 6; font-size: 0.7rem; color: var(--muted, inherit); }
+.blocked-day { font-weight: 600; }
+.blocked-cell { min-width: 0; width: 14px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: 2px; background: var(--surface); }
+.blocked-cell[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.blocked-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.blocked-tools { display: flex; gap: 4px; margin-left: 8px; }
+.blocked-actions { display: flex; gap: 8px; }
+button.small { padding: 2px 8px; font-size: 0.8rem; }
