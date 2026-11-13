@@ -16,7 +16,7 @@ from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import Scope
 from dashboard.services.changes import ChangeService
 from dashboard.services.profiles import ServerProfiles
-from dashboard.services.rule_lookup import find_rule
+from dashboard.services.rule_lookup import check_version, find_rule
 from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
@@ -144,15 +144,17 @@ class RulesService:
     def update(self, child_id: str, rule_id: str, body: object) -> None:
         fields = parse_rule(body)
         _, rule = find_rule(self._backend, self._scope(), child_id, rule_id)
+        check_version(rule, body.get("version") if isinstance(body, dict) else None)
         # a rule that is off for today is put back first, in the same push (W6)
         before, pending = self._rule_today.actions_before_change(rule_id, rule)
         self._changes.push([*before, actions.update_timelimit_rule(rule_id, **fields)])
         if pending is not None:
             self._rule_today.ended_by_change(pending)
 
-    def delete(self, child_id: str, rule_id: str) -> None:
+    def delete(self, child_id: str, rule_id: str, version: str | None = None) -> None:
         scope = self._scope()
         _, rule = find_rule(self._backend, scope, child_id, rule_id)
+        check_version(rule, version)
         before, pending = self._rule_today.actions_before_change(rule_id, rule)
         self._changes.push([*before, actions.delete_timelimit_rule(rule_id)])
         if pending is not None:

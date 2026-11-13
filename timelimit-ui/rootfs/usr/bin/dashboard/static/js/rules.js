@@ -1,6 +1,7 @@
 // Time limit rules (plan E3): one table per category, one dialog for add and edit.
 // The form is checked here as well; an invalid form never reaches the backend.
 
+import { track } from "./actions.js";
 import { apiFetch } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 import { formatDuration } from "./format.js";
@@ -9,6 +10,7 @@ import { t } from "./i18n.js";
 const $ = (id) => document.getElementById(id);
 let getData = () => null;
 let editing = null; // { categoryId, rule | null }
+const pendingOps = []; // changes sent but not yet confirmed: shown as "waiting for server" (FR-205, UI-007)
 
 export function formatDays(days) {
   const sorted = [...days].sort((a, b) => a - b);
@@ -70,7 +72,8 @@ export function renderRules(data) {
       const heading = document.createElement("h3");
       heading.append(category.title, button(t("rules.add"), () => openDialog(category.id, null), "secondary add-rule"));
       section.append(heading);
-      if (category.rules.length === 0) {
+      const waiting = pendingOps.filter((op) => op.kind === "create" && op.categoryId === category.id);
+      if (category.rules.length === 0 && waiting.length === 0) {
         const none = document.createElement("p");
         none.className = "muted";
         none.textContent = t("rules.none");
@@ -82,9 +85,11 @@ export function renderRules(data) {
       for (const rule of category.rules) {
         const row = document.createElement("tr");
         row.dataset.ruleId = rule.id;
+        const busy = pendingOps.some((op) => op.ruleId === rule.id);
+        if (busy) row.dataset.pending = "";
         const actions = document.createElement("td");
         actions.className = "rule-actions";
-        if (rule.on_server) {
+        if (rule.on_server && !busy) {
           const off = Boolean(rule.off_today);
           const today = button(t(off ? "rules.on_again" : "rules.off_today"), () => toggleToday(rule), "secondary off-today");
           if (!off && !rule.applies_today) {
@@ -98,7 +103,18 @@ export function renderRules(data) {
             button(t("rules.delete"), () => removeRule(rule), "secondary delete-rule"),
           );
         }
-        row.append(cell(ruleSummary(rule)), cell(details(rule)), actions);
+        const note = busy ? [details(rule), t("rules.waiting")].filter(Boolean).join(" · ") : details(rule);
+        row.append(cell(ruleSummary(rule)), cell(note), actions);
+        body.append(row);
+      }
+      for (const op of waiting) {
+        const row = document.createElement("tr");
+        row.dataset.pending = "";
+        row.dataset.opKey = op.key;
+        const marker = document.createElement("span");
+        marker.className = "pending-marker";
+        marker.textContent = t("rules.waiting");
+        row.append(cell(op.summary), cell(marker), cell(""));
         body.append(row);
       }
       table.append(body);
@@ -182,6 +198,49 @@ export function readForm() {
   };
 }
 
+function redraw() {
+  const data = getData();
+  if (data) renderRules(data);
+}
+
+function changed() {
+  document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+}
+
+/** Shows the change as waiting, sends it, and shows the outcome; a failed change disappears with its reason. */
+async function runOp(op, request) {
+  pendingOps.push(op);
+  $("rules-error").hidden = true;
+  redraw();
+  try {
+    await track(request);
+  } catch (error) {
+    if (error.code !== "CONFLICT") {
+      $("rules-error").textContent = error.field === "rule" ? error.message : t(`error.${error.code}`);
+      $("rules-error").hidden = false;
+    }
+    throw error;
+  } finally {
+    pendingOps.splice(pendingOps.indexOf(op), 1);
+    changed();
+    redraw();
+  }
+}
+
+/** A conflict (the rule changed on the server meanwhile) asks first; "yes" repeats without version: last writer wins. */
+async function withConflictCheck(op, send, confirmKey) {
+  try {
+    await runOp(op, () => send(true));
+  } catch (error) {
+    if (error.code !== "CONFLICT") return;
+    const yes = await confirmDialog({ title: t("rules.conflict.title"), message: t("rules.conflict.text"), confirmLabel: t(confirmKey), danger: true });
+    if (yes) await runOp(op, () => send(false)).catch(() => {});
+  }
+}
+
+let opCounter = 0;
+const childPath = () => `/api/children/${encodeURIComponent($("child-page").dataset.childId)}`;
+
 async function submit(event) {
   event.preventDefault();
   clearErrors();
@@ -190,49 +249,36 @@ async function submit(event) {
     for (const [field, key] of Object.entries(errors)) setError(field, t(key));
     return;
   }
-  const save = $("rule-save");
-  save.disabled = true;
-  try {
-    const { categoryId, rule } = editing;
-    const childId = $("child-page").dataset.childId;
-    if (rule) await apiFetch(`/api/children/${encodeURIComponent(childId)}/rules/${encodeURIComponent(rule.id)}`, { method: "PUT", body });
-    else await apiFetch(`/api/children/${encodeURIComponent(childId)}/categories/${encodeURIComponent(categoryId)}/rules`, { method: "POST", body });
-    $("rule-dialog").close();
-  } catch (error) {
-    if (error.field && document.querySelector(`[data-error-for="${error.field}"]`)) setError(error.field, error.message);
-    else {
-      $("rule-error").textContent = t(`error.${error.code}`);
-      $("rule-error").hidden = false;
-    }
-  } finally {
-    save.disabled = false;
-    document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+  const { categoryId, rule } = editing;
+  $("rule-dialog").close();
+  opCounter += 1;
+  const summary = ruleSummary({ days: body.days, minutes: body.minutes });
+  if (rule) {
+    const op = { key: `op${opCounter}`, kind: "update", ruleId: rule.id };
+    await withConflictCheck(
+      op,
+      (check) => apiFetch(`${childPath()}/rules/${encodeURIComponent(rule.id)}`, { method: "PUT", body: check ? { ...body, version: rule.version } : body }),
+      "rules.conflict.confirm",
+    );
+  } else {
+    const op = { key: `op${opCounter}`, kind: "create", categoryId, summary };
+    await runOp(op, () => apiFetch(`${childPath()}/categories/${encodeURIComponent(categoryId)}/rules`, { method: "POST", body })).catch(() => {});
   }
 }
 
 async function removeRule(rule) {
   const yes = await confirmDialog({ title: t("rules.delete.title"), message: `${ruleSummary(rule)}. ${t("rules.delete.text")}`, confirmLabel: t("rules.delete"), danger: true });
   if (!yes) return;
-  $("rules-error").hidden = true;
-  try {
-    await apiFetch(`/api/children/${encodeURIComponent($("child-page").dataset.childId)}/rules/${encodeURIComponent(rule.id)}`, { method: "DELETE" });
-  } catch (error) {
-    $("rules-error").textContent = t(`error.${error.code}`);
-    $("rules-error").hidden = false;
-  }
-  document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+  opCounter += 1;
+  const op = { key: `op${opCounter}`, kind: "delete", ruleId: rule.id };
+  const url = `${childPath()}/rules/${encodeURIComponent(rule.id)}`;
+  await withConflictCheck(op, (check) => apiFetch(check ? `${url}?version=${encodeURIComponent(rule.version)}` : url, { method: "DELETE" }), "rules.conflict.delete");
 }
 
 async function toggleToday(rule) {
-  $("rules-error").hidden = true;
-  const url = `/api/children/${encodeURIComponent($("child-page").dataset.childId)}/rules/${encodeURIComponent(rule.id)}/off-today`;
-  try {
-    await apiFetch(url, { method: rule.off_today ? "DELETE" : "PUT" });
-  } catch (error) {
-    $("rules-error").textContent = error.field === "rule" ? error.message : t(`error.${error.code}`);
-    $("rules-error").hidden = false;
-  }
-  document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+  opCounter += 1;
+  const op = { key: `op${opCounter}`, kind: "today", ruleId: rule.id };
+  await runOp(op, () => apiFetch(`${childPath()}/rules/${encodeURIComponent(rule.id)}/off-today`, { method: rule.off_today ? "DELETE" : "PUT" })).catch(() => {});
 }
 
 export function initRules(provider) {

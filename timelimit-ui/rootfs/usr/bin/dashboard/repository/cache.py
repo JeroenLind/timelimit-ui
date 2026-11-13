@@ -472,6 +472,18 @@ class CacheRepository:
         return (key, key_id) if key and key_id else None
 
     # -- cleanup ---------------------------------------------------------------------------------------------------------------
+    def count_missing(self, scope: Scope) -> int:
+        """How many rows are flagged "no longer on server" (what :meth:`purge_missing` would remove)."""
+        total = 0
+        with self._db.transaction() as conn:
+            for table in ("devices", "users", "rules", "categories"):
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS n FROM {table} WHERE profile_key=? AND family_id=? AND on_server=0",
+                    scope.args,
+                ).fetchone()
+                total += int(row["n"])
+        return total
+
     def purge_missing(self, scope: Scope) -> int:
         """The parent's cleanup of everything flagged "no longer on server". Returns the number of rows removed."""
         removed = 0

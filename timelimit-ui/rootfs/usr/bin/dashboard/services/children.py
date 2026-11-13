@@ -20,6 +20,7 @@ from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
 from dashboard.repository.restores import PendingRestore
 from dashboard.services.profiles import ServerProfiles
+from dashboard.services.rule_lookup import rule_version
 from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
@@ -49,6 +50,7 @@ def _rule_view(
     has_window = (int(d.get("start", 0)), int(d.get("end", 1439))) != (0, 1439)
     return {
         "id": str(d["id"]),
+        "version": rule_version(d),
         "days": days_from_mask(mask),
         "minutes": int(d.get("maxTime", 0)) // 60000,
         "extra_time": bool(d.get("extraTime")),

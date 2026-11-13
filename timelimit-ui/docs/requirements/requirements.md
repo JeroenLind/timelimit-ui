@@ -48,11 +48,11 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Partial (pull side B3; push side B4) |
 | FR-203 | M | The server never reports a failed action (HTTP 200, `shouldDoFullSync:true`). The dashboard treats an action as **confirmed only** when the server does not request a full sync. Unconfirmed actions are reported to the user and rolled back in the UI. | Done (pusher) |
 | FR-204 | M | Sequence numbers are persistent per device, start at 0, and are reserved before sending. Max 25 actions per request. | Done |
-| FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Rework |
+| FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Done (E4) |
 | FR-206 | M | Users and other entities that the server no longer reports are **kept** and flagged "no longer on server" until the parent cleans them up. | Done (B1, storage) |
 | FR-207 | M | A change by another parent or by the app appears **instantly** through the server WebSocket (`should sync`). If the socket is unavailable the dashboard polls (interval configurable). | Done (backend B6; browser use in E-steps) |
-| FR-208 | M | Conflicts: last writer wins. If the data being edited changed on the server in the meantime, the UI shows a warning before saving. | Open |
-| FR-209 | M | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (message contains the reason when known). | Partial |
+| FR-208 | M | Conflicts: last writer wins. If the data being edited changed on the server in the meantime, the UI shows a warning before saving. | Done (E4) |
+| FR-209 | M | If an action fails or is not confirmed, the UI change is reverted and a notice is shown (message contains the reason when known). | Done (E4) |
 
 ### 2.3 Time limit rules (replaces FR-005, FR-006)
 
@@ -131,7 +131,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | UI-004 | M | Dark theme (and light). | Done (D1) |
 | UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Partial (D1: switch in the top bar; moves into settings in E1) |
 | UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Partial (D1: dialog component; used by the delete actions in E-steps) |
-| UI-007 | M | Every action shows its state: pending, confirmed, failed. | Partial |
+| UI-007 | M | Every action shows its state: pending, confirmed, failed. | Done (E4) |
 | UI-008 | W | No screen reader / WCAG target in v1 (basic ARIA only, as in UI-002). | – |
 
 ### 2.11 Server unavailable (replaces FR-002, NFR-004)
@@ -186,7 +186,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
 | TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |
 | TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Open |
-| TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Open |
+| TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Done (E4) |
 | TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Done (B7: enforced by test) |
 | TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
 | TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Done (B1) |

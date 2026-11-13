@@ -77,3 +77,11 @@ td.indent[data-depth="3"] { padding-left: 64px; }
 .rule-actions { white-space: nowrap; }
 .rule-actions button { margin-right: 6px; padding: 2px 10px; }
 dialog form { min-width: min(360px, 80vw); }
+
+.action-status { margin: 0 0 12px; padding: 6px 12px; border-radius: 8px; }
+.action-status[hidden] { display: none; }
+.action-status[data-state="pending"] { background: var(--info-bg); color: var(--info-text); }
+.action-status[data-state="confirmed"] { background: var(--ok-bg, var(--info-bg)); color: var(--ok-text, var(--info-text)); }
+.action-status[data-state="failed"] { background: var(--warn-bg); color: var(--warn-text); }
+tr[data-pending] { opacity: 0.6; }
+.pending-marker { font-style: italic; }

@@ -30,7 +30,7 @@ def update(child_id: str, rule_id: str) -> ResponseReturnValue:
 
 @bp.delete("/api/children/<child_id>/rules/<rule_id>")
 def delete(child_id: str, rule_id: str) -> ResponseReturnValue:
-    service().delete(child_id, rule_id)
+    service().delete(child_id, rule_id, request.args.get("version"))
     return jsonify({"status": "ok"})
 
 

@@ -8,6 +8,7 @@ let last = [];
 function text(notice) {
   return t(`notice.${notice.code}`)
     .replace("{level}", String(notice.api_level ?? ""))
+    .replace("{count}", String(notice.count ?? ""))
     .replace("{child}", notice.child ?? "")
     .replace("{category}", notice.category ?? "");
 }
@@ -38,6 +39,22 @@ export function renderNotices() {
           await refreshNotices();
         });
         banner.append(close);
+      }
+      if (notice.code === "ITEMS_MISSING") {
+        const clean = document.createElement("button");
+        clean.type = "button";
+        clean.className = "secondary clean-up";
+        clean.dataset.i18n = "notice.ITEMS_MISSING.action";
+        clean.addEventListener("click", async () => {
+          try {
+            await apiFetch("/api/cleanup", { method: "POST" });
+          } catch {
+            /* the banner stays */
+          }
+          document.dispatchEvent(new CustomEvent("dashboard:changed", { detail: { type: "local" } }));
+          await refreshNotices();
+        });
+        banner.append(clean);
       }
       if (notice.code === "SESSION_INVALID") {
         const link = document.createElement("a");

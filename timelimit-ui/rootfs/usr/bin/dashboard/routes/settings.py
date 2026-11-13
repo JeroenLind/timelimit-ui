@@ -76,3 +76,8 @@ def debug_export() -> ResponseReturnValue:
         mimetype="text/plain",
         headers={"Content-Disposition": 'attachment; filename="dashboard-debug.txt"'},
     )
+
+
+@bp.post("/api/cleanup")
+def clean_up() -> ResponseReturnValue:
+    return jsonify({"status": "ok", "removed": service().clean_up()})

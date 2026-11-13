@@ -55,6 +55,7 @@ def test_add_a_rule_monday_to_friday_for_90_minutes(
     expect(page.locator("#rule-dialog")).to_be_hidden()
     expect(games.locator("tbody tr")).to_have_count(2)
     expect(games).to_contain_text("Mon–Fri · 1 h 30 min")
+    expect(games.locator("tr[data-pending]")).to_have_count(0)  # confirmed
     assert any(
         r.day_mask == 31 and r.max_time == 90 * 60000
         for r in games_rules(fake_server).values()
@@ -142,8 +143,8 @@ def test_a_rejected_change_shows_the_error_and_reverts(
     games.locator(".edit-rule").click()
     page.fill("#rule-minutes", "10")
     page.click("#rule-save")
-    expect(page.locator("#rule-error")).to_contain_text("did not accept the change")
-    page.click("#rule-cancel")
+    expect(page.locator("#rules-error")).to_contain_text("did not accept the change")
+    expect(page.locator("#action-status")).to_contain_text("Not done.")
     expect(games.locator("tbody tr .edit-rule")).to_have_count(
         0
     )  # flagged as gone, no edit offered

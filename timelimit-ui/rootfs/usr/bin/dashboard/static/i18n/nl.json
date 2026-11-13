@@ -163,5 +163,15 @@
   "notice.RULE_RESTORED_LATE": "Een regel van {child} ({category}) is te laat weer aangezet, omdat het dashboard om middernacht niet draaide.",
   "notice.RULE_RESTORE_SKIPPED": "Een regel van {child} ({category}) die vandaag uit stond is elders gewijzigd of verwijderd en is daarom met rust gelaten.",
   "notice.RULE_OFF_ENDED": "De regel van {child} ({category}) staat niet meer uit voor vandaag, omdat je hem hebt gewijzigd.",
-  "notice.dismiss": "Sluiten"
+  "notice.dismiss": "Sluiten",
+  "action.pending": "Wachten op de server…",
+  "action.done": "Gelukt.",
+  "action.failed": "Niet gelukt.",
+  "rules.waiting": "wacht op server",
+  "rules.conflict.title": "Intussen gewijzigd",
+  "rules.conflict.text": "Deze regel is op de server gewijzigd nadat je hem opende. Opslaan overschrijft die wijziging.",
+  "rules.conflict.confirm": "Toch opslaan",
+  "rules.conflict.delete": "Toch verwijderen",
+  "notice.ITEMS_MISSING": "{count} item(s) staan niet meer op de server. Ze blijven bewaard tot je opruimt.",
+  "notice.ITEMS_MISSING.action": "Opruimen"
 }

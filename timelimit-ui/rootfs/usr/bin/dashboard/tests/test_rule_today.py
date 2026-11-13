@@ -159,7 +159,9 @@ def audit(app: Flask, fake: FakeTimeLimitServer) -> list[str]:
 
 
 def notices(app: Flask) -> list[dict[str, Any]]:
-    return app.test_client().get("/api/notices").get_json()["notices"]  # type: ignore[no-any-return]
+    found = app.test_client().get("/api/notices").get_json()["notices"]
+    # ITEMS_MISSING (FR-206, E4) is about something else: a rule that vanished elsewhere is flagged
+    return [n for n in found if n["code"] != "ITEMS_MISSING"]
 
 
 def wait_for(check: Callable[[], bool], seconds: float = 8.0) -> None:

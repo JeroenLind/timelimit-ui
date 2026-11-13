@@ -91,7 +91,29 @@ class SettingsService:
         level = self.api_level()
         if level is not None and level not in TESTED_API_LEVELS:
             found.append({"code": "VERSION_UNTESTED", "api_level": level})
+        url = self._profiles.url()
+        scope = self._backend.scope(url) if url else None
+        missing = self._backend.cache.count_missing(scope) if scope else 0
+        if missing:
+            found.append({"code": "ITEMS_MISSING", "count": missing})
         return [*found, *self._rule_today.notices()]
+
+    def clean_up(self) -> int:
+        """The parent removes everything flagged "no longer on server" from the cache (FR-206)."""
+        url = self._profiles.url()
+        scope = self._backend.scope(url) if url else None
+        if scope is None:
+            return 0
+        removed = self._backend.cache.purge_missing(scope)
+        if removed:
+            self._backend.audit.append(
+                scope.profile_key,
+                at=int(self._clock.now().timestamp() * 1000),
+                action="cleanup",
+                detail={"removed": removed},
+            )
+            self._backend.hub.publish({"type": "changed", "parts": ["cleanup"]})
+        return removed
 
     # -- changing --------------------------------------------------------------------------------------------------------
     def select_server(

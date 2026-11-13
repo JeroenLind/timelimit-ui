@@ -163,5 +163,15 @@
   "notice.RULE_RESTORED_LATE": "A rule of {child} ({category}) was switched back on late, because the dashboard was not running at midnight.",
   "notice.RULE_RESTORE_SKIPPED": "A rule of {child} ({category}) that was off for today was changed or removed elsewhere, so it was left as it is.",
   "notice.RULE_OFF_ENDED": "The rule of {child} ({category}) is no longer off for today because you changed it.",
-  "notice.dismiss": "Dismiss"
+  "notice.dismiss": "Dismiss",
+  "action.pending": "Waiting for the server…",
+  "action.done": "Done.",
+  "action.failed": "Not done.",
+  "rules.waiting": "waiting for server",
+  "rules.conflict.title": "Changed in the meantime",
+  "rules.conflict.text": "This rule was changed on the server after you opened it. Saving now overwrites that change.",
+  "rules.conflict.confirm": "Save anyway",
+  "rules.conflict.delete": "Delete anyway",
+  "notice.ITEMS_MISSING": "{count} item(s) are no longer on the server. They are kept until you clean up.",
+  "notice.ITEMS_MISSING.action": "Clean up"
 }
