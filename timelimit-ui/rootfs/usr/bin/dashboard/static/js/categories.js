@@ -2,6 +2,7 @@
 
 import { track } from "./actions.js";
 import { apiFetch } from "./api.js";
+import { openApps, initApps } from "./apps.js";
 import { confirmDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 
@@ -99,6 +100,7 @@ export function renderCategoryActions(data) {
         button(t("categories.edit"), () => openDialog(category)),
         button("\u2191", () => move(category, "up"), { disabled: at <= 0, title: t("categories.up") }),
         button("\u2193", () => move(category, "down"), { disabled: at === siblings.length - 1, title: t("categories.down") }),
+        button(t("categories.apps"), () => openApps(category)),
         button(t("categories.settings"), () => openSettings(category)),
         category.limits_disabled
           ? button(t("categories.limits.enable"), () => setLimits(category, 0))
@@ -282,6 +284,7 @@ async function resetNetworks() {
 
 export function initCategories(provider) {
   getData = provider;
+  initApps();
   $("category-add").addEventListener("click", () => openDialog(null));
   $("category-form").addEventListener("submit", submitCategory);
   $("category-cancel").addEventListener("click", () => $("category-dialog").close());

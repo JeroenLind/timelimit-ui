@@ -104,3 +104,7 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; }
 fieldset { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 8px; }
 label.check { display: inline-flex; gap: 6px; align-items: center; margin-right: 12px; }
 .checks { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.app-list { max-height: 14rem; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; display: grid; gap: 4px; }
+.app-list:empty::before { content: attr(data-empty); color: var(--muted, inherit); }
+.app-row { display: flex; flex-wrap: wrap; }
+textarea { width: 100%; box-sizing: border-box; }

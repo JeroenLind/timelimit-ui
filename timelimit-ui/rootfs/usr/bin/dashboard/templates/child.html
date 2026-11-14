@@ -127,6 +127,30 @@
     </div>
   </form>
 </dialog>
+<dialog id="apps-dialog" aria-labelledby="apps-title">
+  <div id="apps-body">
+    <h2 id="apps-title"></h2>
+    <p id="apps-unknown" class="muted" data-i18n="apps.unknown" hidden>The child's device has not reported its apps yet. Enter package names by hand.</p>
+    <section>
+      <h3 data-i18n="apps.assigned">In this category</h3>
+      <div id="apps-assigned" class="app-list"></div>
+      <p><button type="button" class="secondary" id="apps-remove" data-change-control data-i18n="apps.remove">Remove selected</button></p>
+    </section>
+    <section>
+      <h3 data-i18n="apps.add">Add apps</h3>
+      <label class="field"><span data-i18n="apps.search">Search</span>
+        <input type="search" id="apps-search" autocomplete="off"></label>
+      <div id="apps-available" class="app-list"></div>
+      <label class="field"><span data-i18n="apps.manual">Package names (one per line)</span>
+        <textarea id="apps-manual" rows="3" autocomplete="off" spellcheck="false"></textarea></label>
+      <p id="apps-error" class="form-error" role="alert" hidden></p>
+      <p><button type="button" id="apps-add" data-change-control data-i18n="apps.add_selected">Add selected</button></p>
+    </section>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="apps-close" data-i18n="dialog.close">Close</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="limits-dialog" aria-labelledby="limits-title">
   <form id="limits-form" novalidate>
     <h2 id="limits-title" data-i18n="categories.limits.title">Switch limits off for a while</h2>

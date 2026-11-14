@@ -230,5 +230,18 @@
   "settings.networks.reset.text": "Alle opgeslagen netwerken van deze categorie worden verwijderd. Ze kunnen alleen vanaf het toestel van het kind opnieuw worden opgeslagen.",
   "settings.networks.help": "Netwerken kunnen alleen vanaf het toestel van het kind worden opgeslagen.",
   "settings.invalid": "Voer een geheel getal in van 0 tot {max}.",
-  "categories.settings.title": "Instellingen van {name}"
+  "categories.settings.title": "Instellingen van {name}",
+  "categories.apps": "Apps",
+  "apps.title": "Apps van {name}",
+  "apps.unknown": "Het toestel van het kind heeft zijn apps nog niet doorgegeven. Voer pakketnamen met de hand in.",
+  "apps.assigned": "In deze categorie",
+  "apps.none": "Geen apps in deze categorie.",
+  "apps.remove": "Geselecteerde verwijderen",
+  "apps.add": "Apps toevoegen",
+  "apps.search": "Zoeken",
+  "apps.manual": "Pakketnamen (één per regel)",
+  "apps.add_selected": "Geselecteerde toevoegen",
+  "apps.moves": "nu in {category}, wordt verplaatst",
+  "apps.choose": "Kies of voer minstens één app in.",
+  "dialog.close": "Sluiten"
 }

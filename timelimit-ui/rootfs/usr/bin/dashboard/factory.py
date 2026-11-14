@@ -19,6 +19,7 @@ from dashboard.routes import (
 )
 from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
+from dashboard.services.apps import AppsService
 from dashboard.services.categories import CategoriesService
 from dashboard.services.changes import ChangeService
 from dashboard.services.children import ChildrenService
@@ -54,6 +55,7 @@ def create_app(
         "changes": changes,
         "rules": RulesService(backend, profiles, changes, rule_today),
         "categories": CategoriesService(backend, profiles, changes, clock),
+        "apps": AppsService(backend, profiles, changes),
         "rule_today": rule_today,
         "hub": hub,
         "backend": backend,

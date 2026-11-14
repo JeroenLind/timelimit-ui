@@ -230,5 +230,18 @@
   "settings.networks.reset.text": "All saved networks of this category are removed. They can only be saved again from the child's device.",
   "settings.networks.help": "Networks can only be saved from the child's device.",
   "settings.invalid": "Enter a whole number from 0 to {max}.",
-  "categories.settings.title": "Settings of {name}"
+  "categories.settings.title": "Settings of {name}",
+  "categories.apps": "Apps",
+  "apps.title": "Apps of {name}",
+  "apps.unknown": "The child's device has not reported its apps yet. Enter package names by hand.",
+  "apps.assigned": "In this category",
+  "apps.none": "No apps in this category.",
+  "apps.remove": "Remove selected",
+  "apps.add": "Add apps",
+  "apps.search": "Search",
+  "apps.manual": "Package names (one per line)",
+  "apps.add_selected": "Add selected",
+  "apps.moves": "now in {category}, will be moved",
+  "apps.choose": "Choose or enter at least one app.",
+  "dialog.close": "Close"
 }

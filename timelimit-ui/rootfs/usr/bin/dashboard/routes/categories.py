@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from dashboard.services.apps import AppsService
 from dashboard.services.categories import CategoriesService
 
 bp = Blueprint("categories", __name__)
@@ -82,4 +83,26 @@ def network_list(child_id: str, category_id: str) -> ResponseReturnValue:
 @bp.delete("/api/children/<child_id>/categories/<category_id>/networks")
 def reset_networks(child_id: str, category_id: str) -> ResponseReturnValue:
     service().reset_networks(child_id, category_id)
+    return _ok()
+
+
+def apps_service() -> AppsService:
+    found: AppsService = current_app.extensions["dashboard"]["apps"]
+    return found
+
+
+@bp.get("/api/children/<child_id>/apps")
+def apps(child_id: str) -> ResponseReturnValue:
+    return jsonify(apps_service().overview(child_id))
+
+
+@bp.post("/api/children/<child_id>/categories/<category_id>/apps")
+def assign_apps(child_id: str, category_id: str) -> ResponseReturnValue:
+    apps_service().assign(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.post("/api/children/<child_id>/categories/<category_id>/apps/remove")
+def remove_apps(child_id: str, category_id: str) -> ResponseReturnValue:
+    apps_service().unassign(child_id, category_id, request.get_json(silent=True))
     return _ok()
