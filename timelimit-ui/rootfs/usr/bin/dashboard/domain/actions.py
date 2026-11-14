@@ -315,7 +315,7 @@ def update_category_block_all_notifications(
 def update_category_battery_limit(
     category_id: str, charge_limit: int | None = None, mobile_limit: int | None = None
 ) -> Action:
-    """Battery levels in percent (0..100); an omitted limit clears it."""
+    """Battery levels in percent (0..100); 0 means no limit. An omitted limit stays as it is (server code)."""
     action: Action = {
         "type": "UPDATE_CATEGORY_BATTERY_LIMIT",
         "categoryId": _id("categoryId", category_id),

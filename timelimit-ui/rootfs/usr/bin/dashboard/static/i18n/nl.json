@@ -213,5 +213,22 @@
   "categories.limits.title": "Limieten tijdelijk uitzetten",
   "categories.limits.minutes": "Hoeveel minuten",
   "categories.limits.apply": "Uitzetten",
-  "categories.limits.invalid": "Voer hele minuten in van 1 tot 10080."
+  "categories.limits.invalid": "Voer hele minuten in van 1 tot 10080.",
+  "categories.settings": "Instellingen",
+  "settings.notifications": "Meldingen",
+  "settings.notifications.block": "Alle meldingen blokkeren",
+  "settings.notifications.delay": "Vertraging voor het blokkeren (minuten)",
+  "settings.warnings": "Tijdwaarschuwingen (minuten voordat de tijd op is)",
+  "settings.battery": "Batterijlimiet (procent, 0 = geen limiet)",
+  "settings.battery.charging": "Tijdens opladen: minstens",
+  "settings.battery.mobile": "Niet aan de lader: minstens",
+  "settings.networks": "Netwerken",
+  "settings.networks.block": "Deze categorie blokkeren op de opgeslagen netwerken",
+  "settings.networks.count": "{count} netwerk(en) opgeslagen.",
+  "settings.networks.reset": "Opgeslagen netwerken vergeten",
+  "settings.networks.reset.title": "Opgeslagen netwerken vergeten?",
+  "settings.networks.reset.text": "Alle opgeslagen netwerken van deze categorie worden verwijderd. Ze kunnen alleen vanaf het toestel van het kind opnieuw worden opgeslagen.",
+  "settings.networks.help": "Netwerken kunnen alleen vanaf het toestel van het kind worden opgeslagen.",
+  "settings.invalid": "Voer een geheel getal in van 0 tot {max}.",
+  "categories.settings.title": "Instellingen van {name}"
 }

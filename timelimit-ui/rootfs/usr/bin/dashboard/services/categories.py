@@ -9,6 +9,7 @@ from dashboard.domain.clock import Clock
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
 from dashboard.services.changes import ChangeService
+from dashboard.services.children import TIME_WARNING_MINUTES
 from dashboard.services.profiles import ServerProfiles
 from dashboard.sync.backend import Backend
 
@@ -214,3 +215,95 @@ class CategoriesService:
             else int(self._clock.now().timestamp() * 1000) + minutes * 60000
         )
         self._push([lambda: actions.update_category_disable_limits(category_id, end)])
+
+    # -- settings (E6b) ---------------------------------------------------------------------------------------------------------
+    def _settings_target(self, child_id: str, category_id: str) -> dict[str, Any]:
+        scope = self._scope()
+        return self._find(self._categories(scope, child_id), category_id)
+
+    @staticmethod
+    def _whole(value: object, field: str, low: int, high: int) -> int:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not low <= value <= high
+        ):
+            raise _invalid(field, f"Enter whole numbers from {low} to {high}.")
+        return value
+
+    def set_notifications(self, child_id: str, category_id: str, body: object) -> None:
+        data = _body(body)
+        blocked = data.get("blocked")
+        if not isinstance(blocked, bool):
+            raise _invalid("blocked", "Choose on or off.")
+        delay = data.get("delay_minutes")
+        delay_ms = (
+            None
+            if delay is None
+            else self._whole(delay, "delay_minutes", 0, MAX_DISABLE_MINUTES) * 60000
+        )
+        self._settings_target(child_id, category_id)
+        self._push(
+            [
+                lambda: actions.update_category_block_all_notifications(
+                    category_id, blocked, delay_ms
+                )
+            ]
+        )
+
+    def set_time_warnings(self, child_id: str, category_id: str, body: object) -> None:
+        wanted = _body(body).get("minutes")
+        if not isinstance(wanted, list) or any(
+            isinstance(m, bool) or m not in TIME_WARNING_MINUTES for m in wanted
+        ):
+            raise _invalid(
+                "minutes",
+                f"Choose from {', '.join(map(str, TIME_WARNING_MINUTES))} minutes.",
+            )
+        current = int(
+            self._settings_target(child_id, category_id).get("timeWarnings", 0) or 0
+        )
+        target = sum(1 << TIME_WARNING_MINUTES.index(m) for m in set(wanted))
+        built = []
+        if target & ~current:
+            built.append(
+                lambda: actions.update_category_time_warnings(
+                    category_id, True, target & ~current
+                )
+            )
+        if current & ~target:
+            built.append(
+                lambda: actions.update_category_time_warnings(
+                    category_id, False, current & ~target
+                )
+            )
+        if built:
+            self._push(built)
+
+    def set_battery(self, child_id: str, category_id: str, body: object) -> None:
+        data = _body(body)
+        charging = self._whole(data.get("charging"), "charging", 0, 100)
+        mobile = self._whole(data.get("mobile"), "mobile", 0, 100)
+        self._settings_target(child_id, category_id)
+        self._push(
+            [
+                lambda: actions.update_category_battery_limit(
+                    category_id, charging, mobile
+                )
+            ]
+        )
+
+    def set_network_list(self, child_id: str, category_id: str, body: object) -> None:
+        enabled = _body(body).get("enabled")
+        if not isinstance(enabled, bool):
+            raise _invalid("enabled", "Choose on or off.")
+        current = self._settings_target(child_id, category_id)
+        if enabled == bool(int(current.get("flags", 0) or 0) & 1):
+            return
+        self._push(
+            [lambda: actions.update_category_flags(category_id, 1, 1 if enabled else 0)]
+        )
+
+    def reset_networks(self, child_id: str, category_id: str) -> None:
+        self._settings_target(child_id, category_id)
+        self._push([lambda: actions.reset_category_network_ids(category_id)])

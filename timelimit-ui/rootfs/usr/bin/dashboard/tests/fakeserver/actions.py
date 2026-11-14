@@ -355,6 +355,39 @@ def _apply(
         cat.disable_limits_until = _int(a["endTime"])
         _bump_base(cat)
         out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_FLAGS":
+        flag_cat = _category(family, _id(a["categoryId"]))
+        flag_cat.flags = (flag_cat.flags & ~a["modified"]) | a["values"]
+        _bump_base(flag_cat)
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_TIME_WARNINGS":
+        warn_cat = _category(family, _id(a["categoryId"]))
+        if a["enable"]:
+            warn_cat.time_warnings |= a["flags"]
+        else:
+            warn_cat.time_warnings &= ~a["flags"]
+        _bump_base(warn_cat)
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_BLOCK_ALL_NOTIFICATIONS":
+        note_cat = _category(family, _id(a["categoryId"]))
+        note_cat.block_all_notifications = bool(a["blocked"])
+        if "blockDelay" in a:
+            note_cat.block_notification_delay = _int(a["blockDelay"])
+        _bump_base(note_cat)
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "UPDATE_CATEGORY_BATTERY_LIMIT":
+        battery_cat = _category(family, _id(a["categoryId"]))
+        if "chargeLimit" in a:
+            battery_cat.min_battery_charging = _int(a["chargeLimit"])
+        if "mobileLimit" in a:  # an omitted limit stays as it is (server code)
+            battery_cat.min_battery_mobile = _int(a["mobileLimit"])
+        _bump_base(battery_cat)
+        out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "RESET_CATEGORY_NETWORK_IDS":
+        network_cat = _category(family, _id(a["categoryId"]))
+        network_cat.networks = []
+        _bump_base(network_cat)
+        out.triggered_level = max(out.triggered_level, 2)
     elif kind == "UPDATE_CATEGORY_TEMPORARILY_BLOCKED":
         if a["blocked"] and not family.has_full_version:
             raise ActionFailed("premium version missing")

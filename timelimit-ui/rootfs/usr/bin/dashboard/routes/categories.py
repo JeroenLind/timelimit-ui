@@ -53,3 +53,33 @@ def disable_limits(child_id: str, category_id: str) -> ResponseReturnValue:
 def unassigned(child_id: str) -> ResponseReturnValue:
     service().set_unassigned(child_id, request.get_json(silent=True))
     return _ok()
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/notifications")
+def notifications(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_notifications(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/time-warnings")
+def time_warnings(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_time_warnings(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/battery")
+def battery(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_battery(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/network-list")
+def network_list(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_network_list(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.delete("/api/children/<child_id>/categories/<category_id>/networks")
+def reset_networks(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().reset_networks(child_id, category_id)
+    return _ok()

@@ -9,6 +9,8 @@ const $ = (id) => document.getElementById(id);
 let getData = () => null;
 let editing = null; // null: new category, otherwise the category being edited
 let limitsFor = null;
+let settingsFor = null;
+const WARNINGS = [1, 3, 5, 10, 15];
 const busy = new Set(); // category ids with a change on its way
 
 const childPath = () => `/api/children/${encodeURIComponent($("child-page").dataset.childId)}`;
@@ -97,6 +99,7 @@ export function renderCategoryActions(data) {
         button(t("categories.edit"), () => openDialog(category)),
         button("\u2191", () => move(category, "up"), { disabled: at <= 0, title: t("categories.up") }),
         button("\u2193", () => move(category, "down"), { disabled: at === siblings.length - 1, title: t("categories.down") }),
+        button(t("categories.settings"), () => openSettings(category)),
         category.limits_disabled
           ? button(t("categories.limits.enable"), () => setLimits(category, 0))
           : button(t("categories.limits.disable"), () => openLimits(category)),
@@ -140,7 +143,7 @@ function setLimits(category, minutes) {
 }
 
 function fieldError(field, message) {
-  const span = document.querySelector(`#category-form [data-error-for="${field}"], #limits-form [data-error-for="${field}"]`);
+  const span = document.querySelector(`#category-form [data-error-for="${field}"], #limits-form [data-error-for="${field}"], #settings-form [data-error-for="${field}"]`);
   if (!span) return;
   span.textContent = message ?? "";
   span.hidden = !message;
@@ -196,11 +199,95 @@ async function submitLimits(event) {
   await setLimits(category, minutes);
 }
 
+function openSettings(category) {
+  settingsFor = category;
+  $("settings-error").hidden = true;
+  for (const span of document.querySelectorAll("#settings-form .field-error")) span.hidden = true;
+  $("settings-title").textContent = t("categories.settings.title").replace("{name}", category.title);
+  $("set-notifications").checked = category.block_notifications;
+  $("set-delay").value = String(category.notification_delay_minutes);
+  const box = $("set-warnings");
+  box.replaceChildren(
+    ...WARNINGS.map((minutes) => {
+      const label = document.createElement("label");
+      label.className = "check";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = String(minutes);
+      input.checked = category.time_warning_minutes.includes(minutes);
+      label.append(input, ` ${minutes}`);
+      return label;
+    }),
+  );
+  $("set-battery-charging").value = String(category.battery_charging);
+  $("set-battery-mobile").value = String(category.battery_mobile);
+  $("set-network-list").checked = category.network_list_enabled;
+  $("set-network-count").textContent = t("settings.networks.count").replace("{count}", String(category.network_count));
+  $("set-network-reset").disabled = category.network_count === 0;
+  if (category.network_count === 0) $("set-network-reset").dataset.keepDisabled = "";
+  else delete $("set-network-reset").dataset.keepDisabled;
+  $("settings-dialog").showModal();
+}
+
+const whole = (id) => {
+  const text = $(id).value.trim();
+  return /^\d+$/.test(text) ? Number(text) : Number.NaN;
+};
+
+async function submitSettings(event) {
+  event.preventDefault();
+  const category = settingsFor;
+  const base = `${childPath()}/categories/${encodeURIComponent(category.id)}`;
+  for (const span of document.querySelectorAll("#settings-form .field-error")) span.hidden = true;
+  const delay = whole("set-delay");
+  const charging = whole("set-battery-charging");
+  const mobile = whole("set-battery-mobile");
+  let valid = true;
+  for (const [field, value, max] of [["delay_minutes", delay, 10080], ["charging", charging, 100], ["mobile", mobile, 100]]) {
+    if (Number.isNaN(value) || value > max) {
+      fieldError(field, t("settings.invalid").replace("{max}", String(max)));
+      valid = false;
+    }
+  }
+  if (!valid) return;
+  const warnings = [...$("set-warnings").querySelectorAll("input:checked")].map((i) => Number(i.value));
+  const same = (a, b) => a.length === b.length && a.every((v) => b.includes(v));
+  const calls = [];
+  const blocked = $("set-notifications").checked;
+  if (blocked !== category.block_notifications || delay !== category.notification_delay_minutes) {
+    calls.push(["notifications", "PUT", { blocked, delay_minutes: delay }]);
+  }
+  if (!same(warnings, category.time_warning_minutes)) calls.push(["time-warnings", "PUT", { minutes: warnings }]);
+  if (charging !== category.battery_charging || mobile !== category.battery_mobile) calls.push(["battery", "PUT", { charging, mobile }]);
+  if ($("set-network-list").checked !== category.network_list_enabled) calls.push(["network-list", "PUT", { enabled: $("set-network-list").checked }]);
+  $("settings-dialog").close();
+  for (const [part, method, body] of calls) {
+    const ok = await run(category.id, () => apiFetch(`${base}/${part}`, { method, body }));
+    if (!ok) break; // the reason is shown under the toolbar; later parts are not sent
+  }
+}
+
+async function resetNetworks() {
+  const category = settingsFor;
+  const yes = await confirmDialog({
+    title: t("settings.networks.reset.title"),
+    message: t("settings.networks.reset.text"),
+    confirmLabel: t("settings.networks.reset"),
+    danger: true,
+  });
+  if (!yes) return;
+  $("settings-dialog").close();
+  await run(category.id, () => apiFetch(`${childPath()}/categories/${encodeURIComponent(category.id)}/networks`, { method: "DELETE" }));
+}
+
 export function initCategories(provider) {
   getData = provider;
   $("category-add").addEventListener("click", () => openDialog(null));
   $("category-form").addEventListener("submit", submitCategory);
   $("category-cancel").addEventListener("click", () => $("category-dialog").close());
+  $("settings-form").addEventListener("submit", submitSettings);
+  $("settings-cancel").addEventListener("click", () => $("settings-dialog").close());
+  $("set-network-reset").addEventListener("click", resetNetworks);
   $("limits-form").addEventListener("submit", submitLimits);
   $("limits-cancel").addEventListener("click", () => $("limits-dialog").close());
   $("category-unassigned").addEventListener("change", async (event) => {

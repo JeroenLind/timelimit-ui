@@ -106,6 +106,7 @@ class Category:
     disable_limits_until: int = 0
     flags: int = 0
     block_notification_delay: int = 0
+    networks: list[dict[str, str]] = field(default_factory=list)
     apps: list[str] = field(default_factory=list)
     rules: dict[str, Rule] = field(default_factory=dict)
     # day-of-epoch -> {(start, end): used time in ms}
@@ -514,7 +515,7 @@ def _base_entry(c: Category) -> dict[str, Any]:
         "mblCharging": c.min_battery_charging,
         "tempBlockTime": c.temp_block_end,
         "sort": c.sort,
-        "networks": [],
+        "networks": list(c.networks),
         "dlu": c.disable_limits_until,
         "flags": c.flags,
         "blockNotificationDelay": c.block_notification_delay,

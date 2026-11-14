@@ -80,6 +80,15 @@ def _blocked_times(data: dict[str, Any]) -> list[list[int]]:
         return []
 
 
+TIME_WARNING_MINUTES = (
+    1,
+    3,
+    5,
+    10,
+    15,
+)  # bit 0..4 of `timeWarnings`, as in the Android app
+
+
 class ChildrenService:
     def __init__(
         self,
@@ -134,6 +143,20 @@ class ChildrenService:
             "temp_blocked": blocked,
             "temp_blocked_until": block_end if blocked and block_end else None,
             "limits_disabled": int(data.get("dlu", 0)) > now_ms,
+            "block_notifications": bool(data.get("blockAllNotifications", False)),
+            "notification_delay_minutes": int(
+                data.get("blockNotificationDelay", 0) or 0
+            )
+            // 60000,
+            "time_warning_minutes": [
+                m
+                for bit, m in enumerate(TIME_WARNING_MINUTES)
+                if int(data.get("timeWarnings", 0) or 0) >> bit & 1
+            ],
+            "battery_charging": int(data.get("mblCharging", 0) or 0),
+            "battery_mobile": int(data.get("mblMobile", 0) or 0),
+            "network_count": len(data.get("networks") or []),
+            "network_list_enabled": bool(int(data.get("flags", 0) or 0) & 1),
             "limits_disabled_until": int(data["dlu"])
             if int(data.get("dlu", 0)) > now_ms
             else None,

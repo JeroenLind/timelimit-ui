@@ -90,6 +90,43 @@
     </div>
   </form>
 </dialog>
+<dialog id="settings-dialog" aria-labelledby="settings-title">
+  <form id="settings-form" novalidate>
+    <h2 id="settings-title"></h2>
+    <fieldset>
+      <legend data-i18n="settings.notifications">Notifications</legend>
+      <label class="check"><input type="checkbox" id="set-notifications"> <span data-i18n="settings.notifications.block">Block all notifications</span></label>
+      <label class="field"><span data-i18n="settings.notifications.delay">Delay before blocking (minutes)</span>
+        <input type="number" id="set-delay" min="0" max="10080" step="1" inputmode="numeric">
+        <span class="field-error" data-error-for="delay_minutes" hidden></span></label>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.warnings">Time warnings (minutes before the time is up)</legend>
+      <span id="set-warnings" class="checks"></span>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.battery">Battery limit (percent, 0 = no limit)</legend>
+      <label class="field"><span data-i18n="settings.battery.charging">While charging: at least</span>
+        <input type="number" id="set-battery-charging" min="0" max="100" step="1" inputmode="numeric">
+        <span class="field-error" data-error-for="charging" hidden></span></label>
+      <label class="field"><span data-i18n="settings.battery.mobile">Not charging: at least</span>
+        <input type="number" id="set-battery-mobile" min="0" max="100" step="1" inputmode="numeric">
+        <span class="field-error" data-error-for="mobile" hidden></span></label>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.networks">Networks</legend>
+      <label class="check"><input type="checkbox" id="set-network-list"> <span data-i18n="settings.networks.block">Block this category on the saved networks</span></label>
+      <p class="muted"><span id="set-network-count"></span>
+        <button type="button" class="secondary small" id="set-network-reset" data-change-control data-i18n="settings.networks.reset">Forget saved networks</button></p>
+      <p class="muted" data-i18n="settings.networks.help">Networks can only be saved from the child's device.</p>
+    </fieldset>
+    <p id="settings-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="settings-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" data-change-control data-i18n="rules.save">Save</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="limits-dialog" aria-labelledby="limits-title">
   <form id="limits-form" novalidate>
     <h2 id="limits-title" data-i18n="categories.limits.title">Switch limits off for a while</h2>

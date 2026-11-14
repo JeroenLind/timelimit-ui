@@ -213,5 +213,22 @@
   "categories.limits.title": "Switch limits off for a while",
   "categories.limits.minutes": "For how many minutes",
   "categories.limits.apply": "Switch off",
-  "categories.limits.invalid": "Enter whole minutes from 1 to 10080."
+  "categories.limits.invalid": "Enter whole minutes from 1 to 10080.",
+  "categories.settings": "Settings",
+  "settings.notifications": "Notifications",
+  "settings.notifications.block": "Block all notifications",
+  "settings.notifications.delay": "Delay before blocking (minutes)",
+  "settings.warnings": "Time warnings (minutes before the time is up)",
+  "settings.battery": "Battery limit (percent, 0 = no limit)",
+  "settings.battery.charging": "While charging: at least",
+  "settings.battery.mobile": "Not charging: at least",
+  "settings.networks": "Networks",
+  "settings.networks.block": "Block this category on the saved networks",
+  "settings.networks.count": "{count} network(s) saved.",
+  "settings.networks.reset": "Forget saved networks",
+  "settings.networks.reset.title": "Forget saved networks?",
+  "settings.networks.reset.text": "All saved networks of this category are removed. They can only be saved again from the child's device.",
+  "settings.networks.help": "Networks can only be saved from the child's device.",
+  "settings.invalid": "Enter a whole number from 0 to {max}.",
+  "categories.settings.title": "Settings of {name}"
 }
