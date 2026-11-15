@@ -74,9 +74,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-400 | M | Create, rename and delete categories per child. Deleting asks for confirmation and states how many apps and rules are removed. | Done (E6a) |
 | FR-401 | M | Set the order and the parent category of a category. | Done (E6a) |
 | FR-402 | M | Category settings, four groups: (1) category flags (block, show time, etc.; bit meanings taken from the server code), (2) block all notifications and time warnings, (3) battery limit (charging/mobile) and network ids (add, reset), (4) the category for unassigned apps (per child) and disable limits per category. | Done (E6a, E6b). Group 1 reduced by Q5a to the one flag the server knows (network list); time warnings use the five presets of the Android app (1, 3, 5, 10, 15 min); network ids can be shown (count) and reset, not added: the id is a hash of the Wi-Fi network of the Android device itself |
-| FR-403 | M | Assign and remove apps for a category (`ADD_CATEGORY_APPS`, `REMOVE_CATEGORY_APPS`). Adding moves an app out of its previous category. | Partial |
-| FR-404 | M | The selectable app list comes from the **child's device** (installed apps as synced by the device). If the list is encrypted for a clientLevel the dashboard cannot read, the UI says so and allows manual package names. | Open |
-| FR-405 | S | Apps show their label and package name. | Open |
+| FR-403 | M | Assign and remove apps for a category (`ADD_CATEGORY_APPS`, `REMOVE_CATEGORY_APPS`). Adding moves an app out of its previous category. | Done (E7) |
+| FR-404 | M | The selectable app list comes from the **child's device** (installed apps as synced by the device). The server stores installed app lists unencrypted, so there is no encrypted case; when no list is known (no device has reported apps) the UI says so and manual package names remain available (the manual field is always shown). | Done (E7) |
+| FR-405 | S | Apps show their label and package name. | Done (E7) |
 
 ### 2.5 Extra time and temporary blocking
 
