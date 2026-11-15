@@ -243,5 +243,19 @@
   "apps.add_selected": "Geselecteerde toevoegen",
   "apps.moves": "nu in {category}, wordt verplaatst",
   "apps.choose": "Kies of voer minstens één app in.",
-  "dialog.close": "Sluiten"
+  "dialog.close": "Sluiten",
+  "nav.test": "Test",
+  "test.title": "Testsectie",
+  "test.intro": "Alleen voor een testserver waar geen app aan gekoppeld is. Voegt gezinsleden rechtstreeks op de server toe.",
+  "test.type": "Soort",
+  "test.child": "Kind",
+  "test.parent": "Ouder",
+  "test.name": "Naam",
+  "test.zone": "Tijdzone",
+  "test.password": "Wachtwoord",
+  "test.add": "Toevoegen",
+  "test.members": "Gezinsleden",
+  "test.database": "Databaseviewer",
+  "test.database_note": "Geheimen zijn verborgen. Maximaal 200 rijen per tabel.",
+  "test.back": "Terug naar de testsectie"
 }

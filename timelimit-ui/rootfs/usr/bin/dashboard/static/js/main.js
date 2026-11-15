@@ -7,6 +7,7 @@ import { startEvents } from "./events.js";
 import { refreshNotices } from "./notices.js";
 import { refreshOverview } from "./overview.js";
 import { initSettings } from "./settings.js";
+import { initTestSection } from "./testsection.js";
 import { applyTheme, readPref, THEMES, writePref } from "./prefs.js";
 
 const timings = JSON.parse(document.getElementById("timings").textContent);
@@ -38,6 +39,7 @@ const refresh = document.getElementById("refresh-overview");
 if (refresh) refresh.addEventListener("click", refreshOverview);
 
 if (document.getElementById("child-page")) initChild();
+initTestSection();
 await initI18n();
 const onSettings = Boolean(document.getElementById("settings-page"));
 const onChild = Boolean(document.getElementById("child-page"));

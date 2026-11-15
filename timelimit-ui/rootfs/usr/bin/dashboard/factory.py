@@ -16,6 +16,7 @@ from dashboard.routes import (
     rules,
     server,
     stream,
+    testsection,
 )
 from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
@@ -30,6 +31,7 @@ from dashboard.services.profiles import ServerProfiles
 from dashboard.services.rule_today import RestoreTimer, RuleTodayService
 from dashboard.services.rules import RulesService
 from dashboard.services.settings import SettingsService
+from dashboard.services.testsection import TestSectionService
 from dashboard.sync.backend import Backend
 from dashboard.sync.hub import EventHub
 
@@ -56,6 +58,7 @@ def create_app(
         "rules": RulesService(backend, profiles, changes, rule_today),
         "categories": CategoriesService(backend, profiles, changes, clock),
         "apps": AppsService(backend, profiles, changes),
+        "testsection": TestSectionService(backend, profiles, changes),
         "rule_today": rule_today,
         "hub": hub,
         "backend": backend,
@@ -67,6 +70,11 @@ def create_app(
         ),
     }
     register_error_handling(app)
+
+    @app.context_processor
+    def _test_section() -> dict[str, bool]:
+        return {"test_section": app.extensions["dashboard"]["testsection"].enabled()}
+
     app.register_blueprint(health.bp)
     app.register_blueprint(server.bp)
     app.register_blueprint(stream.bp)
@@ -75,6 +83,7 @@ def create_app(
     app.register_blueprint(children.bp)
     app.register_blueprint(rules.bp)
     app.register_blueprint(categories.bp)
+    app.register_blueprint(testsection.bp)
     app.register_blueprint(pages.bp)
     link_service.resume()
     timer = RestoreTimer(rule_today)

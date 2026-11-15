@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section id="test-page">
+  <h2 data-i18n="test.title">Test section</h2>
+  <p class="muted" data-i18n="test.intro">Only for a test server that no app is linked to. Adds family members straight on the server.</p>
+  <form id="test-form" novalidate>
+    <label class="field"><span data-i18n="test.type">Type</span>
+      <select id="test-type"><option value="child" data-i18n="test.child">Child</option><option value="parent" data-i18n="test.parent">Parent</option></select></label>
+    <label class="field"><span data-i18n="test.name">Name</span>
+      <input type="text" id="test-name" maxlength="50" autocomplete="off"></label>
+    <p class="form-error" data-error-for="name" role="alert" hidden></p>
+    <label class="field"><span data-i18n="test.zone">Time zone</span>
+      <input type="text" id="test-zone" value="UTC" autocomplete="off"></label>
+    <p class="form-error" data-error-for="time_zone" role="alert" hidden></p>
+    <label class="field" id="test-password-field" hidden><span data-i18n="test.password">Password</span>
+      <input type="password" id="test-password" autocomplete="new-password"></label>
+    <p class="form-error" data-error-for="password" role="alert" hidden></p>
+    <p id="test-error" class="form-error" role="alert" hidden></p>
+    <button type="submit" data-change-control data-i18n="test.add">Add</button>
+  </form>
+  <h3 data-i18n="test.members">Family members</h3>
+  <ul id="test-users" class="card-list"></ul>
+  <p><a href="/test/database" data-i18n="test.database">Database viewer</a></p>
+</section>
+{% endblock %}

@@ -21,6 +21,21 @@ function showError(error) {
   box.hidden = false;
 }
 
+/** The menu item of the test section exists only while the switch is on (Q11). */
+function syncTestLink(on) {
+  const existing = document.getElementById("nav-test");
+  if (!on && existing) existing.remove();
+  if (on && !existing) {
+    const link = document.createElement("a");
+    link.className = "nav-link";
+    link.id = "nav-test";
+    link.href = "/test";
+    link.dataset.i18n = "nav.test";
+    link.textContent = t("nav.test");
+    document.getElementById("sidebar").append(link);
+  }
+}
+
 async function run(action) {
   showError(null);
   try {
@@ -53,6 +68,7 @@ export function render(view) {
   }
   $("server-url").textContent = server.url || "";
   $("test-server").checked = Boolean(server.test_server);
+  syncTestLink(Boolean(server.test_server));
   $("test-server").disabled = !server.url;
 
   const state = $("link-state");

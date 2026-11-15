@@ -243,5 +243,19 @@
   "apps.add_selected": "Add selected",
   "apps.moves": "now in {category}, will be moved",
   "apps.choose": "Choose or enter at least one app.",
-  "dialog.close": "Close"
+  "dialog.close": "Close",
+  "nav.test": "Test",
+  "test.title": "Test section",
+  "test.intro": "Only for a test server that no app is linked to. Adds family members straight on the server.",
+  "test.type": "Type",
+  "test.child": "Child",
+  "test.parent": "Parent",
+  "test.name": "Name",
+  "test.zone": "Time zone",
+  "test.password": "Password",
+  "test.add": "Add",
+  "test.members": "Family members",
+  "test.database": "Database viewer",
+  "test.database_note": "Secrets are hidden. At most 200 rows per table.",
+  "test.back": "Back to the test section"
 }

@@ -110,8 +110,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-800 | M | A clearly separated "Test" section lets the parent create family members (`ADD_USER`) for a **local test server that is not linked to an app**. A switch **"This is a test server"** in settings (default off) enables it; with the switch off the menu item is absent and its routes answer 404. The page `debug_database.html` is part of this section. | Partial |
-| FR-801 | M | Adding a user pushes `ADD_USER` first; a 502 is shown when the server does not confirm. Parent users need the DH-encrypted password container. | Done (child) / Partial (parent: builder and container B2, flow E10) |
+| FR-800 | M | A clearly separated "Test" section lets the parent create family members (`ADD_USER`) for a **local test server that is not linked to an app**. A switch **"This is a test server"** in settings (default off) enables it; with the switch off the menu item is absent and its routes answer 404. The page `debug_database.html` is part of this section. | Done (E11) |
+| FR-801 | M | Adding a user pushes `ADD_USER` first; a 502 is shown when the server does not confirm. Parent users need the DH-encrypted password container. | Done (E11: child and parent) |
 
 ### 2.9 Parent security
 
