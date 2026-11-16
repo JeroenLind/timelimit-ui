@@ -272,5 +272,21 @@
   "time.none": "none",
   "time.summary_extra": "Extra time today: {time}",
   "time.summary_blocked_until": "Blocked until {time}",
-  "time.summary_blocked": "Blocked"
+  "time.summary_blocked": "Blocked",
+  "usage.tab": "Usage",
+  "usage.empty": "No categories yet.",
+  "usage.today": "Today",
+  "usage.used": "Used",
+  "usage.limit": "Allowed today",
+  "usage.progress": "Progress",
+  "usage.no_limit": "No limit",
+  "usage.limit_note": "Allowed today is the strictest daily limit of the rules for today plus extra time. Time windows and sessions are not counted.",
+  "usage.history": "History",
+  "usage.category": "Category",
+  "usage.range": "Period",
+  "usage.days7": "7 days",
+  "usage.days30": "30 days",
+  "usage.date": "Date",
+  "usage.chart": "Used time per day for {name}",
+  "usage.history_note": "The history is kept by this dashboard from its first use (at most 30 days) and starts again after a cache reset."
 }

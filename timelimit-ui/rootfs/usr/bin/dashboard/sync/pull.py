@@ -79,6 +79,7 @@ def apply_server_status(
             cache.set_category_used_times(
                 scope, entry["categoryId"], entry["times"], entry["version"]
             )
+            cache.record_own_used_time(scope, entry["categoryId"])
             changed.add("used_time")
     except LookupError as error:
         raise InconsistentServerAnswer(str(error)) from error

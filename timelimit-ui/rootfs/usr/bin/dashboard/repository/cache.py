@@ -401,6 +401,23 @@ class CacheRepository:
                     (*scope.args, category_id, day, time_ms),
                 )
 
+    def record_own_used_time(
+        self, scope: Scope, category_id: str, keep_days: int = 30
+    ) -> None:
+        """Copy the server's daily totals into the dashboard's own history and drop what is older than ``keep_days``.
+
+        Called after every pull that brought used times: the server may forget old days, the history must not (Q10).
+        Days are counted from the newest day known, so the cache needs no clock."""
+        for day, total in self.used_time_by_day(scope, category_id).items():
+            self.add_own_used_time(scope, category_id, day, total)
+        own = self.own_used_time(scope, category_id)
+        if own:
+            cutoff = max(own) - keep_days + 1
+            self._db.connection().execute(
+                "DELETE FROM own_used_time WHERE profile_key=? AND family_id=? AND category_id=? AND day<?",
+                (*scope.args, category_id, cutoff),
+            )
+
     def own_used_time(self, scope: Scope, category_id: str) -> dict[int, int]:
         rows = self._db.connection().execute(
             "SELECT day, time_ms FROM own_used_time WHERE profile_key=? AND family_id=? AND category_id=? ORDER BY day",

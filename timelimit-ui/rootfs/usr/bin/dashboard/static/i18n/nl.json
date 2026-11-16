@@ -272,5 +272,21 @@
   "time.none": "geen",
   "time.summary_extra": "Extra tijd vandaag: {time}",
   "time.summary_blocked_until": "Geblokkeerd tot {time}",
-  "time.summary_blocked": "Geblokkeerd"
+  "time.summary_blocked": "Geblokkeerd",
+  "usage.tab": "Gebruik",
+  "usage.empty": "Nog geen categorieën.",
+  "usage.today": "Vandaag",
+  "usage.used": "Gebruikt",
+  "usage.limit": "Toegestaan vandaag",
+  "usage.progress": "Voortgang",
+  "usage.no_limit": "Geen limiet",
+  "usage.limit_note": "Toegestaan vandaag is de strengste daglimiet van de regels voor vandaag plus extra tijd. Tijdvensters en sessies tellen niet mee.",
+  "usage.history": "Geschiedenis",
+  "usage.category": "Categorie",
+  "usage.range": "Periode",
+  "usage.days7": "7 dagen",
+  "usage.days30": "30 dagen",
+  "usage.date": "Datum",
+  "usage.chart": "Gebruikte tijd per dag voor {name}",
+  "usage.history_note": "De geschiedenis wordt door dit dashboard bijgehouden vanaf het eerste gebruik (maximaal 30 dagen) en begint opnieuw na een cache-reset."
 }

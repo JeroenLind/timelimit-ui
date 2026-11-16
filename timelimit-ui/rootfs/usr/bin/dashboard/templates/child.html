@@ -21,6 +21,7 @@
       <button type="button" role="tab" id="tab-categories" aria-controls="panel-categories" data-tab="categories" data-i18n="child.categories">Categories</button>
       <button type="button" role="tab" id="tab-rules" aria-controls="panel-rules" data-tab="rules" data-i18n="child.rules.tab">Rules</button>
       <button type="button" role="tab" id="tab-blocked" aria-controls="panel-blocked" data-tab="blocked" data-i18n="child.blocked.tab">Blocked times</button>
+      <button type="button" role="tab" id="tab-usage" aria-controls="panel-usage" data-tab="usage" data-i18n="usage.tab">Usage</button>
       <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
     </div>
     <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
@@ -59,6 +60,34 @@
           <button type="button" id="blocked-save" data-change-control data-i18n="blocked.save" disabled>Save</button>
           <button type="button" id="blocked-reset" class="secondary" data-i18n="blocked.reset" disabled>Reset</button>
         </p>
+      </div>
+    </section>
+    <section role="tabpanel" id="panel-usage" aria-labelledby="tab-usage" data-panel="usage" class="panel" hidden>
+      <p id="usage-error" class="form-error" role="alert" hidden></p>
+      <p id="usage-empty" data-i18n="usage.empty" hidden>No categories yet.</p>
+      <div id="usage-content">
+        <h3 data-i18n="usage.today">Today</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="child.category">Category</th><th data-i18n="usage.used">Used</th><th data-i18n="usage.limit">Allowed today</th><th data-i18n="usage.progress">Progress</th></tr></thead>
+            <tbody id="usage-today"></tbody>
+          </table>
+        </div>
+        <p class="muted" data-i18n="usage.limit_note">Allowed today is the strictest daily limit of the rules for today plus extra time. Time windows and sessions are not counted.</p>
+        <h3 data-i18n="usage.history">History</h3>
+        <p class="toolbar">
+          <label class="inline"><span data-i18n="usage.category">Category</span> <select id="usage-category"></select></label>
+          <label class="inline"><span data-i18n="usage.range">Period</span>
+            <select id="usage-range"><option value="7" data-i18n="usage.days7">7 days</option><option value="30" data-i18n="usage.days30">30 days</option></select></label>
+        </p>
+        <div id="usage-chart"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th data-i18n="usage.date">Date</th><th data-i18n="usage.used">Used</th></tr></thead>
+            <tbody id="usage-history"></tbody>
+          </table>
+        </div>
+        <p class="muted" data-i18n="usage.history_note">The history is kept by this dashboard from its first use (at most 30 days) and starts again after a cache reset.</p>
       </div>
     </section>
     <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" data-panel="devices" class="panel" hidden>

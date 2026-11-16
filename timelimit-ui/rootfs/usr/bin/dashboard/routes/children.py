@@ -8,6 +8,7 @@ from flask.typing import ResponseReturnValue
 from dashboard.routes.pages import timings
 from dashboard.services.children import ChildrenService
 from dashboard.services.link import READY, SESSION_INVALID, LinkService
+from dashboard.services.usage import UsageService
 
 bp = Blueprint("children", __name__)
 
@@ -25,6 +26,12 @@ def children() -> ResponseReturnValue:
 @bp.get("/api/children/<child_id>")
 def child(child_id: str) -> ResponseReturnValue:
     return jsonify(service().detail(child_id))
+
+
+@bp.get("/api/children/<child_id>/usage")
+def usage(child_id: str) -> ResponseReturnValue:
+    found: UsageService = current_app.extensions["dashboard"]["usage"]
+    return jsonify(found.usage(child_id))
 
 
 @bp.get("/children/<child_id>")

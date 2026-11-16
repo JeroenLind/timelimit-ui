@@ -32,6 +32,7 @@ from dashboard.services.rule_today import RestoreTimer, RuleTodayService
 from dashboard.services.rules import RulesService
 from dashboard.services.settings import SettingsService
 from dashboard.services.testsection import TestSectionService
+from dashboard.services.usage import UsageService
 from dashboard.sync.backend import Backend
 from dashboard.sync.hub import EventHub
 
@@ -58,6 +59,7 @@ def create_app(
         "rules": RulesService(backend, profiles, changes, rule_today),
         "categories": CategoriesService(backend, profiles, changes, clock),
         "apps": AppsService(backend, profiles, changes),
+        "usage": UsageService(backend, profiles, clock),
         "testsection": TestSectionService(backend, profiles, changes),
         "rule_today": rule_today,
         "hub": hub,

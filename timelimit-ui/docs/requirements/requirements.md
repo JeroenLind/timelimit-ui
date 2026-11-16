@@ -93,8 +93,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-600 | M | Show **today's** used time per category and child, against the limit. | Open |
-| FR-601 | M | Show the **history per day** (7 and 30 days) per category as a list and a bar chart. The dashboard **builds its own daily totals** in the cache so the history grows to 30 days from the first use (it is lost on a cache reset, TR-310). | Open |
+| FR-600 | M | Show **today's** used time per category and child, against the limit. | Done (E9) |
+| FR-601 | M | Show the **history per day** (7 and 30 days) per category as a list and a bar chart. The dashboard **builds its own daily totals** in the cache so the history grows to 30 days from the first use (it is lost on a cache reset, TR-310). | Done (E9) |
 | FR-602 | W | Used time per app is **not** offered: the server stores used time per category per day only. | – |
 
 ### 2.7 Children and devices
