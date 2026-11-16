@@ -3,6 +3,7 @@
 import { track } from "./actions.js";
 import { apiFetch } from "./api.js";
 import { openApps, initApps } from "./apps.js";
+import { openTime, initTimeControl, refreshTime } from "./timecontrol.js";
 import { confirmDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 
@@ -72,6 +73,7 @@ function descendants(categories, id) {
 
 /** The rows are drawn by child.js; this adds the action cell and the toolbar (called after every render). */
 export function renderCategoryActions(data) {
+  refreshTime();
   const live = data.categories.filter((c) => c.on_server);
   const select = $("category-unassigned");
   // keep the control as it is while the parent is using it; rebuild only when the choices changed
@@ -100,6 +102,7 @@ export function renderCategoryActions(data) {
         button(t("categories.edit"), () => openDialog(category)),
         button("\u2191", () => move(category, "up"), { disabled: at <= 0, title: t("categories.up") }),
         button("\u2193", () => move(category, "down"), { disabled: at === siblings.length - 1, title: t("categories.down") }),
+        button(t("categories.time"), () => openTime(category, (id) => getData()?.categories.find((c) => c.id === id))),
         button(t("categories.apps"), () => openApps(category)),
         button(t("categories.settings"), () => openSettings(category)),
         category.limits_disabled
@@ -285,6 +288,7 @@ async function resetNetworks() {
 export function initCategories(provider) {
   getData = provider;
   initApps();
+  initTimeControl();
   $("category-add").addEventListener("click", () => openDialog(null));
   $("category-form").addEventListener("submit", submitCategory);
   $("category-cancel").addEventListener("click", () => $("category-dialog").close());

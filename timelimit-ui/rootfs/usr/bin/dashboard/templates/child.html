@@ -151,6 +151,45 @@
     </div>
   </div>
 </dialog>
+<dialog id="time-dialog" aria-labelledby="time-title">
+  <div id="time-body">
+    <h2 id="time-title"></h2>
+    <p id="time-summary" class="muted"></p>
+    <section>
+      <h3 data-i18n="time.extra">Extra time today</h3>
+      <p class="button-row">
+        <button type="button" data-change-control data-extra-add="15">+15 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-extra-add="30">+30 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-extra-add="60">+60 <span data-i18n="unit.min">min</span></button>
+      </p>
+      <label class="field"><span data-i18n="time.minutes">Minutes</span>
+        <input type="number" id="time-minutes" min="0" max="1440" step="1" value="10" inputmode="numeric"></label>
+      <p class="button-row">
+        <button type="button" data-change-control id="time-add" data-i18n="time.add">Add</button>
+        <button type="button" data-change-control class="secondary" id="time-subtract" data-i18n="time.subtract">Subtract</button>
+        <button type="button" data-change-control class="secondary" id="time-reset" data-i18n="time.reset">Reset to none</button>
+      </p>
+    </section>
+    <section>
+      <h3 data-i18n="time.block">Block for a while</h3>
+      <p class="button-row">
+        <button type="button" data-change-control data-block="15">15 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-block="60">1 <span data-i18n="unit.h">h</span></button>
+        <button type="button" data-change-control data-block="120">2 <span data-i18n="unit.h">h</span></button>
+      </p>
+      <label class="field"><span data-i18n="time.block_minutes">Minutes</span>
+        <input type="number" id="block-minutes" min="1" max="10080" step="1" value="30" inputmode="numeric"></label>
+      <p class="button-row">
+        <button type="button" data-change-control id="block-custom" data-i18n="time.block_apply">Block</button>
+        <button type="button" data-change-control class="secondary" id="block-end" data-i18n="time.unblock">Unblock</button>
+      </p>
+    </section>
+    <p id="time-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="time-close" data-i18n="dialog.close">Close</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="limits-dialog" aria-labelledby="limits-title">
   <form id="limits-form" novalidate>
     <h2 id="limits-title" data-i18n="categories.limits.title">Switch limits off for a while</h2>

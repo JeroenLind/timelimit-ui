@@ -257,5 +257,20 @@
   "test.members": "Gezinsleden",
   "test.database": "Databaseviewer",
   "test.database_note": "Geheimen zijn verborgen. Maximaal 200 rijen per tabel.",
-  "test.back": "Terug naar de testsectie"
+  "test.back": "Terug naar de testsectie",
+  "categories.time": "Tijd",
+  "time.title": "Tijd voor {name}",
+  "time.extra": "Extra tijd vandaag",
+  "time.minutes": "Minuten",
+  "time.add": "Toevoegen",
+  "time.subtract": "Aftrekken",
+  "time.reset": "Terugzetten naar geen",
+  "time.block": "Even blokkeren",
+  "time.block_minutes": "Minuten",
+  "time.block_apply": "Blokkeren",
+  "time.unblock": "Deblokkeren",
+  "time.none": "geen",
+  "time.summary_extra": "Extra tijd vandaag: {time}",
+  "time.summary_blocked_until": "Geblokkeerd tot {time}",
+  "time.summary_blocked": "Geblokkeerd"
 }

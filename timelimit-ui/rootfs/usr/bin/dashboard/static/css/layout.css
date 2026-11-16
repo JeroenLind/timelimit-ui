@@ -111,3 +111,4 @@ textarea { width: 100%; box-sizing: border-box; }
 .table-scroll { overflow-x: auto; }
 .table-scroll table { border-collapse: collapse; font-size: 0.85rem; }
 .table-scroll th, .table-scroll td { border: 1px solid var(--border); padding: 2px 6px; text-align: left; max-width: 28rem; overflow-wrap: anywhere; }
+.button-row { display: flex; flex-wrap: wrap; gap: 8px; }

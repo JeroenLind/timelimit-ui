@@ -5,15 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from dashboard.domain import actions
+from dashboard.domain.bitmask import day_of_epoch
 from dashboard.domain.clock import Clock
 from dashboard.domain.errors import DashboardError, ErrorCode
 from dashboard.repository.cache import CachedItem, Scope
 from dashboard.services.changes import ChangeService
-from dashboard.services.children import TIME_WARNING_MINUTES
+from dashboard.services.children import TIME_WARNING_MINUTES, _zone
 from dashboard.services.profiles import ServerProfiles
 from dashboard.sync.backend import Backend
 
 MAX_DISABLE_MINUTES = 7 * 24 * 60
+MAX_EXTRA_MINUTES = 24 * 60
+MAX_BLOCK_MINUTES = 7 * 24 * 60
+EXTRA_MODES = ("add", "subtract", "set")
 
 
 def _invalid(field: str, message: str) -> DashboardError:
@@ -215,6 +219,89 @@ class CategoriesService:
             else int(self._clock.now().timestamp() * 1000) + minutes * 60000
         )
         self._push([lambda: actions.update_category_disable_limits(category_id, end)])
+
+    # -- extra time and temporary blocking (E8) -----------------------------------------------------------------------------------
+    def set_extra_time(self, child_id: str, category_id: str, body: object) -> None:
+        """Extra time for **today** (the child's date, FR-501): add, subtract (stops at zero) or set."""
+        data = _body(body)
+        mode = data.get("mode")
+        if mode not in EXTRA_MODES:
+            raise _invalid("mode", "Choose add, subtract or set.")
+        minutes = data.get("minutes")
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or not 0 <= minutes <= MAX_EXTRA_MINUTES
+        ):
+            raise _invalid(
+                "extra_minutes", f"Enter whole minutes from 0 to {MAX_EXTRA_MINUTES}."
+            )
+        scope = self._scope()
+        child = self._child(scope, child_id)
+        category = self._find(self._categories(scope, child_id), category_id)
+        today = day_of_epoch(
+            self._clock.now(), _zone(str(child.data.get("timeZone") or "UTC"))
+        )
+        ms = minutes * 60000
+        if mode == "add":
+            if minutes == 0:
+                raise _invalid("extra_minutes", "Enter at least 1 minute.")
+            self._push(
+                [lambda: actions.increment_category_extra_time(category_id, ms, today)]
+            )
+            return
+        day = int(category.get("extraTimeDay", -1))
+        current = int(category.get("extraTime", 0)) if day in (-1, today) else 0
+        if mode == "subtract" and current == 0:
+            return  # nothing to take away
+        target = max(0, current - ms) if mode == "subtract" else ms
+        self._push(
+            [lambda: actions.set_category_extra_time(category_id, target, today)]
+        )
+
+    def block_temporarily(self, child_id: str, category_id: str, body: object) -> None:
+        """Block now until a time: ``minutes`` from now (one-shot buttons) or an absolute ``until`` (epoch ms)."""
+        data = _body(body)
+        now_ms = int(self._clock.now().timestamp() * 1000)
+        if "until" in data:
+            until = data["until"]
+            if (
+                isinstance(until, bool)
+                or not isinstance(until, int)
+                or until <= now_ms
+                or until > now_ms + MAX_BLOCK_MINUTES * 60000
+            ):
+                raise _invalid(
+                    "block_until", "Choose a time in the future, at most 7 days ahead."
+                )
+        else:
+            minutes = data.get("minutes")
+            if (
+                isinstance(minutes, bool)
+                or not isinstance(minutes, int)
+                or not 1 <= minutes <= MAX_BLOCK_MINUTES
+            ):
+                raise _invalid(
+                    "block_minutes",
+                    f"Enter whole minutes from 1 to {MAX_BLOCK_MINUTES}.",
+                )
+            until = now_ms + minutes * 60000
+        scope = self._scope()
+        self._find(self._categories(scope, child_id), category_id)
+        self._push(
+            [
+                lambda: actions.update_category_temporarily_blocked(
+                    category_id, True, until
+                )
+            ]
+        )
+
+    def unblock(self, child_id: str, category_id: str) -> None:
+        scope = self._scope()
+        self._find(self._categories(scope, child_id), category_id)
+        self._push(
+            [lambda: actions.update_category_temporarily_blocked(category_id, False)]
+        )
 
     # -- settings (E6b) ---------------------------------------------------------------------------------------------------------
     def _settings_target(self, child_id: str, category_id: str) -> dict[str, Any]:

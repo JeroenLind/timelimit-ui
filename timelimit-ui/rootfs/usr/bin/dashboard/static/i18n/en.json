@@ -257,5 +257,20 @@
   "test.members": "Family members",
   "test.database": "Database viewer",
   "test.database_note": "Secrets are hidden. At most 200 rows per table.",
-  "test.back": "Back to the test section"
+  "test.back": "Back to the test section",
+  "categories.time": "Time",
+  "time.title": "Time for {name}",
+  "time.extra": "Extra time today",
+  "time.minutes": "Minutes",
+  "time.add": "Add",
+  "time.subtract": "Subtract",
+  "time.reset": "Reset to none",
+  "time.block": "Block for a while",
+  "time.block_minutes": "Minutes",
+  "time.block_apply": "Block",
+  "time.unblock": "Unblock",
+  "time.none": "none",
+  "time.summary_extra": "Extra time today: {time}",
+  "time.summary_blocked_until": "Blocked until {time}",
+  "time.summary_blocked": "Blocked"
 }

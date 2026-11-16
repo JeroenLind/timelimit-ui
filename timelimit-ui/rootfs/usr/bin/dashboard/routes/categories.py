@@ -44,6 +44,24 @@ def move(child_id: str, category_id: str) -> ResponseReturnValue:
     return _ok()
 
 
+@bp.put("/api/children/<child_id>/categories/<category_id>/extra-time")
+def extra_time(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().set_extra_time(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.put("/api/children/<child_id>/categories/<category_id>/temp-block")
+def block(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().block_temporarily(child_id, category_id, request.get_json(silent=True))
+    return _ok()
+
+
+@bp.delete("/api/children/<child_id>/categories/<category_id>/temp-block")
+def unblock(child_id: str, category_id: str) -> ResponseReturnValue:
+    service().unblock(child_id, category_id)
+    return _ok()
+
+
 @bp.put("/api/children/<child_id>/categories/<category_id>/disable-limits")
 def disable_limits(child_id: str, category_id: str) -> ResponseReturnValue:
     service().disable_limits(child_id, category_id, request.get_json(silent=True))
