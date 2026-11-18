@@ -40,7 +40,9 @@ def test_add_a_child_and_a_parent(
 ) -> None:
     live = live_app_factory()
     enable(page, live)
-    page.click("#nav-test")
+    # a click on the menu item races with a second load of the page; the item itself is tested above
+    expect(page.locator("#nav-test")).to_have_attribute("href", "/test")
+    page.goto(live.url + "/test")
     page.fill("#test-name", "Mia")
     page.click("#test-form button[type=submit]")
     expect(

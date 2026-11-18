@@ -13,6 +13,16 @@ py -3 tools/check.py --fast   # what the pre-commit hook runs: no browser (ui) o
 py -3 -m pre_commit install   # once, from the repository root
 ```
 
+## Keeping the suite fast
+
+The full check took 10 minutes before 2026-11-18 and takes about 3 on two cores. What made the difference:
+- **Measure first:** `pytest --durations=30 --durations-min=0.5`. Look at *setup* and *teardown* as well as *call*: 3 s of every test was spent closing the socket listener (the websocket close handshake waited for the server), found only because teardown showed up in the list.
+- **One Chromium per test process** (`browser` fixture in `conftest.py`); every test still gets its own context, closed after the test.
+- **Parallel** with `pytest-xdist` (`-n auto`, already used by `tools/check.py`).
+- **While developing:** `pytest --lf` (last failed), `pytest -k name`, `tools/check.py --fast` (no browser tests). The full check is the definition of done, not the inner loop.
+- **No fixed sleeps** in tests; wait for a condition (Playwright `expect`). A click that starts a navigation is followed by a wait for the next page.
+- Optional: `pytest-testmon` runs only tests affected by the changed files; not part of the check because it needs a stored database.
+
 ## Style and types (TR-510, TR-515)
 - `ruff` with its default rules and `ruff format`; configuration only in `pyproject.toml`.
 - Type hints on public functions of `domain/`, `services/` and `client/`. `mypy` is strict on `domain/` and

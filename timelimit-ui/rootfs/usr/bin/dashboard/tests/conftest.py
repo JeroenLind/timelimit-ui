@@ -6,6 +6,7 @@ Nothing in the repository tree is used or written by a test; everything lives un
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -209,11 +210,40 @@ def live_app_factory(data_dir: Path, fake_server):  # type: ignore[no-untyped-de
         live.stop()
 
 
-@pytest.fixture
-def browser():  # type: ignore[no-untyped-def]
+@pytest.fixture(scope="session")
+def _chromium():  # type: ignore[no-untyped-def]
+    """One Chromium per test process (per xdist worker); starting it per test cost about a second each."""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as playwright:
         chromium = playwright.chromium.launch()
         yield chromium
         chromium.close()
+
+
+class _TestBrowser:
+    """What a test sees as the browser: new_context() on the shared Chromium; its contexts are closed
+    after the test so the shared browser does not pile up pages."""
+
+    def __init__(self, chromium: Any) -> None:
+        self._chromium = chromium
+        self._contexts: list[Any] = []
+
+    def new_context(self, **kwargs: Any) -> Any:
+        context = self._chromium.new_context(**kwargs)
+        self._contexts.append(context)
+        return context
+
+    def close_contexts(self) -> None:
+        for context in self._contexts:
+            try:
+                context.close()
+            except Exception:  # noqa: BLE001, S110 - already closed
+                pass
+
+
+@pytest.fixture
+def browser(_chromium):  # type: ignore[no-untyped-def]
+    test_browser = _TestBrowser(_chromium)
+    yield test_browser
+    test_browser.close_contexts()

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import socket
 import threading
 import time
 from collections.abc import Callable
@@ -67,6 +68,7 @@ class LiveSync:
         self._pull_queued = threading.Lock()
         self._pull_is_queued = False
         self._threads: list[threading.Thread] = []
+        self._client: socketio.Client | None = None
         self.connect_attempts: list[
             float
         ] = []  # monotonic times, for diagnostics and tests
@@ -90,6 +92,11 @@ class LiveSync:
 
     def stop(self, timeout: float = 5.0) -> bool:
         self._stop.set()
+        client = self._client
+        if client is not None:
+            _abort(
+                client
+            )  # a connection in progress would keep the listener busy for seconds
         deadline = time.monotonic() + timeout
         for thread in self._threads:
             thread.join(max(0.0, deadline - time.monotonic()))
@@ -166,6 +173,7 @@ class LiveSync:
         dropped = threading.Event()
         ready = threading.Event()
         client = socketio.Client(reconnection=False)
+        self._client = client
 
         @client.on("connect")  # type: ignore[untyped-decorator]
         def connected(*_: Any) -> None:
@@ -216,11 +224,7 @@ class LiveSync:
             log.info("socket connect failed", extra=fields(error=type(error).__name__))
         finally:
             self._set_connected(False)
-            try:
-                # abort=True: do not wait for the library's read loop; it can sit in a long poll
-                client.eio.disconnect(abort=True)
-            except Exception:  # noqa: BLE001, S110 - the connection is gone anyway
-                pass
+            _abort(client)
 
     # -- the fallback -----------------------------------------------------------------------------------------------------
     def _poll(self) -> None:
@@ -229,3 +233,19 @@ class LiveSync:
                 return
             if not self._connected.is_set():
                 self.request_pull()
+
+
+def _abort(client: socketio.Client) -> None:
+    """Drop the connection now. The library's own close waits for the server's close frame (about 3 s
+    when the server does not answer), so the raw socket is shut down first and the read loop ends at once."""
+    try:
+        ws = getattr(client.eio, "ws", None)
+        sock = getattr(ws, "sock", None)
+        if sock is not None:
+            sock.shutdown(socket.SHUT_RDWR)
+    except Exception:  # noqa: BLE001, S110 - already closed
+        pass
+    try:
+        client.eio.disconnect(abort=True)
+    except Exception:  # noqa: BLE001, S110 - the connection is gone anyway
+        pass
