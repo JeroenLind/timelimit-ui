@@ -13,6 +13,7 @@ from dashboard.routes import (
     health,
     link,
     pages,
+    parents,
     rules,
     server,
     stream,
@@ -27,6 +28,7 @@ from dashboard.services.children import ChildrenService
 from dashboard.services.clock import SystemClock
 from dashboard.services.connection import ConnectionService
 from dashboard.services.link import LinkService
+from dashboard.services.parents import ParentsService
 from dashboard.services.profiles import ServerProfiles
 from dashboard.services.rule_today import RestoreTimer, RuleTodayService
 from dashboard.services.rules import RulesService
@@ -59,6 +61,7 @@ def create_app(
         "rules": RulesService(backend, profiles, changes, rule_today),
         "categories": CategoriesService(backend, profiles, changes, clock),
         "apps": AppsService(backend, profiles, changes),
+        "parents": ParentsService(backend, profiles, changes),
         "usage": UsageService(backend, profiles, clock),
         "testsection": TestSectionService(backend, profiles, changes),
         "rule_today": rule_today,
@@ -86,6 +89,7 @@ def create_app(
     app.register_blueprint(rules.bp)
     app.register_blueprint(categories.bp)
     app.register_blueprint(testsection.bp)
+    app.register_blueprint(parents.bp)
     app.register_blueprint(pages.bp)
     link_service.resume()
     timer = RestoreTimer(rule_today)

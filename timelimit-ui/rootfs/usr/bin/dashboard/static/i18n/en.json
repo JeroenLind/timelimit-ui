@@ -60,7 +60,7 @@
   "settings.saved": "Saved.",
   "link.state.no_server": "Choose a server first.",
   "link.state.not_linked": "Not linked yet. Log in with the mail address of a parent.",
-  "link.state.registered": "The device is registered. Enter the password to finish linking.",
+  "link.state.registered": "The device is registered but not signed in as the parent Dashboard (it may have been signed out in the app). Enter the Dashboard password to sign in again.",
   "link.state.ready": "Linked. The dashboard acts as the parent Dashboard.",
   "link.state.session_invalid": "The server ended this session. Link again.",
   "link.mail": "Mail address of a parent",
@@ -288,5 +288,17 @@
   "usage.days30": "30 days",
   "usage.date": "Date",
   "usage.chart": "Used time per day for {name}",
-  "usage.history_note": "The history is kept by this dashboard from its first use (at most 30 days) and starts again after a cache reset."
+  "usage.history_note": "The history is kept by this dashboard from its first use (at most 30 days) and starts again after a cache reset.",
+  "parents.title": "Parents",
+  "parents.dashboard.ok": "The dashboard is signed in as the parent Dashboard and stays signed in.",
+  "parents.dashboard.out": "The device is not signed in as the parent Dashboard (for example because it was signed out in the app). Enter the Dashboard password under Link to the family to sign in again.",
+  "parents.change": "Change password",
+  "parents.change.title": "Change the password of {name}",
+  "parents.change.help": "The password is only used for this change and is not stored.",
+  "parents.current": "Current password",
+  "parents.new": "New password",
+  "parents.repeat": "New password again",
+  "parents.change.mismatch": "The two new passwords are not the same.",
+  "parents.change.save": "Change password",
+  "parents.changed": "The password of {name} was changed."
 }

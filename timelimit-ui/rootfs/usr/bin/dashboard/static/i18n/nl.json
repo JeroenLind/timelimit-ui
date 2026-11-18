@@ -60,7 +60,7 @@
   "settings.saved": "Opgeslagen.",
   "link.state.no_server": "Kies eerst een server.",
   "link.state.not_linked": "Nog niet gekoppeld. Log in met het mailadres van een ouder.",
-  "link.state.registered": "Het apparaat is geregistreerd. Vul het wachtwoord in om het koppelen af te ronden.",
+  "link.state.registered": "Het apparaat is geregistreerd maar niet aangemeld als de ouder Dashboard (mogelijk is het in de app afgemeld). Vul het wachtwoord van Dashboard in om opnieuw aan te melden.",
   "link.state.ready": "Gekoppeld. Het dashboard werkt als de ouder Dashboard.",
   "link.state.session_invalid": "De server heeft deze sessie beëindigd. Koppel opnieuw.",
   "link.mail": "Mailadres van een ouder",
@@ -288,5 +288,17 @@
   "usage.days30": "30 dagen",
   "usage.date": "Datum",
   "usage.chart": "Gebruikte tijd per dag voor {name}",
-  "usage.history_note": "De geschiedenis wordt door dit dashboard bijgehouden vanaf het eerste gebruik (maximaal 30 dagen) en begint opnieuw na een cache-reset."
+  "usage.history_note": "De geschiedenis wordt door dit dashboard bijgehouden vanaf het eerste gebruik (maximaal 30 dagen) en begint opnieuw na een cache-reset.",
+  "parents.title": "Ouders",
+  "parents.dashboard.ok": "Het dashboard is aangemeld als de ouder Dashboard en blijft aangemeld.",
+  "parents.dashboard.out": "Het apparaat is niet aangemeld als de ouder Dashboard (bijvoorbeeld omdat het in de app is afgemeld). Vul het wachtwoord van Dashboard in onder Koppelen aan het gezin om opnieuw aan te melden.",
+  "parents.change": "Wachtwoord wijzigen",
+  "parents.change.title": "Wachtwoord van {name} wijzigen",
+  "parents.change.help": "Het wachtwoord wordt alleen voor deze wijziging gebruikt en niet opgeslagen.",
+  "parents.current": "Huidig wachtwoord",
+  "parents.new": "Nieuw wachtwoord",
+  "parents.repeat": "Nieuw wachtwoord nogmaals",
+  "parents.change.mismatch": "De twee nieuwe wachtwoorden zijn niet gelijk.",
+  "parents.change.save": "Wachtwoord wijzigen",
+  "parents.changed": "Het wachtwoord van {name} is gewijzigd."
 }

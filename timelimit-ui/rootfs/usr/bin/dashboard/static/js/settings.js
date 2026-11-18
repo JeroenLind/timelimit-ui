@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 import { currentLanguage, t } from "./i18n.js";
 import { refreshNotices } from "./notices.js";
+import { initParents, refreshParents } from "./parents.js";
 
 const $ = (id) => document.getElementById(id);
 let current = null;
@@ -74,6 +75,8 @@ export function render(view) {
   const state = $("link-state");
   state.dataset.state = link.state;
   state.textContent = t(`link.state.${link.state}`);
+  refreshParents(link.state);
+  refreshParents(link.state);
 
   const needsLogin = link.state === "not_linked";
   $("mail-form").hidden = !needsLogin || link.login_step !== "none";
@@ -124,6 +127,8 @@ export function render(view) {
 }
 
 export async function initSettings() {
+  initParents();
+  initParents();
   const sendJson = (path, method, body) => () => apiFetch(path, { method, body });
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 

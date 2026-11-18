@@ -184,10 +184,13 @@ class Linker:
 
         device = self._own_device(scope, link)
         if device is not None and device.data.get("currentUserId") != dashboard_id:
+            # signed by "Dashboard" with the password method: the device may have been signed in as someone
+            # else without "keep signed in" (the official app does that), so device integrity would be refused
             self._pusher.push(
                 self._key,
-                str(device.data.get("currentUserId") or starter),
+                dashboard_id,
                 [actions.set_device_user(link.own_device_id, dashboard_id)],
+                second_hash=second_hash,
             )
         device = self._own_device(scope, link)
         if device is not None and not device.data.get("isUserKeptSignedIn"):

@@ -118,8 +118,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | FR-900 | M | Rules, categories, extra time and blocking use device integrity: **no password prompt**. | Done (B4, E3) |
-| FR-901 | M | A password prompt (modal, per action, password never stored) appears only for server-required actions: change parent password, keep-signed-in (`SET_KEEP_SIGNED_IN`, HMAC). | Open |
-| FR-902 | S | The "Dashboard" parent can be inspected: keep-signed-in state is visible; a warning shows when the device was signed out (`SET_DEVICE_USER`). | Open |
+| FR-901 | M | A password prompt (modal, per action, password never stored) appears only for server-required actions: change parent password, keep-signed-in (`SET_KEEP_SIGNED_IN`, HMAC). | Done (E10) |
+| FR-902 | S | The "Dashboard" parent can be inspected: keep-signed-in state is visible; a warning shows when the device was signed out (`SET_DEVICE_USER`). | Done (E10) |
 
 ### 2.10 User interface
 

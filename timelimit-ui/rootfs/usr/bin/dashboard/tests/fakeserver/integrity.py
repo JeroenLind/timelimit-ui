@@ -89,3 +89,31 @@ def check_parent_integrity(
         secret=second_hash,
     )
     return integrity == expected_legacy
+
+
+def change_password_integrity(
+    *,
+    old_second_hash: str,
+    user_id: str,
+    new_hash: str,
+    new_second_salt: str,
+    second_hash_encrypted: str,
+) -> str:
+    """What the real server computes: sha512 hex over the old second hash and the action's fields."""
+    data = (
+        old_second_hash + user_id + new_hash + new_second_salt + second_hash_encrypted
+    )
+    return hashlib.sha512(data.encode("utf-8")).hexdigest()
+
+
+def decrypt_second_hash(*, old_second_hash: str, encrypted: str) -> str:
+    """AES-128-CTR, key = first 16 bytes of sha512(oldSecondHash + salt); ``iv(32 hex) + salt(32 hex) + data``."""
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    iv = bytes.fromhex(encrypted[:32])
+    salt = encrypted[32:64]
+    key = hashlib.sha512((old_second_hash + salt).encode("utf-8")).digest()[:16]
+    decryptor = Cipher(algorithms.AES(key), modes.CTR(iv)).decryptor()
+    return (
+        decryptor.update(bytes.fromhex(encrypted[64:])) + decryptor.finalize()
+    ).decode("utf-8")

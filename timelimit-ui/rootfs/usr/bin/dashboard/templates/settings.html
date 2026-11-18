@@ -63,6 +63,13 @@
     </div>
   </section>
 
+  <section class="panel" aria-labelledby="parents-heading" id="parents-section" hidden>
+    <h3 id="parents-heading" data-i18n="parents.title">Parents</h3>
+    <p id="parents-dashboard" data-state=""></p>
+    <ul id="parents-list" class="card-list"></ul>
+    <p id="parents-note" class="muted" role="status"></p>
+  </section>
+
   <section class="panel" aria-labelledby="info-heading">
     <h3 id="info-heading" data-i18n="settings.info">Status</h3>
     <dl class="info-list">
@@ -101,4 +108,24 @@
     <button type="button" id="debug-export" class="secondary" data-i18n="settings.debug.button">Download debug export</button>
   </section>
 </div>
+<dialog id="password-dialog" aria-labelledby="pw-title">
+  <form id="password-form-change" novalidate>
+    <h3 id="pw-title"></h3>
+    <p class="muted" data-i18n="parents.change.help">The password is only used for this change and is not stored.</p>
+    <label class="field"><span data-i18n="parents.current">Current password</span>
+      <input type="password" id="pw-current" autocomplete="off"></label>
+    <p class="form-error" data-error-for="current_password" role="alert" hidden></p>
+    <label class="field"><span data-i18n="parents.new">New password</span>
+      <input type="password" id="pw-new" autocomplete="new-password"></label>
+    <p class="form-error" data-error-for="new_password" role="alert" hidden></p>
+    <label class="field"><span data-i18n="parents.repeat">New password again</span>
+      <input type="password" id="pw-repeat" autocomplete="new-password"></label>
+    <p class="form-error" data-error-for="repeat_password" role="alert" hidden></p>
+    <p id="pw-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="pw-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" data-change-control data-i18n="parents.change.save">Change password</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}

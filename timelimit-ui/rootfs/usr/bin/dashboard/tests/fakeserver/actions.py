@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import schemas
-from .integrity import check_parent_integrity, remove_user_authentication
+from .integrity import (
+    change_password_integrity,
+    check_parent_integrity,
+    decrypt_second_hash,
+    remove_user_authentication,
+)
 from .state import (
     Category,
     Family,
@@ -181,6 +186,26 @@ def _apply(
         device.keep_signed_in = bool(a["keepSignedIn"])
         family.device_list_version = version_id()
         out.triggered_level = max(out.triggered_level, 1)
+    elif kind == "CHANGE_PARENT_PASSWORD":
+        user = family.users.get(_id(a["userId"]))
+        if user is None or user.type != "parent":
+            raise ActionFailed("missing user")
+        expected = change_password_integrity(
+            old_second_hash=user.second_hash,
+            user_id=user.user_id,
+            new_hash=a["hash"],
+            new_second_salt=a["secondSalt"],
+            second_hash_encrypted=a["secondHashEncrypted"],
+        )
+        if a["integrity"] != expected:
+            raise ActionFailed("invalid new password integrity")
+        user.second_hash = decrypt_second_hash(
+            old_second_hash=user.second_hash, encrypted=a["secondHashEncrypted"]
+        )
+        user.password_hash = a["hash"]
+        user.second_salt = a["secondSalt"]
+        family.user_list_version = version_id()
+        out.triggered_level = max(out.triggered_level, 2)
     elif kind == "REMOVE_USER":
         user = family.users.get(_id(a["userId"]))
         if user is None:
