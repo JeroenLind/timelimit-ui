@@ -87,7 +87,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | FR-502 | M | Extra time can be reverted/subtracted (down to zero). | Done (E8) |
 | FR-503 | M | A category can be **temporarily blocked** until a chosen time. (UI: a number of minutes from now; the API also takes an absolute `until`.) | Done (E8) |
 | FR-504 | S | One-shot quick buttons, e.g. "Block now for 1 hour". | Done (E8) |
-| FR-505 | S | Disable all limits of a child until a time (`disableTimelimitsUntil`) – included only if still wanted after v1 review (not chosen in the interview). | Open |
+| FR-505 | S | Disable all limits of a child until a time (`disableTimelimitsUntil`) – built on request after v1 review. | Done (E13) |
 
 ### 2.6 Used time
 

@@ -68,6 +68,12 @@ def disable_limits(child_id: str, category_id: str) -> ResponseReturnValue:
     return _ok()
 
 
+@bp.put("/api/children/<child_id>/disable-limits")
+def disable_child_limits(child_id: str) -> ResponseReturnValue:
+    service().disable_child_limits(child_id, request.get_json(silent=True))
+    return _ok()
+
+
 @bp.put("/api/children/<child_id>/unassigned-category")
 def unassigned(child_id: str) -> ResponseReturnValue:
     service().set_unassigned(child_id, request.get_json(silent=True))

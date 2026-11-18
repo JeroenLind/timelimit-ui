@@ -373,6 +373,15 @@ def _apply(
         owner.category_for_unassigned = a["categoryId"]
         family.user_list_version = version_id()
         out.triggered_level = max(out.triggered_level, 2)
+    elif kind == "SET_USER_DISABLE_LIMITS_UNTIL":
+        if a["time"] != 0 and not family.has_full_version:
+            raise ActionFailed("premium version missing")
+        limited = family.users.get(_id(a["childId"]))
+        if limited is None or limited.type != "child":
+            raise ActionFailed("missing user")
+        limited.disable_limits_until = _int(a["time"])
+        family.user_list_version = version_id()
+        out.triggered_level = max(out.triggered_level, 2)
     elif kind == "UPDATE_CATEGORY_DISABLE_LIMITS":
         if a["endTime"] != 0 and not family.has_full_version:
             raise ActionFailed("premium version missing")

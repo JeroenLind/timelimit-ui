@@ -346,5 +346,14 @@
   "audit.action.rule_off_today": "Rule switched off for today",
   "audit.action.rule_restored": "Rule restored",
   "audit.action.cleanup": "Missing items cleaned up",
-  "audit.action.rule_off_ended": "Rule off for today ended"
+  "audit.action.rule_off_ended": "Rule off for today ended",
+  "childlimits.disable": "All limits off",
+  "childlimits.enable": "Limits on again",
+  "childlimits.title": "Switch all limits off for a while",
+  "childlimits.help": "Every time limit of this child is ignored until the chosen moment. Blocked times and temporary blocks stay as they are.",
+  "childlimits.1h": "1 hour",
+  "childlimits.3h": "3 hours",
+  "childlimits.1d": "1 day",
+  "childlimits.until": "All limits are off until {time}.",
+  "childlimits.none": "Limits are active."
 }

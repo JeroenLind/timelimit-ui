@@ -220,6 +220,26 @@ class CategoriesService:
         )
         self._push([lambda: actions.update_category_disable_limits(category_id, end)])
 
+    def disable_child_limits(self, child_id: str, body: object) -> None:
+        """All limits of the child are ignored for ``minutes`` from now; 0 switches it off (FR-505)."""
+        minutes = _body(body).get("minutes")
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or not 0 <= minutes <= MAX_DISABLE_MINUTES
+        ):
+            raise _invalid(
+                "minutes",
+                f"Enter whole minutes from 0 to {MAX_DISABLE_MINUTES} (0 switches it off).",
+            )
+        self._child(self._scope(), child_id)
+        end = (
+            0
+            if minutes == 0
+            else int(self._clock.now().timestamp() * 1000) + minutes * 60000
+        )
+        self._push([lambda: actions.set_user_disable_limits_until(child_id, end)])
+
     # -- extra time and temporary blocking (E8) -----------------------------------------------------------------------------------
     def set_extra_time(self, child_id: str, category_id: str, body: object) -> None:
         """Extra time for **today** (the child's date, FR-501): add, subtract (stops at zero) or set."""

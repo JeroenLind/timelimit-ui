@@ -346,5 +346,14 @@
   "audit.action.rule_off_today": "Regel voor vandaag uitgezet",
   "audit.action.rule_restored": "Regel hersteld",
   "audit.action.cleanup": "Ontbrekende items opgeruimd",
-  "audit.action.rule_off_ended": "Uitzetten voor vandaag beëindigd"
+  "audit.action.rule_off_ended": "Uitzetten voor vandaag beëindigd",
+  "childlimits.disable": "Alle limieten uit",
+  "childlimits.enable": "Limieten weer aan",
+  "childlimits.title": "Alle limieten tijdelijk uitzetten",
+  "childlimits.help": "Elke tijdlimiet van dit kind wordt genegeerd tot het gekozen moment. Geblokkeerde tijden en tijdelijke blokkades blijven gelden.",
+  "childlimits.1h": "1 uur",
+  "childlimits.3h": "3 uur",
+  "childlimits.1d": "1 dag",
+  "childlimits.until": "Alle limieten staan uit tot {time}.",
+  "childlimits.none": "Limieten zijn actief."
 }

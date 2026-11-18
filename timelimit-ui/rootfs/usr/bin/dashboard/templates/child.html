@@ -17,6 +17,13 @@
     </div>
     <p class="muted"><span data-i18n="child.used_today">Used today</span>: <strong id="child-used"></strong> · <span data-i18n="child.time_zone">Time zone</span>: <span id="child-zone"></span></p>
 
+    <p id="child-limits-error" class="form-error" role="alert" hidden></p>
+    <p class="toolbar" id="child-limits">
+      <span id="child-limits-state" class="muted"></span>
+      <button type="button" class="secondary small" id="child-limits-off" data-change-control data-i18n="childlimits.disable">All limits off</button>
+      <button type="button" class="secondary small" id="child-limits-on" data-change-control data-i18n="childlimits.enable" hidden>Limits on again</button>
+    </p>
+
     <div role="tablist" class="tabs" aria-label="Child">
       <button type="button" role="tab" id="tab-categories" aria-controls="panel-categories" data-tab="categories" data-i18n="child.categories">Categories</button>
       <button type="button" role="tab" id="tab-rules" aria-controls="panel-rules" data-tab="rules" data-i18n="child.rules.tab">Rules</button>
@@ -230,6 +237,24 @@
       <button type="button" class="secondary" id="time-close" data-i18n="dialog.close">Close</button>
     </div>
   </div>
+</dialog>
+<dialog id="child-limits-dialog" aria-labelledby="child-limits-title">
+  <form id="child-limits-form" novalidate>
+    <h2 id="child-limits-title" data-i18n="childlimits.title">Switch all limits off for a while</h2>
+    <p class="muted" data-i18n="childlimits.help">Every time limit of this child is ignored until the chosen moment. Blocked times and temporary blocks stay as they are.</p>
+    <div class="quick">
+      <button type="button" class="secondary small" data-child-limit-minutes="60" data-i18n="childlimits.1h">1 hour</button>
+      <button type="button" class="secondary small" data-child-limit-minutes="180" data-i18n="childlimits.3h">3 hours</button>
+      <button type="button" class="secondary small" data-child-limit-minutes="1440" data-i18n="childlimits.1d">1 day</button>
+    </div>
+    <label class="field"><span data-i18n="categories.limits.minutes">For how many minutes</span>
+      <input type="number" id="child-limits-minutes" min="1" max="10080" step="1" value="60" inputmode="numeric">
+      <span class="field-error" data-error-for="child_limit_minutes" hidden></span></label>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="child-limits-cancel" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" data-change-control data-i18n="categories.limits.apply">Switch off</button>
+    </div>
+  </form>
 </dialog>
 <dialog id="limits-dialog" aria-labelledby="limits-title">
   <form id="limits-form" novalidate>

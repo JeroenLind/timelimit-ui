@@ -5,6 +5,7 @@ import { initBlocked, renderBlocked } from "./blocked.js";
 import { initCategories, renderCategoryActions } from "./categories.js";
 import { initRules, renderRules } from "./rules.js";
 import { initChildAudit } from "./audit.js";
+import { initChildLimits, renderChildLimits } from "./childlimits.js";
 import { initUsage } from "./usage.js";
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +77,7 @@ function render() {
     $("child-zone-warning-text").textContent = t("rules.zone_warning").replace("{child}", warning.child).replace("{dashboard}", warning.dashboard);
   }
   document.title = `${child.name} - TimeLimit Dashboard`;
+  renderChildLimits(child);
   renderCategories();
   renderRules(data);
   renderBlocked(data);
@@ -127,6 +129,7 @@ export function initChild() {
   initBlocked(() => data);
   initCategories(() => data);
   initUsage();
+  initChildLimits();
   initChildAudit($("child-page").dataset.childId);
   selectTab("categories");
   document.addEventListener("dashboard:language", render);

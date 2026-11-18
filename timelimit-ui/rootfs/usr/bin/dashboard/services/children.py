@@ -206,6 +206,9 @@ class ChildrenService:
             "device_count": len(devices),
             "time_zone_warning": _zone_warning(zone, now),
             "category_for_unassigned": data.get("categoryForNotAssignedApps", "") or "",
+            "limits_disabled_until": int(data["disableLimitsUntil"])
+            if int(data.get("disableLimitsUntil", 0) or 0) > now_ms
+            else None,
         }
         return summary, categories, today
 
