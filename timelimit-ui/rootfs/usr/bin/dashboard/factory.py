@@ -22,6 +22,7 @@ from dashboard.routes import (
 from dashboard.routes import settings as settings_routes
 from dashboard.routes.errors import register_error_handling
 from dashboard.services.apps import AppsService
+from dashboard.services.audit import AuditService
 from dashboard.services.categories import CategoriesService
 from dashboard.services.changes import ChangeService
 from dashboard.services.children import ChildrenService
@@ -51,7 +52,8 @@ def create_app(
     profiles = ServerProfiles(backend.store, settings)
     link_service = LinkService(backend, profiles)
     connection = ConnectionService(settings, profiles)
-    changes = ChangeService(backend, profiles, connection)
+    audit = AuditService(backend, profiles, clock)
+    changes = ChangeService(backend, profiles, connection, audit)
     rule_today = RuleTodayService(backend, profiles, changes, connection, clock)
     app.extensions["dashboard"] = {
         "settings": settings,
@@ -62,6 +64,7 @@ def create_app(
         "categories": CategoriesService(backend, profiles, changes, clock),
         "apps": AppsService(backend, profiles, changes),
         "parents": ParentsService(backend, profiles, changes),
+        "audit": audit,
         "usage": UsageService(backend, profiles, clock),
         "testsection": TestSectionService(backend, profiles, changes),
         "rule_today": rule_today,

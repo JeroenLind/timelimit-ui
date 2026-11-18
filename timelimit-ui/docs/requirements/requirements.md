@@ -147,8 +147,8 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-1100 | M | Every change made through the dashboard (action type, child, result, time) is logged and shown as a tab **"Changes"** in child detail. Entries without a child (settings, test section) are stored; where they are shown is decided when E12 is detailed. | Partial |
-| FR-1101 | M | Entries older than **30 days** are removed automatically. | Open |
+| FR-1100 | M | Every change made through the dashboard (action type, child, result, time) is logged and shown as a tab **"Changes"** in child detail. Entries without a child (settings, test section) are stored; where they are shown is decided when E12 is detailed. | Done (E12) |
+| FR-1101 | M | Entries older than **30 days** are removed automatically. | Done (E12) |
 
 ---
 

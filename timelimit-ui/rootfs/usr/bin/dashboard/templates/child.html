@@ -22,6 +22,7 @@
       <button type="button" role="tab" id="tab-rules" aria-controls="panel-rules" data-tab="rules" data-i18n="child.rules.tab">Rules</button>
       <button type="button" role="tab" id="tab-blocked" aria-controls="panel-blocked" data-tab="blocked" data-i18n="child.blocked.tab">Blocked times</button>
       <button type="button" role="tab" id="tab-usage" aria-controls="panel-usage" data-tab="usage" data-i18n="usage.tab">Usage</button>
+      <button type="button" role="tab" id="tab-changes" aria-controls="panel-changes" data-tab="changes" data-i18n="audit.tab">Changes</button>
       <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" data-tab="devices" data-i18n="child.devices">Devices</button>
     </div>
     <section role="tabpanel" id="panel-categories" aria-labelledby="tab-categories" data-panel="categories" class="panel">
@@ -89,6 +90,17 @@
         </div>
         <p class="muted" data-i18n="usage.history_note">The history is kept by this dashboard from its first use (at most 30 days) and starts again after a cache reset.</p>
       </div>
+    </section>
+    <section role="tabpanel" id="panel-changes" aria-labelledby="tab-changes" data-panel="changes" class="panel" hidden>
+      <p id="audit-error" class="form-error" role="alert" hidden></p>
+      <p id="audit-empty" data-i18n="audit.empty" hidden>No changes made through the dashboard yet.</p>
+      <div class="table-wrap">
+        <table id="audit-table" hidden>
+          <thead><tr><th data-i18n="audit.when">When</th><th data-i18n="audit.what">Change</th><th data-i18n="audit.category">Category</th><th data-i18n="audit.result">Result</th></tr></thead>
+          <tbody id="audit-body"></tbody>
+        </table>
+      </div>
+      <p class="muted" data-i18n="audit.note">Changes made through this dashboard, kept for 30 days.</p>
     </section>
     <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" data-panel="devices" class="panel" hidden>
       <p class="muted" data-i18n="child.devices.help">Read only. Devices on which this child is signed in.</p>

@@ -155,7 +155,8 @@ def view(app: Flask, ids: dict[str, str]) -> dict[str, Any]:
 
 def audit(app: Flask, fake: FakeTimeLimitServer) -> list[str]:
     entries = app.extensions["dashboard"]["backend"].audit.entries(fake.url)
-    return [e.action for e in reversed(entries)]
+    # the generic per-action entries (upper case wire types, plan E12) are tested in test_audit
+    return [e.action for e in reversed(entries) if not e.action.isupper()]
 
 
 def notices(app: Flask) -> list[dict[str, Any]]:

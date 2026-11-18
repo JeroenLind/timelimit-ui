@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template
 from flask.typing import ResponseReturnValue
 
 from dashboard.routes.pages import timings
+from dashboard.services.audit import AuditService
 from dashboard.services.children import ChildrenService
 from dashboard.services.link import READY, SESSION_INVALID, LinkService
 from dashboard.services.usage import UsageService
@@ -32,6 +33,18 @@ def child(child_id: str) -> ResponseReturnValue:
 def usage(child_id: str) -> ResponseReturnValue:
     found: UsageService = current_app.extensions["dashboard"]["usage"]
     return jsonify(found.usage(child_id))
+
+
+@bp.get("/api/children/<child_id>/audit")
+def child_audit(child_id: str) -> ResponseReturnValue:
+    found: AuditService = current_app.extensions["dashboard"]["audit"]
+    return jsonify(found.entries(child_id))
+
+
+@bp.get("/api/audit")
+def general_audit() -> ResponseReturnValue:
+    found: AuditService = current_app.extensions["dashboard"]["audit"]
+    return jsonify(found.entries(None))
 
 
 @bp.get("/children/<child_id>")

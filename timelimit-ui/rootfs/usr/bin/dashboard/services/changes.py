@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from dashboard.domain.errors import DashboardError, ErrorCode
+from dashboard.services.audit import CONFIRMED, FAILED, NOT_CONFIRMED, AuditService
 from dashboard.services.connection import ConnectionService
 from dashboard.services.profiles import ServerProfiles
 from dashboard.sync.backend import Backend
@@ -19,14 +20,23 @@ from dashboard.sync.push import PushResult
 
 class ChangeService:
     def __init__(
-        self, backend: Backend, profiles: ServerProfiles, connection: ConnectionService
+        self,
+        backend: Backend,
+        profiles: ServerProfiles,
+        connection: ConnectionService,
+        audit: AuditService,
     ) -> None:
+        self._audit = audit
         self._backend = backend
         self._profiles = profiles
         self._connection = connection
 
     def push(
-        self, actions: list[dict[str, Any]], *, second_hash: str | None = None
+        self,
+        actions: list[dict[str, Any]],
+        *,
+        second_hash: str | None = None,
+        audit: bool = True,
     ) -> PushResult:
         self._connection.require_online()
         url = self._profiles.url()
@@ -36,6 +46,7 @@ class ChangeService:
                 ErrorCode.NOT_LINKED, "This dashboard is not linked to a family yet."
             )
         pusher = self._backend.pusher(url)
+        described = self._audit.describe(actions) if audit else []
         timeout = max(30.0, self._backend.settings.server_timeout * 10)
         parts: list[str] = []
         try:
@@ -44,7 +55,14 @@ class ChangeService:
                 timeout=timeout,
             )
             parts = sorted(result.pull.changed)
+            self._audit.record_all(described, CONFIRMED)
             return result
+        except DashboardError as error:
+            unconfirmed = error.code == ErrorCode.ACTION_NOT_CONFIRMED
+            self._audit.record_all(
+                described, NOT_CONFIRMED if unconfirmed else FAILED, error.code.value
+            )
+            raise
         finally:
             # also after a rejected change: the rollback replaced the cache
             self._backend.hub.publish({"type": "changed", "parts": parts})

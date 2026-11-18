@@ -4,6 +4,7 @@ import { t } from "./i18n.js";
 import { initBlocked, renderBlocked } from "./blocked.js";
 import { initCategories, renderCategoryActions } from "./categories.js";
 import { initRules, renderRules } from "./rules.js";
+import { initChildAudit } from "./audit.js";
 import { initUsage } from "./usage.js";
 
 const $ = (id) => document.getElementById(id);
@@ -126,6 +127,7 @@ export function initChild() {
   initBlocked(() => data);
   initCategories(() => data);
   initUsage();
+  initChildAudit($("child-page").dataset.childId);
   selectTab("categories");
   document.addEventListener("dashboard:language", render);
 }

@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 import { currentLanguage, t } from "./i18n.js";
 import { refreshNotices } from "./notices.js";
+import { refreshGeneralAudit } from "./audit.js";
 import { initParents, refreshParents } from "./parents.js";
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +77,7 @@ export function render(view) {
   state.dataset.state = link.state;
   state.textContent = t(`link.state.${link.state}`);
   refreshParents(link.state);
+  refreshGeneralAudit(link.state);
   refreshParents(link.state);
 
   const needsLogin = link.state === "not_linked";

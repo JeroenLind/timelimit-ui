@@ -139,7 +139,9 @@ class RuleTodayService:
             # recorded first: a crash after the push must not leave the rule off for good
             self._backend.restores.add(restore)
             try:
-                self._changes.push([pure.rule_action(rule_id, rule, new_mask)])
+                self._changes.push(
+                    [pure.rule_action(rule_id, rule, new_mask)], audit=False
+                )
             except BaseException:
                 self._backend.restores.remove(scope.profile_key, rule_id)
                 raise
@@ -186,7 +188,9 @@ class RuleTodayService:
             self._backend.hub.publish({"type": "changed", "parts": ["notices"]})
             return Restore(pending.rule_id, "skipped")
         original = pure.day_back(pending.mask_set, pending.day_bit)
-        self._changes.push([pure.rule_action(pending.rule_id, current, original)])
+        self._changes.push(
+            [pure.rule_action(pending.rule_id, current, original)], audit=False
+        )
         self._backend.restores.remove(scope.profile_key, pending.rule_id)
         self._audit(
             "rule_restored",

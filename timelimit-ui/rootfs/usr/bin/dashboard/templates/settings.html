@@ -70,6 +70,17 @@
     <p id="parents-note" class="muted" role="status"></p>
   </section>
 
+  <section class="panel" aria-labelledby="audit-heading" id="audit-section" hidden>
+    <h3 id="audit-heading" data-i18n="audit.general">Other changes</h3>
+    <p class="muted" data-i18n="audit.general.help">Changes that belong to no child, such as password changes. Kept for 30 days.</p>
+    <table id="audit-table" hidden>
+      <thead><tr><th data-i18n="audit.when">When</th><th data-i18n="audit.what">Change</th><th data-i18n="audit.result">Result</th></tr></thead>
+      <tbody id="audit-body"></tbody>
+    </table>
+    <p id="audit-empty" data-i18n="audit.empty" hidden>No changes made through the dashboard yet.</p>
+    <p id="audit-error" class="form-error" role="alert" hidden></p>
+  </section>
+
   <section class="panel" aria-labelledby="info-heading">
     <h3 id="info-heading" data-i18n="settings.info">Status</h3>
     <dl class="info-list">

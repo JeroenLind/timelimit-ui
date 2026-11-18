@@ -49,13 +49,20 @@ class AuditRepository:
             )
 
     def entries(
-        self, profile_key: str, *, child_id: str | None = None, limit: int = 200
+        self,
+        profile_key: str,
+        *,
+        child_id: str | None = None,
+        without_child: bool = False,
+        limit: int = 200,
     ) -> list[AuditEntry]:
         sql = "SELECT * FROM audit_log WHERE profile_key=?"
         args: list[Any] = [profile_key]
         if child_id is not None:
             sql += " AND child_id=?"
             args.append(child_id)
+        elif without_child:
+            sql += " AND child_id IS NULL"
         sql += " ORDER BY at DESC, id DESC LIMIT ?"
         args.append(limit)
         return [
