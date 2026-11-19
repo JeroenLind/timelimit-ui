@@ -203,6 +203,9 @@ class ChildrenService:
             "status": status,
             "used_today_ms": sum(c["used_today_ms"] for c in top),
             "category_count": len(categories),
+            "categories_brief": [
+                {"id": c["id"], "title": c["title"]} for c in _tree_order(categories)
+            ],
             "device_count": len(devices),
             "time_zone_warning": _zone_warning(zone, now),
             "category_for_unassigned": data.get("categoryForNotAssignedApps", "") or "",

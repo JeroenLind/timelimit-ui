@@ -355,5 +355,11 @@
   "childlimits.3h": "3 hours",
   "childlimits.1d": "1 day",
   "childlimits.until": "All limits are off until {time}.",
-  "childlimits.none": "Limits are active."
+  "childlimits.none": "Limits are active.",
+  "apps.remove.title": "Remove apps?",
+  "apps.remove.text": "Remove {count} app(s) from \"{category}\"? They are no longer limited by this category.",
+  "overview.quick": "Extra time / block",
+  "overview.quick.title": "Quick actions for {name}",
+  "overview.quick.category": "Category",
+  "overview.quick.done": "Done."
 }

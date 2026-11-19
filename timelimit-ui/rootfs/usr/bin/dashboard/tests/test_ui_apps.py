@@ -95,8 +95,23 @@ def test_an_assigned_app_can_be_removed(
     open_apps(page, live, "Games")
     page.check('#apps-assigned input[value="com.game.one"]')
     page.click("#apps-remove")
+    dialog = page.locator("#confirm-dialog")
+    expect(dialog).to_contain_text("Remove 1 app(s)")
+    dialog.get_by_role("button", name="Remove selected").click()
     expect(page.locator("#apps-assigned input")).to_have_count(0)
     assert family(fake_server).categories["cgames"].apps == []
+
+
+def test_cancelling_the_removal_keeps_the_app(
+    page: Page, live_app_factory: Any, fake_server: Any
+) -> None:
+    live = start(live_app_factory, fake_server, True)
+    open_apps(page, live, "Games")
+    page.check('#apps-assigned input[value="com.game.one"]')
+    page.click("#apps-remove")
+    page.locator("#confirm-dialog").get_by_role("button", name="Cancel").click()
+    expect(page.locator("#apps-assigned input")).to_have_count(1)
+    assert family(fake_server).categories["cgames"].apps == ["com.game.one"]
 
 
 def test_without_an_app_list_the_dialog_explains_and_manual_names_work(

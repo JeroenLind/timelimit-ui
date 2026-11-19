@@ -355,5 +355,11 @@
   "childlimits.3h": "3 uur",
   "childlimits.1d": "1 dag",
   "childlimits.until": "Alle limieten staan uit tot {time}.",
-  "childlimits.none": "Limieten zijn actief."
+  "childlimits.none": "Limieten zijn actief.",
+  "apps.remove.title": "Apps verwijderen?",
+  "apps.remove.text": "{count} app(s) uit \"{category}\" halen? Ze vallen dan niet meer onder deze categorie.",
+  "overview.quick": "Extra tijd / blokkeren",
+  "overview.quick.title": "Snelle acties voor {name}",
+  "overview.quick.category": "Categorie",
+  "overview.quick.done": "Gedaan."
 }

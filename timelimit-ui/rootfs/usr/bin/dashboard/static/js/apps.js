@@ -2,6 +2,7 @@
 
 import { track } from "./actions.js";
 import { apiFetch } from "./api.js";
+import { confirmDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -86,9 +87,17 @@ export async function openApps(selected) {
 export function initApps() {
   $("apps-close").addEventListener("click", () => $("apps-dialog").close());
   $("apps-search").addEventListener("input", render);
-  $("apps-remove").addEventListener("click", () => {
+  $("apps-remove").addEventListener("click", async () => {
     const packages = checked("apps-assigned");
-    if (packages.length) send("/remove", packages);
+    if (!packages.length) return;
+    // UI-006: taking apps out of a category asks first
+    const yes = await confirmDialog({
+      title: t("apps.remove.title"),
+      message: t("apps.remove.text").replace("{count}", String(packages.length)).replace("{category}", category.title),
+      confirmLabel: t("apps.remove"),
+      danger: true,
+    });
+    if (yes) send("/remove", packages);
   });
   $("apps-add").addEventListener("click", () => {
     const manual = $("apps-manual").value.split(/\s+/).filter(Boolean);

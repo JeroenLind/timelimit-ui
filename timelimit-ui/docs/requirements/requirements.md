@@ -3,7 +3,7 @@
 | Item | Value |
 |------|-------|
 | Version | 3.1 (3.0 plus the answers to the plan questions of 2026-11-07) |
-| Status | **Draft for approval** – nothing is built against this version until it is approved |
+| Status | **Approved and built** – acceptance check G2 done 2026-11-19 (every Must row below is Done; a test enforces it) |
 | Replaces | requirements.md v2 (FR-001..007, NFR-001..004, TR-001, Test-001..004, BUG-001..004) |
 | Protocol reference | `docs/ServerAPI.md` (verified against server and Android client) |
 | Priorities | MoSCoW: **M**ust, **S**hould, **C**ould, **W**on't (v1) |
@@ -43,9 +43,9 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-200 | M | Sync starts **automatically** when the dashboard starts and after every change, without user action. A sync round is: push pending actions, then pull. | Partial (push and pull B4; automatic worker B5) |
-| FR-201 | M | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, apps, used times, tasks); the server returns only differing parts. The dashboard applies **all** returned parts to its cache. After each pull the cache equals the server state. | Partial (pull B3, push B4) |
-| FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Partial (pull side B3; push side B4) |
+| FR-200 | M | Sync starts **automatically** when the dashboard starts and after every change, without user action. A sync round is: push pending actions, then pull. | Done (B5, B6) |
+| FR-201 | M | Pull sends the versions the dashboard holds (devices, users, per-category data, rules, apps, used times, tasks); the server returns only differing parts. The dashboard applies **all** returned parts to its cache. After each pull the cache equals the server state. | Done (B3, B4) |
+| FR-202 | M | After `shouldDoFullSync` the dashboard forgets all versions, fully re-pulls, refreshes the UI and shows a short notice that an action was possibly not applied. | Done (B3, B4) |
 | FR-203 | M | The server never reports a failed action (HTTP 200, `shouldDoFullSync:true`). The dashboard treats an action as **confirmed only** when the server does not request a full sync. Unconfirmed actions are reported to the user and rolled back in the UI. | Done (pusher) |
 | FR-204 | M | Sequence numbers are persistent per device, start at 0, and are reserved before sending. Max 25 actions per request. | Done |
 | FR-205 | M | A newly added item (e.g. a user in the test section) is shown **immediately** with the marker "waiting for server". The marker disappears on confirmation; on failure the item is removed and an error is shown. | Done (E4) |
@@ -95,16 +95,16 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | FR-600 | M | Show **today's** used time per category and child, against the limit. | Done (E9) |
 | FR-601 | M | Show the **history per day** (7 and 30 days) per category as a list and a bar chart. The dashboard **builds its own daily totals** in the cache so the history grows to 30 days from the first use (it is lost on a cache reset, TR-310). | Done (E9) |
-| FR-602 | W | Used time per app is **not** offered: the server stores used time per category per day only. | – |
+| FR-602 | W | Used time per app is **not** offered: the server stores used time per category per day only. | Not offered (by design) |
 
 ### 2.7 Children and devices
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| FR-700 | M | Overview of all children: status, today's used time, quick actions (extra time, block). | Partial (E2: status and used time; quick actions in E7/E8) |
-| FR-701 | M | Child detail screen: categories, rules, apps, blocked times, used time. | Partial (E2: shell, categories, devices; rest in E3-E9) |
+| FR-700 | M | Overview of all children: status, today's used time, quick actions (extra time, block). | Done (E2, G2: quick actions dialog on the overview) |
+| FR-701 | M | Child detail screen: categories, rules, apps, blocked times, used time. | Done (E2-E9) |
 | FR-702 | S | Child devices are shown **read only**: model, name, date added; the devices of the child are those where it is the current user. The server sends no last connection to parents, so that is not shown. | Done (E2) |
-| FR-703 | W | No add/remove of children or parents in production (done in the app). | – |
+| FR-703 | W | No add/remove of children or parents in production (done in the app). | Not offered in production (test section only, E11) |
 
 ### 2.8 Test section (separate)
 
@@ -125,14 +125,14 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| UI-001 | M | Screens: children overview, child detail, settings, test section. | Partial |
+| UI-001 | M | Screens: children overview, child detail, settings, test section. | Done (E1, E2, E11) |
 | UI-002 | M | Navigation: **fixed sidebar on desktop**, **hamburger menu on small screens**. The menu opens/closes with the button, the close button, the overlay and Escape; `aria-expanded`/`aria-hidden` are kept correct and focus returns to the button. (Replaces FR-007; BUG-004 as regression test.) | Done (D1) |
 | UI-003 | M | Layout works on desktop browsers, phones and tablets. | Done (D1) |
 | UI-004 | M | Dark theme (and light). | Done (D1) |
-| UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Partial (D1: switch in the top bar; moves into settings in E1) |
-| UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Partial (D1: dialog component; used by the delete actions in E-steps) |
+| UI-005 | M | Languages: Dutch and English, selectable in settings. Default: the browser language when it is Dutch or English, otherwise English. Theme: follows the system until the user chooses. | Done (D1, E1) |
+| UI-006 | M | Destructive actions (delete rule, category, remove apps) require a confirmation dialog. | Done (D1, E3, E6a, E7: remove apps confirms, G2) |
 | UI-007 | M | Every action shows its state: pending, confirmed, failed. | Done (E4) |
-| UI-008 | W | No screen reader / WCAG target in v1 (basic ARIA only, as in UI-002). | – |
+| UI-008 | W | No screen reader / WCAG target in v1 (basic ARIA only, as in UI-002). | Out of v1 (basic ARIA only) |
 
 ### 2.11 Server unavailable (replaces FR-002, NFR-004)
 
@@ -158,7 +158,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-100 | M | All server calls follow `docs/ServerAPI.md`. The server code wins over the document. | – |
+| TR-100 | M | All server calls follow `docs/ServerAPI.md`. The server code wins over the document. | Done (A5, A6, B2: contract tests) |
 | TR-101 | M | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters `[0-9a-zA-Z]`; `encodedAction` is a JSON **string**; integrity covers exactly that string. All actions are built by `action_builder.py` and validated before a sequence number is reserved. | Done |
 | TR-102 | M | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+deviceId ‖ len+encodedAction. Verified with test vectors. | Done |
 | TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Done (B3) |
@@ -173,24 +173,24 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-200 | M | **SQLite** is the cache. One file in the **data folder** (`data/` next to the app on Windows, `/data` in HA, gitignored), one per installation. The server is the source of truth. Cache key is the **server profile** plus the **family id** from the server. | Done (B1) |
 | TR-201 | M | Database access is thread-safe; writes that change several tables use one transaction. `sync_state` is never replaced blindly (`INSERT OR REPLACE` is removed). | Done (B1) |
 | TR-202 | M | No parent passwords are stored. Only the device auth token (and own ids) are stored locally, in the database and in the session file with backup. | Done |
-| TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | – |
+| TR-204 | W | No backup/restore feature; losing the file means re-registering the device. | Out of v1 (the session file backup of B1 is only a safety net) |
 
 ### 3.3 Runtime, packaging and configuration
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
 | TR-300 | M | Python 3.10+; `requirements.txt` with loose version ranges. Starts with `py -3 app.py` on Windows. | Done |
-| TR-301 | M | All settings (port, data directory, log level, timings) come from a config file/environment variables and the UI; no hard-coded paths, so the same code runs as an HA add-on (paths via add-on options). | Partial |
+| TR-301 | M | All settings (port, data directory, log level, timings) come from a config file/environment variables and the UI; no hard-coded paths, so the same code runs as an HA add-on (paths via add-on options). | Done (A3, F2) |
 | TR-302 | S | Later: second HA add-on (**aarch64**), reached through ingress, built by GitHub Actions to `ghcr.io`; no base-URL assumptions (relative URLs). The Windows version is run locally without a GitHub build. The add-on s6 service must start the new dashboard (`dashboard-v2`), not the legacy `web_server.py`. | Done in code (F1 ingress prefix, F2 aarch64 add-on, F3 workflow); not yet verified: the CI run and the start on your HA (type M) |
-| TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Open |
-| TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
-| TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |
-| TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Open |
+| TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Done (A6, A7) |
+| TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Done (B5) |
+| TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Done (A3: 8100 on 127.0.0.1; the add-on sets 8099 and 0.0.0.0, F2) |
+| TR-306 | M | `SECRET_KEY` is generated randomly on first start and stored next to the database; an environment variable overrides it. | Done (A3) |
 | TR-307 | M | All API routes return one error envelope `{status:"error", code, message, requestId}` with these codes and statuses: `INVALID_INPUT` 400, `SESSION_INVALID` 401, `INVALID_PASSWORD` 403, `NOT_FOUND` 404, `NOT_LINKED` 409, `CONFLICT` 409, `READ_ONLY_OFFLINE` 503, `SERVER_UNREACHABLE` 502, `SERVER_TIMEOUT` 504, `ACTION_NOT_CONFIRMED` 502, `INTERNAL_ERROR` 500. `CONFLICT`: the browser sends the version it started editing with; a mismatch with the cache gives 409 (FR-208). | Done (E4) |
 | TR-308 | M | Layers: routes (thin) → services → repository (only layer with SQL); one server-client module for all HTTP to the TimeLimit server; pure domain logic without I/O. See `docs/architecture/design.md`. | Done (B7: enforced by test) |
-| TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Open |
+| TR-309 | M | One sync worker thread with a queue; a user change is push then immediate pull, the request waits for the result. | Done (B5, E3) |
 | TR-310 | M | A cache reset (schema change) drops the cache and fully re-syncs, but keeps the link, settings and the **sequence counter**. | Done (B1) |
-| TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Open |
+| TR-311 | M | Frontend: Jinja + vanilla JS in ES modules, no build step; CSS variables, no inline styles, dark theme follows the system; i18n through `nl.json`/`en.json` with fallback to English. | Done (D1) |
 | TR-312 | M | The legacy UI layer (`frontend.py`, `web_server.py`, `api_client.py`, `check_server.py`) and the one-off scripts are removed, after the s6 service is switched. | Done (C1, C2) |
 
 ### 3.4 Logging and diagnostics
@@ -205,26 +205,26 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests (until the cut-over the old tests run apart as a legacy suite, see `docs/plan/old-tests-disposition.md`); tests that only grep source text are replaced by behaviour tests; tests of deleted code are removed. Currently 29 failures (24 isolation, 1 database isolation, 2 clear-all, 1 config, 1 landing). | Rework |
+| TR-500 | M | pytest unit tests, isolated (own temporary database and log folder per test), parallel with `pytest-xdist`, 30 s timeout, no automatic retries, all green including unrelated tests; tests that only grep source text were replaced by behaviour tests; tests of deleted code were removed (G1). | Done (A2; the legacy suite ended in G1) |
 | TR-501 | M | **Contract tests**: every action the dashboard can produce is validated against the schemas generated from the server. | Done (A5, B2) |
-| TR-502 | M | **Browser/UI tests** (Playwright) for the main screens: overview, child detail, rule dialog, hamburger menu, offline banner. | Open |
-| TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | – |
-| TR-504 | M | Documentation stays in sync: this document, `docs/ServerAPI.md`, and design notes are updated with every feature or fix. | – |
+| TR-502 | M | **Browser/UI tests** (Playwright) for the main screens: overview, child detail, rule dialog, hamburger menu, offline banner. | Done (A7, D1, E2-E13) |
+| TR-503 | W | A live test against a real server is not mandatory; an optional script against the local test server may exist. | Optional, not built (the fake server and the Windows test cover it) |
+| TR-504 | M | Documentation stays in sync: this document, `docs/ServerAPI.md`, and design notes are updated with every feature or fix. | Done (kept up to date every step) |
 
 ### 3.6 Development standards (added 2026-11-07)
 
 | ID | Pri | Requirement | Status |
 |----|-----|-------------|--------|
-| TR-510 | M | **One tool for style and lint:** `ruff` (lint and format), configured in `pyproject.toml`. `ruff check` and `ruff format --check` pass on the new package. | Open |
-| TR-511 | M | **Line endings:** the repository uses LF (`.gitattributes` and `.editorconfig`); shell scripts and s6 services never get CRLF. | Open |
+| TR-510 | M | **One tool for style and lint:** `ruff` (lint and format), configured in `pyproject.toml`. `ruff check` and `ruff format --check` pass on the new package. | Done (A0) |
+| TR-511 | M | **Line endings:** the repository uses LF (`.gitattributes` and `.editorconfig`); shell scripts and s6 services never get CRLF. | Done (A0) |
 | TR-512 | M | **Time and time zones:** the domain layer only uses time-zone-aware times and receives the current time from an injected clock (never calls `now()` itself), so midnight logic (FR-307) is testable without waiting. | Done (B7: enforced by test) |
 | TR-513 | M | **Secrets in code:** tokens, hashes and typed passwords pass through one `Secret` type / masking function; log masking (TR-402) is implemented only there. | Done (B7: enforced by test) |
 | TR-514 | M | **Timeouts on all I/O:** every HTTP call has an explicit timeout; a test fails on any call without one. | Done (B7: enforced by test) |
-| TR-515 | S | **Type hints** on public functions of `domain/`, `services/` and `client/`; `mypy` checks `domain/` and `client/` first. | Open |
-| TR-516 | S | **Reproducible dependencies:** `requirements.txt` keeps loose ranges (Windows); a generated constraints file pins the versions for the HA image. | Open |
-| TR-517 | S | **Pre-commit:** a local hook runs `ruff` and the fast unit tests (no Playwright); one command (`py -3 tools/check.py`) runs lint, type check and the full suite. | Open |
-| TR-518 | S | **Commit convention:** short descriptive messages with the agreed trailers; one commit per plan step. | Open |
-| TR-519 | S | **Decision log:** `docs/decisions/` holds short decision records (context, choice, consequences) from a template; existing decisions of the plan are backfilled as records. | Open |
+| TR-515 | S | **Type hints** on public functions of `domain/`, `services/` and `client/`; `mypy` checks `domain/` and `client/` first. | Done (A0, B7) |
+| TR-516 | S | **Reproducible dependencies:** `requirements.txt` keeps loose ranges (Windows); a generated constraints file pins the versions for the HA image. | Done (A0, F2) |
+| TR-517 | S | **Pre-commit:** a local hook runs `ruff` and the fast unit tests (no Playwright); one command (`py -3 tools/check.py`) runs lint, type check and the full suite. | Done (A0, hook and `tools/check.py`) |
+| TR-518 | S | **Commit convention:** short descriptive messages with the agreed trailers; one commit per plan step. | Done (A0) |
+| TR-519 | S | **Decision log:** `docs/decisions/` holds short decision records (context, choice, consequences) from a template; existing decisions of the plan are backfilled as records. | Done (A0, `docs/decisions/`) |
 
 ---
 

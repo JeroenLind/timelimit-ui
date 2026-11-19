@@ -4,6 +4,33 @@
   <h2 data-i18n="overview.title">Overview</h2>
   <ul id="overview-list" class="card-list"></ul>
   <p id="overview-empty" data-i18n="overview.empty" hidden>Nothing to show yet.</p>
+  <dialog id="quick-dialog" aria-labelledby="quick-title">
+    <h3 id="quick-title"></h3>
+    <label class="field"><span data-i18n="overview.quick.category">Category</span>
+      <select id="quick-category"></select></label>
+    <section>
+      <h4 data-i18n="time.extra">Extra time today</h4>
+      <p class="button-row">
+        <button type="button" data-change-control data-quick-extra="15">+15 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-quick-extra="30">+30 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-quick-extra="60">+60 <span data-i18n="unit.min">min</span></button>
+      </p>
+    </section>
+    <section>
+      <h4 data-i18n="time.block">Block for a while</h4>
+      <p class="button-row">
+        <button type="button" data-change-control data-quick-block="15">15 <span data-i18n="unit.min">min</span></button>
+        <button type="button" data-change-control data-quick-block="60">1 <span data-i18n="unit.h">h</span></button>
+        <button type="button" data-change-control data-quick-block="120">2 <span data-i18n="unit.h">h</span></button>
+        <button type="button" data-change-control class="secondary" id="quick-unblock" data-i18n="time.unblock">Unblock</button>
+      </p>
+    </section>
+    <p id="quick-error" class="form-error" role="alert" hidden></p>
+    <p id="quick-done" class="muted" role="status" hidden data-i18n="overview.quick.done">Done.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="quick-close" data-i18n="dialog.close">Close</button>
+    </div>
+  </dialog>
   <button type="button" id="refresh-overview" data-change-control data-i18n="overview.refresh">Refresh from server</button>
 </section>
 {% endblock %}

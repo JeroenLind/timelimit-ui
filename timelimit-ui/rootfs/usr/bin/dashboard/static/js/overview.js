@@ -1,6 +1,7 @@
 import { apiFetch, withBase } from "./api.js";
 import { t } from "./i18n.js";
 import { formatDuration, statusLabel } from "./format.js";
+import { initQuick, openQuick } from "./quick.js";
 
 let lastChildren = null;
 
@@ -19,6 +20,16 @@ function card(child) {
   facts.className = "muted facts";
   facts.textContent = `${t("child.used_today")}: ${formatDuration(child.used_today_ms)} · ${child.category_count} ${t("child.categories").toLowerCase()} · ${child.device_count} ${t("child.devices").toLowerCase()}`;
   li.append(link, status, facts);
+  if (child.on_server && child.categories_brief.length) {
+    const quick = document.createElement("button");
+    quick.type = "button";
+    quick.className = "secondary small";
+    quick.dataset.changeControl = "";
+    quick.dataset.quick = child.id;
+    quick.textContent = t("overview.quick");
+    quick.addEventListener("click", () => openQuick(child));
+    li.append(quick);
+  }
   if (!child.on_server) {
     const gone = document.createElement("span");
     gone.className = "badge";
@@ -50,3 +61,4 @@ export async function refreshOverview() {
 }
 
 document.addEventListener("dashboard:language", render);
+initQuick();
