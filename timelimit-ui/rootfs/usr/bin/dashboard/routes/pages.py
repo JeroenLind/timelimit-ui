@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, redirect, render_template
+from flask import Blueprint, current_app, redirect, render_template, request
 from flask.typing import ResponseReturnValue
 
 from dashboard.config import Settings
@@ -27,7 +27,7 @@ def overview_page() -> ResponseReturnValue:
     """Without a finished link the only page is the settings/link screen (plan E1)."""
     link: LinkService = current_app.extensions["dashboard"]["link"]
     if link.state() not in (READY, SESSION_INVALID):
-        return redirect("/settings")
+        return redirect(request.script_root + "/settings")
     return render_template("overview.html", timings=timings())
 
 

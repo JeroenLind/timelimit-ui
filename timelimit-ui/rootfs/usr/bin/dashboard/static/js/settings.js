@@ -1,6 +1,6 @@
 // The settings and link screen (plan E1).
 
-import { ApiError, apiFetch } from "./api.js";
+import { ApiError, apiFetch, withBase } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 import { currentLanguage, t } from "./i18n.js";
 import { refreshNotices } from "./notices.js";
@@ -31,7 +31,7 @@ function syncTestLink(on) {
     const link = document.createElement("a");
     link.className = "nav-link";
     link.id = "nav-test";
-    link.href = "/test";
+    link.href = withBase("/test");
     link.dataset.i18n = "nav.test";
     link.textContent = t("nav.test");
     document.getElementById("sidebar").append(link);
@@ -189,7 +189,7 @@ export async function initSettings() {
       message: t("settings.debug.warning"),
       confirmLabel: t("settings.debug.button"),
     });
-    if (yes) window.location.assign("/api/settings/debug-export");
+    if (yes) window.location.assign(withBase("/api/settings/debug-export"));
   });
   document.addEventListener("dashboard:language", () => current && render(current));
 

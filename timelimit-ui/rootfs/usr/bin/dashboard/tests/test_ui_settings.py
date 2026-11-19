@@ -44,7 +44,7 @@ def test_first_start_goes_to_settings_and_joining_loads_the_overview(
     expect(page.locator("#link-state")).to_have_attribute("data-state", "ready")
     assert page.input_value("#link-password") == ""  # not kept in the form
     expect(page.locator("#linked-box")).to_be_visible()
-    page.click('a[href="/"]')
+    page.click('.nav-link[data-i18n="nav.overview"]')
     expect(
         page.locator("#overview-empty")
     ).to_be_visible()  # a new family has no children yet

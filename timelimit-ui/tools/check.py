@@ -9,6 +9,7 @@ Stops at the first failing step and exits with its exit code.
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -17,26 +18,37 @@ APP = Path(__file__).resolve().parent.parent
 TARGETS = ["rootfs/usr/bin/dashboard", "tools"]
 
 
-def steps(fast: bool) -> list[tuple[str, list[str]]]:
+def steps(fast: bool) -> list[tuple[str, list[str], dict[str, str]]]:
     py = sys.executable
     pytest = [py, "-m", "pytest", "-q"]
     if importlib.util.find_spec("xdist") is not None:
         pytest += ["-n", "auto"]
     if fast:
         pytest += ["-m", "not ui and not legacy"]
-    return [
-        ("ruff check", [py, "-m", "ruff", "check", *TARGETS]),
-        ("ruff format", [py, "-m", "ruff", "format", "--check", *TARGETS]),
-        ("mypy", [py, "-m", "mypy"]),
-        ("pytest", pytest),
+    result: list[tuple[str, list[str], dict[str, str]]] = [
+        ("ruff check", [py, "-m", "ruff", "check", *TARGETS], {}),
+        ("ruff format", [py, "-m", "ruff", "format", "--check", *TARGETS], {}),
+        ("mypy", [py, "-m", "mypy"], {}),
+        ("pytest", pytest, {}),
     ]
+    if not fast:
+        # the browser tests a second time, through the Home Assistant ingress test proxy (plan F1)
+        ingress = [*pytest, "-m", "ui"]
+        result.append(
+            (
+                "pytest ui through ingress proxy",
+                ingress,
+                {"DASHBOARD_TEST_INGRESS": "1"},
+            )
+        )
+    return result
 
 
 def main(argv: list[str]) -> int:
     fast = "--fast" in argv
-    for name, cmd in steps(fast):
+    for name, cmd, extra_env in steps(fast):
         print(f"==> {name}", flush=True)
-        code = subprocess.call(cmd, cwd=APP)
+        code = subprocess.call(cmd, cwd=APP, env={**os.environ, **extra_env})
         if code != 0:
             print(f"FAILED: {name} (exit {code})", flush=True)
             return code

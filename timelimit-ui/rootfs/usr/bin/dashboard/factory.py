@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from typing import Any
+
 from flask import Flask
 
 from dashboard.config import Settings
@@ -39,12 +42,30 @@ from dashboard.services.usage import UsageService
 from dashboard.sync.backend import Backend
 from dashboard.sync.hub import EventHub
 
+_INGRESS_PATH = re.compile(r"^(/[A-Za-z0-9._~-]+)+$")
+
+
+class IngressPrefix:
+    """Home Assistant ingress strips its path prefix and sends it in ``X-Ingress-Path``. The prefix is only
+    needed to build links, so it becomes SCRIPT_NAME (``url_for``, ``request.script_root``). A value that
+    is not a plain path is ignored."""
+
+    def __init__(self, app: Any) -> None:
+        self._app = app
+
+    def __call__(self, environ: dict[str, Any], start_response: Any) -> Any:
+        prefix = str(environ.get("HTTP_X_INGRESS_PATH", "")).rstrip("/")
+        if prefix and _INGRESS_PATH.match(prefix) and ".." not in prefix.split("/"):
+            environ["SCRIPT_NAME"] = prefix
+        return self._app(environ, start_response)
+
 
 def create_app(
     settings: Settings, secret_key: Secret, clock: Clock | None = None
 ) -> Flask:
     """Create the app. Tests pass their own settings and a fake clock."""
     app = Flask("dashboard", static_folder="static", template_folder="templates")
+    app.wsgi_app = IngressPrefix(app.wsgi_app)  # type: ignore[method-assign]
     app.config["SECRET_KEY"] = secret_key.reveal()
     clock = clock or SystemClock()
     hub = EventHub()

@@ -5,6 +5,7 @@ Nothing in the repository tree is used or written by a test; everything lives un
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,13 @@ class LiveApp:
         self.app = create_app(settings, secret_key)
         self._server = make_server("127.0.0.1", 0, self.app, threaded=True)
         self.url = f"http://127.0.0.1:{self._server.server_port}"
+        self.proxy = None
+        if os.environ.get("DASHBOARD_TEST_INGRESS"):
+            # the second run of the browser suite: everything goes through the ingress test proxy (F1)
+            from dashboard.tests.ingress_proxy import IngressProxy
+
+            self.proxy = IngressProxy(self._server.server_port)
+            self.url = self.proxy.url
         self._thread = threading.Thread(
             target=lambda: self._server.serve_forever(poll_interval=0.02),
             daemon=True,
@@ -73,6 +81,11 @@ class LiveApp:
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)
+        if self.proxy is not None:
+            self.proxy.stop()
+            assert not self.proxy.stray, (
+                f"requests outside the ingress prefix: {self.proxy.stray}"
+            )
 
 
 PARENT_MAIL = "parent@example.org"

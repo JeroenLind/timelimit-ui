@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -41,7 +42,7 @@ def test_add_a_child_and_a_parent(
     live = live_app_factory()
     enable(page, live)
     # a click on the menu item races with a second load of the page; the item itself is tested above
-    expect(page.locator("#nav-test")).to_have_attribute("href", "/test")
+    expect(page.locator("#nav-test")).to_have_attribute("href", re.compile(r"/test$"))
     page.goto(live.url + "/test")
     page.fill("#test-name", "Mia")
     page.click("#test-form button[type=submit]")

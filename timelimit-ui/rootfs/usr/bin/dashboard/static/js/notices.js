@@ -1,6 +1,6 @@
 // Banners that appear on every page: untested server version, ended session (never blocking).
 
-import { apiFetch } from "./api.js";
+import { apiFetch, withBase } from "./api.js";
 import { applyTranslations, t } from "./i18n.js";
 
 let last = [];
@@ -58,7 +58,7 @@ export function renderNotices() {
       }
       if (notice.code === "SESSION_INVALID") {
         const link = document.createElement("a");
-        link.href = "/settings";
+        link.href = withBase("/settings");
         link.dataset.i18n = "notice.SESSION_INVALID.link";
         banner.append(link);
       }

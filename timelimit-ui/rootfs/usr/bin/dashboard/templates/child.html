@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div id="child-page" data-child-id="{{ child_id }}">
-  <p><a href="/" data-i18n="child.back">All children</a></p>
+  <p><a href="{{ request.script_root }}/" data-i18n="child.back">All children</a></p>
   <p id="child-error" class="form-error" role="alert" hidden></p>
   <div id="child-unknown" class="panel" hidden>
     <h2 data-i18n="child.unknown.title">Child not found</h2>

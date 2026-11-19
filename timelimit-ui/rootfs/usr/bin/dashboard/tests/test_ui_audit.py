@@ -32,7 +32,7 @@ def test_the_tab_shows_the_session_newest_first(
         (f"{base}/temp-block", "PUT", {"minutes": 30}),
     ):
         status = page.evaluate(
-            """async ([p, m, b]) => (await fetch(p, {method: m, headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)})).status""",
+            """async ([p, m, b]) => (await fetch(document.querySelector('meta[name="base-path"]').content + p, {method: m, headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)})).status""",
             [path, method, body],
         )
         assert status == 200

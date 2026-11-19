@@ -174,7 +174,7 @@ def test_confirmation_dialog_confirms_cancels_and_traps_focus(
 ) -> None:
     page = make_page(browser)
     open_app(page, live_app_factory())
-    ask = """() => import('/static/js/dialog.js').then(m =>
+    ask = """() => import(document.querySelector('meta[name="base-path"]').content + '/static/js/dialog.js').then(m =>
         { window.answer = m.confirmDialog({title: 'Delete?', message: 'Sure?', danger: true})
             .then(v => { window.result = v; }); })"""
     dialog = page.locator("#confirm-dialog")

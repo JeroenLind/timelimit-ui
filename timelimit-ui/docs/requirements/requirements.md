@@ -181,7 +181,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 |----|-----|-------------|--------|
 | TR-300 | M | Python 3.10+; `requirements.txt` with loose version ranges. Starts with `py -3 app.py` on Windows. | Done |
 | TR-301 | M | All settings (port, data directory, log level, timings) come from a config file/environment variables and the UI; no hard-coded paths, so the same code runs as an HA add-on (paths via add-on options). | Partial |
-| TR-302 | S | Later: second HA add-on (**aarch64**), reached through ingress, built by GitHub Actions to `ghcr.io`; no base-URL assumptions (relative URLs). The Windows version is run locally without a GitHub build. The add-on s6 service must start the new dashboard (`dashboard-v2`), not the legacy `web_server.py`. | Open |
+| TR-302 | S | Later: second HA add-on (**aarch64**), reached through ingress, built by GitHub Actions to `ghcr.io`; no base-URL assumptions (relative URLs). The Windows version is run locally without a GitHub build. The add-on s6 service must start the new dashboard (`dashboard-v2`), not the legacy `web_server.py`. | In progress (F1 done: ingress prefix; F2/F3 open) |
 | TR-303 | M | Timeouts: all outgoing server requests and all browser `fetch` calls have a timeout (AbortController in the browser). Network errors are caught and shown. | Open |
 | TR-304 | S | Retry for failed sync rounds: up to 2 retries after 250 ms, then back-off. Timings configurable (see FR-1000/1002). | Partial |
 | TR-305 | M | Default port **8100** (configurable) and default listen address **127.0.0.1**; the HA add-on sets `0.0.0.0` for ingress. | Rework (now 8099, 0.0.0.0) |

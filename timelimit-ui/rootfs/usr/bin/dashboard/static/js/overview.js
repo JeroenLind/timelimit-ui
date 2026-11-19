@@ -1,4 +1,4 @@
-import { apiFetch } from "./api.js";
+import { apiFetch, withBase } from "./api.js";
 import { t } from "./i18n.js";
 import { formatDuration, statusLabel } from "./format.js";
 
@@ -8,7 +8,7 @@ function card(child) {
   const li = document.createElement("li");
   li.dataset.childId = child.id;
   const link = document.createElement("a");
-  link.href = `/children/${encodeURIComponent(child.id)}`;
+  link.href = withBase(`/children/${encodeURIComponent(child.id)}`);
   link.className = "card-title";
   link.textContent = child.name;
   const status = document.createElement("span");

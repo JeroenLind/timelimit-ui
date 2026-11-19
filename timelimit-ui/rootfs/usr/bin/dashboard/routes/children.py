@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, redirect, render_template
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request
 from flask.typing import ResponseReturnValue
 
 from dashboard.routes.pages import timings
@@ -51,5 +51,5 @@ def general_audit() -> ResponseReturnValue:
 def child_page(child_id: str) -> ResponseReturnValue:
     link: LinkService = current_app.extensions["dashboard"]["link"]
     if link.state() not in (READY, SESSION_INVALID):
-        return redirect("/settings")
+        return redirect(request.script_root + "/settings")
     return render_template("child.html", timings=timings(), child_id=child_id)

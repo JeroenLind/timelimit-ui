@@ -1,6 +1,7 @@
 // Texts come from /static/i18n/<lang>.json; a missing key falls back to English (TR-311).
 // Language: the stored choice, else the browser language if it is nl or en, else English (Q8).
 
+import { withBase } from "./api.js";
 import { LANGUAGES, readPref, writePref } from "./prefs.js";
 
 let current = {};
@@ -9,7 +10,7 @@ let language = "en";
 
 async function load(lang) {
   try {
-    const response = await fetch(`/static/i18n/${lang}.json`);
+    const response = await fetch(withBase(`/static/i18n/${lang}.json`));
     return response.ok ? await response.json() : {};
   } catch {
     return {};
