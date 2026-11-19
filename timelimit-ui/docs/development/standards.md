@@ -1,8 +1,8 @@
 # Development standards
 
 Requirements TR-510..TR-519, design section 9.1, plan step A0. These rules apply to the new package
-`rootfs/usr/bin/dashboard/` and to `tools/`. The legacy code (`dashboardV2/` and the old UI layer) is not
-linted or reformatted; it is deleted at the cut-over.
+`rootfs/usr/bin/dashboard/` and to `tools/`. The legacy code (`dashboardV2/` and the old UI layer) was deleted at
+the cut-over (plan step G1, 2026-11-19); the git history keeps it.
 
 ## One command
 

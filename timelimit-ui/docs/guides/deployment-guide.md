@@ -114,13 +114,13 @@ The add-on integrates with Home Assistant's:
 
 ### Installation
 
-1. Clone the repository and go to the application directory (`app.py` and the
-   requirements files live in `dashboardV2`):
+1. Clone the repository and go to the application directory (the requirements files are in the
+   application folder, `app.py` is in `rootfs/usr/bin/dashboard`):
 ```bash
 git clone https://github.com/JeroenLind/timelimit-ui.git
 cd timelimit-ui
 git checkout claudeEnhancedVersion
-cd timelimit-ui/rootfs/usr/bin/dashboardV2
+cd timelimit-ui
 ```
 
 2. Install dependencies (on Windows use `py -3` instead of `python`):
@@ -130,23 +130,24 @@ python -m pip install -r requirements.txt
 python -m pip install -r requirements-dev.txt
 ```
 
-3. Set environment variables (optional):
+3. Set environment variables (optional; defaults: 127.0.0.1, port 8100, level INFO):
 ```bash
-export FLASK_HOST=0.0.0.0
-export FLASK_PORT=8099
-export FLASK_DEBUG=false
-export LOG_LEVEL=info
+export DASHBOARD_HOST=127.0.0.1
+export DASHBOARD_PORT=8100
+export DASHBOARD_LOG_LEVEL=INFO
 ```
-On Windows (PowerShell): `$env:FLASK_PORT = "8099"`.
+On Windows (PowerShell): `$env:DASHBOARD_PORT = "8100"`. Every setting can also be put in `config.json`
+in the data folder (see `docs/architecture/design.md` section 8).
 
 4. Run the application:
 ```bash
-python app.py
+cd rootfs/usr/bin/dashboard
+py -3 app.py
 ```
+Then open http://127.0.0.1:8100/ and choose the TimeLimit server in the settings screen.
 
-The app creates its own runtime files next to `app.py` (SQLite database,
-`dashboard_signing_key.json`, `server_selection.json`, logs). These are listed in
-`.gitignore` and must not be committed.
+The app creates its runtime files (SQLite database, session file, secret key, logs) in the `data` folder next
+to `app.py`. These are listed in `.gitignore` and must not be committed.
 
 ### Running as a Service
 
@@ -396,7 +397,7 @@ cp /data/timelimit_ui_storage.json /backup/timelimit_ui_storage_$(date +%Y%m%d).
 ├── auth_backup.json             # Auth token backup
 └── logs/
     ├── dashboard.log            # Main log file
-    └── dashboardV2-*.log        # Timestamped log files
+    └── dashboard.log.1, .2 ...    # rotated log files
 ```
 
 ---

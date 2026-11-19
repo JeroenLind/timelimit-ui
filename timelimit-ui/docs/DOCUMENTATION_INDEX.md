@@ -307,7 +307,7 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 
 **Purpose**: Analysis of UI patterns for implementing features
 
-### Dashboard V2 Implementation (`docs/dashboardV2-implementation.md`)
+### Dashboard V2 Implementation (`docs/archive/dashboardV2-implementation.md`, archived: the code was removed in plan step G1)
 
 **Purpose**: Implementation details and status
 

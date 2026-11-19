@@ -195,8 +195,9 @@ Test data is stored in JSON files:
 ### Run All Tests
 
 ```bash
-cd timelimit-ui/rootfs/usr/bin/dashboardV2
-python -m pytest tests/ -v
+# from the application folder (timelimit-ui/timelimit-ui)
+py -3 tools/check.py          # lint, types, all tests (see docs/development/standards.md)
+py -3 -m pytest -q -n auto    # only the tests
 ```
 
 ### Run Specific Test File

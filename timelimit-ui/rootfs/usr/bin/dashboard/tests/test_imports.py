@@ -7,7 +7,17 @@ import pkgutil
 
 import dashboard
 
-REMOVED = ("web_server", "api_client", "check_server", "frontend")
+REMOVED = (
+    "web_server",
+    "api_client",
+    "check_server",
+    "frontend",
+    "dashboardV2",
+    "crypto_utils",
+    "action_builder",
+    "action_pusher",
+    "key_manager",
+)
 
 
 def test_every_remaining_module_imports() -> None:
@@ -19,7 +29,6 @@ def test_every_remaining_module_imports() -> None:
     assert names
     for name in names:
         importlib.import_module(name)
-    importlib.import_module("crypto_utils")
 
 
 def test_no_source_file_imports_a_removed_module() -> None:
@@ -38,3 +47,12 @@ def test_no_source_file_imports_a_removed_module() -> None:
             else:
                 continue
             assert not set(found) & set(REMOVED), f"{path}: {found}"
+
+
+def test_the_old_application_is_gone_and_the_new_one_is_the_entry_point() -> None:
+    from pathlib import Path
+
+    bin_dir = Path(dashboard.__file__).resolve().parent.parent
+    assert not (bin_dir / "dashboardV2").exists()
+    assert not (bin_dir / "crypto_utils.py").exists()
+    assert (bin_dir / "dashboard" / "app.py").is_file()

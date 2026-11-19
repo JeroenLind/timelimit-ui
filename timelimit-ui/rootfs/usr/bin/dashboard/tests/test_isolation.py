@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 import textwrap
@@ -13,9 +12,6 @@ from pathlib import Path
 import pytest
 
 APP = Path(__file__).resolve().parents[5]
-OLD_TESTS = APP / "rootfs/usr/bin/dashboardV2/tests"
-KEPT_TESTS = APP / "rootfs/usr/bin/dashboard/tests/kept"
-DISPOSITION = APP / "docs/plan/old-tests-disposition.md"
 CACHE_DIRS = {".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
 
@@ -57,7 +53,7 @@ def _run_pytest(*args: str, cwd: Path = APP) -> subprocess.CompletedProcess[str]
 
 def test_a_run_leaves_no_file_in_the_repository_tree() -> None:
     before = _snapshot(APP)
-    result = _run_pytest("rootfs/usr/bin/dashboard/tests/kept", "-k", "key_manager")
+    result = _run_pytest("rootfs/usr/bin/dashboard/tests/test_secret_clock.py")
     assert result.returncode == 0, result.stdout[-500:]
     assert _snapshot(APP) == before
 
@@ -86,28 +82,3 @@ def test_a_hanging_test_is_killed_by_the_timeout(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "Timeout" in result.stdout
     assert time.monotonic() - started < 30
-
-
-def _listed_files() -> list[str]:
-    text = DISPOSITION.read_text(encoding="utf-8")
-    return re.findall(r"^\| `(test_[a-z0-9_]+\.py)` \|", text, flags=re.MULTILINE)
-
-
-def test_every_old_test_file_is_listed_exactly_once() -> None:
-    listed = _listed_files()
-    assert len(listed) == len(set(listed)), "a file is listed twice"
-    on_disk = {p.name for p in OLD_TESTS.glob("test_*.py")} | {
-        p.name for p in KEPT_TESTS.glob("test_*.py")
-    }
-    assert on_disk == set(listed), (
-        f"not listed: {sorted(on_disk - set(listed))}; listed but missing: "
-        f"{sorted(set(listed) - on_disk)}"
-    )
-
-
-def test_kept_files_live_in_the_new_tree_and_the_rest_stays_legacy() -> None:
-    text = DISPOSITION.read_text(encoding="utf-8")
-    keep_section = text.split("## K")[1].split("## R")[0]
-    kept = set(re.findall(r"`(test_[a-z0-9_]+\.py)`", keep_section))
-    assert kept == {p.name for p in KEPT_TESTS.glob("test_*.py")}
-    assert kept.isdisjoint(p.name for p in OLD_TESTS.glob("test_*.py"))

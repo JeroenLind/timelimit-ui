@@ -10,19 +10,12 @@ requires-python = ">=3.10"
 # Ruff defaults on purpose (no own rule selection); only the target and scope are set.
 target-version = "py310"
 src = ["rootfs/usr/bin"]
-# The legacy dashboardV2 code is not linted: it is deleted at the cut-over (plan G1).
-extend-exclude = [
-    "rootfs/usr/bin/dashboardV2",
-    "rootfs/usr/bin/crypto_utils.py",
-]
 
 [tool.mypy]
 python_version = "3.10"
 mypy_path = "rootfs/usr/bin"
 explicit_package_bases = true
 files = ["rootfs/usr/bin/dashboard"]
-# The kept old tests import untyped legacy modules (until B2/B4 moves them).
-exclude = ["tests/kept/"]
 warn_unused_configs = true
 
 # Strict where the code is pure or the only door to the outside (TR-515).
@@ -35,7 +28,6 @@ testpaths = ["rootfs/usr/bin/dashboard", "tools/tests"]
 pythonpath = ["tools", "rootfs/usr/bin"]
 timeout = 30
 markers = [
-    "legacy: old dashboardV2 tests, run apart until the cut-over (plan T2)",
     "ui: Playwright browser tests (not run by the pre-commit hook)",
 ]
 

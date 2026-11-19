@@ -24,7 +24,7 @@ def steps(fast: bool) -> list[tuple[str, list[str], dict[str, str]]]:
     if importlib.util.find_spec("xdist") is not None:
         pytest += ["-n", "auto"]
     if fast:
-        pytest += ["-m", "not ui and not legacy"]
+        pytest += ["-m", "not ui"]
     result: list[tuple[str, list[str], dict[str, str]]] = [
         ("ruff check", [py, "-m", "ruff", "check", *TARGETS], {}),
         ("ruff format", [py, "-m", "ruff", "format", "--check", *TARGETS], {}),

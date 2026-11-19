@@ -41,7 +41,7 @@ Welcome to the Dashboard V2 documentation. This is the central hub for all docum
   - [Implementation Plan](plans/time-limit-rules/implementation-plan.md)
 
 ### Additional Documentation
-- [Dashboard V2 Implementation](dashboardV2-implementation.md) - Implementation details
+- [Old Dashboard V2 implementation (archived)](archive/dashboardV2-implementation.md) - history of the code removed in G1
 - [Create Family Fixes](create-family-fixes.md) - Fixes for family creation flow
 
 ## Overview
