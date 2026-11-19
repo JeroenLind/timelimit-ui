@@ -32,14 +32,19 @@ def test_every_enabled_service_is_a_complete_longrun_service() -> None:
         assert (S6 / name / "run").is_file(), name
 
 
-def test_the_run_script_starts_a_file_that_exists() -> None:
+def test_the_run_script_starts_the_addon_module_of_the_new_dashboard() -> None:
     script = (S6 / "dashboard-v2" / "run").read_text()
     folder = re.search(r"^cd (\S+)", script, re.MULTILINE)
-    target = re.search(r"^exec python3 (?:-u )?(\S+\.py)", script, re.MULTILINE)
-    assert folder and target, (
-        "run script must `cd` into the app folder and `exec python3 <file>.py`"
+    module = re.search(r"^exec python3 (?:-u )?-m (\S+)", script, re.MULTILINE)
+    assert folder and module, "run script must `cd` and `exec python3 -m <module>`"
+    path = (
+        REPO
+        / "rootfs"
+        / folder.group(1).lstrip("/")
+        / (module.group(1).replace(".", "/") + ".py")
     )
-    assert (REPO / "rootfs" / folder.group(1).lstrip("/") / target.group(1)).is_file()
+    assert path.is_file()
+    assert module.group(1) == "dashboard.addon"
 
 
 def test_the_dockerfile_references_no_legacy_file() -> None:
@@ -53,16 +58,27 @@ def test_the_dockerfile_makes_the_enabled_service_executable() -> None:
         assert f"/etc/s6-overlay/s6-rc.d/{name}/run" in text
 
 
-def test_the_image_installs_what_the_started_app_imports() -> None:
-    """The started app needs these third-party packages; the Dockerfile must provide them."""
+def test_the_image_installs_from_the_requirements_and_the_constraints_file() -> None:
+    text = (REPO / "Dockerfile").read_text()
+    assert "-r /tmp/requirements.txt" in text
+    assert "-c /tmp/constraints.txt" in text
+    assert "COPY requirements.txt constraints.txt" in text
+
+
+def test_every_requirement_is_pinned_in_the_constraints_file() -> None:
+    pinned = {
+        re.split(r"[=<>\[]", line, maxsplit=1)[0].lower().replace("_", "-")
+        for line in (REPO / "constraints.txt").read_text().splitlines()
+        if line and not line.startswith("#")
+    }
+    for line in (REPO / "requirements.txt").read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if line:
+            name = re.split(r"[=<>\[]", line, maxsplit=1)[0].lower().replace("_", "-")
+            assert name in pinned, name
+
+
+def test_the_image_does_not_depend_on_the_legacy_libraries() -> None:
     text = (REPO / "Dockerfile").read_text().lower()
-    for package in (
-        "flask",
-        "werkzeug",
-        "requests",
-        "bcrypt",
-        "cryptography",
-        "structlog",
-        "apscheduler",
-    ):
-        assert package in text, package
+    for package in ("structlog", "apscheduler"):
+        assert package not in text

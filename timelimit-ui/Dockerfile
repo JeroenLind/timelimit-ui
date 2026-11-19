@@ -1,19 +1,14 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
+ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Python and the libraries with native code come from Alpine packages;
-# the pure Python libraries of the dashboard come from pip.
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    py3-requests \
-    py3-bcrypt \
-    py3-cryptography \
- && pip3 install --no-cache-dir --break-system-packages \
-    "flask>=3.0,<4" \
-    "werkzeug>=3.0,<4" \
-    "structlog>=23.1" \
-    "apscheduler>=3.10,<4"
+# Python only; every library comes from pip, pinned by the generated constraints file
+# (tools/make_constraints.py), so the image does not depend on what Alpine packages.
+RUN apk add --no-cache python3 py3-pip
+
+COPY requirements.txt constraints.txt /tmp/
+RUN pip3 install --no-cache-dir --break-system-packages \
+    -r /tmp/requirements.txt -c /tmp/constraints.txt \
+ && rm /tmp/requirements.txt /tmp/constraints.txt
 
 # The whole rootfs: the s6 service definitions and the dashboard.
 COPY rootfs /

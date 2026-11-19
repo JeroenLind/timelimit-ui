@@ -211,7 +211,7 @@ Gap: one 1865-line `dashboardV2.js`, 1626-line CSS, 128 inline styles in `dashbo
 - Logging: configurable level, rotation (size and file count), debug export.
 - Python 3.10+, `requirements.txt` with loose ranges.
 
-Gap: `config.yaml` says `amd64` only and has a hard-coded server URL; the Dockerfile and s6 list start the legacy `web_server.py`; database and logs are in the module folder; the log path is relative.
+Done in F2: `config.yaml` is aarch64 with ingress and one option (`log_level`); `build.yaml` names the aarch64 base image; the Dockerfile installs from `requirements.txt` + `constraints.txt`; the s6 service runs `python3 -m dashboard.addon`, which maps `/data/options.json` to `DASHBOARD_*` (host `0.0.0.0`, port 8099, data `/data`). Still open: the dashboard folder `dashboardV2/` is only deleted in G1, and the image has not been built or started here (no container runtime; the CI smoke test comes in F3).
 
 ## 9. Test strategy
 

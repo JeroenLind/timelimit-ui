@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv bashio
-cd /usr/bin/dashboardV2
-bashio::log.info "Starting TimeLimit Dashboard V2..."
-# Pass --ha-ingress to enable HA-specific persistence
-exec python3 -u app.py --ha-ingress
+# Home Assistant writes the add-on options to /data/options.json; dashboard.addon maps them to settings.
+cd /usr/bin
+bashio::log.info "Starting TimeLimit Dashboard..."
+exec python3 -u -m dashboard.addon

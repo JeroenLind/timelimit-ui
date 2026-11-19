@@ -1,19 +1,17 @@
 name: "Timelimit UI"
-description: "WebUI app voor beheer van TimeLimit regels en synchronisatie"
+description: "Web dashboard for the parent controls of the TimeLimit app"
 version: "1.0.0"
 slug: "timelimit-ui"
 arch:
-  - amd64
+  - aarch64
 init: false
-image: "ghcr.io/jeroenlind/timelimit-ui-amd64"
+image: "ghcr.io/jeroenlind/timelimit-ui-{arch}"
 ingress: true
 ingress_port: 8099
 panel_icon: "mdi:clock-check"
 panel_title: "Timelimit"
 panel_admin: false
 options:
-  server_url: "http://192.168.68.30:8080"
-  logging_mode: "verbose"
+  log_level: "info"
 schema:
-  server_url: str
-  logging_mode: list(standard|verbose)
+  log_level: list(debug|info|warning|error)
