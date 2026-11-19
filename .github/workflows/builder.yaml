@@ -1,35 +1,82 @@
 name: Builder
 
+# Builds the aarch64 add-on image when the add-on version changes (config.yaml), after the checks and a
+# smoke test of the image have passed. The Windows version is not built here.
 on:
   push:
     branches: [ main ]
+    paths:
+      - "timelimit-ui/config.yaml"
   workflow_dispatch:
 
 jobs:
-  build:
+  checks:
     runs-on: ubuntu-latest
-    # Voeg dit blok toe om schrijfrechten te geven voor packages
+    defaults:
+      run:
+        working-directory: timelimit-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      - name: Fast checks (lint, types, unit tests)
+        run: python tools/check.py --fast
+
+  smoke:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the aarch64 image
+        run: |
+          base=$(sed -n 's/^  aarch64: "\(.*\)"$/\1/p' timelimit-ui/build.yaml)
+          docker buildx build --platform linux/arm64 --load \
+            --build-arg BUILD_FROM="$base" -t timelimit-ui:smoke timelimit-ui
+      - name: Start it and ask /api/health
+        run: |
+          mkdir -p smoke-data
+          echo '{"log_level": "info"}' > smoke-data/options.json
+          # the add-on entry point without s6: the same module the s6 service runs
+          docker run -d --name smoke --platform linux/arm64 -v "$PWD/smoke-data:/data" -p 8099:8099 \
+            --entrypoint python3 timelimit-ui:smoke -u -m dashboard.addon
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8099/api/health; then ok=1; break; fi
+            sleep 2
+          done
+          docker logs smoke
+          test "${ok:-0}" = 1
+      - name: Check the version in the image
+        run: |
+          expected=$(sed -n 's/^version: "\(.*\)"$/\1/p' timelimit-ui/config.yaml)
+          curl -fsS http://127.0.0.1:8099/api/health \
+            | python3 -c "import json,sys; assert json.load(sys.stdin)['version'] == '$expected'"
+
+  publish:
+    needs: smoke
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish Add-on
+      - name: Publish add-on
         uses: home-assistant/builder@master
         with:
           args: |
-            --amd64 \
             --aarch64 \
             --target timelimit-ui \
             --docker-hub ghcr.io/jeroenlind \

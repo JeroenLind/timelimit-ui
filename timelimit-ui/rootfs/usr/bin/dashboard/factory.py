@@ -7,6 +7,7 @@ from typing import Any
 
 from flask import Flask
 
+from dashboard import __version__
 from dashboard.config import Settings
 from dashboard.domain.clock import Clock
 from dashboard.domain.secret import Secret
@@ -67,6 +68,7 @@ def create_app(
     app = Flask("dashboard", static_folder="static", template_folder="templates")
     app.wsgi_app = IngressPrefix(app.wsgi_app)  # type: ignore[method-assign]
     app.config["SECRET_KEY"] = secret_key.reveal()
+    app.config["VERSION"] = __version__
     clock = clock or SystemClock()
     hub = EventHub()
     backend = Backend(settings, hub, clock)

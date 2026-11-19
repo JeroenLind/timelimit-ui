@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from dashboard import __version__
 from dashboard.config import Settings, load_settings
 from dashboard.domain.clock import FakeClock
 from dashboard.domain.secret import Secret
@@ -50,7 +51,7 @@ def test_health_route_and_app_wiring(data_dir: Path) -> None:
     assert app.extensions["dashboard"]["clock"] is clock
     response = app.test_client().get("/api/health")
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
+    assert response.get_json() == {"status": "ok", "version": __version__}
 
 
 @pytest.fixture
@@ -70,7 +71,7 @@ def test_server_answers_on_127_0_0_1(server: tuple[str, int]) -> None:
     host, port = server
     assert host == "127.0.0.1"
     with urllib.request.urlopen(f"http://{host}:{port}/api/health", timeout=5) as reply:
-        assert json.load(reply) == {"status": "ok"}
+        assert json.load(reply) == {"status": "ok", "version": __version__}
 
 
 def test_a_connection_from_another_interface_is_refused(

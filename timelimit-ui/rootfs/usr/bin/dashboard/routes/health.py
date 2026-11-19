@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify
 from flask.typing import ResponseReturnValue
 
 bp = Blueprint("health", __name__)
@@ -10,4 +10,4 @@ bp = Blueprint("health", __name__)
 
 @bp.get("/api/health")
 def health() -> ResponseReturnValue:
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "version": current_app.config["VERSION"]})
