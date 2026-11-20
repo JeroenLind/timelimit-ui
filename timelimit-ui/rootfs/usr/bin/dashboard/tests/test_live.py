@@ -284,3 +284,20 @@ def test_the_stream_route_sends_events_to_the_browser(data_dir: Path) -> None:
     assert wait_for(lambda: hub.subscribers == 0), (
         "the subscription ends with the browser"
     )
+
+
+def test_without_websocket_client_it_warns_once_and_only_polls(
+    h: PushHarness, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr("dashboard.sync.live.websocket_available", lambda: False)
+    live = Live(h)
+    live.live._transports = ["websocket"]
+    try:
+        with caplog.at_level("WARNING"):
+            live.live.start()
+            assert wait_for(lambda: live.live.pulls_started >= 2)
+        assert not live.live.connect_attempts  # never tried to open a socket
+        warnings = [r for r in caplog.records if "websocket-client" in r.getMessage()]
+        assert len(warnings) == 1
+    finally:
+        live.stop()

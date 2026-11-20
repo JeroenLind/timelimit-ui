@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import socket
 import threading
 import time
@@ -34,6 +35,12 @@ STATE_OK = "ok"
 STATE_SESSION_INVALID = "session_invalid"
 
 PullFunction = Callable[[], PullResult]
+
+
+def websocket_available() -> bool:
+    """Is the ``websocket-client`` package installed? Without it only long polling would work, and the
+    TimeLimit server accepts the websocket transport only (ServerAPI section 6)."""
+    return importlib.util.find_spec("websocket") is not None
 
 
 class LiveSync:
@@ -162,6 +169,16 @@ class LiveSync:
         self._hub.publish({"type": "live", "connected": value})
 
     def _listen(self) -> None:
+        if "websocket" in self._transports and not websocket_available():
+            log.warning(
+                "websocket-client is not installed: live updates are off and the dashboard polls instead",
+                extra=fields(
+                    poll_seconds=self._poll_interval,
+                    fix="py -3 -m pip install -r requirements.txt",
+                ),
+            )
+            self._stop.wait()  # no point in trying to connect every few seconds; the poller keeps data fresh
+            return
         while not self._stop.is_set() and not self._session_invalid.is_set():
             self.connect_attempts.append(time.monotonic())
             self._one_connection()
