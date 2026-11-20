@@ -169,6 +169,9 @@ This document provides a comprehensive index of all Dashboard V2 documentation, 
 - Configuration
 - Support
 
+### Acceptance plan (`docs/guides/acceptance-plan.md`)
+Manual test steps for Windows and, later, Home Assistant.
+
 ### Deployment Guide (`docs/guides/deployment-guide.md`)
 
 **Purpose**: Installation and deployment instructions
