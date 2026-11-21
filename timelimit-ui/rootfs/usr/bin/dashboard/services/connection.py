@@ -6,6 +6,7 @@ never raises: an unreachable server is an ordinary state the UI shows as a banne
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from dashboard.client.server import TimeLimitClient
@@ -19,6 +20,9 @@ log = get_logger("connection")
 NOT_CONFIGURED = "not_configured"
 UP = "up"
 DOWN = "down"
+SLOW_PROBE_SECONDS = (
+    1.0  # an answer slower than this is logged although the server is "up"
+)
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,8 @@ class ConnectionService:
         self._profiles = profiles
         self._clients: dict[str, TimeLimitClient] = {}
         self._last: str | None = None
+        self._failures = 0  # consecutive failed probes
+        self._down_since: float | None = None
 
     def _client_for_active_server(self) -> TimeLimitClient | None:
         url = (
@@ -58,11 +64,14 @@ class ConnectionService:
         client = self._client_for_active_server()
         if client is None:
             return ServerStatus(NOT_CONFIGURED)
+        started = time.monotonic()
         try:
             client.server_time()
             result = ServerStatus(UP)
         except DashboardError as error:
             result = ServerStatus(DOWN, error.code.value)
+        elapsed = time.monotonic() - started
+        self._track(result, elapsed)
         if result.state != self._last:
             log.info(
                 "server state changed",
@@ -70,6 +79,36 @@ class ConnectionService:
             )
             self._last = result.state
         return result
+
+    def _track(self, result: ServerStatus, elapsed: float) -> None:
+        """Extra diagnostics: failure streaks, recovery time and slow answers (all rate-limited by state)."""
+        now = time.monotonic()
+        if result.state == DOWN:
+            self._failures += 1
+            if self._down_since is None:
+                self._down_since = now
+            if self._failures in (1, 2, 5) or self._failures % 20 == 0:
+                log.warning(
+                    "probe failed",
+                    extra=fields(
+                        code=result.code,
+                        consecutive=self._failures,
+                        elapsed_ms=round(elapsed * 1000),
+                    ),
+                )
+            return
+        if self._failures:
+            log.info(
+                "server reachable again",
+                extra=fields(
+                    failed_probes=self._failures,
+                    down_s=round(now - (self._down_since or now), 1),
+                ),
+            )
+        self._failures = 0
+        self._down_since = None
+        if result.state == UP and elapsed > SLOW_PROBE_SECONDS:
+            log.warning("slow probe", extra=fields(elapsed_ms=round(elapsed * 1000)))
 
     def require_online(self) -> None:
         """Gate for every change: refuse with READ_ONLY_OFFLINE while the server is down (FR-1001).

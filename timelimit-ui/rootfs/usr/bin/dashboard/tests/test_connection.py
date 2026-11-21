@@ -96,3 +96,55 @@ def test_the_server_url_setting_follows_the_https_rule(tmp_path: Path) -> None:
         env={"DASHBOARD_SERVER_URL": "http://localhost:8080/"}, app_dir=tmp_path
     )
     assert ok.server_url == "http://localhost:8080"
+
+
+def test_failed_requests_are_logged_with_kind_and_timing(
+    data_dir: Path,
+    fake_server: FakeTimeLimitServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = ConnectionService(settings_for(data_dir, fake_server.url))
+    service.status()
+    fake_server.stop()
+    with caplog.at_level("WARNING"):
+        service.status()
+    record = next(r for r in caplog.records if r.getMessage() == "http request failed")
+    assert record.fields["kind"] == "connection"
+    assert record.fields["path"] == "/time"
+    assert record.fields["idle_s"] is not None
+    assert record.fields["timeout_s"] > 0
+    assert isinstance(record.fields["elapsed_ms"], int)
+
+
+def test_a_timeout_is_logged_as_timeout(
+    data_dir: Path,
+    fake_server: FakeTimeLimitServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_server.faults.delay_seconds = 1.0
+    service = ConnectionService(settings_for(data_dir, fake_server.url))
+    with caplog.at_level("WARNING"):
+        service.status()
+    record = next(r for r in caplog.records if r.getMessage() == "http request failed")
+    assert record.fields["kind"] == "timeout"
+    assert record.fields["elapsed_ms"] >= 500
+
+
+def test_failure_streak_and_recovery_are_logged(
+    data_dir: Path,
+    fake_server: FakeTimeLimitServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = ConnectionService(settings_for(data_dir, fake_server.url))
+    fake_server.faults.delay_seconds = 1.0
+    with caplog.at_level("INFO"):
+        service.status()
+        service.status()
+        fake_server.faults.delay_seconds = 0.0
+        service.status()
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages.count("probe failed") == 2
+    again = next(
+        r for r in caplog.records if r.getMessage() == "server reachable again"
+    )
+    assert again.fields["failed_probes"] == 2

@@ -10,6 +10,7 @@ import gzip
 import ipaddress
 import json
 import logging
+import time
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -22,6 +23,24 @@ log = logging.getLogger("dashboard.client")
 
 CLIENT_LEVEL = 7  # TR-104: the dashboard only uses what is available at this level
 OFFICIAL_SERVER_URL = "https://api.timelimit.io"
+
+
+def _root_cause(exc: BaseException) -> str:
+    """Class name of the innermost exception (e.g. ``ConnectionResetError``), to tell failures apart in the log."""
+    seen = 0
+    current: BaseException = exc
+    while seen < 10:
+        reason = current.args[0] if current.args else None
+        nested = getattr(reason, "reason", None) or reason
+        following = current.__cause__ or current.__context__
+        if isinstance(nested, BaseException) and nested is not current:
+            current = nested
+        elif following is not None:
+            current = following
+        else:
+            break
+        seen += 1
+    return type(current).__name__
 
 
 class ServerHttpError(DashboardError):
@@ -124,6 +143,9 @@ class TimeLimitClient:
         self.base_url = validate_server_url(base_url)
         self.timeout = timeout
         self._session = session or requests.Session()
+        self._last_answer: float | None = (
+            None  # monotonic time of the last answer (idle time in failures)
+        )
 
     # -- the one place that does HTTP ----------------------------------------------------------------
     def _request(
@@ -147,6 +169,7 @@ class TimeLimitClient:
                     "Content-Encoding": "gzip",
                 },
             )
+        started = time.monotonic()
         try:
             response = self._session.request(
                 method, url, data=data, headers=headers, timeout=wait
@@ -155,7 +178,7 @@ class TimeLimitClient:
                 # Like the Android app: a server that wants a plain body with an explicit length.
                 log.info(
                     "server answered 411, repeating without compression",
-                    extra={"path": path},
+                    extra={"fields": {"path": path}},
                 )
                 plain = {
                     "Accept": "application/json",
@@ -165,17 +188,21 @@ class TimeLimitClient:
                     method, url, data=raw, headers=plain, timeout=wait
                 )
         except requests.Timeout as exc:
+            self._log_failure(method, path, started, wait, exc, "timeout")
             raise DashboardError(
                 ErrorCode.SERVER_TIMEOUT,
                 f"The server did not answer within {wait:g} seconds.",
             ) from exc
         except requests.RequestException as exc:
+            self._log_failure(method, path, started, wait, exc, "connection")
             raise DashboardError(
                 ErrorCode.SERVER_UNREACHABLE, "The server cannot be reached."
             ) from exc
+        self._last_answer = time.monotonic()
         if response.status_code != 200:
             log.warning(
-                "server error", extra={"path": path, "status": response.status_code}
+                "server error",
+                extra={"fields": {"path": path, "status": response.status_code}},
             )
             raise _error_for_status(response.status_code)
         try:
@@ -185,6 +212,38 @@ class TimeLimitClient:
                 ErrorCode.SERVER_UNREACHABLE,
                 "The server sent an answer that is not JSON.",
             ) from exc
+
+    def _log_failure(
+        self,
+        method: str,
+        path: str,
+        started: float,
+        wait: float,
+        exc: BaseException,
+        kind: str,
+    ) -> None:
+        """One WARNING per failed request: what failed, how fast, and how long the connection sat idle.
+
+        ``elapsed_ms`` near 0 means an instant refusal/reset (typically a dead pooled connection);
+        near ``timeout_s`` means nothing came back at all (network path or an unresponsive server).
+        """
+        now = time.monotonic()
+        idle = None if self._last_answer is None else round(now - self._last_answer, 1)
+        log.warning(
+            "http request failed",
+            extra={
+                "fields": {
+                    "method": method,
+                    "path": path,
+                    "kind": kind,
+                    "error_type": type(exc).__name__,
+                    "root_cause": _root_cause(exc),
+                    "elapsed_ms": round((now - started) * 1000),
+                    "timeout_s": wait,
+                    "idle_s": idle,
+                }
+            },
+        )
 
     def _post(
         self, path: str, body: dict[str, Any], timeout: float | None = None
