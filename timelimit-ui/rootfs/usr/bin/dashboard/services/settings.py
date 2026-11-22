@@ -19,7 +19,7 @@ from dashboard.services.profiles import ServerProfiles
 from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
-TESTED_API_LEVELS = (7, 9)  # Q7
+TESTED_API_LEVELS = (7, 9, 10)  # Q7; see ServerAPI.md
 DASHBOARD_VERSION = "1.0.0"
 LOG_TAIL_LINES = 500
 SHOWN_TIMINGS = (

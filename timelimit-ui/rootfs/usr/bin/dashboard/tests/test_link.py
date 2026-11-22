@@ -295,7 +295,8 @@ def test_two_servers_keep_separate_profiles(
 
 # -- version warning (Q7) ----------------------------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    ("level", "warns"), [(7, False), (9, False), (8, True), (10, True), (3, True)]
+    ("level", "warns"),
+    [(7, False), (9, False), (10, False), (8, True), (11, True), (3, True)],
 )
 def test_untested_api_level_warns_but_stays_usable(
     level: int, warns: bool, make_app: Any, data_dir: Path

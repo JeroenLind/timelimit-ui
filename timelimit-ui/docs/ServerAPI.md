@@ -11,6 +11,7 @@ This document is the reference for how Dashboard V2 talks to a TimeLimit server.
 | Verified on | 2026-11-03 |
 | Server reference A | `eixel05/timelimit-server` @ `569e5ce` (2024-12-02), unmodified copy of upstream `timelimit-server`, `apiLevel` 7 |
 | Server reference B | `MichaelSp/timelimit-server` @ `fe90617` (2026-10-21), declares `codeberg.org/timelimit/timelimit-server#master` as its upstream (`upstream.json`), `apiLevel` 9. **Used as the primary reference**, because it is the newer protocol level (the dashboard already handles `pings`, which only exists there) |
+| Server reference C | `JeroenLind/timelimit-ha`, branch `add_mirror`, folder `mirror/` (commit `ce80236`, upstream `b0b50389` of 2026-11-09), `apiLevel` 10. Compared with B on 2026-11-22: **same** routes, action type names, schema vocabulary, `ServerDataStatus` fields and `clientLevel` gates. Different: only the number (`apiLevel: 10`), ES-module style (`.js` imports, prettier), the admin API and mail transport wiring, and `clientLevel` also passed into create-family / sign-in. Action logic was not compared line by line, so level 10 is listed as tested because it was compared at protocol level and a real level-10 server runs with the dashboard |
 | A vs. B | Identical: routes, request schemas, password regexes, integrity algorithm, byte helpers. Different: `apiLevel` 7 vs 9, `pings` in `ServerDataStatus`, extra `clientLevel` gates (>=7, >=8), `type` optional in `can-do-purchase`, `e` (expiresAt) in time limit rules. Source layout and code style differ (refactor) |
 | Client reference C | `mpashka/timelimit-android` @ `824990a` (2026-09-21), app version 7.5.0 (code 227), `clientLevel` 8. A fork of the official Android app; it adds a website filter (`UPDATE_USER_URL_FILTER`, user field `urlFilter`) that the reference servers do not know. Used to cross-check this document, see [Section 11](#11-cross-check-against-the-android-client) |
 | Client reference D | `flov91/timelimit-android` @ `d4669b3` (2026-09-08; upstream state of early 2023 plus a local-CA change), `clientLevel` 6. Cross-checked the same way |
@@ -346,7 +347,7 @@ Response: `ServerDataStatus` (source `object/serverdatastatus.ts`). Every key ex
 | `devices2`, `krq`, `kr`, `dh`, `u2f` | crypto features, gated by `clientLevel` |
 | `fullVersion` | premium end timestamp (ms), `0` = none |
 | `message` | optional message of the server operator |
-| `apiLevel` | 7 (reference A) or 9 (reference B) |
+| `apiLevel` | 7 (reference A), 9 (reference B) or 10 (reference C) |
 
 #### clientLevel gates
 
