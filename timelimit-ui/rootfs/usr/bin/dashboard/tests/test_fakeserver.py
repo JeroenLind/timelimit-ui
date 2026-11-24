@@ -223,7 +223,7 @@ def test_server_down_and_up_again(api: Api) -> None:
     assert api.pull()["apiLevel"] == 9
 
 
-@pytest.mark.parametrize("level", [7, 9])
+@pytest.mark.parametrize("level", [7, 9, 10])
 def test_api_level_is_configurable(level: int) -> None:
     with FakeTimeLimitServer(api_level=level) as server:
         api = Api(server)

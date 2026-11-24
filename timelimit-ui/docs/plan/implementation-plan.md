@@ -98,7 +98,7 @@ All questions of the first version of this plan were answered on 2026-11-06/07 a
 | Q6 | E1, E10 | How does the parent "Dashboard" come to exist? | **(b)** The dashboard logs in once as an existing parent (password used once, not stored) and creates "Dashboard" itself with `ADD_USER` (DH password container). |
 | Q6b | E1 | Import the old dashboard's link? | **No**, register again as a new device. |
 | Q6c | E1 | First family on a fresh test server? | With the test-server switch on, the link screen can **create a new family**; its first parent becomes "Dashboard". |
-| Q7 | E1 | Tested range for the version warning | **`apiLevel` 7 and 9**; any other value gives a warning (never blocks). |
+| Q7 | E1 | Tested range for the version warning | **`apiLevel` 7, 9 and 10** (10 added after a live run against the current upstream server); any other value gives a warning (never blocks). |
 | Q8 | D1 | Default language and theme | Language follows the browser (nl/en), otherwise **English**; theme follows the **system**. |
 | Q9 | A3 | How is a server marked as a test server? | Switch **"This is a test server"** in the settings screen, default off. |
 | Q10 | E9 | History when the server returns fewer than 30 days | The dashboard **builds its own daily totals** in the cache (history grows from first use). |

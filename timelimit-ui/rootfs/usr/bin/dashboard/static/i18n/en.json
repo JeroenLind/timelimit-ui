@@ -79,7 +79,7 @@
   "link.unlink.title": "Unlink?",
   "link.unlink.message": "The link and the cached data of this server are removed. You have to link again.",
   "link.unlink.confirm": "Unlink",
-  "notice.VERSION_UNTESTED": "This server reports api level {level}, which is not tested (7 and 9 are). The dashboard keeps working; check the results.",
+  "notice.VERSION_UNTESTED": "This server reports api level {level}, which is not tested (7, 9 and 10 are). The dashboard keeps working; check the results.",
   "notice.SESSION_INVALID": "The server ended this session.",
   "notice.SESSION_INVALID.link": "Link again",
   "error.INVALID_INPUT": "The input is not valid.",

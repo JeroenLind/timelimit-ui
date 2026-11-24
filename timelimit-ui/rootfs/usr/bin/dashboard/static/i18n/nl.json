@@ -79,7 +79,7 @@
   "link.unlink.title": "Ontkoppelen?",
   "link.unlink.message": "De koppeling en de gecachete gegevens van deze server worden verwijderd. Je moet opnieuw koppelen.",
   "link.unlink.confirm": "Ontkoppelen",
-  "notice.VERSION_UNTESTED": "Deze server meldt api-niveau {level}, dat niet getest is (7 en 9 wel). Het dashboard blijft werken; controleer de resultaten.",
+  "notice.VERSION_UNTESTED": "Deze server meldt api-niveau {level}, dat niet getest is (7, 9 en 10 wel). Het dashboard blijft werken; controleer de resultaten.",
   "notice.SESSION_INVALID": "De server heeft deze sessie beëindigd.",
   "notice.SESSION_INVALID.link": "Opnieuw koppelen",
   "error.INVALID_INPUT": "De invoer is niet geldig.",
