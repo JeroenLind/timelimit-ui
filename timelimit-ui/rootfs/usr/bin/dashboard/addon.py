@@ -39,11 +39,17 @@ def read_options(path: Path = OPTIONS_FILE) -> dict[str, Any]:
     return content
 
 
+def unknown_options(options: Mapping[str, Any]) -> list[str]:
+    """Options that are not (any more) in the schema, e.g. left over from an older version of the add-on.
+
+    Home Assistant keeps the stored options of the previous version after an update, so an old install
+    still carries ``server_url`` and ``auth_token``. They are ignored, never a reason not to start.
+    """
+    return sorted(set(options) - {"log_level"})
+
+
 def environment_from_options(options: Mapping[str, Any]) -> dict[str, str]:
     """The ``DASHBOARD_*`` variables for these options. Raises :class:`OptionsError` for a bad value."""
-    unknown = sorted(set(options) - {"log_level"})
-    if unknown:
-        raise OptionsError(f"unknown add-on option(s): {', '.join(unknown)}")
     level = str(options.get("log_level", DEFAULT_LOG_LEVEL)).strip().lower()
     if level not in LOG_LEVELS:
         raise OptionsError(
@@ -59,7 +65,14 @@ def environment_from_options(options: Mapping[str, Any]) -> dict[str, str]:
 
 def main(options_file: Path = OPTIONS_FILE) -> int:
     try:
-        environment = environment_from_options(read_options(options_file))
+        options = read_options(options_file)
+        leftovers = unknown_options(options)
+        if leftovers:
+            print(
+                f"Ignoring old add-on option(s): {', '.join(leftovers)}",
+                file=sys.stderr,
+            )
+        environment = environment_from_options(options)
     except OptionsError as error:
         print(f"Invalid add-on options: {error}", file=sys.stderr)
         return 2

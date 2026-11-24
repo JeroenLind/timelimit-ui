@@ -80,11 +80,26 @@ def test_a_sample_options_file_gives_valid_settings(tmp_path: Path, level: str) 
 
 @pytest.mark.parametrize(
     "options",
-    [{"log_level": "loud"}, {"server_url": "http://x"}, {"log_level": 3}],
+    [{"log_level": "loud"}, {"log_level": 3}],
 )
 def test_bad_options_are_refused_with_a_message(options: dict[str, Any]) -> None:
     with pytest.raises(addon.OptionsError):
         addon.environment_from_options(options)
+
+
+def test_options_left_over_from_an_older_version_are_ignored(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old = {"log_level": "info", "server_url": "http://x", "auth_token": "t"}
+    assert addon.unknown_options(old) == ["auth_token", "server_url"]
+    assert addon.environment_from_options(old)["DASHBOARD_LOG_LEVEL"] == "info"
+    path = tmp_path / "options.json"
+    path.write_text(json.dumps(old))
+    monkeypatch.setattr("dashboard.main.main", lambda: 0)
+    assert addon.main(path) == 0
+    err = capsys.readouterr().err
+    assert "auth_token, server_url" in err
+    assert "http://x" not in err  # only names, never values
 
 
 def test_a_broken_options_file_is_refused(tmp_path: Path) -> None:

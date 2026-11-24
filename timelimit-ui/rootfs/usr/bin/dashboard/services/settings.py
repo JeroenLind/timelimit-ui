@@ -20,7 +20,7 @@ from dashboard.services.rule_today import RuleTodayService
 from dashboard.sync.backend import Backend
 
 TESTED_API_LEVELS = (7, 9)  # Q7
-DASHBOARD_VERSION = "1.1.0-beta.1"
+DASHBOARD_VERSION = "1.1.0-beta.2"
 LOG_TAIL_LINES = 500
 SHOWN_TIMINGS = (
     "health_timeout",

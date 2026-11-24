@@ -5,4 +5,4 @@ sync engine. This package is the only application (the old ``dashboardV2`` was r
 """
 
 # The one place the version is written by hand; config.yaml must say the same (a test compares them).
-__version__ = "1.1.0-beta.1"
+__version__ = "1.1.0-beta.2"
