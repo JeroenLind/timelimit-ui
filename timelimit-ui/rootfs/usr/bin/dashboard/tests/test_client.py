@@ -204,15 +204,15 @@ def test_http_411_is_repeated_without_compression(
     assert fake_server.world.request_encodings[-2:] == ["gzip", ""]
 
 
-def test_requests_carry_client_level_7(
+def test_requests_carry_client_level_8(
     fake_server: FakeTimeLimitServer, client: TimeLimitClient
 ) -> None:
     token, _, _ = link(client, fake_server)
     client.pull_status(token, BLANK)
-    assert CLIENT_LEVEL == 7
-    assert fake_server.world.client_levels == [7, 7]
+    assert CLIENT_LEVEL == 8
+    assert fake_server.world.client_levels == [8, 8]
     client.pull_status(token, {**BLANK, "clientLevel": 99})  # ours always wins
-    assert fake_server.world.client_levels[-1] == 7
+    assert fake_server.world.client_levels[-1] == 8
 
 
 # -- the whole flow, and the "one HTTP function" rules -----------------------------------------------------

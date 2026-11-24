@@ -162,7 +162,7 @@ The dashboard is a web based **parent control** for the TimeLimit Android app. I
 | TR-101 | M | Wire action types are SCREAMING_SNAKE; ids inside a family are 6 characters `[0-9a-zA-Z]`; `encodedAction` is a JSON **string**; integrity covers exactly that string. All actions are built by `action_builder.py` and validated before a sequence number is reserved. | Done |
 | TR-102 | M | Password integrity: HMAC-SHA256 with key = second hash, message = uint64BE(seq) ‖ len+deviceId ‖ len+encodedAction. Verified with test vectors. | Done |
 | TR-103 | M | `ClientDataStatus` contains all versions and per-category data (D10). | Done (B3) |
-| TR-104 | M | The dashboard sends clientLevel 7 and only uses features available at that level. | Done |
+| TR-104 | M | The dashboard sends clientLevel 8 (the current Android app; the server only uses it to skip its "please update" message) and only uses features available at level 7. | Done |
 | TR-105 | S | WebSocket (Socket.IO) per `docs/ServerAPI.md` section 6: `devicelogin`, `should sync`, `sign out`. | Done (backend B6; browser use in E-steps) |
 | TR-106 | S | Requests are gzip-compressed with retry on HTTP 411, like the Android app. | Done (A6) |
 

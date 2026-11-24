@@ -191,7 +191,7 @@ Derived from these answers, written into FR-307 and **confirmed by you on 2026-1
 
 ### A6 · Server client — M
 **Refs:** TR-100, 103 (client part), 104, 106, 303, 514, SEC-002, FR-1000.
-**Work:** The only module that does HTTP to the TimeLimit server. Configurable timeouts, `clientLevel` 7, gzip with the retry on HTTP 411, mapping of network/HTTP failures to the error classes (`SERVER_UNREACHABLE`, `SESSION_INVALID`, …), HTTPS rule (HTTP only for localhost/LAN).
+**Work:** The only module that does HTTP to the TimeLimit server. Configurable timeouts, `clientLevel` 8, gzip with the retry on HTTP 411, mapping of network/HTTP failures to the error classes (`SERVER_UNREACHABLE`, `SESSION_INVALID`, …), HTTPS rule (HTTP only for localhost/LAN).
 **Result:**
 - I: against the fake: timeout after the configured time (fake made slow), connection refused → `SERVER_UNREACHABLE`, 401 → `SESSION_INVALID`, 411 → retry with `Content-Length`.
 - U: a non-local `http://` URL is rejected with a clear message; `localhost` and LAN addresses are accepted.

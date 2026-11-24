@@ -24,7 +24,7 @@ TESTED_API_LEVELS = (
     9,
     10,
 )  # Q7; 10 added after a live run against the current upstream server
-DASHBOARD_VERSION = "1.1.0-beta.3"
+DASHBOARD_VERSION = "1.1.0-beta.4"
 LOG_TAIL_LINES = 500
 SHOWN_TIMINGS = (
     "health_timeout",

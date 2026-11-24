@@ -21,7 +21,7 @@ from ..domain.secret import Secret
 
 log = logging.getLogger("dashboard.client")
 
-CLIENT_LEVEL = 7  # TR-104: the dashboard only uses what is available at this level
+CLIENT_LEVEL = 8  # TR-104: the level of the current Android app (7.5.0); the server only varies a "please update" campaign message on it
 OFFICIAL_SERVER_URL = "https://api.timelimit.io"
 
 
