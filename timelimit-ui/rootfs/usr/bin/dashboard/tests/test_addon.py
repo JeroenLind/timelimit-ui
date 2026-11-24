@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,9 @@ def test_options_left_over_from_an_older_version_are_ignored(
     path = tmp_path / "options.json"
     path.write_text(json.dumps(old))
     monkeypatch.setattr("dashboard.main.main", lambda: 0)
+    monkeypatch.setattr(
+        addon.os, "environ", {}
+    )  # main() sets DASHBOARD_*; keep it out of other tests
     assert addon.main(path) == 0
     err = capsys.readouterr().err
     assert "auth_token, server_url" in err
