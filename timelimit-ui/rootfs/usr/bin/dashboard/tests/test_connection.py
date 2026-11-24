@@ -109,11 +109,11 @@ def test_failed_requests_are_logged_with_kind_and_timing(
     with caplog.at_level("WARNING"):
         service.status()
     record = next(r for r in caplog.records if r.getMessage() == "http request failed")
-    assert record.fields["kind"] == "connection"
-    assert record.fields["path"] == "/time"
-    assert record.fields["idle_s"] is not None
-    assert record.fields["timeout_s"] > 0
-    assert isinstance(record.fields["elapsed_ms"], int)
+    assert record.__dict__["fields"]["kind"] == "connection"
+    assert record.__dict__["fields"]["path"] == "/time"
+    assert record.__dict__["fields"]["idle_s"] is not None
+    assert record.__dict__["fields"]["timeout_s"] > 0
+    assert isinstance(record.__dict__["fields"]["elapsed_ms"], int)
 
 
 def test_a_timeout_is_logged_as_timeout(
@@ -126,8 +126,8 @@ def test_a_timeout_is_logged_as_timeout(
     with caplog.at_level("WARNING"):
         service.status()
     record = next(r for r in caplog.records if r.getMessage() == "http request failed")
-    assert record.fields["kind"] == "timeout"
-    assert record.fields["elapsed_ms"] >= 500
+    assert record.__dict__["fields"]["kind"] == "timeout"
+    assert record.__dict__["fields"]["elapsed_ms"] >= 500
 
 
 def test_failure_streak_and_recovery_are_logged(
@@ -147,4 +147,4 @@ def test_failure_streak_and_recovery_are_logged(
     again = next(
         r for r in caplog.records if r.getMessage() == "server reachable again"
     )
-    assert again.fields["failed_probes"] == 2
+    assert again.__dict__["fields"]["failed_probes"] == 2
