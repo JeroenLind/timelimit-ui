@@ -1,6 +1,8 @@
 name: "Timelimit UI"
 description: "Web dashboard for the parent controls of the TimeLimit app"
-version: "1.0.0"
+version: "1.1.0-beta.1"
+# Beta: HA only lists add-ons with stage experimental when Advanced Mode is on in the user profile.
+stage: experimental
 slug: "timelimit-ui"
 arch:
   - aarch64

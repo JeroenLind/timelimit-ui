@@ -13,7 +13,7 @@ WORKFLOW = APP.parent / ".github" / "workflows" / "builder.yaml"
 
 
 def test_the_version_is_the_same_in_the_app_and_in_config_yaml() -> None:
-    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
+    assert re.fullmatch(r"\d+\.\d+\.\d+(-beta\.\d+)?", __version__)
     assert simple_yaml(APP / "config.yaml")["version"] == __version__
 
 

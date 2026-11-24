@@ -112,7 +112,7 @@ def test_the_addon_is_aarch64_with_ingress(config: dict[str, Any]) -> None:
     assert config["ingress"] is True
     assert config["ingress_port"] == addon.INGRESS_PORT
     assert "{arch}" in config["image"]
-    assert re.fullmatch(r"\d+\.\d+\.\d+", config["version"])
+    assert re.fullmatch(r"\d+\.\d+\.\d+(-beta\.\d+)?", config["version"])
     for key in ("name", "description", "slug"):
         assert config[key]
 
