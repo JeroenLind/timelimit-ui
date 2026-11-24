@@ -43,9 +43,9 @@ jobs:
         run: |
           mkdir -p smoke-data
           echo '{"log_level": "info"}' > smoke-data/options.json
-          # the add-on entry point without s6: the same module the s6 service runs
+          # the add-on entry point without s6: the same module the s6 service runs, from the same directory (/usr/bin)
           docker run -d --name smoke --platform linux/arm64 -v "$PWD/smoke-data:/data" -p 8099:8099 \
-            --entrypoint python3 timelimit-ui:smoke -u -m dashboard.addon
+            -w /usr/bin --entrypoint python3 timelimit-ui:smoke -u -m dashboard.addon
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8099/api/health; then ok=1; break; fi
             sleep 2
