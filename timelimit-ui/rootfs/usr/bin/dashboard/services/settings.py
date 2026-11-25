@@ -23,7 +23,7 @@ TESTED_API_LEVELS = (
     7,
     9,
     10,
-)  # Q7; 10 added after a live run against the current upstream server
+)  # Q7; see ServerAPI.md (level 10 also checked live against the current server)
 DASHBOARD_VERSION = "1.1.0-beta.4"
 LOG_TAIL_LINES = 500
 SHOWN_TIMINGS = (
